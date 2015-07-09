@@ -60,11 +60,21 @@ namespace Versionr.Objects
 
         [ProtoBuf.ProtoIgnore]
         [SQLite.Ignore]
+        public string DataIdentifier
+        {
+            get
+            {
+                return Fingerprint + "-" + Size.ToString();
+            }
+        }
+
+        [ProtoBuf.ProtoIgnore]
+        [SQLite.Ignore]
         public string UniqueIdentifier
         {
             get
             {
-                return Fingerprint + "-" + Size.ToString() + "-" + ((int)Attributes).ToString();
+                return DataIdentifier + "-" + ((int)Attributes).ToString();
             }
         }
     }

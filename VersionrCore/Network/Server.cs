@@ -221,6 +221,7 @@ namespace Versionr.Network
                 {
                     if (IsAncestor(head.Version, x.Version.ID, clientInfo, ws))
                     {
+                        pendingMerges[branch.ID] = Guid.Empty;
                         head.Version = x.Version.ID;
                     }
                     else if (!IsAncestor(x.Version.ID, head.Version, clientInfo, ws))
@@ -232,6 +233,12 @@ namespace Versionr.Network
             }
             foreach (var x in pendingMerges)
             {
+                if (x.Value == Guid.Empty)
+                {
+                    Printer.PrintDiagnostics("Uncontested head update for branch \"{0}\".", ws.GetBranch(x.Key).Name);
+                    Printer.PrintDiagnostics(" - Head updated to {0}", temporaryHeads[x.Key].Version);
+                    continue;
+                }
                 Branch branch = ws.GetBranch(x.Key);
                 VersionInfo result;
                 string error;
@@ -246,8 +253,11 @@ namespace Versionr.Network
                 else
                 {
                     clientInfo.MergeVersion = result;
+                    Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
+                    Printer.PrintDiagnostics(" - Merge local input {0}", x.Value);
+                    Printer.PrintDiagnostics(" - Merge remote input {0}", temporaryHeads[x.Key].Version);
+                    Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
                     temporaryHeads[x.Key].Version = result.Version.ID;
-                    Printer.PrintMessage("Resolved incoming merge for branch {0}", branch.Name);
                 }
             }
             // theoretically best
@@ -359,6 +369,7 @@ namespace Versionr.Network
             {
                 RequestRecordData rrd = new RequestRecordData();
                 List<long> recordsInPack = new List<long>();
+                HashSet<string> recordDataIdentifiers = new HashSet<string>();
                 while (recordsInPack.Count < 1024 * 32 && index < records.Count)
                 {
                     long recordIndex = records[index++];
@@ -367,6 +378,9 @@ namespace Versionr.Network
                         continue;
                     if (ws.HasObjectData(rec))
                         continue;
+                    if (recordDataIdentifiers.Contains(rec.DataIdentifier))
+                        continue;
+                    recordDataIdentifiers.Add(rec.DataIdentifier);
                     recordsInPack.Add(recordIndex);
                 }
                 if (recordsInPack.Count > 0)
@@ -473,31 +487,33 @@ namespace Versionr.Network
 
         private static PushObjectResponse ProcessPushObjectQuery(Area ws, PushObjectQuery query)
         {
-            PushObjectResponse response = new PushObjectResponse() { Recognized = new bool[query.IDs.Length] };
-            if (query.Type == ObjectType.Branch)
+            PushObjectResponse response = new PushObjectResponse() { Recognized = new bool[query.IDs == null ? 0 : query.IDs.Length] };
+            if (query.IDs != null)
             {
-                for (int i = 0; i < query.IDs.Length; i++)
+                if (query.Type == ObjectType.Branch)
                 {
-                    if (ws.GetBranch(new Guid(query.IDs[i])) != null)
-                        response.Recognized[i] = true;
-                    else
-                        response.Recognized[i] = false;
+                    for (int i = 0; i < query.IDs.Length; i++)
+                    {
+                        if (ws.GetBranch(new Guid(query.IDs[i])) != null)
+                            response.Recognized[i] = true;
+                        else
+                            response.Recognized[i] = false;
+                    }
                 }
-                return response;
-            }
-            else if (query.Type == ObjectType.Version)
-            {
-                for (int i = 0; i < query.IDs.Length; i++)
+                else if (query.Type == ObjectType.Version)
                 {
-                    if (ws.GetVersion(new Guid(query.IDs[i])) != null)
-                        response.Recognized[i] = true;
-                    else
-                        response.Recognized[i] = false;
+                    for (int i = 0; i < query.IDs.Length; i++)
+                    {
+                        if (ws.GetVersion(new Guid(query.IDs[i])) != null)
+                            response.Recognized[i] = true;
+                        else
+                            response.Recognized[i] = false;
+                    }
                 }
-                return response;
+                else
+                    throw new Exception("Unrecognized object type for push object query.");
             }
-            else
-                throw new Exception("Unrecognized object type for push object query.");
+            return response;
         }
     }
 }

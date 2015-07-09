@@ -120,5 +120,23 @@ namespace Versionr
                 throw new Exception("Unable to add stage operations!", e);
             }
         }
+
+        internal Dictionary<string, List<StageOperation>> GetMappedStage()
+        {
+            Dictionary<string, List<StageOperation>> result = new Dictionary<string, List<StageOperation>>();
+            foreach (var x in StageOperations)
+            {
+                if (x.Type == StageOperationType.Merge)
+                    continue;
+                List<StageOperation> ops = null;
+                if (!result.TryGetValue(x.Operand1, out ops))
+                {
+                    ops = new List<StageOperation>();
+                    result[x.Operand1] = ops;
+                }
+                ops.Add(x);
+            }
+            return result;
+        }
     }
 }

@@ -12,7 +12,8 @@ namespace Versionr.LocalState
         Remove,
         Rename,
         Conflict,
-        Merge
+        Merge,
+        MergeRecord,
     }
     public class StageOperation
     {
@@ -22,6 +23,7 @@ namespace Versionr.LocalState
         public string Operand1 { get; set; }
         public string Operand2 { get; set; }
         public int Flags { get; set; }
+        public long ReferenceObject { get; set; }
 
         [SQLite.Ignore]
         public bool IsFileOperation

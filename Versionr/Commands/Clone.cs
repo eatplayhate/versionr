@@ -34,7 +34,13 @@ namespace Versionr.Commands
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
-            return client.Clone();
+            bool result = client.Clone();
+            if (result)
+            {
+                string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
+                client.Workspace.SetRemote(client.Host, client.Port, remoteName);
+            }
+            return result;
         }
         protected override bool NeedsWorkspace
         {

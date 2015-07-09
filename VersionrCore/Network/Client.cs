@@ -10,11 +10,13 @@ namespace Versionr.Network
     public class Client
     {
         System.Net.Sockets.TcpClient Connection { get; set; }
-        Area Workspace { get; set; }
+        public Area Workspace { get; set; }
         System.Security.Cryptography.AesManaged AESProvider { get; set; }
         byte[] AESKey { get; set; }
         byte[] AESIV { get; set; }
         public bool Connected { get; set; }
+        public string Host { get; set; }
+        public int Port { get; set; }
 
         System.IO.DirectoryInfo BaseDirectory { get; set; }
 
@@ -342,34 +344,39 @@ namespace Versionr.Network
                             break;
                         }
                     }
-                    
-                    PushObjectQuery query = new PushObjectQuery();
-                    query.Type = ObjectType.Branch;
-                    query.IDs = branchIDs.Select(x => x.ID.ToString()).ToArray();
 
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
-                    Utilities.SendEncrypted<PushObjectQuery>(Connection.GetStream(), Encryptor, query);
-
-                    PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(Connection.GetStream(), Decryptor);
-                    if (response.Recognized.Length != query.IDs.Length)
-                        throw new Exception("Invalid response!");
-                    int recognized = 0;
-                    for (int i = 0; i < response.Recognized.Length; i++)
+                    if (branchIDs.Count > 0)
                     {
-                        Printer.PrintDiagnostics(" - Branch ID: {0}", query.IDs[i]);
-                        if (!response.Recognized[i])
+                        PushObjectQuery query = new PushObjectQuery();
+                        query.Type = ObjectType.Branch;
+                        query.IDs = branchIDs.Select(x => x.ID.ToString()).ToArray();
+
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
+                        Utilities.SendEncrypted<PushObjectQuery>(Connection.GetStream(), Encryptor, query);
+
+                        PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(Connection.GetStream(), Decryptor);
+                        if (response.Recognized.Length != query.IDs.Length)
+                            throw new Exception("Invalid response!");
+                        int recognized = 0;
+                        for (int i = 0; i < response.Recognized.Length; i++)
                         {
-                            branchesToSend.Push(branchIDs[i]);
-                            Printer.PrintDiagnostics("   (not recognized on server)");
+                            Printer.PrintDiagnostics(" - Branch ID: {0}", query.IDs[i]);
+                            if (!response.Recognized[i])
+                            {
+                                branchesToSend.Push(branchIDs[i]);
+                                Printer.PrintDiagnostics("   (not recognized on server)");
+                            }
+                            else
+                            {
+                                ServerKnownBranches.Add(branchIDs[i].ID);
+                                recognized++;
+                                Printer.PrintDiagnostics("   (branch already on server)");
+                            }
                         }
-                        else
-                        {
-                            ServerKnownBranches.Add(branchIDs[i].ID);
-                            recognized++;
-                            Printer.PrintDiagnostics("   (branch already on server)");
-                        }
+                        if (recognized != 0) // we found a common parent somewhere
+                            break;
                     }
-                    if (recognized != 0) // we found a common parent somewhere
+                    else if (ServerKnownBranches.Count > 0)
                         break;
                 }
                 return true;
@@ -416,6 +423,8 @@ namespace Versionr.Network
 
         public bool Connect(string host, int port)
         {
+            Host = host;
+            Port = port;
             Connected = false;
             Connection = new System.Net.Sockets.TcpClient(host, port);
             if (Connection.Connected)

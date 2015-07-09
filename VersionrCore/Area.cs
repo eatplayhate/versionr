@@ -763,56 +763,56 @@ namespace Versionr
 
             foreach (var x in foreignRecords)
             {
-                Objects.Record parentRecord = parentRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record parentRecord = parentRecords.Where(z => x.Item1.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record localRecord = records.Where(z => x.Item1.CanonicalName == z.CanonicalName).FirstOrDefault();
 
                 if (localRecord == null)
                 {
                     if (parentRecord == null)
                     {
-                        alterations.Add(new FusedAlteration() { Alteration = AlterationType.Add, NewRecord = clientInfo.LocalRecordMap[x.Id] });
+                        alterations.Add(new FusedAlteration() { Alteration = AlterationType.Add, NewRecord = x.Item1 });
                     }
                     else
                     {
                         // Removed locally
-                        if (parentRecord.DataEquals(x))
+                        if (parentRecord.DataEquals(x.Item1))
                         {
                             // this is fine, we removed it in our branch
                         }
                         else
                         {
-                            error = string.Format("Object \"{0}\" changed in pushed branch and removed from remote - requires full merge.", x.CanonicalName);
+                            error = string.Format("Object \"{0}\" changed in pushed branch and removed from remote - requires full merge.", x.Item1.CanonicalName);
                             return null;
                         }
                     }
                 }
                 else
                 {
-                    if (localRecord.DataEquals(x))
+                    if (localRecord.DataEquals(x.Item1))
                     {
                         // all good, same data in both places
                     }
                     else if (parentRecord == null)
                     {
                         // two additions = conflict
-                        error = string.Format("Object \"{0}\" added in pushed branch and remote - requires full merge.", x.CanonicalName);
-                        Printer.PrintWarning("Object \"{0}\" requires full merge.", x.CanonicalName);
+                        error = string.Format("Object \"{0}\" added in pushed branch and remote - requires full merge.", x.Item1.CanonicalName);
+                        Printer.PrintWarning("Object \"{0}\" requires full merge.", x.Item1.CanonicalName);
                         return null;
                     }
                     else
                     {
                         if (localRecord.DataEquals(parentRecord))
                         {
-                            alterations.Add(new FusedAlteration() { Alteration = AlterationType.Update, NewRecord = clientInfo.LocalRecordMap[x.Id], PriorRecord = localRecord });
+                            alterations.Add(new FusedAlteration() { Alteration = AlterationType.Update, NewRecord = x.Item1, PriorRecord = localRecord });
                         }
-                        else if (parentRecord.DataEquals(x))
+                        else if (parentRecord.DataEquals(x.Item1))
                         {
                             // modified locally
                         }
                         else
                         {
-                            error = string.Format("Object \"{0}\" changed on pushed branch and remote - requires full merge.", x.CanonicalName);
-                            Printer.PrintWarning("Object \"{0}\" requires full merge.", x.CanonicalName);
+                            error = string.Format("Object \"{0}\" changed on pushed branch and remote - requires full merge.", x.Item1.CanonicalName);
+                            Printer.PrintWarning("Object \"{0}\" requires full merge.", x.Item1.CanonicalName);
                             return null;
                         }
                     }
@@ -820,7 +820,7 @@ namespace Versionr
             }
             foreach (var x in parentRecords)
             {
-                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.Item1.CanonicalName).Select(z => z.Item1).FirstOrDefault();
                 Objects.Record localRecord = records.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
                 if (foreignRecord == null)
                 {
@@ -859,7 +859,7 @@ namespace Versionr
             };
         }
 
-        private List<Objects.Record> GetRemoteRecords(Guid remoteVersionID, Server.ClientStateInfo clientInfo)
+        private List<Tuple<Objects.Record, bool>> GetRemoteRecords(Guid remoteVersionID, Server.ClientStateInfo clientInfo)
         {
             Stack<Network.FusedAlteration> remoteAlterations = new Stack<Network.FusedAlteration>();
             while (true)
@@ -868,7 +868,8 @@ namespace Versionr
                 if (info == null)
                 {
                     Objects.Version localVersion = GetVersion(remoteVersionID);
-                    var records = Database.GetRecords(localVersion);
+                    var recordsBase = Database.GetRecords(localVersion);
+                    List<Tuple<Objects.Record, bool>> records = new List<Tuple<Record, bool>>(recordsBase.Select(x => new Tuple<Objects.Record, bool>(x, false)));
                     while (remoteAlterations.Count > 0)
                     {
                         Network.FusedAlteration alteration = remoteAlterations.Pop();
@@ -876,7 +877,7 @@ namespace Versionr
                         {
                             case AlterationType.Add:
                             case AlterationType.Copy:
-                                records.Add(clientInfo.LocalRecordMap[alteration.NewRecord.Id]);
+                                records.Add(new Tuple<Record, bool>(clientInfo.LocalRecordMap[alteration.NewRecord.Id], true));
                                 break;
                             case AlterationType.Delete:
                             {
@@ -884,7 +885,7 @@ namespace Versionr
                                 bool found = false;
                                 for (int i = 0; i < records.Count; i++)
                                 {
-                                    if (records[i].Id == removedID)
+                                    if (records[i].Item1.Id == removedID)
                                     {
                                         records.RemoveAt(i);
                                         found = true;
@@ -902,7 +903,7 @@ namespace Versionr
                                 bool found = false;
                                 for (int i = 0; i < records.Count; i++)
                                 {
-                                    if (records[i].Id == removedID)
+                                    if (records[i].Item1.Id == removedID)
                                     {
                                         records.RemoveAt(i);
                                         found = true;
@@ -911,7 +912,7 @@ namespace Versionr
                                 }
                                 if (!found)
                                     throw new Exception("Couldn't consolidate changelists.");
-                                records.Add(clientInfo.LocalRecordMap[alteration.NewRecord.Id]);
+                                records.Add(new Tuple<Record, bool>(clientInfo.LocalRecordMap[alteration.NewRecord.Id], true));
                                 break;
                             }
                         }
@@ -1018,6 +1019,7 @@ namespace Versionr
                         // Added
                         RestoreRecord(x);
                         Add(x.CanonicalName);
+                        LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                     }
                     else
                     {
@@ -1032,6 +1034,7 @@ namespace Versionr
                             Printer.PrintWarning("Object \"{0}\" removed locally but present in merge source.", x.CanonicalName);
                             RestoreRecord(x);
                             LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
                     }
                 }
@@ -1047,6 +1050,8 @@ namespace Versionr
                         {
                             // modified in foreign branch
                             RestoreRecord(x);
+                            Add(x.CanonicalName);
+                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
                         else if (parentRecord != null && parentRecord.DataEquals(x))
                         {
@@ -1078,6 +1083,8 @@ namespace Versionr
                                 Printer.PrintMessage(" - Resolved.");
                                 System.IO.File.Delete(mf);
                                 System.IO.File.Delete(mb);
+                                Add(x.CanonicalName);
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                             else
                             {
@@ -1240,6 +1247,12 @@ namespace Versionr
                     {
                         Printer.PrintError("Can't find version or branch with name: {0}", v);
                         return;
+                    }
+                    if (target.Branch != CurrentBranch.ID)
+                    {
+                        Objects.Branch branch = GetBranch(target.Branch);
+                        Printer.PrintMessage("Switching branch to \"{0}\".", branch.Name);
+                        SwitchBranch(branch);
                     }
                 }
             }
@@ -1406,6 +1419,11 @@ namespace Versionr
             var branch = Database.Find<Branch>(x => x.Name == v && x.Deleted == false);
             if (branch == null)
                 return false;
+            return SwitchBranch(branch);
+        }
+
+        private bool SwitchBranch(Objects.Branch branch)
+        {
             LocalData.BeginTransaction();
             try
             {
@@ -1505,12 +1523,17 @@ namespace Versionr
                     HashSet<Objects.Record> finalRecords = new HashSet<Record>();
                     List<Tuple<Objects.Record, Objects.Alteration>> alterationLinkages = new List<Tuple<Record, Alteration>>();
                     HashSet<string> stagedChanges = new HashSet<string>(LocalData.StageOperations.Where(x => x.Type == StageOperationType.Add).Select(x => x.Operand1));
+
+                    Dictionary<string, List<StageOperation>> fullStageInfo = LocalData.GetMappedStage();
+
                     Dictionary<string, ObjectName> canonicalNames = new Dictionary<string, ObjectName>();
                     foreach (var x in Database.Table<ObjectName>().ToList())
                         canonicalNames[x.CanonicalName] = x;
                     List<Tuple<Record, ObjectName>> canonicalNameInsertions = new List<Tuple<Record, ObjectName>>();
                     foreach (var x in st.Elements)
                     {
+                        List<StageOperation> stagedOps;
+                        fullStageInfo.TryGetValue(x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName, out stagedOps);
                         switch (x.Code)
                         {
                             case StatusCode.Deleted:
@@ -1543,17 +1566,38 @@ namespace Versionr
                                             if (!stagedChanges.Contains(x.FilesystemEntry.CanonicalName))
                                                 break;
                                         }
-                                        Objects.Record record = new Objects.Record();
-                                        record.CanonicalName = x.FilesystemEntry.CanonicalName;
-                                        if (record.IsDirectory)
-                                            record.Fingerprint = x.FilesystemEntry.CanonicalName;
-                                        else
-                                            record.Fingerprint = x.FilesystemEntry.Hash;
-                                        record.Attributes = x.FilesystemEntry.Attributes;
-                                        record.Size = x.FilesystemEntry.Length;
-                                        record.ModificationTime = x.FilesystemEntry.ModificationTime;
-                                        if (x.VersionControlRecord != null)
-                                            record.Parent = x.VersionControlRecord.Id;
+                                        Objects.Record record = null;
+                                        bool recordIsMerged = false;
+                                        if (stagedOps != null)
+                                        {
+                                            foreach (var op in stagedOps)
+                                            {
+                                                if (op.Type == StageOperationType.MergeRecord)
+                                                {
+                                                    Objects.Record mergedRecord = GetRecord(op.ReferenceObject);
+                                                    if (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash)
+                                                    {
+                                                        record = mergedRecord;
+                                                        recordIsMerged = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (record == null)
+                                        {
+                                            record = new Objects.Record();
+                                            record.CanonicalName = x.FilesystemEntry.CanonicalName;
+                                            if (record.IsDirectory)
+                                                record.Fingerprint = x.FilesystemEntry.CanonicalName;
+                                            else
+                                                record.Fingerprint = x.FilesystemEntry.Hash;
+                                            record.Attributes = x.FilesystemEntry.Attributes;
+                                            record.Size = x.FilesystemEntry.Length;
+                                            record.ModificationTime = x.FilesystemEntry.ModificationTime;
+                                            if (x.VersionControlRecord != null)
+                                                record.Parent = x.VersionControlRecord.Id;
+                                        }
                                         RecordData(x.FilesystemEntry, x.VersionControlRecord, record);
 
                                         ObjectName nameRecord = null;
@@ -1598,7 +1642,8 @@ namespace Versionr
                                         }
                                         finalRecords.Add(record);
                                         alterations.Add(alteration);
-                                        records.Add(record);
+                                        if (!recordIsMerged)
+                                            records.Add(record);
                                     }
                                     catch (Exception e)
                                     {
