@@ -1,0 +1,30 @@
+{
+	"Ignore" :
+	{
+		"Extensions" :
+		[
+			".sdf",
+			".obj",
+			".tlog",
+			".pdb",
+			".idb",
+			".ilk",
+			".log",
+			".opensdf",
+			".ipch",
+			".suo",
+			".user"
+		],
+		"Patterns" :
+		[
+			".*/obj/",
+			"^\\.vs/",
+			"^ipch",
+			"^Debug/",
+			".*\\.tlog",
+			"^x64",
+			"Versionr\\.exe",
+			"VersionrCore\\.dll"
+		]
+	}
+}
