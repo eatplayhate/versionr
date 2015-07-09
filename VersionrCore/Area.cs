@@ -1003,6 +1003,17 @@ namespace Versionr
             if (parent == null)
                 throw new Exception("No common parent!");
 
+            if (parent.ID == mergeVersion.ID)
+            {
+                Printer.PrintMessage("Merge information is already up to date.");
+                return;
+            }
+
+            Printer.PrintMessage("Starting merge:");
+            Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
+            Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
+            Printer.PrintMessage(" - Parent: {0}", parent.ID);
+
             var records = Database.Records;
             var foreignRecords = Database.GetRecords(mergeVersion);
             var parentRecords = Database.GetRecords(parent);
@@ -1057,6 +1068,40 @@ namespace Versionr
                         {
                             // modified locally
                         }
+                        else if (parentRecord == null)
+                        {
+                            Printer.PrintMessage("Merging {0}", x.CanonicalName);
+                            // modified in both places
+                            string mf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
+                            string ml = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
+                            string mr = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
+                            
+                            RestoreRecord(x, mf);
+
+                            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
+                            {
+                                FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                                Arguments = string.Format("\"{0}\" \"{1}\" -o \"{2}\" --auto", ml, mf, mr)
+                            };
+                            var proc = System.Diagnostics.Process.Start(psi);
+                            proc.WaitForExit();
+                            if (proc.ExitCode == 0)
+                            {
+                                System.IO.File.Delete(ml);
+                                System.IO.File.Move(mr, ml);
+                                Printer.PrintMessage(" - Resolved.");
+                                System.IO.File.Delete(mf);
+                                Add(x.CanonicalName);
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            }
+                            else
+                            {
+                                System.IO.File.Move(ml, ml + ".mine");
+                                System.IO.File.Move(mf, ml + ".theirs");
+                                Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                            }
+                        }
                         else
                         {
                             Printer.PrintMessage("Merging {0}", x.CanonicalName);
@@ -1072,7 +1117,7 @@ namespace Versionr
                             System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
                             {
                                 FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                                Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" --auto -o \"{3}\"", mb, ml, mf, mr)
+                                Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto", mb, ml, mf, mr)
                             };
                             var proc = System.Diagnostics.Process.Start(psi);
                             proc.WaitForExit();
@@ -1475,7 +1520,7 @@ namespace Versionr
             Objects.Version parentVersion = Database.Version;
             Printer.PrintDiagnostics("Getting status for commit.");
             Status st = Status;
-            if (st.HasModifications(!allModified))
+            if (st.HasModifications(!allModified) || mergeID != null)
             {
                 try
                 {
