@@ -7,7 +7,7 @@
     <ProjectGuid>{55C6B198-E938-427F-96A5-C1252CB06ACD}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>VersionrCore</RootNamespace>
+    <RootNamespace>Versionr</RootNamespace>
     <AssemblyName>VersionrCore</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -55,6 +55,8 @@
     <Compile Include="LocalState\StageOperation.cs" />
     <Compile Include="LocalState\Workspace.cs" />
     <Compile Include="Network\Client.cs" />
+    <Compile Include="Network\ClonePayload.cs" />
+    <Compile Include="Network\CompressibleAttribute.cs" />
     <Compile Include="Network\Handshake.cs" />
     <Compile Include="Network\NetCommand.cs" />
     <Compile Include="Network\PushObjectQuery.cs" />

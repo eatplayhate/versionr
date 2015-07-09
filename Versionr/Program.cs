@@ -113,6 +113,9 @@ namespace Versionr
         [VerbOption("behead", HelpText = "Forcefully removes a head from a branch.")]
         public Commands.BeheadVerbOptions BeheadVerb { get; set; }
 
+        [VerbOption("clone", HelpText = "Clones an initial revision from a remote server.")]
+        public Commands.CloneVerbOptions CloneVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -168,6 +171,8 @@ namespace Versionr
 				return BeheadVerb.GetUsage();
             else if (verb == "viewdag")
                 return ViewDAGVerb.GetUsage();
+            else if (verb == "clone")
+                return CloneVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -213,6 +218,7 @@ namespace Versionr
             commands["remote"] = new Commands.Remote();
             commands["behead"] = new Commands.Behead();
             commands["viewdag"] = new Commands.ViewDAG();
+            commands["clone"] = new Commands.Clone();
 
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))

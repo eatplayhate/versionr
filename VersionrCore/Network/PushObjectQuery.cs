@@ -43,6 +43,7 @@ namespace Versionr.Network
         public Objects.Branch[] Branches { get; set; }
     }
 
+    [Compressible]
     [ProtoBuf.ProtoContract]
     class VersionPack
     {
@@ -72,6 +73,7 @@ namespace Versionr.Network
         public Objects.Record PriorRecord { get; set; }
     }
 
+    [Compressible]
     [ProtoBuf.ProtoContract]
     class RequestRecordParents
     {
@@ -79,6 +81,7 @@ namespace Versionr.Network
         public long[] RecordParents { get; set; }
     }
 
+    [Compressible]
     [ProtoBuf.ProtoContract]
     class RequestRecordData
     {
@@ -86,6 +89,7 @@ namespace Versionr.Network
         public long[] Records { get; set; }
     }
 
+    [Compressible]
     [ProtoBuf.ProtoContract]
     class RecordParentPack
     {

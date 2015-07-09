@@ -114,6 +114,14 @@ namespace Versionr
             }
         }
 
+        internal static Area InitRemote(DirectoryInfo workingDir, ClonePayload clonePack)
+        {
+            Area ws = CreateWorkspace(workingDir);
+            if (!ws.Init(clonePack))
+                throw new Exception("Couldn't initialize versionr.");
+            return ws;
+        }
+
         public RemoteConfig GetRemote(string name)
         {
             Printer.PrintDiagnostics("Trying to find remote with name \"{0}\"", name);
@@ -180,7 +188,7 @@ namespace Versionr
             AdministrationFolder = adminFolder;
         }
 
-        private bool Init()
+        private bool Init(ClonePayload remote = null)
         {
             try
             {
@@ -190,13 +198,76 @@ namespace Versionr
                 Database = WorkspaceDB.Create(LocalData, MetadataFile.FullName);
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 ObjectStore.Create(this);
-                PopulateDefaults();
+                if (remote == null)
+                    PopulateDefaults();
+                else
+                    PopulateRemoteRoot(remote);
                 return true;
             }
             catch (Exception e)
             {
                 Printer.PrintError(e.ToString());
                 return false;
+            }
+        }
+
+        private void PopulateRemoteRoot(ClonePayload remote)
+        {
+            Printer.PrintDiagnostics("Cloning root state...");
+            LocalState.Configuration config = LocalData.Configuration;
+
+            LocalState.Workspace ws = LocalState.Workspace.Create();
+
+            Objects.Branch branch = remote.InitialBranch;
+            Objects.Version version = remote.RootVersion;
+            Objects.Snapshot snapshot = new Objects.Snapshot();
+            Objects.Head head = new Objects.Head();
+            Objects.Domain domain = new Objects.Domain();
+
+            Printer.PrintDiagnostics("Imported branch \"{0}\", ID: {1}.", branch.Name, branch.ID);
+            Printer.PrintDiagnostics("Imported version {0}", version.ID);
+
+            domain.InitialRevision = version.ID;
+            ws.Name = Environment.UserName;
+
+            head.Branch = branch.ID;
+            head.Version = version.ID;
+            ws.Branch = branch.ID;
+            ws.Tip = version.ID;
+            config.WorkspaceID = ws.ID;
+            ws.Domain = domain.InitialRevision;
+
+            Printer.PrintDiagnostics("Starting DB transaction.");
+            LocalData.BeginTransaction();
+            try
+            {
+                Database.BeginTransaction();
+                try
+                {
+                    Database.Insert(snapshot);
+                    version.AlterationList = snapshot.Id;
+                    version.Snapshot = snapshot.Id;
+                    Database.Insert(version);
+                    Database.Insert(head);
+                    Database.Insert(domain);
+                    Database.Insert(branch);
+                    Database.Insert(snapshot);
+                    Database.Commit();
+                }
+                catch (Exception e)
+                {
+                    Database.Rollback();
+                    throw new Exception("Couldn't initialize repository!", e);
+                }
+                LocalData.Insert(ws);
+                LocalData.Update(config);
+                LocalData.Commit();
+                Printer.PrintDiagnostics("Finished.");
+            }
+            catch (Exception e)
+            {
+                LocalData.Rollback();
+                throw new Exception("Couldn't initialize repository!", e);
             }
         }
 
@@ -2072,6 +2143,14 @@ namespace Versionr
 
         public static Area Init(DirectoryInfo workingDir)
         {
+            Area ws = CreateWorkspace(workingDir);
+            if (!ws.Init())
+                throw new Exception("Couldn't initialize versionr.");
+            return ws;
+        }
+
+        private static Area CreateWorkspace(DirectoryInfo workingDir)
+        {
             Area ws = LoadWorkspace(workingDir);
             if (ws != null)
                 throw new Exception(string.Format("Path {0} is already a versionr workspace!", workingDir.FullName));
@@ -2079,11 +2158,9 @@ namespace Versionr
             if (adminFolder.Exists)
                 throw new Exception(string.Format("Administration folder {0} already present.", adminFolder.FullName));
             ws = new Area(adminFolder);
-            if (!ws.Init())
-                throw new Exception("Couldn't initialize versionr.");
             return ws;
         }
-         
+
         public static Area Load(DirectoryInfo workingDir)
         {
             Area ws = LoadWorkspace(workingDir);

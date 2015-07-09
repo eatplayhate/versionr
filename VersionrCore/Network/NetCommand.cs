@@ -23,6 +23,7 @@ namespace Versionr.Network
         Acknowledge,
         DataReceived,
         Error,
+        Clone,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

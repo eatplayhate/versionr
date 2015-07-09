@@ -8,7 +8,7 @@ using Versionr.Network;
 
 namespace Versionr.Commands
 {
-    class PushVerbOptions : RemoteCommandVerbOptions
+    class CloneVerbOptions : RemoteCommandVerbOptions
     {
         public override string[] Description
         {
@@ -25,16 +25,30 @@ namespace Versionr.Commands
         {
             get
             {
-                return "push";
+                return "clone";
             }
         }
     }
-    class Push : RemoteCommand
+    class Clone : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
-            PushVerbOptions localOptions = options as PushVerbOptions;
-            return client.Push();
+            CloneVerbOptions localOptions = options as CloneVerbOptions;
+            return client.Clone();
+        }
+        protected override bool NeedsWorkspace
+        {
+            get
+            {
+                return false;
+            }
+        }
+        protected override bool NeedsNoWorkspace
+        {
+            get
+            {
+                return true;
+            }
         }
     }
 }

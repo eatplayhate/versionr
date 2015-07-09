@@ -16,6 +16,8 @@ namespace Versionr.Network
         byte[] AESIV { get; set; }
         public bool Connected { get; set; }
 
+        System.IO.DirectoryInfo BaseDirectory { get; set; }
+
         HashSet<Guid> ServerKnownBranches { get; set; }
         HashSet<Guid> ServerKnownVersions { get; set; }
 
@@ -39,6 +41,13 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
+        public Client(System.IO.DirectoryInfo baseDirectory)
+        {
+            Workspace = null;
+            BaseDirectory = baseDirectory;
+            ServerKnownBranches = new HashSet<Guid>();
+            ServerKnownVersions = new HashSet<Guid>();
+        }
         public void Close()
         {
             if (Connected)
@@ -59,8 +68,28 @@ namespace Versionr.Network
             Connection.Close();
         }
 
+        public bool Clone()
+        {
+            if (Workspace != null)
+                return false;
+            try
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Clone }, ProtoBuf.PrefixStyle.Fixed32);
+                var clonePack = Utilities.ReceiveEncrypted<ClonePayload>(Connection.GetStream(), Decryptor);
+                Workspace = Area.InitRemote(BaseDirectory, clonePack);
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError(e.ToString());
+                return false;
+            }
+        }
+
         public bool Push()
         {
+            if (Workspace == null)
+                return false;
             try
             {
                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
@@ -401,7 +430,7 @@ namespace Versionr.Network
 
                     var startTransaction = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Network.StartTransaction>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
-                    if (startTransaction.Domain != Workspace.Domain.ToString())
+                    if (Workspace != null && startTransaction.Domain != Workspace.Domain.ToString())
                     {
                         Printer.PrintError("Server domain doesn't match client domain. Disconnecting.");
                         return false;

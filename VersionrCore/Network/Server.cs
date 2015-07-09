@@ -105,6 +105,13 @@ namespace Versionr.Network
                                 Printer.PrintDiagnostics("Client closing connection.");
                                 break;
                             }
+                            else if (command.Type == NetCommandType.Clone)
+                            {
+                                Printer.PrintDiagnostics("Client is requesting to clone the vault.");
+                                Objects.Version initialRevision = ws.GetVersion(ws.Domain);
+                                Objects.Branch initialBranch = ws.GetBranch(initialRevision.Branch);
+                                Utilities.SendEncrypted<ClonePayload>(stream, aesCSP.CreateEncryptor(aesKey, aesIV), new ClonePayload() { InitialBranch = initialBranch, RootVersion = initialRevision });
+                            }
                             else if (command.Type == NetCommandType.PushObjectQuery)
                             {
                                 Printer.PrintDiagnostics("Client asking about objects on the server...");

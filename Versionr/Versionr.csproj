@@ -44,6 +44,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands\Behead.cs" />
+    <Compile Include="Commands\Clone.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\Push.cs" />
@@ -54,6 +55,7 @@
     <Compile Include="Commands\Commit.cs" />
     <Compile Include="Commands\Init.cs" />
     <Compile Include="Commands\Remote.cs" />
+    <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\Server.cs" />
     <Compile Include="Commands\Status.cs" />
     <Compile Include="Commands\ViewDAG.cs" />
