@@ -56,8 +56,24 @@ namespace Versionr.Commands
                 return false;
             Objects.Version version;
             if (!ws.FindVersion(localOptions.Target, out version))
-                return false;
-            List<Objects.Head> heads = ws.GetHeads(version.ID);
+			{
+				if (localOptions.Force)
+				{
+					if (!ws.ForceBehead(localOptions.Target))
+					{
+						Printer.PrintError("No head pointing to partial name \"{0}.\"", localOptions.Target);
+						return false;
+					}
+					return true;
+				}
+				else
+				{
+					Printer.PrintError("Can't find version with partial name \"{0}.\"", localOptions.Target);
+                    return false;
+				}
+
+			}
+			List<Objects.Head> heads = ws.GetHeads(version.ID);
             if (heads.Count == 0)
             {
                 Printer.PrintError("Can't behead version {0}, version is not a head.", version.ID);

@@ -67,7 +67,28 @@ namespace Versionr
             return branches;
         }
 
-        public bool FindVersion(string target, out Objects.Version version)
+		public bool ForceBehead(string target)
+		{
+			var heads = Database.Query<Objects.Head>(String.Format("SELECT * FROM Head WHERE Head.Version LIKE \"{0}%\"", target));
+			if (heads.Count == 0)
+				return false;
+
+			Database.BeginTransaction();
+			try
+			{
+				foreach (var x in heads)
+					Database.Delete(x);
+				Database.Commit();
+				return true;
+			}
+			catch
+            {
+				Database.Rollback();
+				return false;
+			}
+		}
+
+		public bool FindVersion(string target, out Objects.Version version)
         {
             version = GetPartialVersion(target);
             if (version == null)
