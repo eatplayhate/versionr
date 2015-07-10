@@ -1,5 +1,6 @@
 #include "LZHLDecompressor.hpp"
 #include <cassert>
+#include <memory.h>
 
 LZHLDecompressor::LZHLDecompressor() {
   nBits = 0;
