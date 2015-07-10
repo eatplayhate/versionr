@@ -24,6 +24,7 @@ namespace Versionr.Network
         DataReceived,
         Error,
         Clone,
+        PullVersions,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

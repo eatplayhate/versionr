@@ -116,6 +116,9 @@ namespace Versionr
         [VerbOption("clone", HelpText = "Clones an initial revision from a remote server.")]
         public Commands.CloneVerbOptions CloneVerb { get; set; }
 
+        [VerbOption("pull", HelpText = "Retreives changes on a remote vault.")]
+        public Commands.PullVerbOptions PullVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -173,6 +176,8 @@ namespace Versionr
                 return ViewDAGVerb.GetUsage();
             else if (verb == "clone")
                 return CloneVerb.GetUsage();
+            else if (verb == "pull")
+                return PullVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -219,6 +224,7 @@ namespace Versionr
             commands["behead"] = new Commands.Behead();
             commands["viewdag"] = new Commands.ViewDAG();
             commands["clone"] = new Commands.Clone();
+            commands["pull"] = new Commands.Pull();
 
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))

@@ -61,6 +61,7 @@
     <Compile Include="Network\NetCommand.cs" />
     <Compile Include="Network\PushObjectQuery.cs" />
     <Compile Include="Network\Server.cs" />
+    <Compile Include="Network\SharedNetwork.cs" />
     <Compile Include="Network\StartClientTransaction.cs" />
     <Compile Include="Network\StartTransaction.cs" />
     <Compile Include="Network\Utilities.cs" />

@@ -94,15 +94,22 @@ namespace Versionr.Network
                 return false;
             try
             {
+                SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
+                {
+                    DecryptorFunction = () => { return Decryptor; },
+                    EncryptorFunction = () => { return Encryptor; },
+                    Stream = Connection.GetStream(),
+                    Workspace = Workspace,
+                };
                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
-                if (!GetVersionList(branchesToSend, versionsToSend, Workspace.Version))
+                if (!SharedNetwork.GetVersionList(sharedInfo, Workspace.Version, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
-                if (!SendBranches(branchesToSend))
+                if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
                     return false;
-                if (!SendVersions(versionsToSend))
+                if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
                     return false;
                 return true;
             }
@@ -114,198 +121,42 @@ namespace Versionr.Network
             }
         }
 
-        private bool SendVersions(Stack<Objects.Version> versionsToSend)
+        public bool Pull()
         {
+            if (Workspace == null)
+                return false;
             try
             {
-                if (versionsToSend.Count == 0)
-                    return true;
-                Printer.PrintDiagnostics("Synchronizing {0} versions to server.", versionsToSend.Count);
-                while (versionsToSend.Count > 0)
+                SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
                 {
-                    List<Objects.Version> versionData = new List<Objects.Version>();
-                    while (versionData.Count < 512 && versionsToSend.Count > 0)
-                    {
-                        versionData.Add(versionsToSend.Pop());
-                    }
-                    Printer.PrintDiagnostics("Sending version data pack...");
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushVersions }, ProtoBuf.PrefixStyle.Fixed32);
-                    VersionPack pack = CreatePack(versionData);
-                    Utilities.SendEncrypted(Connection.GetStream(), Encryptor, pack);
-                    NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                    if (response.Type != NetCommandType.Acknowledge)
-                        return false;
+                    DecryptorFunction = () => { return Decryptor; },
+                    EncryptorFunction = () => { return Encryptor; },
+                    Stream = Connection.GetStream(),
+                    Workspace = Workspace,
+                };
+                Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = Workspace.CurrentBranch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (command.Type == NetCommandType.Error)
+                    throw new Exception("Remote error: " + command.AdditionalPayload);
 
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
-                    while (true)
-                    {
-                        var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                        if (command.Type == NetCommandType.RequestRecordParents)
-                        {
-                            Printer.PrintDiagnostics("Server is asking for record metadata...");
-                            var rrp = Utilities.ReceiveEncrypted<RequestRecordParents>(Connection.GetStream(), Decryptor);
-                            RecordParentPack rp = new RecordParentPack();
-                            rp.Parents = rrp.RecordParents.Select(x => Workspace.GetRecord(x)).ToArray();
-                            Utilities.SendEncrypted<RecordParentPack>(Connection.GetStream(), Encryptor, rp);
-                        }
-                        else if (command.Type == NetCommandType.RequestRecord)
-                        {
-                            var rrd = Utilities.ReceiveEncrypted<RequestRecordData>(Connection.GetStream(), Decryptor);
-                            List<byte> datablock = new List<byte>();
-                            Func<IEnumerable<byte>, bool, bool> sender = (IEnumerable<byte> data, bool flush) =>
-                            {
-                                datablock.AddRange(data);
-                                int blockSize = 1024 * 1024;
-                                while (datablock.Count > blockSize)
-                                {
-                                    DataPayload dataPack = new DataPayload() { Data = datablock.Take(blockSize).ToArray(), EndOfStream = false };
-                                    Utilities.SendEncrypted<DataPayload>(Connection.GetStream(), Encryptor, dataPack);
-                                    datablock.RemoveRange(0, blockSize);
-                                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                                    if (reply.Type != NetCommandType.DataReceived)
-                                        return false;
-                                }
-                                if (flush)
-                                {
-                                    DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
-                                    Utilities.SendEncrypted<DataPayload>(Connection.GetStream(), Encryptor, dataPack);
-                                }
-                                return true;
-                            };
-                            foreach (var x in rrd.Records)
-                            {
-                                var record = Workspace.GetRecord(x);
-                                Printer.PrintDiagnostics("Sending data for: {0}", record.CanonicalName);
-                                sender(BitConverter.GetBytes(x), false);
-                                if (!Workspace.TransmitRecordData(record, sender))
-                                    return false;
-                            }
-                            if (!sender(new byte[0], true))
-                                return false;
-
-                            var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                            if (dataResponse.Type != NetCommandType.Acknowledge)
-                                return false;
-                        }
-                        else if (command.Type == NetCommandType.Synchronized)
-                        {
-                            Printer.PrintDiagnostics("Committing changes remotely.");
-                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
-                            response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                            if (response.Type == NetCommandType.RejectPush)
-                            {
-                                Printer.PrintError("Server rejected push, return code: {0}", response.AdditionalPayload);
-                                return false;
-                            }
-                            else if (response.Type != NetCommandType.AcceptPush)
-                            {
-                                Printer.PrintError("Unknown error pushing branch head.");
-                                return false;
-                            }
-                            return true;
-                        }
-                    }
-                }
-                return true;
-            }
-            catch (Exception e)
-            {
-                Printer.PrintError("Error: {0}", e);
-                Close();
-                return false;
-            }
-        }
-
-        private VersionPack CreatePack(List<Objects.Version> versionData)
-        {
-            VersionPack pack = new VersionPack();
-            pack.Versions = versionData.Select(x => CreateVersionInfo(x)).ToArray();
-            return pack;
-        }
-
-        private VersionInfo CreateVersionInfo(Objects.Version x)
-        {
-            VersionInfo info = new VersionInfo();
-            info.Version = x;
-            info.MergeInfos = Workspace.GetMergeInfo(x.ID).ToArray();
-            info.Alterations = Workspace.GetAlterations(x).Select(y => CreateFusedAlteration(y)).ToArray();
-            return info;
-        }
-
-        private FusedAlteration CreateFusedAlteration(Alteration y)
-        {
-            FusedAlteration alteration = new FusedAlteration();
-            alteration.Alteration = y.Type;
-            alteration.NewRecord = y.NewRecord.HasValue ? Workspace.GetRecord(y.NewRecord.Value) : null;
-            alteration.PriorRecord = y.PriorRecord.HasValue ? Workspace.GetRecord(y.PriorRecord.Value) : null;
-            return alteration;
-        }
-
-        private bool GetVersionList(Stack<Branch> branchesToSend, Stack<Objects.Version> versionsToSend, Objects.Version version)
-        {
-            try
-            {
-                if (ServerKnownVersions.Contains(version.ID))
-                    return true;
-                Printer.PrintDiagnostics("Sending server local version information.");
-                Objects.Version currentVersion = version;
                 while (true)
                 {
-                    List<Objects.Version> partialHistory = Workspace.GetHistory(currentVersion, 64);
-                    foreach (var x in partialHistory)
+                    command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    if (command.Type == NetCommandType.PushObjectQuery)
+                        SharedNetwork.ProcesPushObjectQuery(sharedInfo);
+                    else if (command.Type == NetCommandType.PushBranch)
+                        SharedNetwork.ReceiveBranches(sharedInfo);
+                    else if (command.Type == NetCommandType.PushVersions)
+                        SharedNetwork.ReceiveVersions(sharedInfo);
+                    else if (command.Type == NetCommandType.SynchronizeRecords)
                     {
-                        if (ServerKnownVersions.Contains(x.ID))
-                            break;
-                        ServerKnownVersions.Add(x.ID);
-                        currentVersion = x;
+                        Printer.PrintMessage("Received {0} versions from remote vault.", sharedInfo.PushedVersions.Count);
+                        SharedNetwork.RequestRecordMetadata(sharedInfo);
+                        Printer.PrintDiagnostics("Requesting record data...");
+                        SharedNetwork.RequestRecordData(sharedInfo);
+                        return PullVersions(sharedInfo);
                     }
-
-                    PushObjectQuery query = new PushObjectQuery();
-                    query.Type = ObjectType.Version;
-                    query.IDs = partialHistory.Select(x => x.ID.ToString()).ToArray();
-
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
-                    Utilities.SendEncrypted<PushObjectQuery>(Connection.GetStream(), Encryptor, query);
-
-                    PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(Connection.GetStream(), Decryptor);
-                    if (response.Recognized.Length != query.IDs.Length)
-                        throw new Exception("Invalid response!");
-                    int recognized = 0;
-                    for (int i = 0; i < response.Recognized.Length; i++)
-                    {
-                        Printer.PrintDiagnostics(" - Version ID: {0}", query.IDs[i]);
-                        if (!response.Recognized[i])
-                        {
-                            versionsToSend.Push(partialHistory[i]);
-                            Printer.PrintDiagnostics("   (not recognized on server)");
-                        }
-                        else
-                        {
-                            recognized++;
-                            Printer.PrintDiagnostics("   (version already on server)");
-                        }
-                    }
-                    for (int i = 0; i < response.Recognized.Length; i++)
-                    {
-                        if (!response.Recognized[i])
-                        {
-                            QueryBranch(branchesToSend, Workspace.GetBranch(partialHistory[i].Branch));
-                            var info = Workspace.GetMergeInfo(partialHistory[i].ID);
-                            foreach (var x in info)
-                            {
-                                var srcVersion = Workspace.GetVersion(x.SourceVersion);
-                                if (srcVersion != null)
-                                {
-                                    if (!GetVersionList(branchesToSend, versionsToSend, srcVersion))
-                                    {
-                                        Printer.PrintDiagnostics("Sending merge data for: {0}", srcVersion.ID);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (recognized != 0) // we found a common parent somewhere
-                        break;
                 }
                 return true;
             }
@@ -317,108 +168,154 @@ namespace Versionr.Network
             }
         }
 
-        internal bool QueryBranch(Stack<Objects.Branch> branchesToSend, Branch branch)
+        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo)
         {
-            try
+            SharedNetwork.ImportRecords(sharedInfo);
+
+            Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
+            Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
+            foreach (var x in sharedInfo.PushedVersions)
             {
-                if (ServerKnownBranches.Contains(branch.ID))
-                    return true;
-                Printer.PrintDiagnostics("Sending server local branch information.");
-                Branch currentBranch = branch;
-                while (true)
+                Branch branch = sharedInfo.Workspace.GetBranch(x.Version.Branch);
+                Head head;
+                if (!temporaryHeads.TryGetValue(branch.ID, out head))
                 {
-                    int branchesPerBlock = 16;
-                    List<Objects.Branch> branchIDs = new List<Objects.Branch>();
-                    while (branchesPerBlock > 0)
+                    var heads = sharedInfo.Workspace.GetBranchHeads(branch);
+                    if (heads.Count == 0)
+                        head = new Head() { Branch = branch.ID, Version = x.Version.ID };
+                    else if (heads.Count == 1)
+                        head = heads[0];
+                    else
                     {
-                        if (ServerKnownBranches.Contains(currentBranch.ID))
-                            break;
-                        ServerKnownBranches.Add(currentBranch.ID);
-                        branchesPerBlock--;
-                        branchIDs.Add(currentBranch);
-                        if (currentBranch.Parent.HasValue)
-                            currentBranch = Workspace.GetBranch(currentBranch.Parent.Value);
-                        else
-                        {
-                            currentBranch = null;
-                            break;
-                        }
-                    }
-
-                    if (branchIDs.Count > 0)
-                    {
-                        PushObjectQuery query = new PushObjectQuery();
-                        query.Type = ObjectType.Branch;
-                        query.IDs = branchIDs.Select(x => x.ID.ToString()).ToArray();
-
-                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
-                        Utilities.SendEncrypted<PushObjectQuery>(Connection.GetStream(), Encryptor, query);
-
-                        PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(Connection.GetStream(), Decryptor);
-                        if (response.Recognized.Length != query.IDs.Length)
-                            throw new Exception("Invalid response!");
-                        int recognized = 0;
-                        for (int i = 0; i < response.Recognized.Length; i++)
-                        {
-                            Printer.PrintDiagnostics(" - Branch ID: {0}", query.IDs[i]);
-                            if (!response.Recognized[i])
-                            {
-                                branchesToSend.Push(branchIDs[i]);
-                                Printer.PrintDiagnostics("   (not recognized on server)");
-                            }
-                            else
-                            {
-                                ServerKnownBranches.Add(branchIDs[i].ID);
-                                recognized++;
-                                Printer.PrintDiagnostics("   (branch already on server)");
-                            }
-                        }
-                        if (recognized != 0) // we found a common parent somewhere
-                            break;
-                    }
-                    else if (ServerKnownBranches.Count > 0)
-                        break;
-                }
-                return true;
-            }
-            catch (Exception e)
-            {
-                Printer.PrintError("Error: {0}", e);
-                Close();
-                return false;
-            }
-        }
-
-        internal bool SendBranches(Stack<Objects.Branch> branchesToSend)
-        {
-            try
-            {
-                if (branchesToSend.Count == 0)
-                    return true;
-                Printer.PrintDiagnostics("Synchronizing {0} branches to server.", branchesToSend.Count);
-                while (branchesToSend.Count > 0)
-                {
-                    List<Objects.Branch> branchData = new List<Branch>();
-                    while (branchData.Count < 512 && branchesToSend.Count > 0)
-                    {
-                        branchData.Add(branchesToSend.Pop());
-                    }
-                    Printer.PrintDiagnostics("Sending branch data pack...");
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushBranch }, ProtoBuf.PrefixStyle.Fixed32);
-                    PushBranches pb = new PushBranches() { Branches = branchData.ToArray() };
-                    Utilities.SendEncrypted(Connection.GetStream(), Encryptor, pb);
-                    NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                    if (response.Type != NetCommandType.Acknowledge)
+                        Printer.PrintError("Multiple ({0}) heads for branch {1}", heads.Count, branch.ID);
                         return false;
+                    }
+                    temporaryHeads[branch.ID] = head;
                 }
-                return true;
+                if (head.Version != x.Version.ID)
+                {
+                    if (IsAncestor(head.Version, x.Version.ID, sharedInfo))
+                    {
+                        pendingMerges[branch.ID] = Guid.Empty;
+                        head.Version = x.Version.ID;
+                    }
+                    else if (!IsAncestor(x.Version.ID, head.Version, sharedInfo))
+                    {
+                        pendingMerges[branch.ID] = head.Version;
+                        head.Version = x.Version.ID;
+                    }
+                }
             }
-            catch (Exception e)
+            List<Head> newHeads = new List<Head>();
+            List<VersionInfo> autoMerged = new List<VersionInfo>();
+            foreach (var x in pendingMerges)
             {
-                Printer.PrintError("Error: {0}", e);
-                Close();
-                return false;
+                if (x.Value == Guid.Empty)
+                {
+                    Printer.PrintDiagnostics("Uncontested head update for branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
+                    Printer.PrintDiagnostics(" - Head updated to {0}", temporaryHeads[x.Key].Version);
+                    continue;
+                }
+                Branch branch = Workspace.GetBranch(x.Key);
+                VersionInfo result;
+                string error;
+                result = Workspace.MergeRemote(Workspace.GetVersion(x.Value), temporaryHeads[x.Key].Version, sharedInfo, out error);
+                if (result == null)
+                {
+                    if (x.Value != Workspace.Version.ID && temporaryHeads[x.Key].Branch == Workspace.CurrentBranch.ID)
+                    {
+                        Printer.PrintError("Not on head revision!");
+                        return false;
+                    }
+                    newHeads.Add(new Head() { Branch = temporaryHeads[x.Key].Branch, Version = x.Key });
+                    Printer.PrintError("New head revision downloaded - requires manual merge between:");
+                    Printer.PrintError(" - Local {0}", x.Value);
+                    Printer.PrintError(" - Remote {0}", temporaryHeads[x.Key].Version);
+                    temporaryHeads[x.Key] = null;
+                }
+                else
+                {
+                    autoMerged.Add(result);
+                    Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
+                    Printer.PrintDiagnostics(" - Merge local input {0}", x.Value);
+                    Printer.PrintDiagnostics(" - Merge remote input {0}", temporaryHeads[x.Key].Version);
+                    Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
+                    temporaryHeads[x.Key].Version = result.Version.ID;
+                }
             }
+
+            lock (sharedInfo.Workspace)
+            {
+                try
+                {
+                    sharedInfo.Workspace.BeginDatabaseTransaction();
+                    foreach (var x in sharedInfo.PushedVersions)
+                    {
+                        sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
+                    }
+                    foreach (var x in autoMerged)
+                        Workspace.ImportVersionNoCommit(sharedInfo, x, false);
+                    foreach (var x in temporaryHeads)
+                    {
+                        if (x.Value != null)
+                            Workspace.ImportHeadNoCommit(x);
+                    }
+                    foreach (var x in newHeads)
+                    {
+                        Workspace.AddHeadNoCommit(x);
+                    }
+                    Workspace.CommitDatabaseTransaction();
+                    sharedInfo.Workspace.CommitDatabaseTransaction();
+                    return true;
+                }
+                catch
+                {
+                    sharedInfo.Workspace.RollbackDatabaseTransaction();
+                    throw;
+                }
+            }
+        }
+
+        private static bool IsAncestor(Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
+        {
+            HashSet<Guid> checkedVersions = new HashSet<Guid>();
+            return IsAncestorInternal(checkedVersions, ancestor, possibleChild, clientInfo);
+        }
+
+        private static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
+        {
+            Guid nextVersionToCheck = possibleChild;
+            while (true)
+            {
+                if (checkedVersions.Contains(nextVersionToCheck))
+                    return false;
+                checkedVersions.Add(nextVersionToCheck);
+                List<MergeInfo> mergeInfo;
+                Objects.Version v = FindLocalOrRemoteVersionInfo(nextVersionToCheck, clientInfo, out mergeInfo);
+                if (!v.Parent.HasValue)
+                    return false;
+                else if (v.Parent.Value == ancestor)
+                    return true;
+                foreach (var x in mergeInfo)
+                {
+                    if (IsAncestorInternal(checkedVersions, ancestor, x.SourceVersion, clientInfo))
+                        return true;
+                }
+                nextVersionToCheck = v.Parent.Value;
+            }
+        }
+
+        private static Objects.Version FindLocalOrRemoteVersionInfo(Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo, out List<MergeInfo> mergeInfo)
+        {
+            VersionInfo info = clientInfo.PushedVersions.Where(x => x.Version.ID == possibleChild).FirstOrDefault();
+            if (info != null)
+            {
+                mergeInfo = info.MergeInfos != null ? info.MergeInfos.ToList() : new List<MergeInfo>();
+                return info.Version;
+            }
+            Objects.Version localVersion = clientInfo.Workspace.GetVersion(possibleChild);
+            mergeInfo = clientInfo.Workspace.GetMergeInfo(localVersion.ID).ToList();
+            return localVersion;
         }
 
         public bool Connect(string host, int port)

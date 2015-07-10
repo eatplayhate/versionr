@@ -392,6 +392,11 @@ namespace Versionr
             }
         }
 
+        internal void AddHeadNoCommit(Head x)
+        {
+            Database.Insert(x);
+        }
+
         internal bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
         {
             FileInfo file = GetFileForCode(record.Fingerprint, record.Size);
@@ -473,7 +478,7 @@ namespace Versionr
             }
         }
 
-        internal void ImportVersionNoCommit(Server.ClientStateInfo clientInfo, VersionInfo x, bool mapRecords)
+        internal void ImportVersionNoCommit(SharedNetwork.SharedNetworkInfo clientInfo, VersionInfo x, bool mapRecords)
         {
             Printer.PrintDiagnostics("Importing version {0}", x.Version.ID);
             Objects.Snapshot alterationLink = new Snapshot();
@@ -751,7 +756,7 @@ namespace Versionr
             return Database.Find<Objects.Version>(value);
         }
 
-        internal VersionInfo MergeRemote(Objects.Version localVersion, Guid remoteVersionID, Server.ClientStateInfo clientInfo, out string error)
+        internal VersionInfo MergeRemote(Objects.Version localVersion, Guid remoteVersionID, SharedNetwork.SharedNetworkInfo clientInfo, out string error)
         {
             Objects.Version remoteVersion = GetLocalOrRemoteVersion(remoteVersionID, clientInfo);
             Objects.Version parent = GetCommonParentForRemote(localVersion, remoteVersionID, clientInfo);
@@ -859,7 +864,7 @@ namespace Versionr
             };
         }
 
-        private List<Tuple<Objects.Record, bool>> GetRemoteRecords(Guid remoteVersionID, Server.ClientStateInfo clientInfo)
+        private List<Tuple<Objects.Record, bool>> GetRemoteRecords(Guid remoteVersionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
             Stack<Network.FusedAlteration> remoteAlterations = new Stack<Network.FusedAlteration>();
             while (true)
@@ -928,7 +933,7 @@ namespace Versionr
             }
         }
 
-        private Objects.Version GetCommonParentForRemote(Objects.Version localVersion, Guid remoteVersionID, Server.ClientStateInfo clientInfo)
+        private Objects.Version GetCommonParentForRemote(Objects.Version localVersion, Guid remoteVersionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraphRemote(remoteVersionID, clientInfo);
             Dictionary<Guid, int> localGraph = GetParentGraphRemote(localVersion.ID, clientInfo);
@@ -938,7 +943,7 @@ namespace Versionr
             return Database.Find<Objects.Version>(shared[0].Key);
         }
 
-        private Dictionary<Guid, int> GetParentGraphRemote(Guid versionID, Server.ClientStateInfo clientInfo)
+        private Dictionary<Guid, int> GetParentGraphRemote(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
             Printer.PrintDiagnostics("Getting parent graph for version {0}", versionID);
             Stack<Tuple<Objects.Version, int>> openNodes = new Stack<Tuple<Objects.Version, int>>();
@@ -970,7 +975,7 @@ namespace Versionr
             return result;
         }
 
-        private Objects.Version GetLocalOrRemoteVersion(Guid versionID, Server.ClientStateInfo clientInfo)
+        private Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
             Objects.Version v = Database.Find<Objects.Version>(x => x.ID == versionID);
             if (v == null)

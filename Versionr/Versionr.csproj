@@ -47,6 +47,7 @@
     <Compile Include="Commands\Clone.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
+    <Compile Include="Commands\Pull.cs" />
     <Compile Include="Commands\Push.cs" />
     <Compile Include="Commands\Record.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
