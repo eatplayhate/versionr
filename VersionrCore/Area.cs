@@ -1001,7 +1001,7 @@ namespace Versionr
                 mergeVersion = Database.Find<Objects.Version>(head.Version);
             }
             else
-                mergeVersion = Database.Find<Objects.Version>(v);
+                mergeVersion = GetPartialVersion(v);
             if (mergeVersion == null)
                 throw new Exception("Couldn't find version to merge from!");
             Objects.Version parent = GetCommonParent(Database.Version, mergeVersion);
@@ -1164,7 +1164,14 @@ namespace Versionr
                         else
                         {
                             Printer.PrintError("Can't remove object \"{0}\", tree confict!", x.CanonicalName);
-                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                            Printer.PrintMessage("Resolve conflict by: (r)emoving file, (k)eeping local or (c)onflict?");
+                            string resolution = System.Console.ReadLine();
+                            if (resolution.StartsWith("k"))
+                                continue;
+                            if (resolution.StartsWith("r"))
+                                Remove(x.CanonicalName);
+                            if (resolution.StartsWith("c"))
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                         }
                     }
                 }
