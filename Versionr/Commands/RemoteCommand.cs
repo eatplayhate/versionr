@@ -57,7 +57,7 @@ namespace Versionr.Commands
             LocalState.RemoteConfig config = null;
             if (ws != null)
             {
-                if (requireRemoteName ^ !string.IsNullOrEmpty(localOptions.Name))
+                if (requireRemoteName)
                     config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name);
             }
             else if (!string.IsNullOrEmpty(localOptions.Name))
