@@ -165,7 +165,13 @@ namespace Versionr.Network
             try
             {
                 if (versionsToSend.Count == 0)
-                    return true;
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
+                    var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (dataResponse.Type == NetCommandType.Synchronized)
+                        return true;
+                    return false;
+                }
                 Printer.PrintDiagnostics("Synchronizing {0} versions to server.", versionsToSend.Count);
                 while (versionsToSend.Count > 0)
                 {
