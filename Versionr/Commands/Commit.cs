@@ -58,7 +58,7 @@ namespace Versionr.Commands
             }
         }
 
-        [Option('m', "message", HelpText="Commit message.")]
+        [Option('m', "message", Required = true, HelpText="Commit message.")]
         public string Message { get; set; }
 
         [ValueList(typeof(List<string>))]
