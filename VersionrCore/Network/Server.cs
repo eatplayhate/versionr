@@ -68,6 +68,7 @@ namespace Versionr.Network
         {
             ClientStateInfo clientInfo = new ClientStateInfo();
             using (client)
+            using (SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo())
             {
                 try
                 {
@@ -87,13 +88,10 @@ namespace Versionr.Network
 
                         var aesCSP = System.Security.Cryptography.AesManaged.Create();
 
-                        SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
-                        {
-                            DecryptorFunction = () => { return aesCSP.CreateDecryptor(aesKey, aesIV); },
-                            EncryptorFunction = () => { return aesCSP.CreateEncryptor(aesKey, aesIV); },
-                            Stream = stream,
-                            Workspace = ws
-                        };
+                        sharedInfo.DecryptorFunction = () => { return aesCSP.CreateDecryptor(aesKey, aesIV); };
+                        sharedInfo.EncryptorFunction = () => { return aesCSP.CreateEncryptor(aesKey, aesIV); };
+                        sharedInfo.Stream = stream;
+                        sharedInfo.Workspace = ws;
 
                         clientInfo.SharedInfo = sharedInfo;
 
@@ -110,7 +108,7 @@ namespace Versionr.Network
                                 Printer.PrintDiagnostics("Client is requesting to clone the vault.");
                                 Objects.Version initialRevision = ws.GetVersion(ws.Domain);
                                 Objects.Branch initialBranch = ws.GetBranch(initialRevision.Branch);
-                                Utilities.SendEncrypted<ClonePayload>(stream, aesCSP.CreateEncryptor(aesKey, aesIV), new ClonePayload() { InitialBranch = initialBranch, RootVersion = initialRevision });
+                                Utilities.SendEncrypted<ClonePayload>(sharedInfo, new ClonePayload() { InitialBranch = initialBranch, RootVersion = initialRevision });
                             }
                             else if (command.Type == NetCommandType.PullVersions)
                             {
@@ -313,9 +311,25 @@ namespace Versionr.Network
                 try
                 {
                     ws.BeginDatabaseTransaction();
-                    foreach (var x in clientInfo.SharedInfo.PushedVersions)
+                    var versionsToImport = clientInfo.SharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
+                    Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
+                    foreach (var x in versionsToImport)
+                        importList[x.Version.ID] = false;
+                    int importCount = versionsToImport.Length;
+                    while (importCount > 0)
                     {
-                        ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, true);
+                        foreach (var x in versionsToImport)
+                        {
+                            if (importList[x.Version.ID] != true)
+                            {
+                                bool accept;
+                                if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
+                                    accept = true;
+                                ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, true);
+                                importList[x.Version.ID] = true;
+                                importCount--;
+                            }
+                        }
                     }
                     foreach (var x in clientInfo.MergeVersions)
                         ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, false);

@@ -23,6 +23,8 @@ namespace Versionr.Network
         HashSet<Guid> ServerKnownBranches { get; set; }
         HashSet<Guid> ServerKnownVersions { get; set; }
 
+        SharedNetwork.SharedNetworkInfo SharedInfo { get; set; }
+
         System.Security.Cryptography.ICryptoTransform Encryptor
         {
             get
@@ -45,6 +47,7 @@ namespace Versionr.Network
         }
         public Client(System.IO.DirectoryInfo baseDirectory)
         {
+            Versionr.Utilities.MultiArchPInvoke.BindDLLs();
             Workspace = null;
             BaseDirectory = baseDirectory;
             ServerKnownBranches = new HashSet<Guid>();
@@ -65,6 +68,10 @@ namespace Versionr.Network
                 {
 
                 }
+                finally
+                {
+                    SharedInfo.Dispose();
+                }
                 Printer.PrintDiagnostics("Disconnected.");
             }
             Connection.Close();
@@ -77,7 +84,7 @@ namespace Versionr.Network
             try
             {
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Clone }, ProtoBuf.PrefixStyle.Fixed32);
-                var clonePack = Utilities.ReceiveEncrypted<ClonePayload>(Connection.GetStream(), Decryptor);
+                var clonePack = Utilities.ReceiveEncrypted<ClonePayload>(SharedInfo);
                 Workspace = Area.InitRemote(BaseDirectory, clonePack);
                 return true;
             }
@@ -141,13 +148,6 @@ namespace Versionr.Network
                 return false;
             try
             {
-                SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
-                {
-                    DecryptorFunction = () => { return Decryptor; },
-                    EncryptorFunction = () => { return Encryptor; },
-                    Stream = Connection.GetStream(),
-                    Workspace = Workspace,
-                };
                 Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = Workspace.CurrentBranch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
                 var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
@@ -158,18 +158,18 @@ namespace Versionr.Network
                 {
                     command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     if (command.Type == NetCommandType.PushObjectQuery)
-                        SharedNetwork.ProcesPushObjectQuery(sharedInfo);
+                        SharedNetwork.ProcesPushObjectQuery(SharedInfo);
                     else if (command.Type == NetCommandType.PushBranch)
-                        SharedNetwork.ReceiveBranches(sharedInfo);
+                        SharedNetwork.ReceiveBranches(SharedInfo);
                     else if (command.Type == NetCommandType.PushVersions)
-                        SharedNetwork.ReceiveVersions(sharedInfo);
+                        SharedNetwork.ReceiveVersions(SharedInfo);
                     else if (command.Type == NetCommandType.SynchronizeRecords)
                     {
-                        Printer.PrintMessage("Received {0} versions from remote vault.", sharedInfo.PushedVersions.Count);
-                        SharedNetwork.RequestRecordMetadata(sharedInfo);
+                        Printer.PrintMessage("Received {0} versions from remote vault.", SharedInfo.PushedVersions.Count);
+                        SharedNetwork.RequestRecordMetadata(SharedInfo);
                         Printer.PrintDiagnostics("Requesting record data...");
-                        SharedNetwork.RequestRecordData(sharedInfo);
-                        bool result = PullVersions(sharedInfo);
+                        SharedNetwork.RequestRecordData(SharedInfo);
+                        bool result = PullVersions(SharedInfo);
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                         return result;
                     }
@@ -265,9 +265,25 @@ namespace Versionr.Network
                 try
                 {
                     sharedInfo.Workspace.BeginDatabaseTransaction();
-                    foreach (var x in sharedInfo.PushedVersions)
+                    var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
+                    Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
+                    foreach (var x in versionsToImport)
+                        importList[x.Version.ID] = false;
+                    int importCount = versionsToImport.Length;
+                    while (importCount > 0)
                     {
-                        sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
+                        foreach (var x in versionsToImport)
+                        {
+                            if (importList[x.Version.ID] != true)
+                            {
+                                bool accept;
+                                if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
+                                    accept = true;
+                                sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
+                                importList[x.Version.ID] = true;
+                                importCount--;
+                            }
+                        }
                     }
                     foreach (var x in autoMerged)
                         Workspace.ImportVersionNoCommit(sharedInfo, x, false);
@@ -382,6 +398,15 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<StartClientTransaction>(Connection.GetStream(), keyExchangeObject, ProtoBuf.PrefixStyle.Fixed32);
                     Connection.GetStream().Flush();
                     Connected = true;
+                    SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
+                    {
+                        DecryptorFunction = () => { return Decryptor; },
+                        EncryptorFunction = () => { return Encryptor; },
+                        Stream = Connection.GetStream(),
+                        Workspace = Workspace,
+                    };
+
+                    SharedInfo = sharedInfo;
                     return true;
                 }
                 catch (Exception e)
