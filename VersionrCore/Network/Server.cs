@@ -128,7 +128,6 @@ namespace Versionr.Network
                                     throw new Exception();
                                 if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
                                     throw new Exception();
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
                             }
                             else if (command.Type == NetCommandType.PushObjectQuery)
                             {

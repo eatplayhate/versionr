@@ -111,6 +111,20 @@ namespace Versionr.Network
                     return false;
                 if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
                     return false;
+
+                Printer.PrintDiagnostics("Committing changes remotely.");
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
+                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                if (response.Type == NetCommandType.RejectPush)
+                {
+                    Printer.PrintError("Server rejected push, return code: {0}", response.AdditionalPayload);
+                    return false;
+                }
+                else if (response.Type != NetCommandType.AcceptPush)
+                {
+                    Printer.PrintError("Unknown error pushing branch head.");
+                    return false;
+                }
                 return true;
             }
             catch (Exception e)
@@ -155,7 +169,9 @@ namespace Versionr.Network
                         SharedNetwork.RequestRecordMetadata(sharedInfo);
                         Printer.PrintDiagnostics("Requesting record data...");
                         SharedNetwork.RequestRecordData(sharedInfo);
-                        return PullVersions(sharedInfo);
+                        bool result = PullVersions(sharedInfo);
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
+                        return result;
                     }
                 }
                 return true;

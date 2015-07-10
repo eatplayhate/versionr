@@ -235,23 +235,13 @@ namespace Versionr.Network
                     }
                     else if (command.Type == NetCommandType.Synchronized)
                     {
-                        Printer.PrintDiagnostics("Committing changes remotely.");
-                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
-                        NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                        if (response.Type == NetCommandType.RejectPush)
-                        {
-                            Printer.PrintError("Server rejected push, return code: {0}", response.AdditionalPayload);
-                            return false;
-                        }
-                        else if (response.Type != NetCommandType.AcceptPush)
-                        {
-                            Printer.PrintError("Unknown error pushing branch head.");
-                            return false;
-                        }
                         return true;
                     }
+                    else
+                    {
+                        throw new Exception(string.Format("Invalid command: {0}", command.Type));
+                    }
                 }
-                return true;
             }
             catch (Exception e)
             {
