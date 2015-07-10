@@ -648,6 +648,11 @@ namespace Versionr
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
             var stat = Status;
             bool globMatching = false;
+            Dictionary<string, Status.StatusEntry> statusMap = new Dictionary<string, Status.StatusEntry>();
+            foreach (var x in stat.Elements)
+            {
+                statusMap[x.CanonicalName] = x;
+            }
             if (!regex)
             {
                 foreach (var x in files)
@@ -658,6 +663,7 @@ namespace Versionr
                 if (globMatching)
                     regex = true;
             }
+            HashSet<string> stagedPaths = new HashSet<string>();
             if (regex)
             {
                 List<System.Text.RegularExpressions.Regex> regexes = new List<System.Text.RegularExpressions.Regex>();
@@ -688,10 +694,18 @@ namespace Versionr
                         {
                             if ((fullpath && y.IsMatch(x.CanonicalName)) || (x.FilesystemEntry?.Info != null && y.IsMatch(x.FilesystemEntry.Info.Name)))
                             {
+                                stagedPaths.Add(x.CanonicalName);
+
                                 if (x.Code == StatusCode.Missing)
+                                {
+                                    Printer.PrintMessage("Recorded deletion: {0}", x.VersionControlRecord.CanonicalName);
                                     stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
+                                }
                                 else
+                                {
+                                    Printer.PrintMessage("Recorded object: {0}", x.FilesystemEntry.CanonicalName);
                                     stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
+                                }
                                 break;
                             }
                         }
@@ -703,7 +717,6 @@ namespace Versionr
                 List<string> canonicalPaths = new List<string>();
                 foreach (var x in files)
                     canonicalPaths.Add(GetLocalPath(Path.GetFullPath(x)));
-                HashSet<string> stagedPaths = new HashSet<string>();
                 foreach (var x in stat.Elements)
                 {
                     if (x.Staged == false && (
@@ -719,10 +732,7 @@ namespace Versionr
                             if (string.Equals(x.CanonicalName, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
                                 (x.IsDirectory && string.Equals(x.CanonicalName, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
                             {
-                                if (x.Code == StatusCode.Missing)
-                                    stagedPaths.Add(x.VersionControlRecord.CanonicalName);
-                                else
-                                    stagedPaths.Add(x.FilesystemEntry.CanonicalName);
+                                stagedPaths.Add(x.CanonicalName);
 
                                 if (x.Code == StatusCode.Missing)
                                 {
@@ -754,6 +764,30 @@ namespace Versionr
                     }
                 }
             }
+            // add parent directories
+            foreach (var x in stageOps.ToArray())
+            {
+                if (x.Type == StageOperationType.Add)
+                {
+                    Status.StatusEntry entry = statusMap[x.Operand1];
+                    while (entry.FilesystemEntry.Parent != null)
+                    {
+                        entry = statusMap[entry.FilesystemEntry.Parent.CanonicalName];
+                        if (entry.Staged == false && (
+                            entry.Code == StatusCode.Added ||
+                            entry.Code == StatusCode.Unversioned))
+                        {
+                            if (!stagedPaths.Contains(entry.CanonicalName))
+                            {
+                                Printer.PrintMessage("Recorded object (auto): {0}", entry.CanonicalName);
+                                stageOps.Add(new StageOperation() { Operand1 = entry.CanonicalName, Type = StageOperationType.Add });
+                                stagedPaths.Add(entry.CanonicalName);
+                            }
+                        }
+                    }
+                }
+            }
+
             if (stageOps.Count == 0)
             {
                 Printer.PrintMessage("No changes found to record.");
