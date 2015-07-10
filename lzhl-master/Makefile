@@ -1,19 +1,23 @@
-LIBOUT = liblzhl.a
-LIBOBJS = HuffStat.o HuffStatTmp.o LZBuffer.o LZHL.o LZHLCompressor.o LZHLDecoderStat.o LZHLDecompressor.o LZHLEncoder.o LZHLEncoderStat.o
-EXEOUT = test
-EXEOBJS = test.o
+CC=clang
+CFLAGS=-fPIC -c -O3
+LDFLAGS=-shared -lstdc++
+SOURCES=$(wildcard *.cpp)
+OBJECTS=$(SOURCES:.cpp=.o)
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	DLL=lzhl.dylib
+	ARCHOVERRIDE=-arch i386
+else
+	DLL=lzhl.so
+endif
 
-$(LIBOUT): $(LIBOBJS)
-	$(AR) rcs $(LIBOUT) $(LIBOBJS)
-    
-$(EXEOUT): $(EXEOBJS) $(LIBOUT)
-	$(CXX) -o $(EXEOUT) $(EXEOBJS) $(LIBOUT)
+all: $(SOURCES) $(DLL)
+
+$(DLL): $(OBJECTS)
+	$(CC) $(ARCHOVERRIDE) $(OBJECTS) $(LDFLAGS) -o $@
 
 .cpp.o:
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-.c.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(ARCHOVERRIDE) $(CFLAGS) $< -o $@
 
 clean:
-	$(RM) $(LIBOBJS) $(EXEOBJS) $(LIBOUT) $(EXEOUT)
+	rm -f *.o $(DLL)
