@@ -118,9 +118,29 @@ namespace CommandLine.Parsing
                     return PresentParserState.Failure;
                 }
 
-                if (!option.SetValue(true, options))
+                if (!argumentEnumerator.IsLast)
                 {
-                    return PresentParserState.Failure;
+                    string value = argumentEnumerator.Next;
+                    bool result;
+                    if (bool.TryParse(value, out result))
+                    {
+                        if (!option.SetValue(value, options))
+                        {
+                            return PresentParserState.Failure;
+                        }
+                        argumentEnumerator.MoveNext();
+                    }
+                    else if (!option.SetValue(true, options))
+                    {
+                        return PresentParserState.Failure;
+                    }
+                }
+                else
+                {
+                    if (!option.SetValue(true, options))
+                    {
+                        return PresentParserState.Failure;
+                    }
                 }
             }
 

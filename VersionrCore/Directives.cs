@@ -19,7 +19,7 @@ namespace Versionr
             set
             {
                 m_Patterns = value;
-                RegexPatterns = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x)).ToArray();
+                RegexPatterns = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.Compiled)).ToArray();
             }
         }
         public Ignores()

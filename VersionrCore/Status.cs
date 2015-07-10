@@ -30,6 +30,20 @@ namespace Versionr
             public bool Staged { get; set; }
             public Entry FilesystemEntry { get; set; }
             public Record VersionControlRecord { get; set; }
+            public string CanonicalName
+            {
+                get
+                {
+                    return FilesystemEntry != null ? FilesystemEntry.CanonicalName : VersionControlRecord.CanonicalName;
+                }
+            }
+            public bool IsDirectory
+            {
+                get
+                {
+                    return FilesystemEntry != null ? FilesystemEntry.IsDirectory : VersionControlRecord.IsDirectory;
+                }
+            }
         }
         public List<Objects.Record> VersionControlRecords { get; set; }
         public List<Objects.Record> BaseRecords { get; set; }
