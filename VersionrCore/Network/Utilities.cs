@@ -8,6 +8,12 @@ namespace Versionr.Network
 {
     class Utilities
     {
+        public enum PacketCompressionCodec
+        {
+            None,
+            LZ4,
+            LZH
+        }
         [ProtoBuf.ProtoContract]
         public class Packet
         {
@@ -19,6 +25,8 @@ namespace Versionr.Network
             public int? DecompressedSize { get; set; }
             [ProtoBuf.ProtoMember(4)]
             public uint Hash { get; set; }
+            [ProtoBuf.ProtoMember(5)]
+            public PacketCompressionCodec Codec { get; set; }
         }
         public static uint ComputeAdler32(byte[] array)
         {
@@ -73,17 +81,25 @@ namespace Versionr.Network
 
             uint checksum = ComputeAdler32(result);
             int? decompressedSize = null;
-            if (true)
+            byte[] compressedBuffer = null;
+            PacketCompressionCodec codec = PacketCompressionCodec.None;
+            if (result.Length > 512 * 1024)
             {
+                compressedBuffer = LZ4.LZ4Codec.Encode(result, 0, result.Length);
+                codec = PacketCompressionCodec.LZ4;
+            }
+            else
+            {
+                compressedBuffer = new byte[result.Length * 2];
                 Versionr.Utilities.LZHL.ResetCompressor(info.LZHLCompressor);
-                byte[] compressedBuffer = new byte[result.Length * 2];
-                uint resultSize = Versionr.Utilities.LZHL.Compress(info.LZHLCompressor, result, (uint)result.Length, compressedBuffer);
-                if (resultSize < result.Length)
-                {
-                    decompressedSize = result.Length;
-                    Array.Resize(ref compressedBuffer, (int)resultSize);
-                    result = compressedBuffer;
-                }
+                int compressedSize = (int)Versionr.Utilities.LZHL.Compress(info.LZHLCompressor, result, (uint)result.Length, compressedBuffer);
+                Array.Resize(ref compressedBuffer, compressedSize);
+                codec = PacketCompressionCodec.LZH;
+            }
+            if (compressedBuffer.Length < result.Length)
+            {
+                decompressedSize = result.Length;
+                result = compressedBuffer;
             }
 
             int payload = result.Length;
@@ -102,6 +118,7 @@ namespace Versionr.Network
                 Data = result,
                 PayloadSize = payload,
                 Hash = checksum,
+                Codec = codec
             };
 
             ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(info.Stream, packet, ProtoBuf.PrefixStyle.Fixed32);
@@ -120,11 +137,23 @@ namespace Versionr.Network
             
             if (packet.DecompressedSize.HasValue)
             {
-                Versionr.Utilities.LZHL.ResetDecompressor(info.LZHLDecompressor);
-                byte[] result = new byte[packet.DecompressedSize.Value];
-                Versionr.Utilities.LZHL.Decompress(info.LZHLDecompressor, decryptedData, (uint)packet.PayloadSize, result, (uint)packet.DecompressedSize.Value);
-                decryptedData = result;
-                Printer.PrintDiagnostics(" - {0} bytes decompressed", packet.DecompressedSize.Value);
+                switch (packet.Codec)
+                {
+                    case PacketCompressionCodec.None:
+                        break;
+                    case PacketCompressionCodec.LZ4:
+                        decryptedData = LZ4.LZ4Codec.Decode(decryptedData, 0, decryptedData.Length, packet.DecompressedSize.Value);
+                        break;
+                    case PacketCompressionCodec.LZH:
+                    {
+                        Versionr.Utilities.LZHL.ResetDecompressor(info.LZHLDecompressor);
+                        byte[] result = new byte[packet.DecompressedSize.Value];
+                        Versionr.Utilities.LZHL.Decompress(info.LZHLDecompressor, decryptedData, (uint)decryptedData.Length, result, (uint)result.Length);
+                        decryptedData = result;
+                        break;
+                    }
+                }
+                Printer.PrintDiagnostics(" - {0} bytes decompressed ({1})", packet.DecompressedSize.Value, packet.Codec);
             }
 
             uint checksum = ComputeAdler32(decryptedData);

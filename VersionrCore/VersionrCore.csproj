@@ -30,6 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="LZ4">
+      <HintPath>..\References\LZ4.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\..\Projects\Versionr\References\Newtonsoft.Json.dll</HintPath>
     </Reference>

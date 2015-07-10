@@ -669,6 +669,7 @@ namespace Versionr
                 List<System.Text.RegularExpressions.Regex> regexes = new List<System.Text.RegularExpressions.Regex>();
                 if (globMatching)
                 {
+                    fullpath = true;
                     foreach (var x in files)
                     {
                         string pattern = "^" + Regex.Escape(x).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
