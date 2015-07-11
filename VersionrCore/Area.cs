@@ -88,7 +88,13 @@ namespace Versionr
 			}
 		}
 
-		public bool FindVersion(string target, out Objects.Version version)
+        public void UpdateRemoteTimestamp(RemoteConfig config)
+        {
+            config.LastPull = DateTime.UtcNow;
+            LocalData.Update(config);
+        }
+
+        public bool FindVersion(string target, out Objects.Version version)
         {
             version = GetPartialVersion(target);
             if (version == null)
@@ -1543,6 +1549,12 @@ namespace Versionr
             
             List<Record> targetRecords = Database.GetRecords(tipVersion);
 
+            if (!GetMissingRecords(targetRecords))
+            {
+                Printer.PrintError("Missing record data!");
+                return;
+            }
+
             HashSet<string> canonicalNames = new HashSet<string>();
             foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
             {
@@ -1606,6 +1618,57 @@ namespace Versionr
             {
                 throw new Exception("Couldn't update local information!", e);
             }
+        }
+
+        private bool GetMissingRecords(List<Record> targetRecords)
+        {
+            List<Record> missingRecords = new List<Record>();
+            HashSet<string> requestedData = new HashSet<string>();
+            foreach (var x in targetRecords)
+            {
+                if (x.IsDirectory)
+                    continue;
+                if (!HasObjectData(x))
+                {
+                    if (!requestedData.Contains(x.DataIdentifier))
+                    {
+                        requestedData.Add(x.DataIdentifier);
+                        missingRecords.Add(x);
+                    }
+                }
+            }
+            if (missingRecords.Count > 0)
+            {
+                Printer.PrintMessage("Checking out this version requires {0} remote objects.", missingRecords.Count);
+                var configs = LocalData.Table<LocalState.RemoteConfig>().OrderByDescending(x => x.LastPull).ToList();
+                foreach (var x in configs)
+                {
+                    Printer.PrintMessage(" - Attempting to pull data from remote \"{2}\" ({0}:{1})", x.Host, x.Port, x.Name);
+
+                    Client client = new Client(this);
+                    try
+                    {
+                        if (!client.Connect(x.Host, x.Port))
+                            Printer.PrintMessage(" - Connection failed.");
+                        List<Record> retrievedRecords = client.GetRecordData(missingRecords);
+                        HashSet<string> retrievedData = new HashSet<string>();
+                        Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
+                        foreach (var y in retrievedRecords)
+                            retrievedData.Add(y.DataIdentifier);
+                        missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
+                        client.Close();
+                    }
+                    catch
+                    {
+                        client.Close();
+                    }
+                    if (missingRecords.Count > 0)
+                        Printer.PrintMessage("This checkout still requires {0} additional records.", missingRecords.Count);
+                    else
+                        return true;
+                }
+            }
+            return false;
         }
 
         private bool Switch(string v)

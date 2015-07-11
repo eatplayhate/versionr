@@ -410,6 +410,92 @@ namespace Versionr.Network
             }
         }
 
+        internal static List<Record> RequestRecordDataUnmapped(SharedNetworkInfo sharedInfo, List<Record> missingRecords)
+        {
+            HashSet<string> successes = new HashSet<string>();
+            int index = 0;
+            List<Record> returnedRecords = new List<Record>();
+            Dictionary<string, List<Record>> oneToManyMapping = new Dictionary<string, List<Record>>();
+            while (index < missingRecords.Count)
+            {
+                RequestRecordDataUnmapped rrd = new RequestRecordDataUnmapped();
+                List<Record> recordsInPack = new List<Record>();
+                HashSet<string> recordDataIdentifiers = new HashSet<string>();
+                while (recordsInPack.Count < 1024 * 32 && index < missingRecords.Count)
+                {
+                    int recordIndex = index;
+                    Record rec = missingRecords[index++];
+                    if (rec.IsDirectory)
+                        continue;
+                    if (recordDataIdentifiers.Contains(rec.DataIdentifier))
+                    {
+                        List<Record> multirecData = null;
+                        if (!oneToManyMapping.TryGetValue(rec.DataIdentifier, out multirecData))
+                        {
+                            multirecData = new List<Record>();
+                            oneToManyMapping[rec.DataIdentifier] = multirecData;
+                        }
+                        multirecData.Add(rec);
+                        continue;
+                    }
+                    recordDataIdentifiers.Add(rec.DataIdentifier);
+                    recordsInPack.Add(rec);
+                }
+                if (recordsInPack.Count > 0)
+                {
+                    rrd.RecordDataKeys = recordsInPack.Select(x => x.DataIdentifier).ToArray();
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordUnmapped }, ProtoBuf.PrefixStyle.Fixed32);
+                    Utilities.SendEncrypted<RequestRecordDataUnmapped>(sharedInfo, rrd);
+
+                    var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
+                    {
+                        var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
+                        if (pack.EndOfStream)
+                        {
+                            return new Tuple<byte[], bool>(pack.Data, true);
+                        }
+                        else
+                        {
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+                            return new Tuple<byte[], bool>(pack.Data, false);
+                        }
+                    });
+
+                    while (!receiverStream.EndOfStream)
+                    {
+                        byte[] blob = new byte[8];
+                        int successFlag;
+                        int requestIndex;
+                        long recordSize;
+                        if (receiverStream.Read(blob, 0, 8) != 8)
+                            continue;
+                        successFlag = BitConverter.ToInt32(blob, 0);
+                        requestIndex = BitConverter.ToInt32(blob, 4);
+
+                        Objects.Record rec = recordsInPack[requestIndex];
+                        if (successFlag == 0)
+                        {
+                            Printer.PrintDiagnostics("Record {0} not located on remote.", rec.DataIdentifier);
+                            continue;
+                        }
+
+                        receiverStream.Read(blob, 0, 8);
+                        recordSize = BitConverter.ToInt64(blob, 0);
+                        Printer.PrintDiagnostics("Unpacking record {0}, payload size: {1}", rec.DataIdentifier, recordSize);
+
+                        returnedRecords.Add(rec);
+                        List<Record> multireturns = null;
+                        if (oneToManyMapping.TryGetValue(rec.DataIdentifier, out multireturns))
+                            returnedRecords.AddRange(multireturns);
+
+                        sharedInfo.Workspace.ImportRecordData(rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                    }
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                }
+            }
+            return returnedRecords;
+        }
+
         private static void ReceiveRecordParents(SharedNetwork.SharedNetworkInfo sharedInfo, RecordParentPack response)
         {
             foreach (var x in response.Parents)

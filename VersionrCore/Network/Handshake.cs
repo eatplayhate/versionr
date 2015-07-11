@@ -20,7 +20,7 @@ namespace Versionr.Network
         {
             get
             {
-                return "Versionr/Protocol:2.2";
+                return "Versionr/Protocol:2.3";
             }
         }
 
