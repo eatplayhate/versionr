@@ -22,6 +22,11 @@ namespace Versionr
             LocalDatabase = localDB;
 
             CreateTable<Objects.FormatInfo>();
+            if (flags.HasFlag(SQLite.SQLiteOpenFlags.Create))
+            {
+                PrepareTables();
+                return;
+            }
 
             if (!ValidForUpgrade)
                 return;
@@ -39,28 +44,16 @@ namespace Versionr
                     CreateTable<Objects.FormatInfo>();
                     Insert(fmt);
 
-                    CreateTable<Objects.Record>();
-                    CreateTable<Objects.RecordRef>();
-                    CreateTable<Objects.Version>();
-                    CreateTable<Objects.Snapshot>();
-                    CreateTable<Objects.Branch>();
-                    CreateTable<Objects.Alteration>();
-                    CreateTable<Objects.Head>();
-                    CreateTable<Objects.MergeInfo>();
-                    CreateTable<Objects.ObjectName>();
-                    CreateTable<Objects.Domain>();
                     if (GetTableInfo("RecordIndex") == null || priorFormat < 6)
                     {
                         Printer.PrintMessage(" - Upgrading database - adding record index.");
-                        CreateTable<Objects.RecordIndex>();
                         foreach (var x in Table<Objects.Record>().ToList())
                         {
                             Objects.RecordIndex index = new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false };
                             Insert(index);
                         }
                     }
-                    else
-                        CreateTable<Objects.RecordIndex>();
+
                     Commit();
                 }
                 catch
@@ -69,6 +62,22 @@ namespace Versionr
                 }
             }
         }
+
+        private void PrepareTables()
+        {
+            CreateTable<Objects.Record>();
+            CreateTable<Objects.RecordRef>();
+            CreateTable<Objects.Version>();
+            CreateTable<Objects.Snapshot>();
+            CreateTable<Objects.Branch>();
+            CreateTable<Objects.Alteration>();
+            CreateTable<Objects.Head>();
+            CreateTable<Objects.MergeInfo>();
+            CreateTable<Objects.ObjectName>();
+            CreateTable<Objects.Domain>();
+            CreateTable<Objects.RecordIndex>();
+        }
+
         public Guid Domain
         {
             get
