@@ -722,6 +722,8 @@ namespace Versionr
 
         internal bool HasObjectData(Record rec)
         {
+            if (rec.Size == 0 || rec.IsDirectory)
+                return true;
             lock (this)
             {
                 FileInfo info = GetFileForCode(rec.Fingerprint, rec.Size);
@@ -2214,6 +2216,15 @@ namespace Versionr
             }
             FileInfo file = GetFileForCode(rec.Fingerprint, rec.Size);
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
+            if (rec.Size == 0)
+            {
+                using (var fs = dest.Create())
+                {
+
+                }
+                ApplyAttributes(dest, rec);
+                return;
+            }
             if (dest.Exists)
             {
                 try
