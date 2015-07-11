@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,7 +19,7 @@ namespace Versionr
         private WorkspaceDB(string path, SQLite.SQLiteOpenFlags flags, LocalDB localDB) : base(path, flags)
         {
             Printer.PrintDiagnostics("Metadata DB Open.");
-
+            EnableWAL = true;
             LocalDatabase = localDB;
 
             CreateTable<Objects.FormatInfo>();
@@ -182,6 +183,12 @@ namespace Versionr
             return result.OrderBy(x => x.Key).Select(x => x.Value).ToList();
         }
 
+        internal static bool AcceptDBVersion(int dbVersion)
+        {
+            return dbVersion <= MaximumDBVersion
+             && dbVersion >= InternalDBVersion;
+        }
+
         private List<Alteration> GetAlterations(Objects.Version version)
         {
             List<Objects.Version> parents = Query<Objects.Version>(
@@ -260,7 +267,7 @@ namespace Versionr
         {
             get
             {
-                return Format.InternalFormat <= MaximumDBVersion;
+                return AcceptDBVersion(Format.InternalFormat);
             }
         }
 
@@ -312,12 +319,12 @@ namespace Versionr
 
         public static WorkspaceDB Open(LocalDB localDB, string fullPath)
         {
-            return new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex, localDB);
+            return new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.NoMutex, localDB);
         }
 
         public static WorkspaceDB Create(LocalDB localDB, string fullPath)
         {
-            WorkspaceDB ws = new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex, localDB);
+            WorkspaceDB ws = new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.NoMutex, localDB);
             ws.BeginTransaction();
             try
             {

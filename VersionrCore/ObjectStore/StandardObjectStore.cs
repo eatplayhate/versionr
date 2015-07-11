@@ -51,6 +51,7 @@ namespace Versionr.ObjectStore
 
         private void InitializeDBTypes()
         {
+            return;
         }
 
         public bool Open(Area owner)

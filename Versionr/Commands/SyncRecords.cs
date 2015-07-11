@@ -1,18 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using CommandLine;
+using Versionr.Network;
 
 namespace Versionr.Commands
 {
-    class ServerVerbOptions : VerbOptionBase
+    class SyncRecordsOptions : RemoteCommandVerbOptions
     {
-        [Option('p', "port", Required = true, HelpText = "Specifies the port to run on.")]
-        public int Port { get; set; }
-
         public override string[] Description
         {
             get
@@ -28,17 +25,16 @@ namespace Versionr.Commands
         {
             get
             {
-                return "server";
+                return "syncrecords";
             }
         }
     }
-    class Server : BaseCommand
+    class SyncRecords : RemoteCommand
     {
-        public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
-            ServerVerbOptions localOptions = options as ServerVerbOptions;
-            Printer.EnableDiagnostics = localOptions.Verbose;
-            return Network.Server.Run(workingDirectory, localOptions.Port);
+            SyncRecordsOptions localOptions = options as SyncRecordsOptions;
+            return client.SyncRecords();
         }
     }
 }
