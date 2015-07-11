@@ -138,7 +138,7 @@ namespace Versionr
         internal static Area InitRemote(DirectoryInfo workingDir, ClonePayload clonePack)
         {
             Area ws = CreateWorkspace(workingDir);
-            if (!ws.Init(clonePack))
+            if (!ws.Init(null, clonePack))
                 throw new Exception("Couldn't initialize versionr.");
             return ws;
         }
@@ -209,10 +209,12 @@ namespace Versionr
             AdministrationFolder = adminFolder;
         }
 
-        private bool Init(ClonePayload remote = null)
+        private bool Init(string branchName = null, ClonePayload remote = null)
         {
             try
             {
+                if (branchName != null && remote != null)
+                    throw new Exception("Can't initialize a repository with a specific root branch name and a clone payload.");
                 AdministrationFolder.Create();
                 AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
                 LocalData = LocalDB.Create(LocalMetadataFile.FullName);
@@ -220,7 +222,7 @@ namespace Versionr
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 ObjectStore.Create(this);
                 if (remote == null)
-                    PopulateDefaults();
+                    PopulateDefaults(branchName);
                 else
                     PopulateRemoteRoot(remote);
                 return true;
@@ -292,14 +294,14 @@ namespace Versionr
             }
         }
 
-        private void PopulateDefaults()
+        private void PopulateDefaults(string branchName)
         {
             Printer.PrintDiagnostics("Creating initial state...");
             LocalState.Configuration config = LocalData.Configuration;
 
             LocalState.Workspace ws = LocalState.Workspace.Create();
 
-            Objects.Branch branch = Objects.Branch.Create("master");
+            Objects.Branch branch = Objects.Branch.Create(branchName);
             Objects.Version version = Objects.Version.Create();
             Objects.Snapshot snapshot = new Objects.Snapshot();
             Objects.Head head = new Objects.Head();
@@ -643,7 +645,7 @@ namespace Versionr
             }
         }
 
-        public bool RecordChanges(IList<string> files, bool missing, bool recursive, bool regex, bool fullpath, bool nodirs, bool caseInsensitive)
+        public bool RecordChanges(IList<string> files, bool missing, bool recursive, bool regex, bool filenames, bool caseInsensitive)
         {
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
             var stat = Status;
@@ -669,7 +671,6 @@ namespace Versionr
                 List<System.Text.RegularExpressions.Regex> regexes = new List<System.Text.RegularExpressions.Regex>();
                 if (globMatching)
                 {
-                    fullpath = true;
                     foreach (var x in files)
                     {
                         string pattern = "^" + Regex.Escape(x).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
@@ -693,7 +694,7 @@ namespace Versionr
                     {
                         foreach (var y in regexes)
                         {
-                            if ((fullpath && y.IsMatch(x.CanonicalName)) || (x.FilesystemEntry?.Info != null && y.IsMatch(x.FilesystemEntry.Info.Name)))
+                            if ((!filenames && y.IsMatch(x.CanonicalName)) || (filenames && x.FilesystemEntry?.Info != null && y.IsMatch(x.FilesystemEntry.Info.Name)))
                             {
                                 stagedPaths.Add(x.CanonicalName);
 
@@ -726,12 +727,14 @@ namespace Versionr
                         x.Code == StatusCode.Renamed ||
                         x.Code == StatusCode.Modified ||
                         x.Code == StatusCode.Copied ||
-                        (x.Code == StatusCode.Missing && missing)))
+                        x.Code == StatusCode.Missing && (!filenames || (missing && filenames))))
                     {
                         foreach (var y in canonicalPaths)
                         {
-                            if (string.Equals(x.CanonicalName, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
-                                (x.IsDirectory && string.Equals(x.CanonicalName, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)))
+                            if ((filenames && (string.Equals(x.Name, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
+                                    string.Equals(x.Name, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))) ||
+                                (!filenames && (string.Equals(x.CanonicalName, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
+                                    string.Equals(x.CanonicalName, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))))
                             {
                                 stagedPaths.Add(x.CanonicalName);
 
@@ -745,7 +748,7 @@ namespace Versionr
                                     Printer.PrintMessage("Recorded object: {0}", x.FilesystemEntry.CanonicalName);
                                     stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
                                 }
-                                if (recursive && x.FilesystemEntry.IsDirectory)
+                                if (recursive && x.IsDirectory)
                                     RecordRecursive(stat.Elements, x, stageOps, stagedPaths);
                                 break;
                             }
@@ -755,8 +758,10 @@ namespace Versionr
                     {
                         foreach (var y in canonicalPaths)
                         {
-                            if (string.Equals(x.CanonicalName, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
-                                string.Equals(x.CanonicalName, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                            if ((filenames && (string.Equals(x.Name, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
+                                    string.Equals(x.Name, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))) ||
+                                (!filenames && (string.Equals(x.CanonicalName, y, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
+                                    string.Equals(x.CanonicalName, y + "/", caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))))
                             {
                                 RecordRecursive(stat.Elements, x, stageOps, stagedPaths);
                                 break;
@@ -2370,10 +2375,10 @@ namespace Versionr
             }
         }
 
-        public static Area Init(DirectoryInfo workingDir)
+        public static Area Init(DirectoryInfo workingDir, string branchname = "master")
         {
             Area ws = CreateWorkspace(workingDir);
-            if (!ws.Init())
+            if (!ws.Init(branchname))
                 throw new Exception("Couldn't initialize versionr.");
             return ws;
         }

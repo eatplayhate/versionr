@@ -70,6 +70,19 @@ namespace Versionr.Objects
 
         [ProtoBuf.ProtoIgnore]
         [SQLite.Ignore]
+        public string Name
+        {
+            get
+            {
+                int index = CanonicalName.LastIndexOf('/');
+                if (index == -1)
+                    return CanonicalName;
+                return CanonicalName.Substring(index + 1);
+            }
+        }
+
+        [ProtoBuf.ProtoIgnore]
+        [SQLite.Ignore]
         public string UniqueIdentifier
         {
             get

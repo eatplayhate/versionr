@@ -37,6 +37,13 @@ namespace Versionr
                     return FilesystemEntry != null ? FilesystemEntry.CanonicalName : VersionControlRecord.CanonicalName;
                 }
             }
+            public string Name
+            {
+                get
+                {
+                    return FilesystemEntry != null ? FilesystemEntry.Name : VersionControlRecord.Name;
+                }
+            }
             public bool IsDirectory
             {
                 get
