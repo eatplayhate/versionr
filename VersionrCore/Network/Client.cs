@@ -142,14 +142,30 @@ namespace Versionr.Network
             }
         }
 
-        public bool Pull()
+        public bool Pull(string branchName = null)
         {
             if (Workspace == null)
                 return false;
             try
             {
-                Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = Workspace.CurrentBranch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                string branchID;
+                if (branchName == null)
+                {
+                    Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
+                    branchID = Workspace.CurrentBranch.ID.ToString();
+                }
+                else
+                {
+                    Printer.PrintMessage("Querying remote branch ID for \"{0}\"", branchName);
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = branchName }, ProtoBuf.PrefixStyle.Fixed32);
+                    var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    if (queryResult.Type == NetCommandType.Error)
+                        Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
+                    branchID = queryResult.AdditionalPayload;
+                    Printer.PrintMessage(" - Matched remote to branch ID {0}", branchID);
+                }
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = branchID }, ProtoBuf.PrefixStyle.Fixed32);
+
                 var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                 if (command.Type == NetCommandType.Error)
                     throw new Exception("Remote error: " + command.AdditionalPayload);

@@ -195,6 +195,11 @@ namespace Versionr
             }
         }
 
+        public List<Objects.Branch> GetBranchByName(string name)
+        {
+            return Database.Table<Objects.Branch>().Where(x => x.Name == name).ToList();
+        }
+
         public Objects.Branch CurrentBranch
         {
             get

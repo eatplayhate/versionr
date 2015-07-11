@@ -103,6 +103,23 @@ namespace Versionr.Network
                                 Printer.PrintDiagnostics("Client closing connection.");
                                 break;
                             }
+                            else if (command.Type == NetCommandType.QueryBranchID)
+                            {
+                                Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
+                                var branches = ws.GetBranchByName(command.AdditionalPayload).Where(x => x.Deleted == false).ToList();
+                                if (branches.Count == 1)
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branches[0].ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else if (branches.Count == 0)
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "branch not recognized" }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                            }
                             else if (command.Type == NetCommandType.Clone)
                             {
                                 Printer.PrintDiagnostics("Client is requesting to clone the vault.");

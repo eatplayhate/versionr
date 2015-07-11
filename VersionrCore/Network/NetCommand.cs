@@ -25,6 +25,7 @@ namespace Versionr.Network
         Error,
         Clone,
         PullVersions,
+        QueryBranchID,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand
