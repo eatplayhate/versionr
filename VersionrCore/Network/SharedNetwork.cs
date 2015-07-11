@@ -469,8 +469,8 @@ namespace Versionr.Network
                         long recordSize;
                         if (receiverStream.Read(blob, 0, 8) != 8)
                             continue;
-                        successFlag = BitConverter.ToInt32(blob, 0);
-                        requestIndex = BitConverter.ToInt32(blob, 4);
+                        requestIndex = BitConverter.ToInt32(blob, 0);
+                        successFlag = BitConverter.ToInt32(blob, 4);
 
                         Objects.Record rec = recordsInPack[requestIndex];
                         if (successFlag == 0)
@@ -530,6 +530,7 @@ namespace Versionr.Network
                 {
                     int failure = 0;
                     sender(BitConverter.GetBytes(failure), false);
+                    Printer.PrintDiagnostics("Record with identifier {0} not stored on this vault.", x);
                 }
                 else
                 {

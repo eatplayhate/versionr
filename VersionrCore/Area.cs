@@ -840,9 +840,11 @@ namespace Versionr
 
         internal Record GetRecordFromIdentifier(string id)
         {
-            var index = Database.Find<Objects.RecordIndex>(x => x.DataIdentifier == id);
+            var index = Database.Table<Objects.RecordIndex>().Where(x => x.DataIdentifier == id).First();
             if (index != null)
-                return Database.Find<Objects.Record>(x => x.Id == index.Index);
+                return Database.Find<Objects.Record>(index.Index);
+            else
+                Printer.PrintDiagnostics("Record not in index");
             return null;
         }
 
@@ -1963,7 +1965,10 @@ namespace Versionr
                         x.Item1.CanonicalNameId = x.Item2.Id;
                     }
                     foreach (var x in records)
+                    {
                         Database.Insert(x);
+                        Database.Insert(new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false });
+                    }
                     foreach (var x in alterationLinkages)
                         x.Item2.NewRecord = x.Item1.Id;
 

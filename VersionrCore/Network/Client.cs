@@ -63,6 +63,7 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Disconnecting...");
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Close }, ProtoBuf.PrefixStyle.Fixed32);
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    Connection.Close();
                 }
                 catch
                 {
@@ -74,7 +75,6 @@ namespace Versionr.Network
                 }
                 Printer.PrintDiagnostics("Disconnected.");
             }
-            Connection.Close();
         }
 
         public bool Clone()
