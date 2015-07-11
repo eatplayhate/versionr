@@ -107,7 +107,8 @@ namespace Versionr.Network
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                     }
 
-                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetRandomFileName() + ".cxx");
+                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetRandomFileName());
+                    Printer.PrintError("Attempting to import metadata file to temp path {0}", fsInfo.FullName);
                     try
                     {
                         using (var stream = fsInfo.OpenWrite())
@@ -126,11 +127,14 @@ namespace Versionr.Network
                                 return false;
                             }
                         }
-                        Area area = new Area(BaseDirectory);
+                        Printer.PrintError("Metadata written, importing DB.");
+                        Area area = new Area(Area.GetAdminFolderForDirectory(BaseDirectory));
                         try
                         {
                             fsInfo.MoveTo(area.MetadataFile.FullName);
-                            Area open = Area.Load(BaseDirectory);
+                            if (!area.ImportDB())
+                                throw new Exception("Couldn't import data.");
+                            Workspace = Area.Load(BaseDirectory);
                             return true;
                         }
                         catch
@@ -138,16 +142,14 @@ namespace Versionr.Network
                             if (area.MetadataFile.Exists)
                                 area.MetadataFile.Delete();
                             area.AdministrationFolder.Delete();
-                            return false;
+                            throw;
                         }
                     }
                     catch
                     {
-                    }
-                    finally
-                    {
                         if (fsInfo.Exists)
                             fsInfo.Delete();
+                        return false;
                     }
                 }
                 return true;

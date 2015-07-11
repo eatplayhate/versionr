@@ -227,6 +227,25 @@ namespace Versionr
             Utilities.MultiArchPInvoke.BindDLLs();
             AdministrationFolder = adminFolder;
             AdministrationFolder.Create();
+            AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
+        }
+
+        public bool ImportDB()
+        {
+            try
+            {
+                LocalData = LocalDB.Create(LocalMetadataFile.FullName);
+                Database = WorkspaceDB.Create(LocalData, MetadataFile.FullName);
+                ObjectStore = new ObjectStore.StandardObjectStore();
+                ObjectStore.Create(this);
+                ImportRoot();
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError(e.ToString());
+                return false;
+            }
         }
 
         private bool Init(string branchName = null, ClonePayload remote = null)
@@ -251,6 +270,40 @@ namespace Versionr
             {
                 Printer.PrintError(e.ToString());
                 return false;
+            }
+        }
+
+        private void ImportRoot()
+        {
+            Printer.PrintDiagnostics("Importing root from database...");
+            LocalState.Configuration config = LocalData.Configuration;
+
+            LocalState.Workspace ws = LocalState.Workspace.Create();
+
+            Guid initialRevision = Database.Domain;
+
+            Objects.Version version = GetVersion(initialRevision);
+            Objects.Branch branch = GetBranch(version.Branch);
+
+            ws.Name = Environment.UserName;
+            ws.Branch = branch.ID;
+            ws.Tip = version.ID;
+            config.WorkspaceID = ws.ID;
+            ws.Domain = initialRevision;
+
+            Printer.PrintDiagnostics("Starting DB transaction.");
+            LocalData.BeginTransaction();
+            try
+            {
+                LocalData.Insert(ws);
+                LocalData.Update(config);
+                LocalData.Commit();
+                Printer.PrintDiagnostics("Finished.");
+            }
+            catch (Exception e)
+            {
+                LocalData.Rollback();
+                throw new Exception("Couldn't initialize repository!", e);
             }
         }
 
@@ -900,8 +953,8 @@ namespace Versionr
             {
                 if (!MetadataFile.Exists)
                     return false;
-                // Load metadata DB
                 LocalData = LocalDB.Open(LocalMetadataFile.FullName);
+                // Load metadata DB
                 if (!LocalData.Valid)
                     return false;
                 Database = WorkspaceDB.Open(LocalData, MetadataFile.FullName);
@@ -2549,7 +2602,7 @@ namespace Versionr
             }
         }
 
-        private static DirectoryInfo GetAdminFolderForDirectory(DirectoryInfo workingDir)
+        public static DirectoryInfo GetAdminFolderForDirectory(DirectoryInfo workingDir)
         {
             return new DirectoryInfo(Path.Combine(workingDir.FullName, ".versionr"));
         }
