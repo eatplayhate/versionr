@@ -206,10 +206,12 @@ namespace Versionr.Network
                                 if (command.Type == NetCommandType.Acknowledge)
                                 {
                                     System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetTempFileName());
+                                    Printer.PrintDiagnostics("Client requesting full clone, temp file: {0}", fsInfo.FullName);
                                     try
                                     {
                                         if (ws.BackupDB(fsInfo))
                                         {
+                                            Printer.PrintDiagnostics("Backup complete. Sending data.");
                                             byte[] blob = new byte[256 * 1024];
                                             long filesize = fsInfo.Length;
                                             long position = 0;
@@ -242,6 +244,7 @@ namespace Versionr.Network
                                         }
                                         else
                                         {
+                                            Printer.PrintDiagnostics("Backup failed. Aborting.");
                                             Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
                                             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
                                         }

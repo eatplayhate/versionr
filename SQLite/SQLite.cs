@@ -356,24 +356,32 @@ namespace SQLite
 
         public bool Backup(System.IO.FileInfo fsInfo, Action<int, int> progress)
         {
-            IntPtr backupID = SQLite3.BackupInit(fsInfo.FullName, "main", Handle, "main");
+            IntPtr backupDBHandle;
+            if (SQLite3.Open(fsInfo.FullName, out backupDBHandle) != SQLite3.Result.OK)
+                return false;
+            IntPtr backupID = SQLite3.BackupInit(backupDBHandle, "main", Handle, "main");
             if (backupID == IntPtr.Zero)
                 return false;
             while (true)
             {
-                progress(SQLite3.BackupRemaining(backupID), SQLite3.BackupPagecount(backupID));
                 var result = SQLite3.BackupStep(backupID, 100);
+                progress(SQLite3.BackupRemaining(backupID), SQLite3.BackupPagecount(backupID));
                 if (result == SQLite3.Result.Done)
                     break;
                 else if (result == SQLite3.Result.OK)
                     continue;
                 else if (result == SQLite3.Result.Busy)
                     Thread.Sleep(100);
-                else
+                else if (result == SQLite3.Result.NoMem || result == SQLite3.Result.IOError || result == SQLite3.Result.Error)
+                {
+                    SQLite3.BackupFinish(backupID);
+                    SQLite3.Close(backupDBHandle);
                     return false;
+                }
             }
             SQLite3.BackupFinish(backupID);
-            return false;
+            SQLite3.Close(backupDBHandle);
+            return true;
         }
 
         /// <summary>
@@ -3188,7 +3196,7 @@ namespace SQLite
 		public static extern Result Prepare2 (IntPtr db, [MarshalAs(UnmanagedType.LPStr)] string sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
 
         [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_init", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr BackupInit([MarshalAs(UnmanagedType.LPStr)] string filename, [MarshalAs(UnmanagedType.LPStr)] string dbDestName, IntPtr dbHandle, [MarshalAs(UnmanagedType.LPStr)] string dbSourceName);
+        public static extern IntPtr BackupInit(IntPtr backupHandle, [MarshalAs(UnmanagedType.LPStr)] string dbDestName, IntPtr dbHandle, [MarshalAs(UnmanagedType.LPStr)] string dbSourceName);
 
         [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_step", CallingConvention = CallingConvention.Cdecl)]
         public static extern Result BackupStep(IntPtr backup, int pages);

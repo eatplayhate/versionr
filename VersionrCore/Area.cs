@@ -386,7 +386,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Running backup...");
             return Database.Backup(fsInfo, (int pages, int total) =>
             {
-                Printer.PrintDiagnostics("Backup progress: ({0}/{1}) pages.", pages, total);
+                Printer.PrintDiagnostics("Backup progress: ({0}/{1}) pages remaining.", pages, total);
             });
         }
 
