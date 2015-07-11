@@ -1691,6 +1691,8 @@ namespace Versionr
                         return true;
                 }
             }
+            else
+                return true;
             return false;
         }
 
