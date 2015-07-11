@@ -12,7 +12,7 @@ namespace Versionr
     {
         public const int InternalDBVersion = 6;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 6;
+        public const int MaximumDBVersion = 10;
 
         public LocalDB LocalDatabase { get; set; }
 
