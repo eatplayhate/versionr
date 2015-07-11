@@ -28,15 +28,15 @@ namespace Versionr.Commands
                 return "pull";
             }
         }
-        [ValueOption(1)]
-        public string RemoteObject { get; set; }
+        [Option('b', "branch", HelpText="The name of the branch to pull.")]
+        public string RemoteBranch { get; set; }
     }
     class Pull : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PullVerbOptions localOptions = options as PullVerbOptions;
-            return client.Pull(localOptions.RemoteObject);
+            return client.Pull(localOptions.RemoteBranch);
         }
     }
 }
