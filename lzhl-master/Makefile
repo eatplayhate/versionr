@@ -5,10 +5,10 @@ SOURCES=$(wildcard *.cpp)
 OBJECTS=$(SOURCES:.cpp=.o)
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
-	DLL=lzhl.dylib
+	DLL=liblzhl.dylib
 	ARCHOVERRIDE=-arch i386
 else
-	DLL=lzhl.so
+	DLL=liblzhl.so
 endif
 
 all: $(SOURCES) $(DLL)
