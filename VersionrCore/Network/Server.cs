@@ -30,8 +30,14 @@ namespace Versionr.Network
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
-        public static bool Run(Area ws, int port)
+        public static bool Run(System.IO.DirectoryInfo info, int port)
         {
+            Area ws = Area.Load(info);
+            if (ws == null)
+            {
+                Printer.PrintError("Can't run server without an active vault.");
+                return false;
+            }
             Printer.PrintDiagnostics("Creating RSA pair...");
             System.Security.Cryptography.RSACryptoServiceProvider rsaCSP = new System.Security.Cryptography.RSACryptoServiceProvider();
             rsaCSP.KeySize = 2048;
@@ -46,7 +52,7 @@ namespace Versionr.Network
             {
                 Printer.PrintDiagnostics("Waiting for connection.");
                 var client = listener.AcceptTcpClient();
-                Task.Run(() => { HandleConnection(ws, client); });
+                Task.Run(() => { HandleConnection(Area.Load(info), client); });
             }
             listener.Stop();
 

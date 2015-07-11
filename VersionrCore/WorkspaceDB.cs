@@ -9,13 +9,14 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 3;
+        public const int InternalDBVersion = 6;
 
         public LocalDB LocalDatabase { get; set; }
 
         private WorkspaceDB(string path, SQLite.SQLiteOpenFlags flags, LocalDB localDB) : base(path, flags)
         {
             Printer.PrintDiagnostics("Metadata DB Open.");
+            EnableWAL = true;
             CreateTable<Objects.Record>();
             CreateTable<Objects.RecordRef>();
             CreateTable<Objects.Version>();
@@ -255,12 +256,12 @@ namespace Versionr
 
         public static WorkspaceDB Open(LocalDB localDB, string fullPath)
         {
-            return new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex, localDB);
+            return new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.NoMutex, localDB);
         }
 
         public static WorkspaceDB Create(LocalDB localDB, string fullPath)
         {
-            WorkspaceDB ws = new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex, localDB);
+            WorkspaceDB ws = new WorkspaceDB(fullPath, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.NoMutex, localDB);
             ws.BeginTransaction();
             try
             {

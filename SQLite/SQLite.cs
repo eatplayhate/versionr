@@ -163,6 +163,17 @@ namespace SQLite
 
 		public bool StoreDateTimeAsTicks { get; private set; }
 
+        public bool EnableWAL
+        {
+            set
+            {
+                if (value)
+                    SQLite3.Exec(Handle, "PRAGMA journal_mode=WAL;", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                else
+                    SQLite3.Exec(Handle, "PRAGMA journal_mode=DELETE;", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            }
+        }
+
 		/// <summary>
 		/// Constructs a new SQLiteConnection and opens a SQLite database specified by databasePath.
 		/// </summary>
@@ -3112,7 +3123,10 @@ namespace SQLite
 		[DllImport(LibraryPath, EntryPoint = "sqlite3_threadsafe", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int Threadsafe ();
 
-		[DllImport(LibraryPath, EntryPoint = "sqlite3_open", CallingConvention=CallingConvention.Cdecl)]
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_exec", CallingConvention = CallingConvention.Cdecl)]
+        public static extern Result Exec(IntPtr db, [MarshalAs(UnmanagedType.LPStr)] string query, IntPtr callback, IntPtr param, IntPtr errorMsg);
+
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_open", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Open ([MarshalAs(UnmanagedType.LPStr)] string filename, out IntPtr db);
 
 		[DllImport(LibraryPath, EntryPoint = "sqlite3_open_v2", CallingConvention=CallingConvention.Cdecl)]
