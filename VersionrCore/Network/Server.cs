@@ -202,7 +202,12 @@ namespace Versionr.Network
                         }
                     }
                     else
-                        throw new Exception();
+                    {
+                        Network.StartTransaction startSequence = Network.StartTransaction.CreateRejection();
+                        Printer.PrintDiagnostics("Rejecting client due to protocol mismatch.");
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                        return;
+                    }
                 }
                 catch (Exception e)
                 {

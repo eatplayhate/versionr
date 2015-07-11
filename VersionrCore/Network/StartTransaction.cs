@@ -18,6 +18,9 @@ namespace Versionr.Network
         [ProtoBuf.ProtoMember(3)]
         public string PublicKeyJSON { get; set; }
 
+        [ProtoBuf.ProtoMember(4)]
+        public bool Accepted { get; set; }
+
         [ProtoBuf.ProtoIgnore]
         public System.Security.Cryptography.RSAParameters RSAKey
         {
@@ -33,7 +36,12 @@ namespace Versionr.Network
 
         public static StartTransaction Create(string domain, System.Security.Cryptography.RSAParameters publicKey)
         {
-            return new StartTransaction() { ServerHandshake = Handshake.Create(), Domain = domain, RSAKey = publicKey };
+            return new StartTransaction() { ServerHandshake = Handshake.Create(), Domain = domain, RSAKey = publicKey, Accepted = true };
+        }
+
+        public static StartTransaction CreateRejection()
+        {
+            return new StartTransaction() { ServerHandshake = Handshake.Create(), Domain = string.Empty, PublicKeyJSON = string.Empty, Accepted = false };
         }
     }
 }

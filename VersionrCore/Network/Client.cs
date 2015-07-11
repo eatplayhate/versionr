@@ -383,6 +383,11 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<Handshake>(Connection.GetStream(), hs, ProtoBuf.PrefixStyle.Fixed32);
 
                     var startTransaction = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Network.StartTransaction>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    if (!startTransaction.Accepted)
+                    {
+                        Printer.PrintDiagnostics("Server rejected connection. Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        return false;
+                    }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
                     if (Workspace != null && startTransaction.Domain != Workspace.Domain.ToString())
                     {
