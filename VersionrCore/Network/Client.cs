@@ -53,6 +53,16 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
+        public bool SyncRecords()
+        {
+            List<Record> missingRecords = Workspace.GetAllMissingRecords();
+            Printer.PrintMessage("Vault is missing data for {0} records.", missingRecords.Count);
+            List<Record> returnedData = GetRecordData(missingRecords);
+            Printer.PrintMessage(" - Got {0} records from remote.", returnedData.Count);
+            if (returnedData.Count != missingRecords.Count)
+                return false;
+            return true;
+        }
         public void Close()
         {
             if (Connected)

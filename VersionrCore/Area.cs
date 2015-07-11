@@ -39,6 +39,12 @@ namespace Versionr
                 return new FileInfo(Path.Combine(AdministrationFolder.FullName, "config.db"));
             }
         }
+
+        internal List<Record> GetAllMissingRecords()
+        {
+            return FindMissingRecords(Database.Table<Objects.Record>());
+        }
+
         public DirectoryInfo Root
         {
             get
@@ -1716,21 +1722,7 @@ namespace Versionr
 
         private bool GetMissingRecords(List<Record> targetRecords)
         {
-            List<Record> missingRecords = new List<Record>();
-            HashSet<string> requestedData = new HashSet<string>();
-            foreach (var x in targetRecords)
-            {
-                if (x.IsDirectory)
-                    continue;
-                if (!HasObjectData(x))
-                {
-                    if (!requestedData.Contains(x.DataIdentifier))
-                    {
-                        requestedData.Add(x.DataIdentifier);
-                        missingRecords.Add(x);
-                    }
-                }
-            }
+            List<Record> missingRecords = FindMissingRecords(targetRecords);
             if (missingRecords.Count > 0)
             {
                 Printer.PrintMessage("Checking out this version requires {0} remote objects.", missingRecords.Count);
@@ -1765,6 +1757,26 @@ namespace Versionr
             else
                 return true;
             return false;
+        }
+
+        private List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
+        {
+            List<Record> missingRecords = new List<Record>();
+            HashSet<string> requestedData = new HashSet<string>();
+            foreach (var x in targetRecords)
+            {
+                if (x.IsDirectory)
+                    continue;
+                if (!HasObjectData(x))
+                {
+                    if (!requestedData.Contains(x.DataIdentifier))
+                    {
+                        requestedData.Add(x.DataIdentifier);
+                        missingRecords.Add(x);
+                    }
+                }
+            }
+            return missingRecords;
         }
 
         private bool Switch(string v)
