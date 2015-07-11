@@ -28,13 +28,15 @@ namespace Versionr.Commands
                 return "pull";
             }
         }
+        [ValueOption(1)]
+        public string RemoteObject { get; set; }
     }
     class Pull : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PullVerbOptions localOptions = options as PullVerbOptions;
-            return client.Pull();
+            return client.Pull(localOptions.RemoteObject);
         }
     }
 }
