@@ -10,6 +10,8 @@ namespace Versionr
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
         public const int InternalDBVersion = 6;
+        public const int MinimumDBVersion = 3;
+        public const int MaximumDBVersion = 6;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -17,6 +19,52 @@ namespace Versionr
         {
             Printer.PrintDiagnostics("Metadata DB Open.");
             EnableWAL = true;
+            LocalDatabase = localDB;
+
+            CreateTable<Objects.FormatInfo>();
+            if (flags.HasFlag(SQLite.SQLiteOpenFlags.Create))
+            {
+                PrepareTables();
+                return;
+            }
+
+            if (!ValidForUpgrade)
+                return;
+
+            if (Format.InternalFormat < InternalDBVersion)
+            {
+                try
+                {
+                    BeginTransaction();
+                    Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
+                    var fmt = Format;
+                    int priorFormat = fmt.InternalFormat;
+                    DropTable<Objects.FormatInfo>();
+                    fmt.InternalFormat = InternalDBVersion;
+                    CreateTable<Objects.FormatInfo>();
+                    Insert(fmt);
+
+                    if (GetTableInfo("RecordIndex") == null || priorFormat < 6)
+                    {
+                        Printer.PrintMessage(" - Upgrading database - adding record index.");
+                        foreach (var x in Table<Objects.Record>().ToList())
+                        {
+                            Objects.RecordIndex index = new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false };
+                            Insert(index);
+                        }
+                    }
+
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                }
+            }
+        }
+
+        private void PrepareTables()
+        {
             CreateTable<Objects.Record>();
             CreateTable<Objects.RecordRef>();
             CreateTable<Objects.Version>();
@@ -25,11 +73,11 @@ namespace Versionr
             CreateTable<Objects.Alteration>();
             CreateTable<Objects.Head>();
             CreateTable<Objects.MergeInfo>();
-            CreateTable<Objects.FormatInfo>();
             CreateTable<Objects.ObjectName>();
             CreateTable<Objects.Domain>();
-            LocalDatabase = localDB;
+            CreateTable<Objects.RecordIndex>();
         }
+
         public Guid Domain
         {
             get
@@ -200,11 +248,19 @@ namespace Versionr
             }
         }
 
+        public bool ValidForUpgrade
+        {
+            get
+            {
+                return Format.InternalFormat >= MinimumDBVersion && Format.InternalFormat <= MaximumDBVersion;
+            }
+        }
+
         public bool Valid
         {
             get
             {
-                return Format.InternalFormat == InternalDBVersion;
+                return Format.InternalFormat <= MaximumDBVersion;
             }
         }
 

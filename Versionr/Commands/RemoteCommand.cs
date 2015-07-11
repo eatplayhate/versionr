@@ -59,6 +59,8 @@ namespace Versionr.Commands
             {
                 if (requireRemoteName)
                     config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name);
+                if (UpdateRemoteTimestamp && config != null)
+                    ws.UpdateRemoteTimestamp(config);
             }
             else if (!string.IsNullOrEmpty(localOptions.Name))
             {
@@ -91,6 +93,14 @@ namespace Versionr.Commands
         }
 
         protected virtual bool NeedsNoWorkspace
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        protected virtual bool UpdateRemoteTimestamp
         {
             get
             {

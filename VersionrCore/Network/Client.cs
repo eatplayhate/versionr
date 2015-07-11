@@ -63,6 +63,7 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Disconnecting...");
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Close }, ProtoBuf.PrefixStyle.Fixed32);
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    Connection.Close();
                 }
                 catch
                 {
@@ -74,7 +75,6 @@ namespace Versionr.Network
                 }
                 Printer.PrintDiagnostics("Disconnected.");
             }
-            Connection.Close();
         }
 
         public bool Clone()
@@ -101,27 +101,20 @@ namespace Versionr.Network
                 return false;
             try
             {
-                SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
-                {
-                    DecryptorFunction = () => { return Decryptor; },
-                    EncryptorFunction = () => { return Encryptor; },
-                    Stream = Connection.GetStream(),
-                    Workspace = Workspace,
-                };
                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
-                if (!SharedNetwork.GetVersionList(sharedInfo, Workspace.Version, out branchesToSend, out versionsToSend))
+                if (!SharedNetwork.GetVersionList(SharedInfo, Workspace.Version, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
-                if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
+                if (!SharedNetwork.SendBranches(SharedInfo, branchesToSend))
                     return false;
-                if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
+                if (!SharedNetwork.SendVersions(SharedInfo, versionsToSend))
                     return false;
 
                 Printer.PrintDiagnostics("Committing changes remotely.");
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
-                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
+                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                 if (response.Type == NetCommandType.RejectPush)
                 {
                     Printer.PrintError("Server rejected push, return code: {0}", response.AdditionalPayload);
@@ -142,7 +135,7 @@ namespace Versionr.Network
             }
         }
 
-        public bool Pull(string branchName = null)
+        public bool Pull(bool pullRemoteObjects, string branchName = null)
         {
             if (Workspace == null)
                 return false;
@@ -162,7 +155,7 @@ namespace Versionr.Network
                     if (queryResult.Type == NetCommandType.Error)
                         Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
                     branchID = queryResult.AdditionalPayload;
-                    Printer.PrintMessage(" - Matched remote to branch ID {0}", branchID);
+                    Printer.PrintMessage(" - Matched query to remote branch ID {0}", branchID);
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = branchID }, ProtoBuf.PrefixStyle.Fixed32);
 
@@ -183,8 +176,11 @@ namespace Versionr.Network
                     {
                         Printer.PrintMessage("Received {0} versions from remote vault.", SharedInfo.PushedVersions.Count);
                         SharedNetwork.RequestRecordMetadata(SharedInfo);
-                        Printer.PrintDiagnostics("Requesting record data...");
-                        SharedNetwork.RequestRecordData(SharedInfo);
+                        if (pullRemoteObjects)
+                        {
+                            Printer.PrintDiagnostics("Requesting record data...");
+                            SharedNetwork.RequestRecordData(SharedInfo);
+                        }
                         bool result = PullVersions(SharedInfo);
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                         return result;
@@ -438,6 +434,11 @@ namespace Versionr.Network
             }
             else
                 return false;
+        }
+
+        internal List<Record> GetRecordData(List<Record> missingRecords)
+        {
+            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords);
         }
     }
 }

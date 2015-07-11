@@ -17,6 +17,7 @@ namespace Versionr.Network
         RejectPush,
         RequestRecordParents,
         RequestRecord,
+        RequestRecordUnmapped,
         Synchronized,
         Push,
         Close,

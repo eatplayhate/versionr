@@ -88,7 +88,13 @@ namespace Versionr
 			}
 		}
 
-		public bool FindVersion(string target, out Objects.Version version)
+        public void UpdateRemoteTimestamp(RemoteConfig config)
+        {
+            config.LastPull = DateTime.UtcNow;
+            LocalData.Update(config);
+        }
+
+        public bool FindVersion(string target, out Objects.Version version)
         {
             version = GetPartialVersion(target);
             if (version == null)
@@ -428,6 +434,13 @@ namespace Versionr
         internal bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
         {
             FileInfo file = GetFileForCode(record.Fingerprint, record.Size);
+            if (!file.Exists)
+                return false;
+            return TransmitDataFromFile(file, sender);
+        }
+        
+        private bool TransmitDataFromFile(FileInfo file, Func<IEnumerable<byte>, bool, bool> sender)
+        {
             System.Console.Write("Progress: ");
             int left = System.Console.CursorLeft;
             using (var fss = file.OpenRead())
@@ -570,7 +583,12 @@ namespace Versionr
                 Database.Insert(result);
             }
             rec.CanonicalNameId = result.Id;
+
             Database.Insert(rec);
+
+            RecordIndex recIndex = new RecordIndex() { DataIdentifier = rec.DataIdentifier, Index = rec.Id, Pruned = false };
+
+            Database.Insert(recIndex);
         }
 
         internal void RollbackDatabaseTransaction()
@@ -819,6 +837,17 @@ namespace Versionr
                 throw new Exception("Couldn't record changes to stage!", e);
             }
         }
+
+        internal Record GetRecordFromIdentifier(string id)
+        {
+            var index = Database.Table<Objects.RecordIndex>().Where(x => x.DataIdentifier == id).First();
+            if (index != null)
+                return Database.Find<Objects.Record>(index.Index);
+            else
+                Printer.PrintDiagnostics("Record not in index");
+            return null;
+        }
+
         private void RecordRecursive(List<Status.StatusEntry> elements, Status.StatusEntry parent, List<StageOperation> stageOps, HashSet<string> stagedPaths)
         {
             foreach (var x in elements)
@@ -1543,6 +1572,12 @@ namespace Versionr
             
             List<Record> targetRecords = Database.GetRecords(tipVersion);
 
+            if (!GetMissingRecords(targetRecords))
+            {
+                Printer.PrintError("Missing record data!");
+                return;
+            }
+
             HashSet<string> canonicalNames = new HashSet<string>();
             foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
             {
@@ -1606,6 +1641,59 @@ namespace Versionr
             {
                 throw new Exception("Couldn't update local information!", e);
             }
+        }
+
+        private bool GetMissingRecords(List<Record> targetRecords)
+        {
+            List<Record> missingRecords = new List<Record>();
+            HashSet<string> requestedData = new HashSet<string>();
+            foreach (var x in targetRecords)
+            {
+                if (x.IsDirectory)
+                    continue;
+                if (!HasObjectData(x))
+                {
+                    if (!requestedData.Contains(x.DataIdentifier))
+                    {
+                        requestedData.Add(x.DataIdentifier);
+                        missingRecords.Add(x);
+                    }
+                }
+            }
+            if (missingRecords.Count > 0)
+            {
+                Printer.PrintMessage("Checking out this version requires {0} remote objects.", missingRecords.Count);
+                var configs = LocalData.Table<LocalState.RemoteConfig>().OrderByDescending(x => x.LastPull).ToList();
+                foreach (var x in configs)
+                {
+                    Printer.PrintMessage(" - Attempting to pull data from remote \"{2}\" ({0}:{1})", x.Host, x.Port, x.Name);
+
+                    Client client = new Client(this);
+                    try
+                    {
+                        if (!client.Connect(x.Host, x.Port))
+                            Printer.PrintMessage(" - Connection failed.");
+                        List<Record> retrievedRecords = client.GetRecordData(missingRecords);
+                        HashSet<string> retrievedData = new HashSet<string>();
+                        Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
+                        foreach (var y in retrievedRecords)
+                            retrievedData.Add(y.DataIdentifier);
+                        missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
+                        client.Close();
+                    }
+                    catch
+                    {
+                        client.Close();
+                    }
+                    if (missingRecords.Count > 0)
+                        Printer.PrintMessage("This checkout still requires {0} additional records.", missingRecords.Count);
+                    else
+                        return true;
+                }
+            }
+            else
+                return true;
+            return false;
         }
 
         private bool Switch(string v)
@@ -1879,7 +1967,10 @@ namespace Versionr
                         x.Item1.CanonicalNameId = x.Item2.Id;
                     }
                     foreach (var x in records)
+                    {
                         Database.Insert(x);
+                        Database.Insert(new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false });
+                    }
                     foreach (var x in alterationLinkages)
                         x.Item2.NewRecord = x.Item1.Id;
 
@@ -2120,6 +2211,15 @@ namespace Versionr
                 info.Attributes = info.Attributes | FileAttributes.Hidden;
             if (rec.Attributes.HasFlag(Objects.Attributes.ReadOnly))
                 info.Attributes = info.Attributes | FileAttributes.ReadOnly;
+        }
+
+        private FileInfo GetFileForDataID(string id)
+        {
+            DirectoryInfo rootDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "objects"));
+            rootDir.Create();
+            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(rootDir.FullName, id.Substring(0, 2)));
+            subDir.Create();
+            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
         }
 
         private FileInfo GetFileForCode(string hash, long length)

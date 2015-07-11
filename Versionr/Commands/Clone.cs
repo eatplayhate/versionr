@@ -56,5 +56,13 @@ namespace Versionr.Commands
                 return true;
             }
         }
+
+        protected override bool UpdateRemoteTimestamp
+        {
+            get
+            {
+                return true;
+            }
+        }
     }
 }
