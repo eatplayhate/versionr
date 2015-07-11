@@ -119,6 +119,9 @@ namespace Versionr
         [VerbOption("pull", HelpText = "Retreives changes from a remote vault.")]
         public Commands.PullVerbOptions PullVerb { get; set; }
 
+        [VerbOption("syncrecords", HelpText = "Retreives changes from a remote vault.")]
+        public Commands.SyncRecordsOptions SyncRecordsVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -178,6 +181,8 @@ namespace Versionr
                 return CloneVerb.GetUsage();
             else if (verb == "pull")
                 return PullVerb.GetUsage();
+            else if (verb == "syncrecords")
+                return SyncRecordsVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -225,6 +230,7 @@ namespace Versionr
             commands["viewdag"] = new Commands.ViewDAG();
             commands["clone"] = new Commands.Clone();
             commands["pull"] = new Commands.Pull();
+            commands["syncrecords"] = new Commands.SyncRecords();
 
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))

@@ -54,7 +54,7 @@ namespace Versionr.Objects
         {
             get
             {
-                return CanonicalName.EndsWith("/");
+                return CanonicalName != null && CanonicalName.EndsWith("/");
             }
         }
 

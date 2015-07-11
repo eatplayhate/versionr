@@ -42,7 +42,7 @@ namespace Versionr
 
         internal List<Record> GetAllMissingRecords()
         {
-            return FindMissingRecords(Database.Table<Objects.Record>());
+            return FindMissingRecords(Database.Table<Objects.Record>().ToList());
         }
 
         public DirectoryInfo Root
@@ -1765,6 +1765,8 @@ namespace Versionr
             HashSet<string> requestedData = new HashSet<string>();
             foreach (var x in targetRecords)
             {
+                if (x.Size == 0)
+                    continue;
                 if (x.IsDirectory)
                     continue;
                 if (!HasObjectData(x))
