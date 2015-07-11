@@ -162,7 +162,7 @@ namespace Versionr.Network
                     if (queryResult.Type == NetCommandType.Error)
                         Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
                     branchID = queryResult.AdditionalPayload;
-                    Printer.PrintMessage(" - Matched remote to branch ID {0}", branchID);
+                    Printer.PrintMessage(" - Matched query to remote branch ID {0}", branchID);
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = branchID }, ProtoBuf.PrefixStyle.Fixed32);
 
