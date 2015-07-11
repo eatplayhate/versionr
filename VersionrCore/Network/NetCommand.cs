@@ -26,6 +26,7 @@ namespace Versionr.Network
         Error,
         Clone,
         PullVersions,
+        FullClone,
         QueryBranchID,
     }
     [ProtoBuf.ProtoContract]

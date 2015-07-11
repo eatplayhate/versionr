@@ -77,15 +77,81 @@ namespace Versionr.Network
             }
         }
 
-        public bool Clone()
+        public bool Clone(bool full)
         {
             if (Workspace != null)
                 return false;
             try
             {
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Clone }, ProtoBuf.PrefixStyle.Fixed32);
-                var clonePack = Utilities.ReceiveEncrypted<ClonePayload>(SharedInfo);
-                Workspace = Area.InitRemote(BaseDirectory, clonePack);
+                if (!full)
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Clone }, ProtoBuf.PrefixStyle.Fixed32);
+                    var clonePack = Utilities.ReceiveEncrypted<ClonePayload>(SharedInfo);
+                    Workspace = Area.InitRemote(BaseDirectory, clonePack);
+                }
+                else
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.FullClone }, ProtoBuf.PrefixStyle.Fixed32);
+
+                    var response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    if (response.Type == NetCommandType.Acknowledge)
+                    {
+                        int dbVersion = (int)response.Identifier;
+                        if (!WorkspaceDB.AcceptDBVersion(dbVersion))
+                        {
+                            Printer.PrintError("Server database version is incompatible (v{0}). Use non-full clone to perform the operation.", dbVersion);
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                            return false;
+                        }
+                        else
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                    }
+
+                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetRandomFileName());
+                    Printer.PrintError("Attempting to import metadata file to temp path {0}", fsInfo.FullName);
+                    try
+                    {
+                        using (var stream = fsInfo.OpenWrite())
+                        {
+                            while (true)
+                            {
+                                var data = Utilities.ReceiveEncrypted<DataPayload>(SharedInfo);
+                                stream.Write(data.Data, 0, data.Data.Length);
+                                if (data.EndOfStream)
+                                    break;
+                            }
+                            response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                            if (response.Type == NetCommandType.Error)
+                            {
+                                Printer.PrintError("Server failed to clone the database.");
+                                return false;
+                            }
+                        }
+                        Printer.PrintError("Metadata written, importing DB.");
+                        Area area = new Area(Area.GetAdminFolderForDirectory(BaseDirectory));
+                        try
+                        {
+                            fsInfo.MoveTo(area.MetadataFile.FullName);
+                            if (!area.ImportDB())
+                                throw new Exception("Couldn't import data.");
+                            Workspace = Area.Load(BaseDirectory);
+                            return true;
+                        }
+                        catch
+                        {
+                            if (area.MetadataFile.Exists)
+                                area.MetadataFile.Delete();
+                            area.AdministrationFolder.Delete();
+                            throw;
+                        }
+                    }
+                    catch
+                    {
+                        if (fsInfo.Exists)
+                            fsInfo.Delete();
+                        return false;
+                    }
+                }
                 return true;
             }
             catch (Exception e)

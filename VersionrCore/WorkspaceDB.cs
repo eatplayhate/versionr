@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -182,6 +183,12 @@ namespace Versionr
             return result.OrderBy(x => x.Key).Select(x => x.Value).ToList();
         }
 
+        internal static bool AcceptDBVersion(int dbVersion)
+        {
+            return dbVersion <= MaximumDBVersion
+             && dbVersion >= InternalDBVersion;
+        }
+
         private List<Alteration> GetAlterations(Objects.Version version)
         {
             List<Objects.Version> parents = Query<Objects.Version>(
@@ -260,7 +267,7 @@ namespace Versionr
         {
             get
             {
-                return Format.InternalFormat <= MaximumDBVersion;
+                return AcceptDBVersion(Format.InternalFormat);
             }
         }
 
