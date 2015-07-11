@@ -1,6 +1,6 @@
 CC=clang
-CFLAGS=-c -O3
-LDFLAGS=-lpthreads
+CFLAGS=-fPIC -c -O3
+LDFLAGS=-shared -ldl -lpthreads
 SOURCES=shell.c sqlite3.c
 OBJECTS=$(SOURCES:.c=.o)
 ifeq ($(OS),Windows_NT)
@@ -8,9 +8,9 @@ ifeq ($(OS),Windows_NT)
 else
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Darwin)
-		DLL=sqlite3.dylib
+		DLL=libsqlite3.dylib
     else
-		DLL=sqlite3.so
+		DLL=libsqlite3.so.0
     endif
 endif
 
