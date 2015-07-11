@@ -25,6 +25,7 @@ namespace Versionr.Network
         Error,
         Clone,
         PullVersions,
+        FullClone,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

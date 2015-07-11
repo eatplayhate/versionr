@@ -171,6 +171,59 @@ namespace Versionr.Network
                                 }
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                             }
+                            else if (command.Type == NetCommandType.FullClone)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
+                                command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                                if (command.Type == NetCommandType.Acknowledge)
+                                {
+                                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetTempFileName());
+                                    try
+                                    {
+                                        if (ws.BackupDB(fsInfo))
+                                        {
+                                            byte[] blob = new byte[256 * 1024];
+                                            long filesize = fsInfo.Length;
+                                            long position = 0;
+                                            using (System.IO.FileStream reader = fsInfo.OpenRead())
+                                            {
+                                                long remainder = filesize - position;
+                                                int count = blob.Length;
+                                                if (count > remainder)
+                                                    count = blob.Length;
+                                                reader.Read(blob, 0, count);
+                                                position += count;
+                                                if (count == remainder)
+                                                {
+                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                    {
+                                                        Data = blob.Take(count).ToArray(),
+                                                        EndOfStream = true
+                                                    });
+                                                }
+                                                else
+                                                {
+                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                    {
+                                                        Data = blob,
+                                                        EndOfStream = false
+                                                    });
+                                                }
+                                            }
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
+                                        }
+                                        else
+                                        {
+                                            Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        fsInfo.Delete();
+                                    }
+                                }
+                            }
                             else
                             {
                                 Printer.PrintDiagnostics("Client sent invalid command: {0}", command.Type);

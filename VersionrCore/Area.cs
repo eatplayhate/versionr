@@ -203,10 +203,19 @@ namespace Versionr
             }
         }
 
-        private Area(DirectoryInfo adminFolder)
+        public int DatabaseVersion
+        {
+            get
+            {
+                return Database.Format.InternalFormat;
+            }
+        }
+
+        public Area(DirectoryInfo adminFolder)
         {
             Utilities.MultiArchPInvoke.BindDLLs();
             AdministrationFolder = adminFolder;
+            AdministrationFolder.Create();
         }
 
         private bool Init(string branchName = null, ClonePayload remote = null)
@@ -359,6 +368,15 @@ namespace Versionr
                 LocalData.Rollback();
                 throw new Exception("Couldn't initialize repository!", e);
             }
+        }
+
+        internal bool BackupDB(FileInfo fsInfo)
+        {
+            Printer.PrintDiagnostics("Running backup...");
+            return Database.Backup(fsInfo, (int pages, int total) =>
+            {
+                Printer.PrintDiagnostics("Backup progress: ({0}/{1}) pages.", pages, total);
+            });
         }
 
         internal List<Objects.Alteration> GetAlterations(Objects.Version x)
@@ -2389,8 +2407,6 @@ namespace Versionr
             if (ws != null)
                 throw new Exception(string.Format("Path {0} is already a versionr workspace!", workingDir.FullName));
             DirectoryInfo adminFolder = GetAdminFolderForDirectory(workingDir);
-            if (adminFolder.Exists)
-                throw new Exception(string.Format("Administration folder {0} already present.", adminFolder.FullName));
             ws = new Area(adminFolder);
             return ws;
         }

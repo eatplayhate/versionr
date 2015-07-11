@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -133,6 +134,11 @@ namespace Versionr
             return result.OrderBy(x => x.Key).Select(x => x.Value).ToList();
         }
 
+        internal static bool AcceptDBVersion(int dbVersion)
+        {
+            return dbVersion >= InternalDBVersion;
+        }
+
         private List<Alteration> GetAlterations(Objects.Version version)
         {
             List<Objects.Version> parents = Query<Objects.Version>(
@@ -203,7 +209,7 @@ namespace Versionr
         {
             get
             {
-                return Format.InternalFormat == InternalDBVersion;
+                return AcceptDBVersion(Format.InternalFormat);
             }
         }
 

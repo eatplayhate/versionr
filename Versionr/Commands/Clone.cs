@@ -28,13 +28,16 @@ namespace Versionr.Commands
                 return "clone";
             }
         }
+
+        [Option('f', "fullmeta", DefaultValue = false, HelpText = "Clones entire vault metadata table.")]
+        public bool Full { get; set; }
     }
     class Clone : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
-            bool result = client.Clone();
+            bool result = client.Clone(localOptions.Full);
             if (result)
             {
                 string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;

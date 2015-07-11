@@ -341,12 +341,34 @@ namespace SQLite
 			public string TableName;
 			public bool Unique;
 			public List<IndexedColumn> Columns;
-		}
+        }
 
-		/// <summary>
-		/// Executes a "drop table" on the database.  This is non-recoverable.
-		/// </summary>
-		public int DropTable<T>()
+        public bool Backup(System.IO.FileInfo fsInfo, Action<int, int> progress)
+        {
+            IntPtr backupID = SQLite3.BackupInit(fsInfo.FullName, "main", Handle, "main");
+            if (backupID == IntPtr.Zero)
+                return false;
+            while (true)
+            {
+                progress(SQLite3.BackupRemaining(backupID), SQLite3.BackupPagecount(backupID));
+                var result = SQLite3.BackupStep(backupID, 100);
+                if (result == SQLite3.Result.Done)
+                    break;
+                else if (result == SQLite3.Result.OK)
+                    continue;
+                else if (result == SQLite3.Result.Busy)
+                    Thread.Sleep(100);
+                else
+                    return false;
+            }
+            SQLite3.BackupFinish(backupID);
+            return false;
+        }
+
+        /// <summary>
+        /// Executes a "drop table" on the database.  This is non-recoverable.
+        /// </summary>
+        public int DropTable<T>()
 		{
 			var map = GetMapping (typeof (T));
 
@@ -3151,12 +3173,27 @@ namespace SQLite
 		[DllImport(LibraryPath, EntryPoint = "sqlite3_prepare_v2", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Prepare2 (IntPtr db, [MarshalAs(UnmanagedType.LPStr)] string sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
 
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_init", CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr BackupInit([MarshalAs(UnmanagedType.LPStr)] string filename, [MarshalAs(UnmanagedType.LPStr)] string dbDestName, IntPtr dbHandle, [MarshalAs(UnmanagedType.LPStr)] string dbSourceName);
+
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_step", CallingConvention = CallingConvention.Cdecl)]
+        public static extern Result BackupStep(IntPtr backup, int pages);
+
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_finish", CallingConvention = CallingConvention.Cdecl)]
+        public static extern Result BackupFinish(IntPtr backup);
+
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_remaining", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int BackupRemaining(IntPtr backup);
+
+        [DllImport(LibraryPath, EntryPoint = "sqlite3_backup_pagecount", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int BackupPagecount(IntPtr backup);
+
 #if NETFX_CORE
 		[DllImport (LibraryPath, EntryPoint = "sqlite3_prepare_v2", CallingConvention = CallingConvention.Cdecl)]
 		public static extern Result Prepare2 (IntPtr db, byte[] queryBytes, int numBytes, out IntPtr stmt, IntPtr pzTail);
 #endif
 
-		public static IntPtr Prepare2 (IntPtr db, string query)
+        public static IntPtr Prepare2 (IntPtr db, string query)
 		{
 			IntPtr stmt;
 #if NETFX_CORE
