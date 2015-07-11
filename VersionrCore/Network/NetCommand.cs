@@ -17,6 +17,7 @@ namespace Versionr.Network
         RejectPush,
         RequestRecordParents,
         RequestRecord,
+        RequestRecordUnmapped,
         Synchronized,
         Push,
         Close,
@@ -25,6 +26,8 @@ namespace Versionr.Network
         Error,
         Clone,
         PullVersions,
+        FullClone,
+        QueryBranchID,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

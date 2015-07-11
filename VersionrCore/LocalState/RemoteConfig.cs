@@ -14,5 +14,6 @@ namespace Versionr.LocalState
         public string Name { get; set; }
         public string Host { get; set; }
         public int Port { get; set; }
+        public DateTime LastPull { get; set; }
     }
 }

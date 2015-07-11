@@ -91,6 +91,14 @@ namespace Versionr.Network
 
     [Compressible]
     [ProtoBuf.ProtoContract]
+    class RequestRecordDataUnmapped
+    {
+        [ProtoBuf.ProtoMember(1)]
+        public string[] RecordDataKeys { get; set; }
+    }
+
+    [Compressible]
+    [ProtoBuf.ProtoContract]
     class RecordParentPack
     {
         [ProtoBuf.ProtoMember(1)]

@@ -30,8 +30,14 @@ namespace Versionr.Network
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
-        public static bool Run(Area ws, int port)
+        public static bool Run(System.IO.DirectoryInfo info, int port)
         {
+            Area ws = Area.Load(info);
+            if (ws == null)
+            {
+                Printer.PrintError("Can't run server without an active vault.");
+                return false;
+            }
             Printer.PrintDiagnostics("Creating RSA pair...");
             System.Security.Cryptography.RSACryptoServiceProvider rsaCSP = new System.Security.Cryptography.RSACryptoServiceProvider();
             rsaCSP.KeySize = 2048;
@@ -46,7 +52,7 @@ namespace Versionr.Network
             {
                 Printer.PrintDiagnostics("Waiting for connection.");
                 var client = listener.AcceptTcpClient();
-                Task.Run(() => { HandleConnection(ws, client); });
+                Task.Run(() => { HandleConnection(Area.Load(info), client); });
             }
             listener.Stop();
 
@@ -102,6 +108,28 @@ namespace Versionr.Network
                             {
                                 Printer.PrintDiagnostics("Client closing connection.");
                                 break;
+                            }
+                            else if (command.Type == NetCommandType.QueryBranchID)
+                            {
+                                Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
+                                var branches = ws.GetBranchByName(command.AdditionalPayload).Where(x => x.Deleted == false).ToList();
+                                if (branches.Count == 1)
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branches[0].ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else if (branches.Count == 0)
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "branch not recognized" }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                            }
+                            else if (command.Type == NetCommandType.RequestRecordUnmapped)
+                            {
+                                Printer.PrintDiagnostics("Client is requesting specific record data blobs.");
+                                SharedNetwork.SendRecordDataUnmapped(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.Clone)
                             {
@@ -171,6 +199,67 @@ namespace Versionr.Network
                                 }
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                             }
+                            else if (command.Type == NetCommandType.FullClone)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
+                                command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                                if (command.Type == NetCommandType.Acknowledge)
+                                {
+                                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetTempFileName());
+                                    Printer.PrintDiagnostics("Client requesting full clone, temp file: {0}", fsInfo.FullName);
+                                    try
+                                    {
+                                        if (ws.BackupDB(fsInfo))
+                                        {
+                                            Printer.PrintDiagnostics("Backup complete. Sending data.");
+                                            byte[] blob = new byte[256 * 1024];
+                                            long filesize = fsInfo.Length;
+                                            long position = 0;
+                                            using (System.IO.FileStream reader = fsInfo.OpenRead())
+                                            {
+                                                while (true)
+                                                {
+                                                    long remainder = filesize - position;
+                                                    int count = blob.Length;
+                                                    if (count > remainder)
+                                                        count = (int)remainder;
+                                                    reader.Read(blob, 0, count);
+                                                    position += count;
+                                                    Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
+                                                    if (count == remainder)
+                                                    {
+                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                        {
+                                                            Data = blob.Take(count).ToArray(),
+                                                            EndOfStream = true
+                                                        });
+                                                        break;
+                                                    }
+                                                    else
+                                                    {
+                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                        {
+                                                            Data = blob,
+                                                            EndOfStream = false
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                        }
+                                        else
+                                        {
+                                            Printer.PrintDiagnostics("Backup failed. Aborting.");
+                                            Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        fsInfo.Delete();
+                                    }
+                                }
+                            }
                             else
                             {
                                 Printer.PrintDiagnostics("Client sent invalid command: {0}", command.Type);
@@ -179,7 +268,12 @@ namespace Versionr.Network
                         }
                     }
                     else
-                        throw new Exception();
+                    {
+                        Network.StartTransaction startSequence = Network.StartTransaction.CreateRejection();
+                        Printer.PrintDiagnostics("Rejecting client due to protocol mismatch.");
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                        return;
+                    }
                 }
                 catch (Exception e)
                 {
