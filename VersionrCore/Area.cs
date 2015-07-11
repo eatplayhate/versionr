@@ -434,6 +434,13 @@ namespace Versionr
         internal bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
         {
             FileInfo file = GetFileForCode(record.Fingerprint, record.Size);
+            if (!file.Exists)
+                return false;
+            return TransmitDataFromFile(file, sender);
+        }
+        
+        private bool TransmitDataFromFile(FileInfo file, Func<IEnumerable<byte>, bool, bool> sender)
+        {
             System.Console.Write("Progress: ");
             int left = System.Console.CursorLeft;
             using (var fss = file.OpenRead())
@@ -576,7 +583,12 @@ namespace Versionr
                 Database.Insert(result);
             }
             rec.CanonicalNameId = result.Id;
+
             Database.Insert(rec);
+
+            RecordIndex recIndex = new RecordIndex() { DataIdentifier = rec.DataIdentifier, Index = rec.Id, Pruned = false };
+
+            Database.Insert(recIndex);
         }
 
         internal void RollbackDatabaseTransaction()
@@ -825,6 +837,15 @@ namespace Versionr
                 throw new Exception("Couldn't record changes to stage!", e);
             }
         }
+
+        internal Record GetRecordFromIdentifier(string id)
+        {
+            var index = Database.Find<Objects.RecordIndex>(x => x.DataIdentifier == id);
+            if (index != null)
+                return Database.Find<Objects.Record>(x => x.Id == index.Index);
+            return null;
+        }
+
         private void RecordRecursive(List<Status.StatusEntry> elements, Status.StatusEntry parent, List<StageOperation> stageOps, HashSet<string> stagedPaths)
         {
             foreach (var x in elements)
@@ -2183,6 +2204,15 @@ namespace Versionr
                 info.Attributes = info.Attributes | FileAttributes.Hidden;
             if (rec.Attributes.HasFlag(Objects.Attributes.ReadOnly))
                 info.Attributes = info.Attributes | FileAttributes.ReadOnly;
+        }
+
+        private FileInfo GetFileForDataID(string id)
+        {
+            DirectoryInfo rootDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "objects"));
+            rootDir.Create();
+            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(rootDir.FullName, id.Substring(0, 2)));
+            subDir.Create();
+            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
         }
 
         private FileInfo GetFileForCode(string hash, long length)

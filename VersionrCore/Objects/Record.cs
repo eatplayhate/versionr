@@ -91,4 +91,12 @@ namespace Versionr.Objects
             }
         }
     }
+
+    public class RecordIndex
+    {
+        [SQLite.Indexed]
+        public string DataIdentifier { get; set; }
+        public long Index { get; set; }
+        public bool Pruned { get; set; }
+    }
 }

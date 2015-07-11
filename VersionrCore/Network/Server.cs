@@ -120,6 +120,11 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
                                 }
                             }
+                            else if (command.Type == NetCommandType.RequestRecordUnmapped)
+                            {
+                                Printer.PrintDiagnostics("Client is requesting specific record data blobs.");
+                                SharedNetwork.SendRecordDataUnmapped(sharedInfo);
+                            }
                             else if (command.Type == NetCommandType.Clone)
                             {
                                 Printer.PrintDiagnostics("Client is requesting to clone the vault.");

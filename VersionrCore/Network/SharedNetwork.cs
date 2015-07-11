@@ -496,6 +496,61 @@ namespace Versionr.Network
             return returnedRecords;
         }
 
+        internal static bool SendRecordDataUnmapped(SharedNetworkInfo sharedInfo)
+        {
+            var rrd = Utilities.ReceiveEncrypted<RequestRecordDataUnmapped>(sharedInfo);
+            List<byte> datablock = new List<byte>();
+            Func<IEnumerable<byte>, bool, bool> sender = (IEnumerable<byte> data, bool flush) =>
+            {
+                datablock.AddRange(data);
+                int blockSize = 1024 * 1024;
+                while (datablock.Count > blockSize)
+                {
+                    DataPayload dataPack = new DataPayload() { Data = datablock.Take(blockSize).ToArray(), EndOfStream = false };
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                    datablock.RemoveRange(0, blockSize);
+                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (reply.Type != NetCommandType.DataReceived)
+                        return false;
+                }
+                if (flush)
+                {
+                    DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                }
+                return true;
+            };
+            int index = 0;
+            foreach (var x in rrd.RecordDataKeys)
+            {
+                sender(BitConverter.GetBytes(index), false);
+                index++;
+                Objects.Record record = sharedInfo.Workspace.GetRecordFromIdentifier(x);
+                if (record == null)
+                {
+                    int failure = 0;
+                    sender(BitConverter.GetBytes(failure), false);
+                }
+                else
+                {
+                    int success = 1;
+                    sender(BitConverter.GetBytes(success), false);
+                    Printer.PrintDiagnostics("Sending data for: {0}", record.Fingerprint);
+
+                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender))
+                        return false;
+                }
+            }
+            if (!sender(new byte[0], true))
+                return false;
+
+            var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+            if (dataResponse.Type != NetCommandType.Acknowledge)
+                return false;
+
+            return true;
+        }
+
         private static void ReceiveRecordParents(SharedNetwork.SharedNetworkInfo sharedInfo, RecordParentPack response)
         {
             foreach (var x in response.Parents)
