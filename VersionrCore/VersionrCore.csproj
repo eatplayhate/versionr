@@ -69,6 +69,10 @@
     <Compile Include="Network\StartTransaction.cs" />
     <Compile Include="Network\Utilities.cs" />
     <Compile Include="ObjectStore\ChunkedChecksum.cs" />
+    <Compile Include="ObjectStore\ChunkedCompressionStreamWriter.cs" />
+    <Compile Include="ObjectStore\ChunkedDecompressionStream.cs" />
+    <Compile Include="ObjectStore\LZHAMReaderStream.cs" />
+    <Compile Include="ObjectStore\LZHAMWriter.cs" />
     <Compile Include="ObjectStore\ObjectStoreBase.cs" />
     <Compile Include="ObjectStore\StandardObjectStore.cs" />
     <Compile Include="Objects\Alteration.cs" />
