@@ -178,7 +178,7 @@ namespace Versionr.ObjectStore
                         checksum = RotateHash(checksum, add, remove, remainder);
                         readHead++;
                     }
-                    else
+                    else if (bytesToEat == 0)
                     {
                         checksum = FastHash(circularBuffer.ToArray(), remainder);
                     }
@@ -268,8 +268,8 @@ namespace Versionr.ObjectStore
                 {
                     Index = index++,
                     Offset = offset,
-                    Adler32 = FastHash(block, size),
-                    SHA1 = sha1.ComputeHash(block, 0, size),
+                    Adler32 = FastHash(block, count),
+                    SHA1 = sha1.ComputeHash(block, 0, count),
                     Length = count
                 };
                 offset += size;

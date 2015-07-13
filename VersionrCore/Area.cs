@@ -966,6 +966,14 @@ namespace Versionr
                 if (!ObjectStore.Open(this))
                     return false;
 
+                FileInfo test = new FileInfo("lzhamdecomp_x86.lib");
+                using (var fs = test.OpenRead())
+                {
+                    var result = Versionr.ObjectStore.ChunkedChecksum.Compute(16 * 1024, fs);
+                    fs.Position = 0;
+                    var deltas = Versionr.ObjectStore.ChunkedChecksum.ComputeDelta(fs, test.Length, result);
+                }
+
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
                 if (info.Exists)
                 {
