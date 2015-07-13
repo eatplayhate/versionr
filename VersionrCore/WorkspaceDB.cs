@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 6;
+        public const int InternalDBVersion = 7;
         public const int MinimumDBVersion = 3;
         public const int MaximumDBVersion = 10;
 

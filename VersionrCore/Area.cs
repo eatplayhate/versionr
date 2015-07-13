@@ -39,6 +39,12 @@ namespace Versionr
                 return new FileInfo(Path.Combine(AdministrationFolder.FullName, "config.db"));
             }
         }
+
+        internal List<Record> GetAllMissingRecords()
+        {
+            return FindMissingRecords(Database.Table<Objects.Record>().ToList());
+        }
+
         public DirectoryInfo Root
         {
             get
@@ -716,6 +722,8 @@ namespace Versionr
 
         internal bool HasObjectData(Record rec)
         {
+            if (rec.Size == 0 || rec.IsDirectory)
+                return true;
             lock (this)
             {
                 FileInfo info = GetFileForCode(rec.Fingerprint, rec.Size);
@@ -1740,21 +1748,7 @@ namespace Versionr
 
         private bool GetMissingRecords(List<Record> targetRecords)
         {
-            List<Record> missingRecords = new List<Record>();
-            HashSet<string> requestedData = new HashSet<string>();
-            foreach (var x in targetRecords)
-            {
-                if (x.IsDirectory)
-                    continue;
-                if (!HasObjectData(x))
-                {
-                    if (!requestedData.Contains(x.DataIdentifier))
-                    {
-                        requestedData.Add(x.DataIdentifier);
-                        missingRecords.Add(x);
-                    }
-                }
-            }
+            List<Record> missingRecords = FindMissingRecords(targetRecords);
             if (missingRecords.Count > 0)
             {
                 Printer.PrintMessage("Checking out this version requires {0} remote objects.", missingRecords.Count);
@@ -1789,6 +1783,28 @@ namespace Versionr
             else
                 return true;
             return false;
+        }
+
+        private List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
+        {
+            List<Record> missingRecords = new List<Record>();
+            HashSet<string> requestedData = new HashSet<string>();
+            foreach (var x in targetRecords)
+            {
+                if (x.Size == 0)
+                    continue;
+                if (x.IsDirectory)
+                    continue;
+                if (!HasObjectData(x))
+                {
+                    if (!requestedData.Contains(x.DataIdentifier))
+                    {
+                        requestedData.Add(x.DataIdentifier);
+                        missingRecords.Add(x);
+                    }
+                }
+            }
+            return missingRecords;
         }
 
         private bool Switch(string v)
@@ -2224,6 +2240,15 @@ namespace Versionr
             }
             FileInfo file = GetFileForCode(rec.Fingerprint, rec.Size);
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
+            if (rec.Size == 0)
+            {
+                using (var fs = dest.Create())
+                {
+
+                }
+                ApplyAttributes(dest, rec);
+                return;
+            }
             if (dest.Exists)
             {
                 try
