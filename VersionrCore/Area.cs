@@ -966,14 +966,6 @@ namespace Versionr
                 if (!ObjectStore.Open(this))
                     return false;
 
-                FileInfo test = new FileInfo("lzhamdecomp_x86.lib");
-                using (var fs = test.OpenRead())
-                {
-                    var result = Versionr.ObjectStore.ChunkedChecksum.Compute(16 * 1024, fs);
-                    fs.Position = 0;
-                    var deltas = Versionr.ObjectStore.ChunkedChecksum.ComputeDelta(fs, test.Length, result);
-                }
-
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
                 if (info.Exists)
                 {
@@ -993,6 +985,60 @@ namespace Versionr
             {
                 Printer.PrintError(e.ToString());
                 return false;
+            }
+        }
+
+        private void TestDeltas(string v1, string v2, int chunksize = 2048, string output = null)
+        {
+            FileInfo test = new FileInfo(v1);
+            FileInfo test2 = new FileInfo(v2);
+            if (output == null)
+                output = test2 + ".out";
+            using (var fs = test.OpenRead())
+            using (var fs2 = test2.OpenRead())
+            {
+                var result = Versionr.ObjectStore.ChunkedChecksum.Compute(chunksize, fs);
+                fs.Position = 0;
+                long deltaLength;
+                var deltas = Versionr.ObjectStore.ChunkedChecksum.ComputeDelta(fs2, test2.Length, result, out deltaLength);
+                Printer.PrintMessage("Delta compressed {0} -> {1}: {2} bytes ({3:N2}%)", v1, v2, deltaLength, deltaLength / (double)test2.Length * 100.0);
+
+                using (var fs3 = new FileInfo(output).Open(FileMode.Create))
+                {
+                    foreach (var x in deltas)
+                    {
+                        if (x.Base == true)
+                        {
+                            fs.Position = x.Offset;
+                            byte[] buffer = new byte[4 * 1024 * 1024];
+                            long remainder = x.Length;
+                            while (remainder > 0)
+                            {
+                                int size = buffer.Length;
+                                if (size > remainder)
+                                    size = (int)remainder;
+                                fs.Read(buffer, 0, size);
+                                fs3.Write(buffer, 0, size);
+                                remainder -= size;
+                            }
+                        }
+                        else
+                        {
+                            fs2.Position = x.Offset;
+                            byte[] buffer = new byte[4 * 1024 * 1024];
+                            long remainder = x.Length;
+                            while (remainder > 0)
+                            {
+                                int size = buffer.Length;
+                                if (size > remainder)
+                                    size = (int)remainder;
+                                fs2.Read(buffer, 0, size);
+                                fs3.Write(buffer, 0, size);
+                                remainder -= size;
+                            }
+                        }
+                    }
+                }
             }
         }
 

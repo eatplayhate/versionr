@@ -30,11 +30,23 @@ namespace Versionr.ObjectStore
                 Head = 0;
                 Buffer = new byte[size];
             }
-            public byte[] ToArray()
+            public byte[] ToArray(int size)
             {
                 byte[] data = new byte[Buffer.Length];
-                Array.Copy(Buffer, Head, data, 0, Buffer.Length - Head);
-                Array.Copy(Buffer, 0, data, Buffer.Length - Head, Head);
+                int start = Head - size;
+                int firstBlock = 0;
+                if (start < 0)
+                {
+                    start += Buffer.Length;
+                    if (start < 0)
+                        throw new Exception();
+
+                    firstBlock = Buffer.Length - start;
+                    Array.Copy(Buffer, start, data, 0, firstBlock);
+                    start = 0;
+                }
+                int secondBlock = Head - start;
+                Array.Copy(Buffer, 0, data, firstBlock, Head - start);
                 return data;
             }
             public byte AddByte(byte b)
@@ -50,32 +62,32 @@ namespace Versionr.ObjectStore
         class BufferedView
         {
             System.IO.Stream DataStream { get; set; }
-            byte[] Buffer { get; set; }
-            int RemainderInBlock { get; set; }
-            int BufferPos { get; set; }
+            byte[] m_Buffer;
+            int m_RemainderInBlock;
+            int m_BufferPos;
             public BufferedView(System.IO.Stream stream, int bufferSize)
             {
-                Buffer = new byte[bufferSize];
+                m_Buffer = new byte[bufferSize];
                 DataStream = stream;
-                RemainderInBlock = 0;
-                BufferPos = 0;
+                m_RemainderInBlock = 0;
+                m_BufferPos = 0;
                 FillBuffer();
             }
 
             private void FillBuffer()
             {
-                if (BufferPos == RemainderInBlock)
+                if (m_BufferPos == m_RemainderInBlock)
                 {
-                    var read = DataStream.Read(Buffer, 0, Buffer.Length);
-                    RemainderInBlock = read;
-                    BufferPos = 0;
+                    var read = DataStream.Read(m_Buffer, 0, m_Buffer.Length);
+                    m_RemainderInBlock = read;
+                    m_BufferPos = 0;
                 }
             }
 
             public byte Next()
             {
                 FillBuffer();
-                return Buffer[BufferPos++];
+                return m_Buffer[m_BufferPos++];
             }
         }
 
@@ -94,12 +106,13 @@ namespace Versionr.ObjectStore
             }
         }
         
-        public static List<FileBlock> ComputeDelta(System.IO.Stream input, long inputSize, ChunkedChecksum chunks)
+        public static List<FileBlock> ComputeDelta(System.IO.Stream input, long inputSize, ChunkedChecksum chunks, out long deltaSize)
         {
             List<FileBlock> deltas = new List<FileBlock>();
             if (inputSize < chunks.ChunkSize)
             {
                 deltas.Add(new FileBlock() { Base = false, Offset = 0, Length = inputSize });
+                deltaSize = 1 + 8 + inputSize;
                 return deltas;
             }
             List<Chunk> sortedChunks = chunks.Chunks.OrderBy(x => x.Adler32).ToList();
@@ -122,7 +135,7 @@ namespace Versionr.ObjectStore
                     for (int i = 0; i < chunks.ChunkSize; i++)
                         circularBuffer.AddByte(view.Next());
                     readHead = chunks.ChunkSize;
-                    checksum = FastHash(circularBuffer.ToArray(), chunks.ChunkSize);
+                    checksum = FastHash(circularBuffer.ToArray(chunks.ChunkSize), chunks.ChunkSize);
                 }
 
                 int remainder = (int)(readHead - processHead);
@@ -130,7 +143,7 @@ namespace Versionr.ObjectStore
                 Chunk match = null;
                 if (adlerToIndex.TryGetValue(checksum, out possibleChunkLookup))
                 {
-                    byte[] realHash = sha1.ComputeHash(circularBuffer.ToArray(), 0, remainder);
+                    byte[] realHash = sha1.ComputeHash(circularBuffer.ToArray(chunks.ChunkSize > remainder ? remainder : chunks.ChunkSize), 0, remainder);
                     while (true)
                     {
                         Chunk inspectedChunk = sortedChunks[possibleChunkLookup];
@@ -180,13 +193,13 @@ namespace Versionr.ObjectStore
                     }
                     else if (bytesToEat == 0)
                     {
-                        checksum = FastHash(circularBuffer.ToArray(), remainder);
+                        checksum = FastHash(circularBuffer.ToArray(remainder - 1), remainder - 1);
                     }
                     processHead++;
                 }
             }
 
-            long deltaSize = 0;
+            deltaSize = 0;
             foreach (var x in deltas)
             {
                 deltaSize++;
@@ -264,6 +277,10 @@ namespace Versionr.ObjectStore
                 int count = stream.Read(block, 0, size);
                 if (count == 0)
                     break;
+                if (count < size)
+                {
+                    int lols = 1;
+                }
                 Chunk chunk = new Chunk()
                 {
                     Index = index++,
