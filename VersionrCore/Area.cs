@@ -965,7 +965,7 @@ namespace Versionr
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
                     return false;
-
+                
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
                 if (info.Exists)
                 {
@@ -998,47 +998,17 @@ namespace Versionr
             using (var fs2 = test2.OpenRead())
             {
                 var result = Versionr.ObjectStore.ChunkedChecksum.Compute(chunksize, fs);
+                using (var fs4 = new FileInfo(v1 + ".hash").Open(FileMode.Create))
+                {
+                    Versionr.ObjectStore.ChunkedChecksum.Write(fs4, result);
+                }
                 fs.Position = 0;
                 long deltaLength;
                 var deltas = Versionr.ObjectStore.ChunkedChecksum.ComputeDelta(fs2, test2.Length, result, out deltaLength);
                 Printer.PrintMessage("Delta compressed {0} -> {1}: {2} bytes ({3:N2}%)", v1, v2, deltaLength, deltaLength / (double)test2.Length * 100.0);
 
-                using (var fs3 = new FileInfo(output).Open(FileMode.Create))
-                {
-                    foreach (var x in deltas)
-                    {
-                        if (x.Base == true)
-                        {
-                            fs.Position = x.Offset;
-                            byte[] buffer = new byte[4 * 1024 * 1024];
-                            long remainder = x.Length;
-                            while (remainder > 0)
-                            {
-                                int size = buffer.Length;
-                                if (size > remainder)
-                                    size = (int)remainder;
-                                fs.Read(buffer, 0, size);
-                                fs3.Write(buffer, 0, size);
-                                remainder -= size;
-                            }
-                        }
-                        else
-                        {
-                            fs2.Position = x.Offset;
-                            byte[] buffer = new byte[4 * 1024 * 1024];
-                            long remainder = x.Length;
-                            while (remainder > 0)
-                            {
-                                int size = buffer.Length;
-                                if (size > remainder)
-                                    size = (int)remainder;
-                                fs2.Read(buffer, 0, size);
-                                fs3.Write(buffer, 0, size);
-                                remainder -= size;
-                            }
-                        }
-                    }
-                }
+                using (var fs4 = new FileInfo(output).Open(FileMode.Create))
+                    Versionr.ObjectStore.ChunkedChecksum.WriteDelta(fs2, fs4, deltas);
             }
         }
 

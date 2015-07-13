@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -115,7 +116,7 @@ namespace Versionr.ObjectStore
                 deltaSize = 1 + 8 + inputSize;
                 return deltas;
             }
-            List<Chunk> sortedChunks = chunks.Chunks.OrderBy(x => x.Adler32).ToList();
+            List<Chunk> sortedChunks = chunks.Chunks.OrderBy(x => new Tuple<uint, long>(x.Adler32, x.Offset)).ToList();
             Dictionary<uint, int> adlerToIndex = new Dictionary<uint, int>();
             for (int i = 0; i < sortedChunks.Count; i++)
                 adlerToIndex[sortedChunks[i].Adler32] = i;
@@ -277,10 +278,6 @@ namespace Versionr.ObjectStore
                 int count = stream.Read(block, 0, size);
                 if (count == 0)
                     break;
-                if (count < size)
-                {
-                    int lols = 1;
-                }
                 Chunk chunk = new Chunk()
                 {
                     Index = index++,
@@ -309,6 +306,119 @@ namespace Versionr.ObjectStore
                 b = (ushort)(b + a);
             }
             return (uint)((b << 16) | a);
+        }
+
+        internal static void Write(System.IO.Stream stream, ChunkedChecksum result)
+        {
+            stream.Write(new byte[] { (byte)'h', (byte)'a', (byte)'s', (byte)'h' }, 0, 4);
+            stream.Write(BitConverter.GetBytes(result.Chunks.Length), 0, 4);
+            stream.Write(BitConverter.GetBytes(result.ChunkSize), 0, 4);
+            stream.Write(BitConverter.GetBytes(result.ChunkCount), 0, 4);
+            foreach (var x in result.Chunks)
+            {
+                stream.Write(BitConverter.GetBytes(x.Adler32), 0, 4);
+                stream.Write(x.SHA1, 0, x.SHA1.Length);
+            }
+        }
+        internal static void ApplyDelta(System.IO.Stream baseFile, System.IO.Stream deltaFile, System.IO.Stream outputFile)
+        {
+            byte[] blobs = new byte[9];
+            byte[] runningBuffer = new byte[4 * 1024 * 1024];
+            deltaFile.Read(blobs, 0, 4);
+            if (blobs[0] != 'c' || blobs[1] != 'h' || blobs[2] == 'n' || blobs[3] == 'k')
+                throw new Exception();
+            while (true)
+            {
+                deltaFile.Read(blobs, 0, 1);
+                int blockCount = blobs[0];
+                deltaFile.Read(blobs, 0, 8);
+                long length = BitConverter.ToInt64(blobs, 0);
+                if (blockCount > 0)
+                {
+                    deltaFile.Read(blobs, 0, 8);
+                    long offset = BitConverter.ToInt64(blobs, 0);
+                    baseFile.Position = offset;
+                    if (length < runningBuffer.Length)
+                    {
+                        int remainder = (int)length;
+                        baseFile.Read(runningBuffer, 0, remainder);
+                        for (int i = 0; i < blockCount; i++)
+                            outputFile.Write(runningBuffer, 0, remainder);
+                    }
+                    else
+                    {
+                        for (int i = 0; i < blockCount; i++)
+                        {
+                            while (length > 0)
+                            {
+                                int remainder = runningBuffer.Length;
+                                if (remainder > length)
+                                    remainder = (int)length;
+                                baseFile.Read(runningBuffer, 0, remainder);
+                                outputFile.Write(runningBuffer, 0, remainder);
+                                length -= remainder;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if (length == 0)
+                        break;
+                    while (length > 0)
+                    {
+                        int remainder = runningBuffer.Length;
+                        if (remainder > length)
+                            remainder = (int)length;
+                        deltaFile.Read(runningBuffer, 0, remainder);
+                        outputFile.Write(runningBuffer, 0, remainder);
+                        length -= remainder;
+                    }
+                }
+            }
+        }
+
+        internal static void WriteDelta(System.IO.Stream input, System.IO.Stream output, List<FileBlock> deltas)
+        {
+            output.Write(new byte[] { (byte)'c', (byte)'h', (byte)'n', (byte)'k' }, 0, 4);
+            for (int i = 0; i < deltas.Count; i++)
+            {
+                var x = deltas[i];
+                if (x.Base == true)
+                {
+                    int count = 1;
+                    for (int j = i + 1; j < deltas.Count && count < 255; j++)
+                    {
+                        if (deltas[j].Base == true && deltas[j].Offset == x.Offset && deltas[j].Length == x.Length)
+                            count++;
+                        else
+                            break;
+                    }
+                    i += count - 1;
+                    output.Write(new byte[] { (byte)count }, 0, 1);
+                    output.Write(BitConverter.GetBytes(x.Length), 0, 8);
+                    output.Write(BitConverter.GetBytes(x.Offset), 0, 8);
+                }
+                else
+                {
+                    input.Position = x.Offset;
+                    output.Write(new byte[] { 0 }, 0, 1);
+                    output.Write(BitConverter.GetBytes(x.Length), 0, 8);
+                    byte[] buffer = new byte[4 * 1024 * 1024];
+                    long remainder = x.Length;
+                    while (remainder > 0)
+                    {
+                        int size = buffer.Length;
+                        if (size > remainder)
+                            size = (int)remainder;
+                        input.Read(buffer, 0, size);
+                        output.Write(buffer, 0, size);
+                        remainder -= size;
+                    }
+                }
+            }
+            output.Write(new byte[] { 0 }, 0, 1);
+            output.Write(BitConverter.GetBytes((long)0), 0, 8);
         }
     }
 }
