@@ -325,13 +325,14 @@ namespace Versionr.Network
 
         internal static void RequestRecordData(SharedNetworkInfo sharedInfo)
         {
+            List<string> dependentData = new List<string>();
             var records = sharedInfo.UnknownRecords;
             int index = 0;
+            HashSet<string> recordDataIdentifiers = new HashSet<string>();
             while (index < records.Count)
             {
                 RequestRecordData rrd = new RequestRecordData();
                 List<long> recordsInPack = new List<long>();
-                HashSet<string> recordDataIdentifiers = new HashSet<string>();
                 while (recordsInPack.Count < 1024 * 32 && index < records.Count)
                 {
                     long recordIndex = records[index++];
@@ -382,7 +383,10 @@ namespace Versionr.Network
                         var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
                         try
                         {
-                            sharedInfo.Workspace.ImportRecordData(transaction, rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                            string dependencies = null;
+                            sharedInfo.Workspace.ImportRecordData(transaction, rec.DataIdentifier, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
+                            if (dependencies != null)
+                                dependentData.Add(dependencies);
                             sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
                         }
                         catch
@@ -394,6 +398,17 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
             }
+            List<string> filteredDeps = new List<string>();
+            foreach (var x in dependentData)
+            {
+                if (!recordDataIdentifiers.Contains(x) && !sharedInfo.Workspace.HasObjectDataDirect(x))
+                {
+                    recordDataIdentifiers.Add(x);
+                    filteredDeps.Add(x);
+                }
+            }
+            if (filteredDeps.Count > 0)
+                RequestRecordDataUnmapped(sharedInfo, filteredDeps);
         }
 
         internal static void RequestRecordMetadata(SharedNetworkInfo sharedInfo)
@@ -420,40 +435,29 @@ namespace Versionr.Network
             }
         }
 
-        internal static List<Record> RequestRecordDataUnmapped(SharedNetworkInfo sharedInfo, List<Record> missingRecords)
+        internal static List<string> RequestRecordDataUnmapped(SharedNetworkInfo sharedInfo, List<string> missingRecordData)
         {
             HashSet<string> successes = new HashSet<string>();
             int index = 0;
-            List<Record> returnedRecords = new List<Record>();
-            Dictionary<string, List<Record>> oneToManyMapping = new Dictionary<string, List<Record>>();
-            while (index < missingRecords.Count)
+            List<string> returnedRecords = new List<string>();
+            HashSet<string> recordDataIdentifiers = new HashSet<string>();
+            List<string> dependentData = new List<string>();
+            while (index < missingRecordData.Count)
             {
                 RequestRecordDataUnmapped rrd = new RequestRecordDataUnmapped();
-                List<Record> recordsInPack = new List<Record>();
-                HashSet<string> recordDataIdentifiers = new HashSet<string>();
-                while (recordsInPack.Count < 1024 * 32 && index < missingRecords.Count)
+                List<string> recordsInPack = new List<string>();
+                while (recordsInPack.Count < 1024 * 32 && index < missingRecordData.Count)
                 {
-                    int recordIndex = index;
-                    Record rec = missingRecords[index++];
-                    if (rec.IsDirectory)
-                        continue;
-                    if (recordDataIdentifiers.Contains(rec.DataIdentifier))
+                    var data = missingRecordData[index++];
+                    if (!recordDataIdentifiers.Contains(data))
                     {
-                        List<Record> multirecData = null;
-                        if (!oneToManyMapping.TryGetValue(rec.DataIdentifier, out multirecData))
-                        {
-                            multirecData = new List<Record>();
-                            oneToManyMapping[rec.DataIdentifier] = multirecData;
-                        }
-                        multirecData.Add(rec);
-                        continue;
+                        recordDataIdentifiers.Add(data);
+                        recordsInPack.Add(data);
                     }
-                    recordDataIdentifiers.Add(rec.DataIdentifier);
-                    recordsInPack.Add(rec);
                 }
                 if (recordsInPack.Count > 0)
                 {
-                    rrd.RecordDataKeys = recordsInPack.Select(x => x.DataIdentifier).ToArray();
+                    rrd.RecordDataKeys = recordsInPack.ToArray();
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordUnmapped }, ProtoBuf.PrefixStyle.Fixed32);
                     Utilities.SendEncrypted<RequestRecordDataUnmapped>(sharedInfo, rrd);
 
@@ -481,27 +485,26 @@ namespace Versionr.Network
                             continue;
                         requestIndex = BitConverter.ToInt32(blob, 0);
                         successFlag = BitConverter.ToInt32(blob, 4);
-
-                        Objects.Record rec = recordsInPack[requestIndex];
+                        
                         if (successFlag == 0)
                         {
-                            Printer.PrintDiagnostics("Record {0} not located on remote.", rec.DataIdentifier);
+                            Printer.PrintDiagnostics("Record {0} not located on remote.", recordsInPack[requestIndex]);
                             continue;
                         }
 
                         receiverStream.Read(blob, 0, 8);
                         recordSize = BitConverter.ToInt64(blob, 0);
-                        Printer.PrintDiagnostics("Unpacking record {0}, payload size: {1}", rec.DataIdentifier, recordSize);
+                        Printer.PrintDiagnostics("Unpacking record {0}, payload size: {1}", recordsInPack[requestIndex], recordSize);
 
-                        returnedRecords.Add(rec);
-                        List<Record> multireturns = null;
-                        if (oneToManyMapping.TryGetValue(rec.DataIdentifier, out multireturns))
-                            returnedRecords.AddRange(multireturns);
+                        returnedRecords.Add(recordsInPack[requestIndex]);
 
                         var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
                         try
                         {
-                            sharedInfo.Workspace.ImportRecordData(transaction, rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                            string dependencies;
+                            sharedInfo.Workspace.ImportRecordData(transaction, recordsInPack[requestIndex], new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
+                            if (dependencies != null)
+                                dependentData.Add(dependencies);
                             sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
                         }
                         catch
@@ -513,6 +516,17 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
             }
+            List<string> filteredDeps = new List<string>();
+            foreach (var x in dependentData)
+            {
+                if (!recordDataIdentifiers.Contains(x) && !sharedInfo.Workspace.HasObjectDataDirect(x))
+                {
+                    recordDataIdentifiers.Add(x);
+                    filteredDeps.Add(x);
+                }
+            }
+            if (filteredDeps.Count > 0)
+                RequestRecordDataUnmapped(sharedInfo, filteredDeps);
             return returnedRecords;
         }
 

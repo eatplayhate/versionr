@@ -42,7 +42,7 @@ namespace Versionr
 
         internal List<Record> GetAllMissingRecords()
         {
-            return FindMissingRecords(Database.Table<Objects.Record>().ToList());
+            return FindMissingRecords(Database.GetAllRecords());
         }
 
         public DirectoryInfo Root
@@ -617,6 +617,11 @@ namespace Versionr
             }
         }
 
+        internal bool HasObjectDataDirect(string x)
+        {
+            return ObjectStore.HasDataDirect(x);
+        }
+
         internal void CommitDatabaseTransaction()
         {
             Database.Commit();
@@ -649,9 +654,9 @@ namespace Versionr
             Database.BeginTransaction();
         }
 
-        internal void ImportRecordData(Versionr.ObjectStore.ObjectStoreTransaction transaction, Record rec, Stream data)
+        internal void ImportRecordData(Versionr.ObjectStore.ObjectStoreTransaction transaction, string directName, Stream data, out string dependency)
         {
-            if (!ObjectStore.ReceiveRecordData(transaction, rec, data))
+            if (!ObjectStore.ReceiveRecordData(transaction, directName, data, out dependency))
                 throw new Exception();
          /*   DirectoryInfo tempDirectory = new DirectoryInfo(System.IO.Path.Combine(AdministrationFolder.FullName, "temp"));
             if (!tempDirectory.Exists)
@@ -1229,6 +1234,14 @@ namespace Versionr
                 }
             }
 
+            var status = Status;
+            if (status.HasModifications(false))
+            {
+                Printer.PrintMessage("Repository is not clean!");
+                Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
+                return;
+            }
+
             var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
             Objects.Version mergeVersion = null;
             if (possibleBranch != null)
@@ -1657,8 +1670,8 @@ namespace Versionr
             List<Task> tasks = new List<Task>();
             foreach (var x in targetRecords.Where(x => !x.IsDirectory))
             {
-                //tasks.Add(Task.Run(() => { RestoreRecord(x); }));
-                RestoreRecord(x);
+                tasks.Add(Task.Run(() => { RestoreRecord(x); }));
+                //RestoreRecord(x);
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
@@ -1730,11 +1743,11 @@ namespace Versionr
                     {
                         if (!client.Connect(x.Host, x.Port))
                             Printer.PrintMessage(" - Connection failed.");
-                        List<Record> retrievedRecords = client.GetRecordData(missingRecords);
+                        List<string> retrievedRecords = client.GetRecordData(missingRecords);
                         HashSet<string> retrievedData = new HashSet<string>();
                         Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
                         foreach (var y in retrievedRecords)
-                            retrievedData.Add(y.DataIdentifier);
+                            retrievedData.Add(y);
                         missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
                         client.Close();
                     }
@@ -2250,6 +2263,21 @@ namespace Versionr
                     ObjectStore.WriteRecordStream(rec, fsd);
                 }
                 ApplyAttributes(dest, rec);
+                if (dest.Length != rec.Size)
+                {
+                    Printer.PrintError("Size mismatch after decoding record!");
+                    Printer.PrintError(" - Expected: {0}", rec.Size);
+                    Printer.PrintError(" - Actual: {0}", dest.Length);
+                    throw new Exception();
+                }
+                string hash = Entry.CheckHash(dest);
+                if (hash != rec.Fingerprint)
+                {
+                    Printer.PrintError("Hash mismatch after decoding record!");
+                    Printer.PrintError(" - Expected: {0}", rec.Fingerprint);
+                    Printer.PrintError(" - Found: {0}", hash);
+                    throw new Exception();
+                }
             }
             catch (System.IO.IOException)
             {

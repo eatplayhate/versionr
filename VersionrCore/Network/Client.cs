@@ -57,7 +57,7 @@ namespace Versionr.Network
         {
             List<Record> missingRecords = Workspace.GetAllMissingRecords();
             Printer.PrintMessage("Vault is missing data for {0} records.", missingRecords.Count);
-            List<Record> returnedData = GetRecordData(missingRecords);
+            List<string> returnedData = GetRecordData(missingRecords);
             Printer.PrintMessage(" - Got {0} records from remote.", returnedData.Count);
             if (returnedData.Count != missingRecords.Count)
                 return false;
@@ -512,9 +512,9 @@ namespace Versionr.Network
                 return false;
         }
 
-        internal List<Record> GetRecordData(List<Record> missingRecords)
+        internal List<string> GetRecordData(List<Record> missingRecords)
         {
-            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords);
+            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords.Select(x => x.DataIdentifier).ToList());
         }
     }
 }

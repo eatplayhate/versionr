@@ -166,7 +166,7 @@ namespace Versionr.ObjectStore
                 trans.Cleanup.Add(filename);
                 long resultSize;
                 string fn = Path.Combine(TempFolder.FullName, filename);
-                if (priorRecord != null && false)
+                if (priorRecord != null)
                 {
                     // try to delta encode it
                     string priorLookup = GetLookup(priorRecord);
@@ -320,15 +320,16 @@ namespace Versionr.ObjectStore
             return string.Format("{0:N2} MiB", size / (1024.0 * 1024.0));
         }
 
-        public override bool ReceiveRecordData(ObjectStoreTransaction transaction, Objects.Record record, System.IO.Stream dataStream)
+        public override bool ReceiveRecordData(ObjectStoreTransaction transaction, string directName, System.IO.Stream dataStream, out string dependency)
         {
             StandardObjectStoreTransaction trans = (StandardObjectStoreTransaction)transaction;
+            dependency = null;
             lock (trans)
             {
                 string filename;
                 lock (this)
                 {
-                    if (HasData(record))
+                    if (HasDataDirect(directName))
                         throw new Exception();
                     do
                     {
@@ -336,13 +337,12 @@ namespace Versionr.ObjectStore
                     } while (TempFiles.Contains(filename));
                     TempFiles.Add(filename);
                 }
-                Printer.PrintDiagnostics("Importing data for {0}", record.CanonicalName);
+                Printer.PrintDiagnostics("Importing data for {0}", directName);
                 trans.Cleanup.Add(filename);
                 string fn = Path.Combine(TempFolder.FullName, filename);
                 FileObjectStoreData data = new FileObjectStoreData()
                 {
-                    FileSize = record.Size,
-                    Lookup = GetLookup(record),
+                    Lookup = directName,
                 };
                 using (var fileOutput = new FileInfo(fn).OpenWrite())
                 {
@@ -356,6 +356,9 @@ namespace Versionr.ObjectStore
                         fileOutput.Write(sig, 0, 4);
                         if ((BitConverter.ToUInt32(sig, 0) & 0x8000) != 0)
                             data.HasSignatureData = true;
+                        dataStream.Read(sig, 0, 8);
+                        fileOutput.Write(sig, 0, 8);
+                        data.FileSize = BitConverter.ToInt64(sig, 0);
                     }
                     else if (sig[0] == 'd' && sig[1] == 'b' && sig[2] == 'l' && sig[3] == 'x')
                     {
@@ -367,6 +370,7 @@ namespace Versionr.ObjectStore
 
                         dataStream.Read(sig, 0, 8);
                         fileOutput.Write(sig, 0, 8);
+                        data.FileSize = BitConverter.ToInt64(sig, 0);
 
                         dataStream.Read(sig, 0, 8);
                         fileOutput.Write(sig, 0, 8);
@@ -380,12 +384,18 @@ namespace Versionr.ObjectStore
                         fileOutput.Write(baseLookupData, 0, baseLookupData.Length);
                         string baseLookup = ASCIIEncoding.ASCII.GetString(baseLookupData);
 
+                        dependency = baseLookup;
+
                         data.Mode = StorageMode.Delta;
                         data.DeltaBase = baseLookup;
                     }
                     else
                     {
+                        fileOutput.Write(sig, 0, 4);
                         data.Mode = StorageMode.Legacy;
+                        dataStream.Read(sig, 0, 8);
+                        fileOutput.Write(sig, 0, 8);
+                        data.FileSize = BitConverter.ToInt64(sig, 0);
                     }
                     byte[] buffer = new byte[2 * 1024 * 1024];
                     while (true)
@@ -399,7 +409,6 @@ namespace Versionr.ObjectStore
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
-                        Record = record,
                         Data = data,
                         Filename = filename
                     }
@@ -415,9 +424,13 @@ namespace Versionr.ObjectStore
 
         public override bool HasData(Record recordInfo)
         {
+            return HasDataDirect(GetLookup(recordInfo));
+        }
+        public override bool HasDataDirect(string x)
+        {
             lock (this)
             {
-                var storeData = ObjectDatabase.Find<FileObjectStoreData>(GetLookup(recordInfo));
+                var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
                 if (storeData == null)
                     return false;
                 return true;
@@ -607,7 +620,7 @@ namespace Versionr.ObjectStore
             switch (data & 0x0FFF)
             {
                 case 1:
-                    return new LZHAMReaderStream(length, stream);
+                    return new LZHAMReaderStream(deltaLength, stream);
                 default:
                     throw new Exception();
             }
