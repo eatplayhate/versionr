@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 7;
+        public const int InternalDBVersion = 8;
         public const int MinimumDBVersion = 3;
         public const int MaximumDBVersion = 10;
 
@@ -36,6 +36,7 @@ namespace Versionr
             {
                 try
                 {
+                    PrepareTables();
                     BeginTransaction();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
                     var fmt = Format;
@@ -45,7 +46,30 @@ namespace Versionr
                     CreateTable<Objects.FormatInfo>();
                     Insert(fmt);
 
-                    if (GetTableInfo("RecordIndex") == null || priorFormat < 6)
+                    if (priorFormat == 7)
+                    {
+                        Printer.PrintMessage(" - Upgrading database - adding branch root version.");
+                        foreach (var x in Table<Objects.Branch>().ToList())
+                        {
+                            var allVersions = Table<Objects.Version>().Where(y => y.Branch == x.ID);
+                            Guid? rootVersion = null;
+                            foreach (var y in allVersions)
+                            {
+                                if (y.Parent.HasValue)
+                                {
+                                    Objects.Version parent = Get<Objects.Version>(y.Parent);
+                                    if (parent.Branch != x.ID)
+                                    {
+                                        rootVersion = parent.ID;
+                                        break;
+                                    }
+                                }
+                            }
+                            x.RootVersion = rootVersion;
+                            Update(x);
+                        }
+                    }
+                    else if (priorFormat < 6 && GetTableInfo("RecordIndex") == null)
                     {
                         Printer.PrintMessage(" - Upgrading database - adding record index.");
                         foreach (var x in Table<Objects.Record>().ToList())

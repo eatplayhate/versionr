@@ -380,7 +380,7 @@ namespace Versionr
 
             LocalState.Workspace ws = LocalState.Workspace.Create();
 
-            Objects.Branch branch = Objects.Branch.Create(branchName);
+            Objects.Branch branch = Objects.Branch.Create(branchName, null, null);
             Objects.Version version = Objects.Version.Create();
             Objects.Snapshot snapshot = new Objects.Snapshot();
             Objects.Head head = new Objects.Head();
@@ -1526,7 +1526,7 @@ namespace Versionr
                 throw new Exception(string.Format("Branch \"{0}\" already exists!", v));
 
             Objects.Version currentVer = Database.Version;
-            branch = Objects.Branch.Create(v, currentVer.Branch);
+            branch = Objects.Branch.Create(v, currentVer.ID, currentVer.Branch);
             Printer.PrintDiagnostics("Created new branch \"{0}\", ID: {1}.", v, branch.ID);
             var ws = LocalData.Workspace;
             ws.Branch = branch.ID;
