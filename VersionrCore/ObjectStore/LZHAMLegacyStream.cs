@@ -77,7 +77,7 @@ namespace Versionr.ObjectStore
         int m_DecompressorEnd;
         bool m_End;
 
-        public LZHAMLegacyStream(System.IO.Stream baseStream, bool readFirstID)
+        public LZHAMLegacyStream(System.IO.Stream baseStream, bool readFirstID, long? outputSize = null)
         {
             m_Decompressor = CreateDecompressionStream(23);
             BaseStream = baseStream;
@@ -87,7 +87,10 @@ namespace Versionr.ObjectStore
                 if (sw.ReadInt32() != 0)
                     throw new Exception();
             }
-            OutputSize = sw.ReadInt64();
+            if (outputSize == null)
+                OutputSize = sw.ReadInt64();
+            else
+                outputSize = OutputSize;
             m_OutputPosition = m_OutputBuffer.Length;
             m_DecompressorEnd = m_OutputBuffer.Length;
             m_End = false;

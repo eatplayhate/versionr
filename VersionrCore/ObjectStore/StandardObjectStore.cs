@@ -259,9 +259,9 @@ namespace Versionr.ObjectStore
                         sig |= 0x8000;
                     fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
                     fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
-                    Printer.PrintDiagnostics(" - Computing signature");
                     if (computeSignature)
                     {
+                        Printer.PrintDiagnostics(" - Computing signature");
                         var checksum = ChunkedChecksum.Compute(1024, fileInput);
                         fileInput.Position = 0;
                         ChunkedChecksum.Write(fileOutput, checksum);
@@ -326,6 +326,7 @@ namespace Versionr.ObjectStore
             dependency = null;
             lock (trans)
             {
+                byte[] buffer = new byte[2 * 1024 * 1024];
                 string filename;
                 lock (this)
                 {
@@ -346,6 +347,7 @@ namespace Versionr.ObjectStore
                 };
                 using (var fileOutput = new FileInfo(fn).OpenWrite())
                 {
+                    bool readData = true;
                     byte[] sig = new byte[8];
                     dataStream.Read(sig, 0, 4);
                     if (sig[0] == 'd' && sig[1] == 'b' && sig[2] == 'l' && sig[3] == 'k')
@@ -391,14 +393,67 @@ namespace Versionr.ObjectStore
                     }
                     else
                     {
-                        fileOutput.Write(sig, 0, 4);
-                        data.Mode = StorageMode.Legacy;
-                        dataStream.Read(sig, 0, 8);
-                        fileOutput.Write(sig, 0, 8);
-                        data.FileSize = BitConverter.ToInt64(sig, 0);
+                        if (true)
+                        {
+                            data.Mode = StorageMode.Flat;
+                            Printer.PrintDiagnostics(" - Importing legacy record...");
+                            fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'k' }, 0, 4);
+                            dataStream.Read(sig, 0, 8);
+                            data.FileSize = BitConverter.ToInt64(sig, 0);
+
+                            string importTemp;
+                            lock (this)
+                            {
+                                do
+                                {
+                                    importTemp = Path.GetRandomFileName();
+                                } while (TempFiles.Contains(importTemp));
+                                TempFiles.Add(importTemp);
+                            }
+                            trans.Cleanup.Add(importTemp);
+                            importTemp = Path.Combine(TempFolder.FullName, importTemp);
+                            FileInfo importTempInfo = new FileInfo(importTemp);
+                            using (var fs = importTempInfo.Create())
+                            using (LZHAMLegacyStream legacy = new LZHAMLegacyStream(dataStream, false, data.FileSize))
+                            {
+                                while (true)
+                                {
+                                    var read = legacy.Read(buffer, 0, buffer.Length);
+                                    if (read == 0)
+                                        break;
+                                    fs.Write(buffer, 0, read);
+                                }
+                            }
+                            using (var fileInput = importTempInfo.OpenRead())
+                            {
+                                int signature = 1;
+                                bool computeSignature = data.FileSize > 1024 * 64;
+                                if (computeSignature)
+                                    signature |= 0x8000;
+                                fileOutput.Write(BitConverter.GetBytes(signature), 0, 4);
+                                fileOutput.Write(BitConverter.GetBytes(data.FileSize), 0, 8);
+                                if (computeSignature)
+                                {
+                                    Printer.PrintDiagnostics(" - Computing signature");
+                                    var checksum = ChunkedChecksum.Compute(1024, fileInput);
+                                    fileInput.Position = 0;
+                                    ChunkedChecksum.Write(fileOutput, checksum);
+                                }
+                                Printer.PrintDiagnostics(" - Compressing data");
+                                long resultSize = 0;
+                                LZHAMWriter.CompressToStream(data.FileSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput);
+                            }
+                        }
+                        else
+                        {
+                            fileOutput.Write(sig, 0, 4);
+                            data.Mode = StorageMode.Legacy;
+                            dataStream.Read(sig, 0, 8);
+                            fileOutput.Write(sig, 0, 8);
+                            data.FileSize = BitConverter.ToInt64(sig, 0);
+                        }
                     }
-                    byte[] buffer = new byte[2 * 1024 * 1024];
-                    while (true)
+                    while (readData)
                     {
                         var read = dataStream.Read(buffer, 0, buffer.Length);
                         if (read == 0)
