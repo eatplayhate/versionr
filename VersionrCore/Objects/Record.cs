@@ -96,7 +96,7 @@ namespace Versionr.Objects
         {
             get
             {
-                return !IsDirectory && Size > 0;
+                return Size > 0;
             }
         }
     }

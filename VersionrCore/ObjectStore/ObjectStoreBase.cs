@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Versionr.Objects;
 
 namespace Versionr.ObjectStore
 {
@@ -10,14 +12,19 @@ namespace Versionr.ObjectStore
     {
 
     }
-    public interface ObjectStoreBase
+    public abstract class ObjectStoreBase
     {
-        void Create(Area owner);
-        bool Open(Area owner);
-        ObjectStoreTransaction BeginStorageTransaction();
-        bool RecordData(Objects.Record newRecord, Objects.Record priorRecord, Entry fileEntry);
-        bool HasData(Objects.Record recordInfo);
-        bool EndStorageTransaction(ObjectStoreTransaction transaction);
-        bool RestoreData(Objects.Record record, string pathOverride = null);
+        public abstract void Create(Area owner);
+        public abstract bool Open(Area owner);
+        public abstract ObjectStoreTransaction BeginStorageTransaction();
+        public abstract bool RecordData(ObjectStoreTransaction transaction, Objects.Record newRecord, Objects.Record priorRecord, Entry fileEntry);
+        public abstract bool ReceiveRecordData(ObjectStoreTransaction transaction, Objects.Record record, System.IO.Stream dataStream);
+        public abstract bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender);
+        public abstract System.IO.Stream GetRecordStream(Objects.Record record);
+        public abstract long GetTransmissionLength(Record record);
+        public abstract bool HasData(Objects.Record recordInfo);
+        public abstract bool AbortStorageTransaction(ObjectStoreTransaction transaction);
+        public abstract bool EndStorageTransaction(ObjectStoreTransaction transaction);
+        public abstract void WriteRecordStream(Record rec, System.IO.Stream outputStream);
     }
 }

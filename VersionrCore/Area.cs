@@ -513,48 +513,14 @@ namespace Versionr
             Database.Insert(x);
         }
 
+        internal long GetTransmissionLength(Record record)
+        {
+            return ObjectStore.GetTransmissionLength(record);
+        }
+
         internal bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
         {
-            FileInfo file = GetFileForCode(record.Fingerprint, record.Size);
-            if (!file.Exists)
-                return false;
-            return TransmitDataFromFile(file, sender);
-        }
-        
-        private bool TransmitDataFromFile(FileInfo file, Func<IEnumerable<byte>, bool, bool> sender)
-        {
-            System.Console.Write("Progress: ");
-            int left = System.Console.CursorLeft;
-            using (var fss = file.OpenRead())
-            {
-                BinaryReader sw = new BinaryReader(fss);
-                long length = fss.Length;
-                sender(BitConverter.GetBytes(length), false); // send size data
-                long currentPosition = 0;
-                byte[] buffer = new byte[1024 * 1024];
-                while (length > currentPosition)
-                {
-                    int bufferSize = buffer.Length;
-                    long remainder = length - currentPosition;
-                    if (remainder < bufferSize)
-                    {
-                        bufferSize = (int)remainder;
-                        buffer = new byte[bufferSize];
-                    }
-                    sw.Read(buffer, 0, bufferSize);
-
-                    int percent = (int)(100.0 * (double)currentPosition / (double)length);
-                    System.Console.CursorLeft = left;
-                    System.Console.Write("{0}%", percent);
-                    currentPosition += bufferSize;
-
-                    if (!sender(buffer, false))
-                        return false;
-                }
-            }
-            System.Console.CursorLeft = left;
-            System.Console.WriteLine("100%");
-            return true;
+            return ObjectStore.TransmitRecordData(record, sender);
         }
 
         internal Record LocateRecord(Record newRecord)
@@ -683,9 +649,11 @@ namespace Versionr
             Database.BeginTransaction();
         }
 
-        internal void ImportRecordData(Record rec, Stream data)
+        internal void ImportRecordData(Versionr.ObjectStore.ObjectStoreTransaction transaction, Record rec, Stream data)
         {
-            DirectoryInfo tempDirectory = new DirectoryInfo(System.IO.Path.Combine(AdministrationFolder.FullName, "temp"));
+            if (!ObjectStore.ReceiveRecordData(transaction, rec, data))
+                throw new Exception();
+         /*   DirectoryInfo tempDirectory = new DirectoryInfo(System.IO.Path.Combine(AdministrationFolder.FullName, "temp"));
             if (!tempDirectory.Exists)
                 tempDirectory.Create();
             FileInfo temp;
@@ -722,18 +690,12 @@ namespace Versionr
             {
                 if (temp != null)
                     temp.Delete();
-            }
+            }*/
         }
 
         internal bool HasObjectData(Record rec)
         {
-            if (rec.Size == 0 || rec.IsDirectory)
-                return true;
-            lock (this)
-            {
-                FileInfo info = GetFileForCode(rec.Fingerprint, rec.Size);
-                return info.Exists;
-            }
+            return ObjectStore.HasData(rec);
         }
 
         internal void ImportHeadNoCommit(KeyValuePair<Guid, Head> x)
@@ -1695,7 +1657,8 @@ namespace Versionr
             List<Task> tasks = new List<Task>();
             foreach (var x in targetRecords.Where(x => !x.IsDirectory))
             {
-                tasks.Add(Task.Run(() => { RestoreRecord(x); }));
+                //tasks.Add(Task.Run(() => { RestoreRecord(x); }));
+                RestoreRecord(x);
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
@@ -1875,6 +1838,7 @@ namespace Versionr
             Status st = Status;
             if (st.HasModifications(!allModified) || mergeID != null)
             {
+                Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                 try
                 {
                     Objects.Version vs = null;
@@ -1928,6 +1892,9 @@ namespace Versionr
                     foreach (var x in Database.Table<ObjectName>().ToList())
                         canonicalNames[x.CanonicalName] = x;
                     List<Tuple<Record, ObjectName>> canonicalNameInsertions = new List<Tuple<Record, ObjectName>>();
+
+                    transaction = ObjectStore.BeginStorageTransaction();
+
                     foreach (var x in st.Elements)
                     {
                         List<StageOperation> stagedOps;
@@ -1996,7 +1963,8 @@ namespace Versionr
                                             if (x.VersionControlRecord != null)
                                                 record.Parent = x.VersionControlRecord.Id;
                                         }
-                                        RecordData(x.FilesystemEntry, x.VersionControlRecord, record);
+                                        if (!ObjectStore.HasData(record))
+                                            ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
 
                                         ObjectName nameRecord = null;
                                         if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
@@ -2058,6 +2026,9 @@ namespace Versionr
                                 break;
                         }
                     }
+
+                    ObjectStore.EndStorageTransaction(transaction);
+                    transaction = null;
 
                     Printer.PrintDiagnostics("Updating internal state.");
                     var ws = LocalData.Workspace;
@@ -2139,6 +2110,8 @@ namespace Versionr
                 }
                 catch (Exception e)
                 {
+                    if (transaction != null)
+                        ObjectStore.AbortStorageTransaction(transaction);
                     Database.Rollback();
                     Printer.PrintError("Exception during commit: {0}", e.ToString());
                     return false;
@@ -2176,7 +2149,7 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressSetSource", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern int DecompressSetSource(IntPtr stream, byte[] output, int outLength);
 
-        private void RecordData(Entry entry, Record oldRecord, Record newRecord)
+        /*private void RecordData(Entry entry, Record oldRecord, Record newRecord)
         {
             if (entry.IsDirectory)
                 return;
@@ -2228,7 +2201,7 @@ namespace Versionr
                     file.Delete();
                 throw;
             }
-        }
+        }*/
 
         private void RestoreRecord(Record rec, string overridePath = null)
         {
@@ -2243,14 +2216,10 @@ namespace Versionr
                 }
                 return;
             }
-            FileInfo file = GetFileForCode(rec.Fingerprint, rec.Size);
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
             if (rec.Size == 0)
             {
-                using (var fs = dest.Create())
-                {
-
-                }
+                using (var fs = dest.Create()) { }
                 ApplyAttributes(dest, rec);
                 return;
             }
@@ -2276,44 +2245,9 @@ namespace Versionr
                 Printer.PrintMessage("Creating {0}", rec.CanonicalName);
             try
             {
-                using (var fss = file.OpenRead())
                 using (var fsd = dest.Open(FileMode.Create))
                 {
-                    BinaryReader sw = new BinaryReader(fss);
-                    int compressionType = sw.ReadInt32();
-                    if (compressionType != 0)
-                        throw new Exception();
-                    long outputSize = sw.ReadInt64();
-                    if (outputSize != rec.Size)
-                        throw new Exception();
-
-                    var stream = CreateDecompressionStream(23);
-
-                    byte[] dataBlob = new byte[20 * 1024 * 1024];
-                    byte[] outBufferTemp = new byte[dataBlob.Length];
-                    long remainder = file.Length - 12;
-                    while (remainder > 0)
-                    {
-                        int max = dataBlob.Length;
-                        if (max > remainder)
-                            max = (int)remainder;
-                        sw.Read(dataBlob, 0, max);
-                        DecompressSetSource(stream, dataBlob, max);
-                        bool inputRemaining = true;
-                        while (inputRemaining)
-                        {
-                            var result = DecompressData(stream, outBufferTemp, outBufferTemp.Length);
-                            if (result <= 0)
-                            {
-                                inputRemaining = false;
-                                result = -result;
-                            }
-                            fsd.Write(outBufferTemp, 0, result);
-                        }
-                        remainder -= max;
-                    }
-
-                    DestroyDecompressionStream(stream);
+                    ObjectStore.WriteRecordStream(rec, fsd);
                 }
                 ApplyAttributes(dest, rec);
             }
@@ -2336,24 +2270,6 @@ namespace Versionr
                 info.Attributes = info.Attributes | FileAttributes.Hidden;
             if (rec.Attributes.HasFlag(Objects.Attributes.ReadOnly))
                 info.Attributes = info.Attributes | FileAttributes.ReadOnly;
-        }
-
-        private FileInfo GetFileForDataID(string id)
-        {
-            DirectoryInfo rootDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "objects"));
-            rootDir.Create();
-            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(rootDir.FullName, id.Substring(0, 2)));
-            subDir.Create();
-            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
-        }
-
-        private FileInfo GetFileForCode(string hash, long length)
-        {
-            DirectoryInfo rootDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "objects"));
-            rootDir.Create();
-            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(rootDir.FullName, hash.Substring(0, 2)));
-            subDir.Create();
-            return new FileInfo(Path.Combine(subDir.FullName, hash.Substring(2) + "-" + length.ToString()));
         }
 
         internal void Remove(string v)

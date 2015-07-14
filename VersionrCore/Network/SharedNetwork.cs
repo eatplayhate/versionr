@@ -379,7 +379,17 @@ namespace Versionr.Network
                         Printer.PrintDiagnostics("Unpacking remote record {0}, payload size: {1}", recordIndex, recordSize);
                         var rec = sharedInfo.RemoteRecordMap[recordIndex];
 
-                        sharedInfo.Workspace.ImportRecordData(rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                        var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
+                        try
+                        {
+                            sharedInfo.Workspace.ImportRecordData(transaction, rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                            sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
+                        }
+                        catch
+                        {
+                            sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
+                            throw;
+                        }
                     }
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
@@ -488,7 +498,17 @@ namespace Versionr.Network
                         if (oneToManyMapping.TryGetValue(rec.DataIdentifier, out multireturns))
                             returnedRecords.AddRange(multireturns);
 
-                        sharedInfo.Workspace.ImportRecordData(rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                        var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
+                        try
+                        {
+                            sharedInfo.Workspace.ImportRecordData(transaction, rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                            sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
+                        }
+                        catch
+                        {
+                            sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
+                            throw;
+                        }
                     }
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }

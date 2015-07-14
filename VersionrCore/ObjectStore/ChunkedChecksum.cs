@@ -230,14 +230,27 @@ namespace Versionr.ObjectStore
             return (uint)((b << 16) | a);
         }
 
+        public static void Skip(System.IO.Stream stream)
+        {
+            byte[] temp = new byte[16];
+            stream.Read(temp, 0, 16);
+            if (temp[0] != 'h' || temp[1] != 'a' || temp[2] != 's' || temp[3] != 'h')
+                throw new Exception();
+            int chunkSize = BitConverter.ToInt32(temp, 8);
+            uint chunkCount = BitConverter.ToUInt32(temp, 12);
+            stream.Seek(chunkCount * 24, SeekOrigin.Current);
+        }
+
         public static ChunkedChecksum Load(long filesize, System.IO.Stream stream)
         {
             ChunkedChecksum result = new ChunkedChecksum();
 
-            byte[] temp8 = new byte[8];
-            stream.Read(temp8, 0, 8);
-            result.ChunkSize = BitConverter.ToInt32(temp8, 0);
-            result.ChunkCount = BitConverter.ToUInt32(temp8, 4);
+            byte[] temp = new byte[16];
+            stream.Read(temp, 0, 16);
+            if (temp[0] != 'h' || temp[1] != 'a' || temp[2] != 's' || temp[3] != 'h')
+                throw new Exception();
+            result.ChunkSize = BitConverter.ToInt32(temp, 8);
+            result.ChunkCount = BitConverter.ToUInt32(temp, 12);
             result.Chunks = new Chunk[result.ChunkCount];
 
             uint remaining = result.ChunkCount;
@@ -245,16 +258,14 @@ namespace Versionr.ObjectStore
             int index = 0;
             while (remaining > 0)
             {
-                stream.Read(temp8, 0, 4);
-                Chunk c = new Chunk() { Adler32 = BitConverter.ToUInt32(temp8, 0), SHA1 = new byte[20], Offset = offset };
+                stream.Read(temp, 0, 4);
+                Chunk c = new Chunk() { Adler32 = BitConverter.ToUInt32(temp, 0), SHA1 = new byte[20], Offset = offset };
                 offset += result.ChunkSize;
                 if (remaining == 1)
-                {
-                    stream.Read(temp8, 0, 4);
-                    c.Length = BitConverter.ToInt32(temp8, 0);
-                }
+                    c.Length = (int)(filesize - offset);
                 else
                     c.Length = result.ChunkSize;
+                stream.Read(c.SHA1, 0, 20);
                 c.Index = index;
                 result.Chunks[index++] = c;
                 remaining--;
@@ -325,7 +336,7 @@ namespace Versionr.ObjectStore
             byte[] blobs = new byte[9];
             byte[] runningBuffer = new byte[4 * 1024 * 1024];
             deltaFile.Read(blobs, 0, 4);
-            if (blobs[0] != 'c' || blobs[1] != 'h' || blobs[2] == 'n' || blobs[3] == 'k')
+            if (blobs[0] != 'c' || blobs[1] != 'h' || blobs[2] != 'n' || blobs[3] != 'k')
                 throw new Exception();
             while (true)
             {

@@ -71,6 +71,7 @@
     <Compile Include="ObjectStore\ChunkedChecksum.cs" />
     <Compile Include="ObjectStore\ChunkedCompressionStreamWriter.cs" />
     <Compile Include="ObjectStore\ChunkedDecompressionStream.cs" />
+    <Compile Include="ObjectStore\LZHAMLegacyStream.cs" />
     <Compile Include="ObjectStore\LZHAMReaderStream.cs" />
     <Compile Include="ObjectStore\LZHAMWriter.cs" />
     <Compile Include="ObjectStore\ObjectStoreBase.cs" />
