@@ -10,9 +10,15 @@ namespace Versionr.ObjectStore
 {
     enum StorageMode
     {
+        Legacy,
         Flat,
         Packed,
         Delta
+    }
+    class PackfileObject
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public Guid ID { get; set; }
     }
     class FileObjectStoreData
     {
@@ -21,7 +27,14 @@ namespace Versionr.ObjectStore
         public long FileSize { get; set; }
         public long Offset { get; set; }
         public StorageMode Mode { get; set; }
-        public Guid PartialStoreFile { get; set; }
+        public bool HasSignatureData { get; set; }
+        public Guid? PackFileID { get; set; }
+    }
+    class StandardObjectStoreMetadata
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public int Id { get; set; }
+        public int Version { get; set; }
     }
     public class StandardObjectStore : ObjectStoreBase
     {
@@ -45,13 +58,20 @@ namespace Versionr.ObjectStore
         {
             Owner = owner;
             DataFolder.Create();
-            ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
+            ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.NoMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
             InitializeDBTypes();
+
+            var meta = new StandardObjectStoreMetadata();
+            meta.Version = 1;
+            ObjectDatabase.Insert(meta);
         }
 
         private void InitializeDBTypes()
         {
-            return;
+            ObjectDatabase.EnableWAL = true;
+            ObjectDatabase.CreateTable<FileObjectStoreData>();
+            ObjectDatabase.CreateTable<PackfileObject>();
+            ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
         }
 
         public bool Open(Area owner)
@@ -59,9 +79,48 @@ namespace Versionr.ObjectStore
             Owner = owner;
             if (!DataFolder.Exists)
                 return false;
-            ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.ReadWrite);
+            ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.NoMutex | SQLite.SQLiteOpenFlags.ReadWrite);
             InitializeDBTypes();
+
+            var version = ObjectDatabase.Table<StandardObjectStoreMetadata>().FirstOrDefault();
+            if (version == null)
+            {
+                ObjectDatabase.BeginExclusive();
+                Printer.PrintMessage("Upgrading object store database...");
+                var records = owner.GetAllRecords();
+                foreach (var x in records)
+                {
+                    ImportRecordFromFlatStore(x);
+                }
+                var meta = new StandardObjectStoreMetadata();
+                meta.Version = 1;
+                ObjectDatabase.Insert(meta);
+                ObjectDatabase.Commit();
+            }
             return true;
+        }
+
+        private void ImportRecordFromFlatStore(Record x)
+        {
+            if (x.HasData)
+            {
+                var recordData = new FileObjectStoreData();
+                recordData.FileSize = x.Size;
+                recordData.HasSignatureData = false;
+                recordData.Lookup = x.DataIdentifier;
+                recordData.Mode = StorageMode.Legacy;
+                recordData.Offset = 0;
+                recordData.PackFileID = null;
+                try
+                {
+                    ObjectDatabase.Insert(recordData);
+                }
+                catch (SQLite.SQLiteException e)
+                {
+                    if (e.Result != SQLite.SQLite3.Result.Constraint)
+                        throw;
+                }
+            }
         }
 
         public bool RecordData(Record newRecord, Record priorRecord, Entry fileEntry)
@@ -74,12 +133,17 @@ namespace Versionr.ObjectStore
             throw new NotImplementedException();
         }
 
-        public bool BeginStorageTransaction()
+        ObjectStoreTransaction ObjectStoreBase.BeginStorageTransaction()
         {
             throw new NotImplementedException();
         }
 
-        public bool EndStorageTransaction()
+        public bool HasData(Record recordInfo)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool EndStorageTransaction(ObjectStoreTransaction transaction)
         {
             throw new NotImplementedException();
         }

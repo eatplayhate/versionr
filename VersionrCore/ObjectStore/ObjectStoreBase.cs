@@ -6,13 +6,18 @@ using System.Threading.Tasks;
 
 namespace Versionr.ObjectStore
 {
+    public class ObjectStoreTransaction
+    {
+
+    }
     public interface ObjectStoreBase
     {
         void Create(Area owner);
         bool Open(Area owner);
-        bool BeginStorageTransaction();
+        ObjectStoreTransaction BeginStorageTransaction();
         bool RecordData(Objects.Record newRecord, Objects.Record priorRecord, Entry fileEntry);
-        bool EndStorageTransaction();
+        bool HasData(Objects.Record recordInfo);
+        bool EndStorageTransaction(ObjectStoreTransaction transaction);
         bool RestoreData(Objects.Record record, string pathOverride = null);
     }
 }

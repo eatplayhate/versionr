@@ -108,6 +108,11 @@ namespace Versionr
             return true;
         }
 
+        public List<Objects.Record> GetAllRecords()
+        {
+            return Database.GetAllRecords();
+        }
+
         public List<Head> GetHeads(Guid versionID)
         {
             return Database.Table<Objects.Head>().Where(x => x.Version == versionID).ToList();

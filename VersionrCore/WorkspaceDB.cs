@@ -36,8 +36,8 @@ namespace Versionr
             {
                 try
                 {
+                    BeginExclusive(true);
                     PrepareTables();
-                    BeginTransaction();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
                     var fmt = Format;
                     int priorFormat = fmt.InternalFormat;
@@ -152,6 +152,11 @@ namespace Versionr
             alterations = GetAlterationsInternal(parents);
             Printer.PrintDiagnostics(" - Target has {0} alterations.", alterations.Count);
             return Consolidate(baseList, alterations, null);
+        }
+
+        public List<Record> GetAllRecords()
+        {
+            return Query<Record>("SELECT * FROM ObjectName INNER JOIN Record AS results ON ObjectName.Id = results.CanonicalNameId").ToList();
         }
 
         private List<Record> Consolidate(List<Record> baseList, List<Alteration> alterations, List<Record> deletions)

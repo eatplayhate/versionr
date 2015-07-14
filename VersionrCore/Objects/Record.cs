@@ -90,6 +90,15 @@ namespace Versionr.Objects
                 return DataIdentifier + "-" + ((int)Attributes).ToString();
             }
         }
+
+        [SQLite.Ignore]
+        public bool HasData
+        {
+            get
+            {
+                return !IsDirectory && Size > 0;
+            }
+        }
     }
 
     public class RecordIndex
