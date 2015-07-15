@@ -25,7 +25,7 @@ namespace Versionr.ObjectStore
         }
         protected override void CompressData(byte[] inputData, byte[] outputData, int available, out uint blockSize, bool end)
         {
-            var result = CompressData(m_Compressor, inputData, available, outputData, outputData.Length, true, end);
+            var result = CompressData(m_Compressor, inputData, available, outputData, outputData.Length, true, false);
             if (result < 0)
                 throw new Exception();
             blockSize = (uint)result;

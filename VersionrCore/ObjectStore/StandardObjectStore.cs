@@ -640,10 +640,12 @@ namespace Versionr.ObjectStore
             if (storeData.Mode == StorageMode.Delta)
             {
                 Stream baseStream;
-                dataStream = OpenDeltaCodecStream(OpenLegacyStream(storeData), out baseStream);
+                FileInfo tempBaseFile;
+                dataStream = OpenDeltaCodecStream(OpenLegacyStream(storeData), out baseStream, out tempBaseFile);
                 ChunkedChecksum.ApplyDelta(baseStream, dataStream, outputStream);
                 dataStream.Dispose();
                 baseStream.Dispose();
+                tempBaseFile.Delete();
             }
             else
             {
@@ -665,8 +667,18 @@ namespace Versionr.ObjectStore
             }
         }
 
-        private Stream OpenDeltaCodecStream(Stream stream, out Stream baseFileStream)
+        private Stream OpenDeltaCodecStream(Stream stream, out Stream baseFileStream, out FileInfo tempFileName)
         {
+            string filename;
+            lock (this)
+            {
+                do
+                {
+                    filename = Path.GetRandomFileName();
+                } while (TempFiles.Contains(filename));
+                TempFiles.Add(filename);
+            }
+            string tempFn = Path.Combine(TempFolder.FullName, filename);
             byte[] buffer = new byte[8];
             stream.Read(buffer, 0, 8);
             if (buffer[0] != 'd' || buffer[1] != 'b' || buffer[2] != 'l' || buffer[3] != 'x')
@@ -684,7 +696,14 @@ namespace Versionr.ObjectStore
             stream.Read(baseLookupData, 0, baseLookupData.Length);
             string baseLookup = ASCIIEncoding.ASCII.GetString(baseLookupData);
 
-            baseFileStream = GetStreamForLookup(baseLookup);
+            tempFileName = new FileInfo(tempFn);
+            using (var tempStream = GetStreamForLookup(baseLookup))
+            using (var tempStreamOut = tempFileName.Create())
+            {
+                tempStream.CopyTo(tempStreamOut);
+            }
+
+            baseFileStream = tempFileName.OpenRead();
 
             switch (data & 0x0FFF)
             {

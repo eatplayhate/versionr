@@ -24,13 +24,15 @@ namespace Versionr.ObjectStore
         protected override void RefillBuffer(byte[] data, byte[] output, int decompressedSize, bool end)
         {
             DecompressSetSource(m_Decompressor, data, data.Length);
-            DecompressData(m_Decompressor, output, decompressedSize);
-            if (!end)
+            while (DecompressData(m_Decompressor, output, decompressedSize) != decompressedSize)
             {
-                // We call decompress again to consume the sync block
-                if (DecompressData(m_Decompressor, output, 0) != 0)
-                    throw new Exception();
+                DestroyDecompressionStream(m_Decompressor);
+                m_Decompressor = CreateDecompressionStream(23);
+                DecompressSetSource(m_Decompressor, data, data.Length);
             }
+            // We call decompress again to consume the sync block
+            if (DecompressData(m_Decompressor, output, 0) != 0)
+                throw new Exception();
         }
 
         public LZHAMReaderStream(long size, System.IO.Stream baseStream)
