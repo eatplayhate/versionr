@@ -117,12 +117,15 @@ namespace Versionr
         public Commands.CloneVerbOptions CloneVerb { get; set; }
 
         [VerbOption("pull", HelpText = "Retreives changes from a remote vault.")]
-        public Commands.PullVerbOptions PullVerb { get; set; }
+		public Commands.PullVerbOptions PullVerb { get; set; }
 
         [VerbOption("syncrecords", HelpText = "Retreives changes from a remote vault.")]
         public Commands.SyncRecordsOptions SyncRecordsVerb { get; set; }
+        
+		[VerbOption("diff", HelpText = "Display file differences")]
+		public Commands.DiffVerbOptions DiffVerb { get; set; }
 
-        [HelpOption]
+		[HelpOption]
         public string GetUsage()
         {
             var help = new HelpText
@@ -165,24 +168,26 @@ namespace Versionr
 				return BranchVerb.GetUsage();
 			else if (verb == "server")
 				return ServerVerb.GetUsage();
-            else if (verb == "merge")
-                return MergeVerb.GetUsage();
+			else if (verb == "merge")
+				return MergeVerb.GetUsage();
 			else if (verb == "push")
 				return PushVerb.GetUsage();
-            else if (verb == "remote")
-                return RemoteVerb.GetUsage();
+			else if (verb == "remote")
+				return RemoteVerb.GetUsage();
 			else if (verb == "log")
 				return LogVerb.GetUsage();
 			else if (verb == "behead")
 				return BeheadVerb.GetUsage();
-            else if (verb == "viewdag")
-                return ViewDAGVerb.GetUsage();
-            else if (verb == "clone")
-                return CloneVerb.GetUsage();
-            else if (verb == "pull")
-                return PullVerb.GetUsage();
+			else if (verb == "viewdag")
+				return ViewDAGVerb.GetUsage();
+			else if (verb == "clone")
+				return CloneVerb.GetUsage();
+			else if (verb == "pull")
+				return PullVerb.GetUsage();
             else if (verb == "syncrecords")
                 return SyncRecordsVerb.GetUsage();
+			else if (verb == "diff")
+				return DiffVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -231,8 +236,9 @@ namespace Versionr
             commands["clone"] = new Commands.Clone();
             commands["pull"] = new Commands.Pull();
             commands["syncrecords"] = new Commands.SyncRecords();
+			commands["diff"] = new Commands.Diff();
 
-            Commands.BaseCommand command = null;
+			Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
                 System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);

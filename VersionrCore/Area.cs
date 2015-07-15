@@ -1332,14 +1332,7 @@ namespace Versionr
                             
                             RestoreRecord(x, mf);
 
-                            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-                            {
-                                FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                                Arguments = string.Format("\"{0}\" \"{1}\" -o \"{2}\" --auto", ml, mf, mr)
-                            };
-                            var proc = System.Diagnostics.Process.Start(psi);
-                            proc.WaitForExit();
-                            if (proc.ExitCode == 0)
+							if (Utilities.DiffTool.Merge(ml, mf, mr))
                             {
                                 System.IO.File.Delete(ml);
                                 System.IO.File.Move(mr, ml);
@@ -1368,14 +1361,7 @@ namespace Versionr
                             RestoreRecord(parentRecord, mb);
                             RestoreRecord(x, mf);
 
-                            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-                            {
-                                FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                                Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto", mb, ml, mf, mr)
-                            };
-                            var proc = System.Diagnostics.Process.Start(psi);
-                            proc.WaitForExit();
-                            if (proc.ExitCode == 0)
+							if (Utilities.DiffTool.Merge3Way(mb, ml, mf, mr))
                             {
                                 System.IO.File.Delete(ml);
                                 System.IO.File.Move(mr, ml);
@@ -1583,6 +1569,26 @@ namespace Versionr
 
             Printer.PrintMessage("At version {0} on branch \"{1}\"", Database.Version.ID, Database.Branch.Name);
         }
+
+		public bool ExportRecord(string cannonicalPath, Guid? versionId, string outputPath)
+		{
+			Objects.Version version = null;
+			if (versionId != null)
+				version = Database.Get<Objects.Version>(versionId);
+			if (version == null)
+				version = Database.Get<Objects.Version>(GetBranchHead(Database.Branch).Version);
+
+			List<Record> records = Database.GetRecords(version);
+			foreach (var x in records)
+			{
+				if (x.CanonicalName == cannonicalPath)
+				{
+					RestoreRecord(x, outputPath);
+					return true;
+				}
+			}
+			return false;
+		}
 
         public class DAG<T, U>
         {
