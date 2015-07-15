@@ -331,7 +331,7 @@ namespace Versionr.Network
                         Printer.PrintError("Not on head revision!");
                         return false;
                     }
-                    newHeads.Add(new Head() { Branch = temporaryHeads[x.Key].Branch, Version = x.Value });
+                    newHeads.Add(new Head() { Branch = temporaryHeads[x.Key].Branch, Version = temporaryHeads[x.Key].Version });
                     Printer.PrintError("New head revision downloaded - requires manual merge between:");
                     Printer.PrintError(" - Local {0}", x.Value);
                     Printer.PrintError(" - Remote {0}", temporaryHeads[x.Key].Version);

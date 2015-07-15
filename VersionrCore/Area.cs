@@ -1881,11 +1881,14 @@ namespace Versionr
                     vs.Branch = Database.Branch.ID;
                     Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);
                     Objects.MergeInfo mergeInfo = null;
+                    Objects.Head mergeHead = null;
                     if (mergeID.HasValue)
                     {
                         mergeInfo = new MergeInfo();
                         mergeInfo.SourceVersion = mergeID.Value;
                         mergeInfo.DestinationVersion = vs.ID;
+
+                        mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == mergeID.Value).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
                     }
                     vs.Message = message;
                     vs.Timestamp = DateTime.UtcNow;
@@ -2122,6 +2125,9 @@ namespace Versionr
                         Database.Insert(head);
                     else
                         Database.Update(head);
+
+                    if (mergeHead != null)
+                        Database.Delete(mergeHead);
                     Database.Insert(vs);
                     
                     Database.Commit();
