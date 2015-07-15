@@ -1553,7 +1553,7 @@ namespace Versionr
             }
         }
 
-        public void Checkout(string v)
+        public void Checkout(string v, bool purge)
         {
             Objects.Version target = null;
             if (!string.IsNullOrEmpty(v))
@@ -1579,8 +1579,24 @@ namespace Versionr
             CleanStage();
             CheckoutInternal(target);
 
+			if (purge)
+				Purge();
+
             Printer.PrintMessage("At version {0} on branch \"{1}\"", Database.Version.ID, Database.Branch.Name);
         }
+
+		private void Purge()
+		{
+			var status = Status;
+			foreach (var x in status.Elements)
+			{
+				if (x.Code == StatusCode.Unversioned)
+				{
+					System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+					Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
+				}
+			}
+		}
 
 		public bool ExportRecord(string cannonicalPath, Guid? versionId, string outputPath)
 		{

@@ -35,6 +35,8 @@ namespace Versionr.Commands
                 return "checkout";
             }
         }
+		[Option('p', "purge", HelpText = "Remove all unversioned files from the repository")]
+		public bool Purge { get; set; }
 
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
@@ -48,8 +50,8 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            ws.Checkout(localOptions.Target[0]);
-            return true;
+            ws.Checkout(localOptions.Target[0], localOptions.Purge);
+			return true;
         }
     }
 }
