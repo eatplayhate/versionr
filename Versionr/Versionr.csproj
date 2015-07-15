@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="Commands\Behead.cs" />
     <Compile Include="Commands\Clone.cs" />
+    <Compile Include="Commands\Diff.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\Pull.cs" />

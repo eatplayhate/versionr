@@ -116,10 +116,13 @@ namespace Versionr
         [VerbOption("clone", HelpText = "Clones an initial revision from a remote server.")]
         public Commands.CloneVerbOptions CloneVerb { get; set; }
 
-        [VerbOption("pull", HelpText = "Retreives changes on a remote vault.")]
-        public Commands.PullVerbOptions PullVerb { get; set; }
+		[VerbOption("pull", HelpText = "Retreives changes on a remote vault.")]
+		public Commands.PullVerbOptions PullVerb { get; set; }
 
-        [HelpOption]
+		[VerbOption("diff", HelpText = "Display file differences")]
+		public Commands.DiffVerbOptions DiffVerb { get; set; }
+
+		[HelpOption]
         public string GetUsage()
         {
             var help = new HelpText
@@ -162,22 +165,24 @@ namespace Versionr
 				return BranchVerb.GetUsage();
 			else if (verb == "server")
 				return ServerVerb.GetUsage();
-            else if (verb == "merge")
-                return MergeVerb.GetUsage();
+			else if (verb == "merge")
+				return MergeVerb.GetUsage();
 			else if (verb == "push")
 				return PushVerb.GetUsage();
-            else if (verb == "remote")
-                return RemoteVerb.GetUsage();
+			else if (verb == "remote")
+				return RemoteVerb.GetUsage();
 			else if (verb == "log")
 				return LogVerb.GetUsage();
 			else if (verb == "behead")
 				return BeheadVerb.GetUsage();
-            else if (verb == "viewdag")
-                return ViewDAGVerb.GetUsage();
-            else if (verb == "clone")
-                return CloneVerb.GetUsage();
-            else if (verb == "pull")
-                return PullVerb.GetUsage();
+			else if (verb == "viewdag")
+				return ViewDAGVerb.GetUsage();
+			else if (verb == "clone")
+				return CloneVerb.GetUsage();
+			else if (verb == "pull")
+				return PullVerb.GetUsage();
+			else if (verb == "diff")
+				return DiffVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -225,8 +230,9 @@ namespace Versionr
             commands["viewdag"] = new Commands.ViewDAG();
             commands["clone"] = new Commands.Clone();
             commands["pull"] = new Commands.Pull();
+			commands["diff"] = new Commands.Diff();
 
-            Commands.BaseCommand command = null;
+			Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
                 System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
