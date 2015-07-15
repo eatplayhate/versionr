@@ -1387,11 +1387,25 @@ namespace Versionr
                             }
                             else
                             {
-                                System.IO.File.Move(ml, ml + ".mine");
-                                System.IO.File.Move(mf, ml + ".theirs");
-                                System.IO.File.Move(mb, ml + ".base");
-                                Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                                string resolution = System.Console.ReadLine();
+                                if (resolution.StartsWith("m"))
+                                {
+                                    // no op
+                                }
+                                if (resolution.StartsWith("t"))
+                                {
+                                    System.IO.File.Move(mf, ml);
+                                    Add(x.CanonicalName);
+                                }
+                                if (resolution.StartsWith("c"))
+                                {
+                                    System.IO.File.Move(ml, ml + ".mine");
+                                    System.IO.File.Move(mf, ml + ".theirs");
+                                    System.IO.File.Move(mb, ml + ".base");
+                                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                }
                             }
                         }
                     }
