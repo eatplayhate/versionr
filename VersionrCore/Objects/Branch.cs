@@ -17,12 +17,15 @@ namespace Versionr.Objects
         [ProtoBuf.ProtoMember(3)]
         public string Name { get; set; }
         [ProtoBuf.ProtoMember(4)]
+        public Guid? RootVersion { get; set; }
+        [ProtoBuf.ProtoMember(5)]
         public bool Deleted { get; set; }
-        public static Branch Create(string name, Guid? parent = null)
+        public static Branch Create(string name, Guid? rootVersion, Guid? parent)
         {
             Branch b = new Branch();
             b.ID = Guid.NewGuid();
             b.Parent = parent;
+            b.RootVersion = rootVersion;
             b.Name = name;
             b.Deleted = false;
             return b;

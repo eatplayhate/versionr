@@ -42,7 +42,7 @@ namespace Versionr
 
         internal List<Record> GetAllMissingRecords()
         {
-            return FindMissingRecords(Database.Table<Objects.Record>().ToList());
+            return FindMissingRecords(Database.GetAllRecords());
         }
 
         public DirectoryInfo Root
@@ -106,6 +106,11 @@ namespace Versionr
             if (version == null)
                 return false;
             return true;
+        }
+
+        public List<Objects.Record> GetAllRecords()
+        {
+            return Database.GetAllRecords();
         }
 
         public List<Head> GetHeads(Guid versionID)
@@ -380,7 +385,7 @@ namespace Versionr
 
             LocalState.Workspace ws = LocalState.Workspace.Create();
 
-            Objects.Branch branch = Objects.Branch.Create(branchName);
+            Objects.Branch branch = Objects.Branch.Create(branchName, null, null);
             Objects.Version version = Objects.Version.Create();
             Objects.Snapshot snapshot = new Objects.Snapshot();
             Objects.Head head = new Objects.Head();
@@ -508,48 +513,14 @@ namespace Versionr
             Database.Insert(x);
         }
 
+        internal long GetTransmissionLength(Record record)
+        {
+            return ObjectStore.GetTransmissionLength(record);
+        }
+
         internal bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
         {
-            FileInfo file = GetFileForCode(record.Fingerprint, record.Size);
-            if (!file.Exists)
-                return false;
-            return TransmitDataFromFile(file, sender);
-        }
-        
-        private bool TransmitDataFromFile(FileInfo file, Func<IEnumerable<byte>, bool, bool> sender)
-        {
-            System.Console.Write("Progress: ");
-            int left = System.Console.CursorLeft;
-            using (var fss = file.OpenRead())
-            {
-                BinaryReader sw = new BinaryReader(fss);
-                long length = fss.Length;
-                sender(BitConverter.GetBytes(length), false); // send size data
-                long currentPosition = 0;
-                byte[] buffer = new byte[1024 * 1024];
-                while (length > currentPosition)
-                {
-                    int bufferSize = buffer.Length;
-                    long remainder = length - currentPosition;
-                    if (remainder < bufferSize)
-                    {
-                        bufferSize = (int)remainder;
-                        buffer = new byte[bufferSize];
-                    }
-                    sw.Read(buffer, 0, bufferSize);
-
-                    int percent = (int)(100.0 * (double)currentPosition / (double)length);
-                    System.Console.CursorLeft = left;
-                    System.Console.Write("{0}%", percent);
-                    currentPosition += bufferSize;
-
-                    if (!sender(buffer, false))
-                        return false;
-                }
-            }
-            System.Console.CursorLeft = left;
-            System.Console.WriteLine("100%");
-            return true;
+            return ObjectStore.TransmitRecordData(record, sender);
         }
 
         internal Record LocateRecord(Record newRecord)
@@ -646,6 +617,11 @@ namespace Versionr
             }
         }
 
+        internal bool HasObjectDataDirect(string x)
+        {
+            return ObjectStore.HasDataDirect(x);
+        }
+
         internal void CommitDatabaseTransaction()
         {
             Database.Commit();
@@ -678,9 +654,11 @@ namespace Versionr
             Database.BeginTransaction();
         }
 
-        internal void ImportRecordData(Record rec, Stream data)
+        internal void ImportRecordData(Versionr.ObjectStore.ObjectStoreTransaction transaction, string directName, Stream data, out string dependency)
         {
-            DirectoryInfo tempDirectory = new DirectoryInfo(System.IO.Path.Combine(AdministrationFolder.FullName, "temp"));
+            if (!ObjectStore.ReceiveRecordData(transaction, directName, data, out dependency))
+                throw new Exception();
+         /*   DirectoryInfo tempDirectory = new DirectoryInfo(System.IO.Path.Combine(AdministrationFolder.FullName, "temp"));
             if (!tempDirectory.Exists)
                 tempDirectory.Create();
             FileInfo temp;
@@ -717,18 +695,12 @@ namespace Versionr
             {
                 if (temp != null)
                     temp.Delete();
-            }
+            }*/
         }
 
         internal bool HasObjectData(Record rec)
         {
-            if (rec.Size == 0 || rec.IsDirectory)
-                return true;
-            lock (this)
-            {
-                FileInfo info = GetFileForCode(rec.Fingerprint, rec.Size);
-                return info.Exists;
-            }
+            return ObjectStore.HasData(rec);
         }
 
         internal void ImportHeadNoCommit(KeyValuePair<Guid, Head> x)
@@ -973,7 +945,7 @@ namespace Versionr
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
                     return false;
-
+                
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
                 if (info.Exists)
                 {
@@ -993,6 +965,30 @@ namespace Versionr
             {
                 Printer.PrintError(e.ToString());
                 return false;
+            }
+        }
+
+        private void TestDeltas(string v1, string v2, int chunksize = 2048, string output = null)
+        {
+            FileInfo test = new FileInfo(v1);
+            FileInfo test2 = new FileInfo(v2);
+            if (output == null)
+                output = test2 + ".out";
+            using (var fs = test.OpenRead())
+            using (var fs2 = test2.OpenRead())
+            {
+                var result = Versionr.ObjectStore.ChunkedChecksum.Compute(chunksize, fs);
+                using (var fs4 = new FileInfo(v1 + ".hash").Open(FileMode.Create))
+                {
+                    Versionr.ObjectStore.ChunkedChecksum.Write(fs4, result);
+                }
+                fs.Position = 0;
+                long deltaLength;
+                var deltas = Versionr.ObjectStore.ChunkedChecksum.ComputeDelta(fs2, test2.Length, result, out deltaLength);
+                Printer.PrintMessage("Delta compressed {0} -> {1}: {2} bytes ({3:N2}%)", v1, v2, deltaLength, deltaLength / (double)test2.Length * 100.0);
+
+                using (var fs4 = new FileInfo(output).Open(FileMode.Create))
+                    Versionr.ObjectStore.ChunkedChecksum.WriteDelta(fs2, fs4, deltas);
             }
         }
 
@@ -1238,6 +1234,14 @@ namespace Versionr
                 }
             }
 
+            var status = Status;
+            if (status.HasModifications(false))
+            {
+                Printer.PrintMessage("Repository is not clean!");
+                Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
+                return;
+            }
+
             var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
             Objects.Version mergeVersion = null;
             if (possibleBranch != null)
@@ -1383,11 +1387,25 @@ namespace Versionr
                             }
                             else
                             {
-                                System.IO.File.Move(ml, ml + ".mine");
-                                System.IO.File.Move(mf, ml + ".theirs");
-                                System.IO.File.Move(mb, ml + ".base");
-                                Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                                string resolution = System.Console.ReadLine();
+                                if (resolution.StartsWith("m"))
+                                {
+                                    // no op
+                                }
+                                if (resolution.StartsWith("t"))
+                                {
+                                    System.IO.File.Move(mf, ml);
+                                    Add(x.CanonicalName);
+                                }
+                                if (resolution.StartsWith("c"))
+                                {
+                                    System.IO.File.Move(ml, ml + ".mine");
+                                    System.IO.File.Move(mf, ml + ".theirs");
+                                    System.IO.File.Move(mb, ml + ".base");
+                                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                }
                             }
                         }
                     }
@@ -1502,7 +1520,7 @@ namespace Versionr
                 throw new Exception(string.Format("Branch \"{0}\" already exists!", v));
 
             Objects.Version currentVer = Database.Version;
-            branch = Objects.Branch.Create(v, currentVer.Branch);
+            branch = Objects.Branch.Create(v, currentVer.ID, currentVer.Branch);
             Printer.PrintDiagnostics("Created new branch \"{0}\", ID: {1}.", v, branch.ID);
             var ws = LocalData.Workspace;
             ws.Branch = branch.ID;
@@ -1667,6 +1685,7 @@ namespace Versionr
             foreach (var x in targetRecords.Where(x => !x.IsDirectory))
             {
                 tasks.Add(Task.Run(() => { RestoreRecord(x); }));
+                //RestoreRecord(x);
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
@@ -1738,11 +1757,11 @@ namespace Versionr
                     {
                         if (!client.Connect(x.Host, x.Port))
                             Printer.PrintMessage(" - Connection failed.");
-                        List<Record> retrievedRecords = client.GetRecordData(missingRecords);
+                        List<string> retrievedRecords = client.GetRecordData(missingRecords);
                         HashSet<string> retrievedData = new HashSet<string>();
                         Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
                         foreach (var y in retrievedRecords)
-                            retrievedData.Add(y.DataIdentifier);
+                            retrievedData.Add(y);
                         missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
                         client.Close();
                     }
@@ -1846,6 +1865,7 @@ namespace Versionr
             Status st = Status;
             if (st.HasModifications(!allModified) || mergeID != null)
             {
+                Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                 try
                 {
                     Objects.Version vs = null;
@@ -1899,6 +1919,9 @@ namespace Versionr
                     foreach (var x in Database.Table<ObjectName>().ToList())
                         canonicalNames[x.CanonicalName] = x;
                     List<Tuple<Record, ObjectName>> canonicalNameInsertions = new List<Tuple<Record, ObjectName>>();
+
+                    transaction = ObjectStore.BeginStorageTransaction();
+
                     foreach (var x in st.Elements)
                     {
                         List<StageOperation> stagedOps;
@@ -1967,7 +1990,8 @@ namespace Versionr
                                             if (x.VersionControlRecord != null)
                                                 record.Parent = x.VersionControlRecord.Id;
                                         }
-                                        RecordData(x.FilesystemEntry, x.VersionControlRecord, record);
+                                        if (!ObjectStore.HasData(record))
+                                            ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
 
                                         ObjectName nameRecord = null;
                                         if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
@@ -1982,7 +2006,7 @@ namespace Versionr
                                         Printer.PrintDiagnostics("Created new object record: {0}", x.FilesystemEntry.CanonicalName);
                                         Printer.PrintDiagnostics("Record fingerprint: {0}", record.Fingerprint);
                                         if (record.Parent != null)
-                                            Printer.PrintDiagnostics("Record parent ID: {0} ({1})", x.VersionControlRecord.Id, x.VersionControlRecord.CanonicalName);
+                                            Printer.PrintDiagnostics("Record parent ID: {0}", record.Parent);
 
                                         Objects.Alteration alteration = new Alteration();
                                         alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
@@ -2029,6 +2053,9 @@ namespace Versionr
                                 break;
                         }
                     }
+
+                    ObjectStore.EndStorageTransaction(transaction);
+                    transaction = null;
 
                     Printer.PrintDiagnostics("Updating internal state.");
                     var ws = LocalData.Workspace;
@@ -2110,6 +2137,8 @@ namespace Versionr
                 }
                 catch (Exception e)
                 {
+                    if (transaction != null)
+                        ObjectStore.AbortStorageTransaction(transaction);
                     Database.Rollback();
                     Printer.PrintError("Exception during commit: {0}", e.ToString());
                     return false;
@@ -2147,7 +2176,7 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressSetSource", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern int DecompressSetSource(IntPtr stream, byte[] output, int outLength);
 
-        private void RecordData(Entry entry, Record oldRecord, Record newRecord)
+        /*private void RecordData(Entry entry, Record oldRecord, Record newRecord)
         {
             if (entry.IsDirectory)
                 return;
@@ -2199,7 +2228,7 @@ namespace Versionr
                     file.Delete();
                 throw;
             }
-        }
+        }*/
 
         private void RestoreRecord(Record rec, string overridePath = null)
         {
@@ -2214,14 +2243,10 @@ namespace Versionr
                 }
                 return;
             }
-            FileInfo file = GetFileForCode(rec.Fingerprint, rec.Size);
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
             if (rec.Size == 0)
             {
-                using (var fs = dest.Create())
-                {
-
-                }
+                using (var fs = dest.Create()) { }
                 ApplyAttributes(dest, rec);
                 return;
             }
@@ -2245,58 +2270,48 @@ namespace Versionr
             }
             else if (overridePath == null)
                 Printer.PrintMessage("Creating {0}", rec.CanonicalName);
+            int retries = 0;
+        Retry:
             try
             {
-                using (var fss = file.OpenRead())
                 using (var fsd = dest.Open(FileMode.Create))
                 {
-                    BinaryReader sw = new BinaryReader(fss);
-                    int compressionType = sw.ReadInt32();
-                    if (compressionType != 0)
-                        throw new Exception();
-                    long outputSize = sw.ReadInt64();
-                    if (outputSize != rec.Size)
-                        throw new Exception();
-
-                    var stream = CreateDecompressionStream(23);
-
-                    byte[] dataBlob = new byte[20 * 1024 * 1024];
-                    byte[] outBufferTemp = new byte[dataBlob.Length];
-                    long remainder = file.Length - 12;
-                    while (remainder > 0)
-                    {
-                        int max = dataBlob.Length;
-                        if (max > remainder)
-                            max = (int)remainder;
-                        sw.Read(dataBlob, 0, max);
-                        DecompressSetSource(stream, dataBlob, max);
-                        bool inputRemaining = true;
-                        while (inputRemaining)
-                        {
-                            var result = DecompressData(stream, outBufferTemp, outBufferTemp.Length);
-                            if (result <= 0)
-                            {
-                                inputRemaining = false;
-                                result = -result;
-                            }
-                            fsd.Write(outBufferTemp, 0, result);
-                        }
-                        remainder -= max;
-                    }
-
-                    DestroyDecompressionStream(stream);
+                    ObjectStore.WriteRecordStream(rec, fsd);
                 }
                 ApplyAttributes(dest, rec);
+                if (dest.Length != rec.Size)
+                {
+                    Printer.PrintError("Size mismatch after decoding record!");
+                    Printer.PrintError(" - Expected: {0}", rec.Size);
+                    Printer.PrintError(" - Actual: {0}", dest.Length);
+                    throw new Exception();
+                }
+                string hash = Entry.CheckHash(dest);
+                if (hash != rec.Fingerprint)
+                {
+                    Printer.PrintError("Hash mismatch after decoding record!");
+                    Printer.PrintError(" - Expected: {0}", rec.Fingerprint);
+                    Printer.PrintError(" - Found: {0}", hash);
+                    throw new Exception();
+                }
             }
             catch (System.IO.IOException)
             {
-                Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
-                return;
+                if (retries++ == 10)
+                {
+                    Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
+                    return;
+                }
+                goto Retry;
             }
             catch (System.UnauthorizedAccessException)
             {
-                Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
-                return;
+                if (retries++ == 10)
+                {
+                    Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
+                    return;
+                }
+                goto Retry;
             }
         }
 
@@ -2307,24 +2322,6 @@ namespace Versionr
                 info.Attributes = info.Attributes | FileAttributes.Hidden;
             if (rec.Attributes.HasFlag(Objects.Attributes.ReadOnly))
                 info.Attributes = info.Attributes | FileAttributes.ReadOnly;
-        }
-
-        private FileInfo GetFileForDataID(string id)
-        {
-            DirectoryInfo rootDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "objects"));
-            rootDir.Create();
-            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(rootDir.FullName, id.Substring(0, 2)));
-            subDir.Create();
-            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
-        }
-
-        private FileInfo GetFileForCode(string hash, long length)
-        {
-            DirectoryInfo rootDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "objects"));
-            rootDir.Create();
-            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(rootDir.FullName, hash.Substring(0, 2)));
-            subDir.Create();
-            return new FileInfo(Path.Combine(subDir.FullName, hash.Substring(2) + "-" + length.ToString()));
         }
 
         internal void Remove(string v)

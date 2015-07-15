@@ -98,6 +98,6 @@ extern "C"
 			return length;
 		if (status == Z_OK)
 			return length;
-		return 0;
+		return -1;
 	}
 }

@@ -54,7 +54,7 @@ namespace Versionr.Objects
         {
             get
             {
-                return CanonicalName != null && CanonicalName.EndsWith("/");
+                return CanonicalName.EndsWith("/");
             }
         }
 
@@ -88,6 +88,15 @@ namespace Versionr.Objects
             get
             {
                 return DataIdentifier + "-" + ((int)Attributes).ToString();
+            }
+        }
+
+        [SQLite.Ignore]
+        public bool HasData
+        {
+            get
+            {
+                return Size > 0;
             }
         }
     }
