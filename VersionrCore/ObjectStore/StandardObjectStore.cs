@@ -483,6 +483,8 @@ namespace Versionr.ObjectStore
 
         public override bool HasData(Record recordInfo)
         {
+            if (!recordInfo.HasData)
+                return true;
             return HasDataDirect(GetLookup(recordInfo));
         }
         public override bool HasDataDirect(string x)
