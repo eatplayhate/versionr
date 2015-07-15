@@ -70,6 +70,19 @@ namespace Versionr.Objects
 
         [ProtoBuf.ProtoIgnore]
         [SQLite.Ignore]
+        public string Name
+        {
+            get
+            {
+                int index = CanonicalName.LastIndexOf('/');
+                if (index == -1)
+                    return CanonicalName;
+                return CanonicalName.Substring(index + 1);
+            }
+        }
+
+        [ProtoBuf.ProtoIgnore]
+        [SQLite.Ignore]
         public string UniqueIdentifier
         {
             get
@@ -77,5 +90,22 @@ namespace Versionr.Objects
                 return DataIdentifier + "-" + ((int)Attributes).ToString();
             }
         }
+
+        [SQLite.Ignore]
+        public bool HasData
+        {
+            get
+            {
+                return Size > 0;
+            }
+        }
+    }
+
+    public class RecordIndex
+    {
+        [SQLite.Indexed]
+        public string DataIdentifier { get; set; }
+        public long Index { get; set; }
+        public bool Pruned { get; set; }
     }
 }

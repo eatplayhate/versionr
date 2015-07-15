@@ -75,6 +75,18 @@ namespace Versionr
             }
         }
 
+        public string Name
+        {
+            get
+            {
+                if (Info != null)
+                    return Info.Name;
+                if (DirectoryInfo != null)
+                    return DirectoryInfo.Name;
+                throw new Exception();
+            }
+        }
+
         private void GetInfo()
         {
             Length = Info.Length;

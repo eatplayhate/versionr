@@ -38,10 +38,7 @@ namespace Versionr.Commands
         {
             ServerVerbOptions localOptions = options as ServerVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
-            Area ws = Area.Load(workingDirectory);
-            if (ws == null)
-                return false;
-            return Network.Server.Run(ws, localOptions.Port);
+            return Network.Server.Run(workingDirectory, localOptions.Port);
         }
     }
 }

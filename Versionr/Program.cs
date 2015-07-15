@@ -74,19 +74,19 @@ namespace Versionr
         [ParserState]
         public IParserState LastParserState { get; set; }
 
-        [VerbOption("init", HelpText = "Initializes a Versionr repository here.")]
+        [VerbOption("init", HelpText = "Initializes a Versionr vault here.")]
         public Commands.InitVerbOptions InitVerb { get; set; }
 
-        [VerbOption("commit", HelpText = "Records any changes in the reposity to a new version.")]
+        [VerbOption("commit", HelpText = "Chronicles recorded changes into the vault.")]
         public Commands.CommitVerbOptions CommitVerb { get; set; }
 
-        [VerbOption("status", HelpText = "Displays the status of the current repository.")]
+        [VerbOption("status", HelpText = "Displays the status of the current vault.")]
         public Commands.StatusVerbOptions StatusVerb { get; set; }
 
-        [VerbOption("record", HelpText = "Records changes into the versionr control system.")]
+        [VerbOption("record", HelpText = "Records changes for inclusion in the next commit.")]
         public Commands.RecordVerbOptions RecordVerb { get; set; }
 
-        [VerbOption("checkout", HelpText = "Checks out a specific branch or revision from the Versionr repository.")]
+        [VerbOption("checkout", HelpText = "Checks out a specific branch or revision from the vault.")]
         public Commands.CheckoutVerbOptions CheckoutVerb { get; set; }
 
         [VerbOption("branch", HelpText = "blah blah")]
@@ -116,9 +116,12 @@ namespace Versionr
         [VerbOption("clone", HelpText = "Clones an initial revision from a remote server.")]
         public Commands.CloneVerbOptions CloneVerb { get; set; }
 
-		[VerbOption("pull", HelpText = "Retreives changes on a remote vault.")]
+        [VerbOption("pull", HelpText = "Retreives changes from a remote vault.")]
 		public Commands.PullVerbOptions PullVerb { get; set; }
 
+        [VerbOption("syncrecords", HelpText = "Retreives changes from a remote vault.")]
+        public Commands.SyncRecordsOptions SyncRecordsVerb { get; set; }
+        
 		[VerbOption("diff", HelpText = "Display file differences")]
 		public Commands.DiffVerbOptions DiffVerb { get; set; }
 
@@ -181,6 +184,8 @@ namespace Versionr
 				return CloneVerb.GetUsage();
 			else if (verb == "pull")
 				return PullVerb.GetUsage();
+            else if (verb == "syncrecords")
+                return SyncRecordsVerb.GetUsage();
 			else if (verb == "diff")
 				return DiffVerb.GetUsage();
             return GetUsage();
@@ -230,6 +235,7 @@ namespace Versionr
             commands["viewdag"] = new Commands.ViewDAG();
             commands["clone"] = new Commands.Clone();
             commands["pull"] = new Commands.Pull();
+            commands["syncrecords"] = new Commands.SyncRecords();
 			commands["diff"] = new Commands.Diff();
 
 			Commands.BaseCommand command = null;

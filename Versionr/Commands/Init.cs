@@ -8,6 +8,13 @@ namespace Versionr.Commands
 {
     class InitVerbOptions : VerbOptionBase
     {
+        public override string Usage
+        {
+            get
+            {
+                return "versionr init [branch name]";
+            }
+        }
         public override string[] Description
         {
             get
@@ -36,6 +43,9 @@ namespace Versionr.Commands
                 return "init";
             }
         }
+
+        [CommandLine.ValueOption(0)]
+        public string BranchName { get; set; }
     }
     class Init : BaseCommand
     {
@@ -43,9 +53,14 @@ namespace Versionr.Commands
         {
             InitVerbOptions localOptions = options as InitVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
-            Area ws = Area.Init(workingDirectory);
+            if (string.IsNullOrEmpty(localOptions.BranchName))
+                localOptions.BranchName = "master";
+            Area ws = Area.Init(workingDirectory, localOptions.BranchName);
             if (ws == null)
                 return false;
+
+            System.Console.WriteLine("Version {0} on branch \"{1}\"\n", ws.Version.ID, ws.CurrentBranch.Name);
+
             return true;
         }
     }

@@ -75,7 +75,7 @@ namespace Versionr.Commands
                 return false;
             if (localOptions.AdditionalFiles != null && localOptions.AdditionalFiles.Count > 0)
             {
-                if (!ws.Add(localOptions.AdditionalFiles, false, false, false, false))
+                if (!ws.RecordChanges(localOptions.AdditionalFiles, false, true, false, false, true))
                     return false;
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force, localOptions.AllModified))

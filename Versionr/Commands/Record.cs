@@ -11,16 +11,16 @@ namespace Versionr.Commands
     {
         [Option("regex", DefaultValue = false, HelpText = "Use regex pattern matching for arguments.")]
         public bool Regex{ get; set; }
-        [Option("fullpath", DefaultValue = false, HelpText = "Enable regex pattern matching against entire object path.")]
-        public bool Fullpath { get; set; }
+        [Option('f', "filename", DefaultValue = false, HelpText = "Matches filenames regardless of full path.")]
+        public bool Filename { get; set; }
         [Option('a', "all", DefaultValue = false, HelpText = "Adds every changed or unversioned file.", MutuallyExclusiveSet ="fullpath regex recursive nodirs")]
         public bool All { get; set; }
-        [Option("nodirs", DefaultValue = false, HelpText = "Disable regex matching directory names.")]
-        public bool NoDirectories { get; set; }
-        [Option("missing", DefaultValue = false, HelpText = "Allows recording deletion of files matched with --all, --recursive or --regex.")]
+        [Option('m', "missing", DefaultValue = false, HelpText = "Allows recording deletion of files matched with --all, --recursive or --regex.")]
         public bool Missing { get; set; }
-        [Option('r', "recursive", DefaultValue = false, HelpText = "Recursively add objects in directories.")]
+        [Option('r', "recursive", DefaultValue = true, HelpText = "Recursively add objects in directories.")]
         public bool Recursive { get; set; }
+        [Option('i', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
+        public bool Insensitive { get; set; }
         public override string Usage
         {
             get
@@ -43,7 +43,7 @@ namespace Versionr.Commands
                     "",
                     "The `--recursive` option will add all objects contained in any",
                     "specified directories, and the `--regex` option allows you to",
-                    "match several objects for inclusion at once.",
+                    "match several objects for inclusion at once using regex matches.",
                     "",
                     "The `record` command will respect patterns in the .vrmeta",
                     "directive file.",
@@ -94,10 +94,8 @@ namespace Versionr.Commands
                 System.Console.WriteLine("Error: No objects specified.");
                 return false;
             }
-            else if (!ws.RecordChanges(localOptions.Objects, localOptions.Missing, localOptions.Recursive, localOptions.Regex, localOptions.Fullpath, localOptions.NoDirectories))
+            else if (!ws.RecordChanges(localOptions.Objects, localOptions.Missing, localOptions.Recursive, localOptions.Regex, localOptions.Filename, localOptions.Insensitive))
                 return false;
- //           else if (!ws.Add(localOptions.Objects, localOptions.Recursive, localOptions.Regex, localOptions.Fullpath, localOptions.NoDirectories))
-   //             return false;
             return true;
         }
     }

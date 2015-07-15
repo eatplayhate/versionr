@@ -11,7 +11,7 @@ namespace Versionr.Network
 {
     static class SharedNetwork
     {
-        internal class SharedNetworkInfo
+        internal class SharedNetworkInfo : IDisposable
         {
             public Func<ICryptoTransform> EncryptorFunction { get; set; }
             public ICryptoTransform Encryptor
@@ -40,6 +40,9 @@ namespace Versionr.Network
             public List<long> UnknownRecords { get; set; }
             public HashSet<long> UnknownRecordSet { get; set; }
 
+            public IntPtr LZHLCompressor { get; set; }
+            public IntPtr LZHLDecompressor { get; set; }
+
             public SharedNetworkInfo()
             {
                 RemoteCheckedVersions = new HashSet<Guid>();
@@ -50,7 +53,35 @@ namespace Versionr.Network
                 UnknownRecordSet = new HashSet<long>();
                 RemoteRecordMap = new Dictionary<long, Record>();
                 LocalRecordMap = new Dictionary<long, Record>();
+                LZHLCompressor = Versionr.Utilities.LZHL.CreateCompressor();
+                LZHLDecompressor = Versionr.Utilities.LZHL.CreateDecompressor();
             }
+
+            #region IDisposable Support
+            private bool m_DisposedValue = false; // To detect redundant calls
+
+            protected virtual void Dispose(bool disposing)
+            {
+                if (!m_DisposedValue)
+                {
+                    Versionr.Utilities.LZHL.DestroyCompressor(LZHLCompressor);
+                    Versionr.Utilities.LZHL.DestroyDecompressor(LZHLDecompressor);
+
+                    m_DisposedValue = true;
+                }
+            }
+            
+            ~SharedNetworkInfo()
+            {
+              Dispose(false);
+            }
+            
+            public void Dispose()
+            {
+                Dispose(true);
+                GC.SuppressFinalize(this);
+            }
+            #endregion
         }
 
         internal static bool GetVersionList(SharedNetworkInfo info, Objects.Version version, out Stack<Branch> branchesToSend, out Stack<Objects.Version> versionsToSend)
@@ -69,6 +100,8 @@ namespace Versionr.Network
                 Objects.Version currentVersion = version;
                 while (true)
                 {
+                    Objects.Version testedVersion = currentVersion;
+                    List<Objects.Version> versionsToCheck = new List<Objects.Version>();
                     List<Objects.Version> partialHistory = info.Workspace.GetHistory(currentVersion, 64);
                     foreach (var x in partialHistory)
                     {
@@ -76,54 +109,60 @@ namespace Versionr.Network
                             break;
                         info.RemoteCheckedVersions.Add(x.ID);
                         currentVersion = x;
+                        versionsToCheck.Add(x);
                     }
 
-                    PushObjectQuery query = new PushObjectQuery();
-                    query.Type = ObjectType.Version;
-                    query.IDs = partialHistory.Select(x => x.ID.ToString()).ToArray();
-
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
-                    Utilities.SendEncrypted<PushObjectQuery>(info.Stream, info.Encryptor, query);
-
-                    PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(info.Stream, info.Decryptor);
-                    if (response.Recognized.Length != query.IDs.Length)
-                        throw new Exception("Invalid response!");
-                    int recognized = 0;
-                    for (int i = 0; i < response.Recognized.Length; i++)
+                    if (versionsToCheck.Count > 0)
                     {
-                        Printer.PrintDiagnostics(" - Version ID: {0}", query.IDs[i]);
-                        if (!response.Recognized[i])
+                        PushObjectQuery query = new PushObjectQuery();
+                        query.Type = ObjectType.Version;
+                        query.IDs = versionsToCheck.Select(x => x.ID.ToString()).ToArray();
+
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
+                        Utilities.SendEncrypted<PushObjectQuery>(info, query);
+
+                        PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(info);
+                        if (response.Recognized.Length != query.IDs.Length)
+                            throw new Exception("Invalid response!");
+                        int recognized = 0;
+                        for (int i = 0; i < response.Recognized.Length; i++)
                         {
-                            versionsToSend.Push(partialHistory[i]);
-                            Printer.PrintDiagnostics("   (not recognized on remote vault)");
-                        }
-                        else
-                        {
-                            recognized++;
-                            Printer.PrintDiagnostics("   (version already on remote vault)");
-                        }
-                    }
-                    for (int i = 0; i < response.Recognized.Length; i++)
-                    {
-                        if (!response.Recognized[i])
-                        {
-                            if (!QueryBranch(info, branchesToSend, info.Workspace.GetBranch(partialHistory[i].Branch)))
-                                return false;
-                            var mergeInfo = info.Workspace.GetMergeInfo(partialHistory[i].ID);
-                            foreach (var x in mergeInfo)
+                            Printer.PrintDiagnostics(" - Version ID: {0}", query.IDs[i]);
+                            if (!response.Recognized[i])
                             {
-                                var srcVersion = info.Workspace.GetVersion(x.SourceVersion);
-                                if (srcVersion != null)
+                                versionsToSend.Push(partialHistory[i]);
+                                Printer.PrintDiagnostics("   (not recognized on remote vault)");
+                            }
+                            else
+                            {
+                                recognized++;
+                                Printer.PrintDiagnostics("   (version already on remote vault)");
+                            }
+                        }
+                        for (int i = 0; i < response.Recognized.Length; i++)
+                        {
+                            if (!response.Recognized[i])
+                            {
+                                if (!QueryBranch(info, branchesToSend, info.Workspace.GetBranch(partialHistory[i].Branch)))
+                                    return false;
+                                var mergeInfo = info.Workspace.GetMergeInfo(partialHistory[i].ID);
+                                foreach (var x in mergeInfo)
                                 {
-                                    if (!GetVersionListInternal(info, srcVersion, branchesToSend, versionsToSend))
+                                    var srcVersion = info.Workspace.GetVersion(x.SourceVersion);
+                                    if (srcVersion != null)
                                     {
-                                        Printer.PrintDiagnostics("Sending merge data for: {0}", srcVersion.ID);
+                                        if (!GetVersionListInternal(info, srcVersion, branchesToSend, versionsToSend))
+                                        {
+                                            Printer.PrintDiagnostics("Sending merge data for: {0}", srcVersion.ID);
+                                        }
                                     }
                                 }
                             }
                         }
+                        if (recognized != 0) // we found a common parent somewhere
+                            break;
                     }
-                    if (recognized != 0) // we found a common parent somewhere
+                    else if (testedVersion == currentVersion)
                         break;
                 }
                 return true;
@@ -183,7 +222,7 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Sending version data pack...");
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushVersions }, ProtoBuf.PrefixStyle.Fixed32);
                     VersionPack pack = CreatePack(sharedInfo, versionData);
-                    Utilities.SendEncrypted(sharedInfo.Stream, sharedInfo.Encryptor, pack);
+                    Utilities.SendEncrypted(sharedInfo, pack);
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (response.Type != NetCommandType.Acknowledge)
                         return false;
@@ -195,14 +234,14 @@ namespace Versionr.Network
                     if (command.Type == NetCommandType.RequestRecordParents)
                     {
                         Printer.PrintDiagnostics("Remote vault is asking for record metadata...");
-                        var rrp = Utilities.ReceiveEncrypted<RequestRecordParents>(sharedInfo.Stream, sharedInfo.Decryptor);
+                        var rrp = Utilities.ReceiveEncrypted<RequestRecordParents>(sharedInfo);
                         RecordParentPack rp = new RecordParentPack();
                         rp.Parents = rrp.RecordParents.Select(x => sharedInfo.Workspace.GetRecord(x)).ToArray();
-                        Utilities.SendEncrypted<RecordParentPack>(sharedInfo.Stream, sharedInfo.Encryptor, rp);
+                        Utilities.SendEncrypted<RecordParentPack>(sharedInfo, rp);
                     }
                     else if (command.Type == NetCommandType.RequestRecord)
                     {
-                        var rrd = Utilities.ReceiveEncrypted<RequestRecordData>(sharedInfo.Stream, sharedInfo.Decryptor);
+                        var rrd = Utilities.ReceiveEncrypted<RequestRecordData>(sharedInfo);
                         List<byte> datablock = new List<byte>();
                         Func<IEnumerable<byte>, bool, bool> sender = (IEnumerable<byte> data, bool flush) =>
                         {
@@ -211,7 +250,7 @@ namespace Versionr.Network
                             while (datablock.Count > blockSize)
                             {
                                 DataPayload dataPack = new DataPayload() { Data = datablock.Take(blockSize).ToArray(), EndOfStream = false };
-                                Utilities.SendEncrypted<DataPayload>(sharedInfo.Stream, sharedInfo.Encryptor, dataPack);
+                                Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
                                 datablock.RemoveRange(0, blockSize);
                                 var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                                 if (reply.Type != NetCommandType.DataReceived)
@@ -220,7 +259,7 @@ namespace Versionr.Network
                             if (flush)
                             {
                                 DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
-                                Utilities.SendEncrypted<DataPayload>(sharedInfo.Stream, sharedInfo.Encryptor, dataPack);
+                                Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
                             }
                             return true;
                         };
@@ -286,13 +325,14 @@ namespace Versionr.Network
 
         internal static void RequestRecordData(SharedNetworkInfo sharedInfo)
         {
+            List<string> dependentData = new List<string>();
             var records = sharedInfo.UnknownRecords;
             int index = 0;
+            HashSet<string> recordDataIdentifiers = new HashSet<string>();
             while (index < records.Count)
             {
                 RequestRecordData rrd = new RequestRecordData();
                 List<long> recordsInPack = new List<long>();
-                HashSet<string> recordDataIdentifiers = new HashSet<string>();
                 while (recordsInPack.Count < 1024 * 32 && index < records.Count)
                 {
                     long recordIndex = records[index++];
@@ -311,11 +351,11 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Requesting {0} records.", recordsInPack.Count);
                     rrd.Records = recordsInPack.ToArray();
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecord }, ProtoBuf.PrefixStyle.Fixed32);
-                    Utilities.SendEncrypted<RequestRecordData>(sharedInfo.Stream, sharedInfo.Encryptor, rrd);
+                    Utilities.SendEncrypted<RequestRecordData>(sharedInfo, rrd);
 
                     var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
                     {
-                        var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo.Stream, sharedInfo.Decryptor);
+                        var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
                         if (pack.EndOfStream)
                         {
                             return new Tuple<byte[], bool>(pack.Data, true);
@@ -340,11 +380,35 @@ namespace Versionr.Network
                         Printer.PrintDiagnostics("Unpacking remote record {0}, payload size: {1}", recordIndex, recordSize);
                         var rec = sharedInfo.RemoteRecordMap[recordIndex];
 
-                        sharedInfo.Workspace.ImportRecordData(rec, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize));
+                        var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
+                        try
+                        {
+                            string dependencies = null;
+                            sharedInfo.Workspace.ImportRecordData(transaction, rec.DataIdentifier, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
+                            if (dependencies != null)
+                                dependentData.Add(dependencies);
+                            sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
+                        }
+                        catch
+                        {
+                            sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
+                            throw;
+                        }
                     }
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
             }
+            List<string> filteredDeps = new List<string>();
+            foreach (var x in dependentData)
+            {
+                if (!recordDataIdentifiers.Contains(x) && !sharedInfo.Workspace.HasObjectDataDirect(x))
+                {
+                    recordDataIdentifiers.Add(x);
+                    filteredDeps.Add(x);
+                }
+            }
+            if (filteredDeps.Count > 0)
+                RequestRecordDataUnmapped(sharedInfo, filteredDeps);
         }
 
         internal static void RequestRecordMetadata(SharedNetworkInfo sharedInfo)
@@ -364,11 +428,162 @@ namespace Versionr.Network
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordParents }, ProtoBuf.PrefixStyle.Fixed32);
                 RequestRecordParents rrp = new RequestRecordParents() { RecordParents = requests.ToArray() };
-                Utilities.SendEncrypted<RequestRecordParents>(sharedInfo.Stream, sharedInfo.Encryptor, rrp);
+                Utilities.SendEncrypted<RequestRecordParents>(sharedInfo, rrp);
 
-                var response = Utilities.ReceiveEncrypted<RecordParentPack>(sharedInfo.Stream, sharedInfo.Decryptor);
+                var response = Utilities.ReceiveEncrypted<RecordParentPack>(sharedInfo);
                 ReceiveRecordParents(sharedInfo, response);
             }
+        }
+
+        internal static List<string> RequestRecordDataUnmapped(SharedNetworkInfo sharedInfo, List<string> missingRecordData)
+        {
+            HashSet<string> successes = new HashSet<string>();
+            int index = 0;
+            List<string> returnedRecords = new List<string>();
+            HashSet<string> recordDataIdentifiers = new HashSet<string>();
+            List<string> dependentData = new List<string>();
+            while (index < missingRecordData.Count)
+            {
+                RequestRecordDataUnmapped rrd = new RequestRecordDataUnmapped();
+                List<string> recordsInPack = new List<string>();
+                while (recordsInPack.Count < 1024 * 32 && index < missingRecordData.Count)
+                {
+                    var data = missingRecordData[index++];
+                    if (!recordDataIdentifiers.Contains(data))
+                    {
+                        recordDataIdentifiers.Add(data);
+                        recordsInPack.Add(data);
+                    }
+                }
+                if (recordsInPack.Count > 0)
+                {
+                    rrd.RecordDataKeys = recordsInPack.ToArray();
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordUnmapped }, ProtoBuf.PrefixStyle.Fixed32);
+                    Utilities.SendEncrypted<RequestRecordDataUnmapped>(sharedInfo, rrd);
+
+                    var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
+                    {
+                        var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
+                        if (pack.EndOfStream)
+                        {
+                            return new Tuple<byte[], bool>(pack.Data, true);
+                        }
+                        else
+                        {
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+                            return new Tuple<byte[], bool>(pack.Data, false);
+                        }
+                    });
+
+                    while (!receiverStream.EndOfStream)
+                    {
+                        byte[] blob = new byte[8];
+                        int successFlag;
+                        int requestIndex;
+                        long recordSize;
+                        if (receiverStream.Read(blob, 0, 8) != 8)
+                            continue;
+                        requestIndex = BitConverter.ToInt32(blob, 0);
+                        successFlag = BitConverter.ToInt32(blob, 4);
+                        
+                        if (successFlag == 0)
+                        {
+                            Printer.PrintDiagnostics("Record {0} not located on remote.", recordsInPack[requestIndex]);
+                            continue;
+                        }
+
+                        receiverStream.Read(blob, 0, 8);
+                        recordSize = BitConverter.ToInt64(blob, 0);
+                        Printer.PrintDiagnostics("Unpacking record {0}, payload size: {1}", recordsInPack[requestIndex], recordSize);
+
+                        returnedRecords.Add(recordsInPack[requestIndex]);
+
+                        var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
+                        try
+                        {
+                            string dependencies;
+                            sharedInfo.Workspace.ImportRecordData(transaction, recordsInPack[requestIndex], new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
+                            if (dependencies != null)
+                                dependentData.Add(dependencies);
+                            sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
+                        }
+                        catch
+                        {
+                            sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
+                            throw;
+                        }
+                    }
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                }
+            }
+            List<string> filteredDeps = new List<string>();
+            foreach (var x in dependentData)
+            {
+                if (!recordDataIdentifiers.Contains(x) && !sharedInfo.Workspace.HasObjectDataDirect(x))
+                {
+                    recordDataIdentifiers.Add(x);
+                    filteredDeps.Add(x);
+                }
+            }
+            if (filteredDeps.Count > 0)
+                RequestRecordDataUnmapped(sharedInfo, filteredDeps);
+            return returnedRecords;
+        }
+
+        internal static bool SendRecordDataUnmapped(SharedNetworkInfo sharedInfo)
+        {
+            var rrd = Utilities.ReceiveEncrypted<RequestRecordDataUnmapped>(sharedInfo);
+            List<byte> datablock = new List<byte>();
+            Func<IEnumerable<byte>, bool, bool> sender = (IEnumerable<byte> data, bool flush) =>
+            {
+                datablock.AddRange(data);
+                int blockSize = 1024 * 1024;
+                while (datablock.Count > blockSize)
+                {
+                    DataPayload dataPack = new DataPayload() { Data = datablock.Take(blockSize).ToArray(), EndOfStream = false };
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                    datablock.RemoveRange(0, blockSize);
+                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (reply.Type != NetCommandType.DataReceived)
+                        return false;
+                }
+                if (flush)
+                {
+                    DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                }
+                return true;
+            };
+            int index = 0;
+            foreach (var x in rrd.RecordDataKeys)
+            {
+                sender(BitConverter.GetBytes(index), false);
+                index++;
+                Objects.Record record = sharedInfo.Workspace.GetRecordFromIdentifier(x);
+                if (record == null)
+                {
+                    int failure = 0;
+                    sender(BitConverter.GetBytes(failure), false);
+                    Printer.PrintDiagnostics("Record with identifier {0} not stored on this vault.", x);
+                }
+                else
+                {
+                    int success = 1;
+                    sender(BitConverter.GetBytes(success), false);
+                    Printer.PrintDiagnostics("Sending data for: {0}", record.Fingerprint);
+
+                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender))
+                        return false;
+                }
+            }
+            if (!sender(new byte[0], true))
+                return false;
+
+            var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+            if (dataResponse.Type != NetCommandType.Acknowledge)
+                return false;
+
+            return true;
         }
 
         private static void ReceiveRecordParents(SharedNetwork.SharedNetworkInfo sharedInfo, RecordParentPack response)
@@ -381,7 +596,7 @@ namespace Versionr.Network
 
         internal static void ReceiveVersions(SharedNetworkInfo sharedInfo)
         {
-            VersionPack pack = Utilities.ReceiveEncrypted<VersionPack>(sharedInfo.Stream, sharedInfo.Decryptor);
+            VersionPack pack = Utilities.ReceiveEncrypted<VersionPack>(sharedInfo);
             ReceivePack(sharedInfo, pack);
             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
         }
@@ -464,9 +679,9 @@ namespace Versionr.Network
                         query.IDs = branchIDs.Select(x => x.ID.ToString()).ToArray();
 
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.PushObjectQuery }, ProtoBuf.PrefixStyle.Fixed32);
-                        Utilities.SendEncrypted<PushObjectQuery>(info.Stream, info.Encryptor, query);
+                        Utilities.SendEncrypted<PushObjectQuery>(info, query);
 
-                        PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(info.Stream, info.Decryptor);
+                        PushObjectResponse response = Utilities.ReceiveEncrypted<PushObjectResponse>(info);
                         if (response.Recognized.Length != query.IDs.Length)
                             throw new Exception("Invalid response!");
                         int recognized = 0;
@@ -502,7 +717,7 @@ namespace Versionr.Network
 
         internal static void ReceiveBranches(SharedNetworkInfo sharedInfo)
         {
-            PushBranches branches = Utilities.ReceiveEncrypted<PushBranches>(sharedInfo.Stream, sharedInfo.Decryptor);
+            PushBranches branches = Utilities.ReceiveEncrypted<PushBranches>(sharedInfo);
             ReceiveBranchesInternal(sharedInfo, branches);
             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
         }
@@ -536,7 +751,7 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Sending branch data pack...");
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushBranch }, ProtoBuf.PrefixStyle.Fixed32);
                     PushBranches pb = new PushBranches() { Branches = branchData.ToArray() };
-                    Utilities.SendEncrypted(sharedInfo.Stream, sharedInfo.Encryptor, pb);
+                    Utilities.SendEncrypted(sharedInfo, pb);
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (response.Type != NetCommandType.Acknowledge)
                         return false;
@@ -552,9 +767,9 @@ namespace Versionr.Network
 
         internal static void ProcesPushObjectQuery(SharedNetworkInfo sharedInfo)
         {
-            PushObjectQuery query = Utilities.ReceiveEncrypted<PushObjectQuery>(sharedInfo.Stream, sharedInfo.Decryptor);
+            PushObjectQuery query = Utilities.ReceiveEncrypted<PushObjectQuery>(sharedInfo);
             PushObjectResponse response = ProcessPushObjectQuery(sharedInfo, query);
-            Utilities.SendEncrypted<PushObjectResponse>(sharedInfo.Stream, sharedInfo.Encryptor, response);
+            Utilities.SendEncrypted<PushObjectResponse>(sharedInfo, response);
         }
 
         private static PushObjectResponse ProcessPushObjectQuery(SharedNetworkInfo sharedInfo, PushObjectQuery query)

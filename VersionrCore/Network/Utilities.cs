@@ -8,13 +8,53 @@ namespace Versionr.Network
 {
     class Utilities
     {
+        public enum PacketCompressionCodec
+        {
+            None,
+            LZ4,
+            LZH
+        }
         [ProtoBuf.ProtoContract]
         public class Packet
         {
             [ProtoBuf.ProtoMember(1)]
             public byte[] Data { get; set; }
             [ProtoBuf.ProtoMember(2)]
+            public int PayloadSize { get; set; }
+            [ProtoBuf.ProtoMember(3)]
             public int? DecompressedSize { get; set; }
+            [ProtoBuf.ProtoMember(4)]
+            public uint Hash { get; set; }
+            [ProtoBuf.ProtoMember(5)]
+            public PacketCompressionCodec Codec { get; set; }
+        }
+        public static uint ComputeAdler32(byte[] array)
+        {
+            uint checksum = 1;
+            int n;
+            uint s1 = checksum & 0xFFFF;
+            uint s2 = checksum >> 16;
+
+            int size = array.Length;
+            int index = 0;
+            while (size > 0)
+            {
+                n = (3800 > size) ? size : 3800;
+                size -= n;
+
+                while (--n >= 0)
+                {
+                    s1 = s1 + (uint)(array[index++] & 0xFF);
+                    s2 = s2 + s1;
+                }
+
+                s1 %= 65521;
+                s2 %= 65521;
+            }
+
+            checksum = (s2 << 16) | s1;
+
+            return checksum;
         }
         internal static Dictionary<Type, bool> s_Compressible = new Dictionary<Type, bool>();
         internal static bool IsCompressible(Type t)
@@ -30,53 +70,99 @@ namespace Versionr.Network
                 return result;
             }
         }
-        public static void SendEncrypted<T>(System.Net.Sockets.NetworkStream stream, System.Security.Cryptography.ICryptoTransform encoder, T argument)
+        public static void SendEncrypted<T>(SharedNetwork.SharedNetworkInfo info, T argument)
         {
             byte[] result;
             using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
             {
-                using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, encoder, System.Security.Cryptography.CryptoStreamMode.Write))
+                ProtoBuf.Serializer.Serialize<T>(memoryStream, argument);
+                result = memoryStream.ToArray();
+            }
+
+            uint checksum = ComputeAdler32(result);
+            int? decompressedSize = null;
+            byte[] compressedBuffer = null;
+            PacketCompressionCodec codec = PacketCompressionCodec.None;
+            if (result.Length > 512 * 1024)
+            {
+                compressedBuffer = LZ4.LZ4Codec.Encode(result, 0, result.Length);
+                codec = PacketCompressionCodec.LZ4;
+            }
+            else
+            {
+                compressedBuffer = new byte[result.Length * 2];
+                Versionr.Utilities.LZHL.ResetCompressor(info.LZHLCompressor);
+                int compressedSize = (int)Versionr.Utilities.LZHL.Compress(info.LZHLCompressor, result, (uint)result.Length, compressedBuffer);
+                Array.Resize(ref compressedBuffer, compressedSize);
+                codec = PacketCompressionCodec.LZH;
+            }
+            if (compressedBuffer.Length < result.Length)
+            {
+                decompressedSize = result.Length;
+                result = compressedBuffer;
+            }
+
+            int payload = result.Length;
+            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
+            {
+                using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Encryptor, System.Security.Cryptography.CryptoStreamMode.Write))
                 {
-                    ProtoBuf.Serializer.Serialize<T>(cs, argument);
+                    cs.Write(result, 0, result.Length);
                 }
                 result = memoryStream.ToArray();
             }
-            Packet packet = new Packet();
-            if (result.Length > 10 * 1024 && IsCompressible(typeof(T)))
+            
+            Packet packet = new Packet()
             {
-                packet.DecompressedSize = result.Length;
-                using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
-                {
-                    using (System.IO.Compression.GZipStream gzStream = new System.IO.Compression.GZipStream(memoryStream, System.IO.Compression.CompressionMode.Compress))
-                    {
-                        gzStream.Write(result, 0, result.Length);
-                    }
-                    packet.Data = memoryStream.ToArray();
-                }
-            }
-            else
-                packet.Data = result;
-            ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(stream, packet, ProtoBuf.PrefixStyle.Fixed32);
+                DecompressedSize = decompressedSize,
+                Data = result,
+                PayloadSize = payload,
+                Hash = checksum,
+                Codec = codec
+            };
+
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(info.Stream, packet, ProtoBuf.PrefixStyle.Fixed32);
         }
-        public static T ReceiveEncrypted<T>(System.Net.Sockets.NetworkStream stream, System.Security.Cryptography.ICryptoTransform decoder)
+        public static T ReceiveEncrypted<T>(SharedNetwork.SharedNetworkInfo info)
         {
-            Packet packet = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Packet>(stream, ProtoBuf.PrefixStyle.Fixed32);
+            Packet packet = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Packet>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
             Printer.PrintDiagnostics("Received {0} byte encrypted packet.", packet.Data.Length);
+
+            byte[] decryptedData = new byte[packet.PayloadSize];
+            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
+            using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Decryptor, System.Security.Cryptography.CryptoStreamMode.Read))
+            {
+                cs.Read(decryptedData, 0, decryptedData.Length);
+            }
+            
             if (packet.DecompressedSize.HasValue)
             {
-                using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
-                using (System.IO.Compression.GZipStream gzStream = new System.IO.Compression.GZipStream(memoryStream, System.IO.Compression.CompressionMode.Decompress))
+                switch (packet.Codec)
                 {
-                    packet.Data = new byte[packet.DecompressedSize.Value];
-                    gzStream.Read(packet.Data, 0, packet.DecompressedSize.Value);
+                    case PacketCompressionCodec.None:
+                        break;
+                    case PacketCompressionCodec.LZ4:
+                        decryptedData = LZ4.LZ4Codec.Decode(decryptedData, 0, decryptedData.Length, packet.DecompressedSize.Value);
+                        break;
+                    case PacketCompressionCodec.LZH:
+                    {
+                        Versionr.Utilities.LZHL.ResetDecompressor(info.LZHLDecompressor);
+                        byte[] result = new byte[packet.DecompressedSize.Value];
+                        Versionr.Utilities.LZHL.Decompress(info.LZHLDecompressor, decryptedData, (uint)decryptedData.Length, result, (uint)result.Length);
+                        decryptedData = result;
+                        break;
+                    }
                 }
-                Printer.PrintDiagnostics(" - {0} bytes decompressed", packet.DecompressedSize.Value);
+                Printer.PrintDiagnostics(" - {0} bytes decompressed ({1})", packet.DecompressedSize.Value, packet.Codec);
             }
 
-            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
-            using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, decoder, System.Security.Cryptography.CryptoStreamMode.Read))
+            uint checksum = ComputeAdler32(decryptedData);
+            if (checksum != packet.Hash)
+                throw new Exception("Data did not survive the trip!");
+
+            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(decryptedData))
             {
-                return ProtoBuf.Serializer.Deserialize<T>(cs);
+                return ProtoBuf.Serializer.Deserialize<T>(memoryStream);
             }
         }
     }

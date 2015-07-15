@@ -28,13 +28,25 @@ namespace Versionr.Commands
                 return "pull";
             }
         }
+        [Option('b', "branch", HelpText="The name of the branch to pull.")]
+        public string RemoteBranch { get; set; }
+        [Option('o', "objects", DefaultValue = true, HelpText = "Retreive remote object payloads as well as metadata.")]
+        public bool PullObjects { get; set; }
     }
     class Pull : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PullVerbOptions localOptions = options as PullVerbOptions;
-            return client.Pull();
+            return client.Pull(localOptions.PullObjects, localOptions.RemoteBranch);
+        }
+
+        protected override bool UpdateRemoteTimestamp
+        {
+            get
+            {
+                return true;
+            }
         }
     }
 }
