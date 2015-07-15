@@ -2218,6 +2218,8 @@ namespace Versionr
 
         private void RestoreRecord(Record rec, string overridePath = null)
         {
+            int retries = 0;
+            Retry:
             if (rec.IsDirectory)
             {
                 DirectoryInfo directory = new DirectoryInfo(Path.Combine(Root.FullName, rec.CanonicalName));
@@ -2281,13 +2283,21 @@ namespace Versionr
             }
             catch (System.IO.IOException)
             {
-                Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
-                return;
+                if (retries++ == 10)
+                {
+                    Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
+                    return;
+                }
+                goto Retry;
             }
             catch (System.UnauthorizedAccessException)
             {
-                Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
-                return;
+                if (retries++ == 10)
+                {
+                    Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
+                    return;
+                }
+                goto Retry;
             }
         }
 
