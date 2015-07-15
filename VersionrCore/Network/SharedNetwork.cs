@@ -278,6 +278,10 @@ namespace Versionr.Network
                         if (dataResponse.Type != NetCommandType.Acknowledge)
                             return false;
                     }
+                    else if (command.Type == NetCommandType.RequestRecordUnmapped)
+                    {
+                        SharedNetwork.SendRecordDataUnmapped(sharedInfo);
+                    }
                     else if (command.Type == NetCommandType.Synchronized)
                     {
                         return true;
