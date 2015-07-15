@@ -60,6 +60,7 @@
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\Server.cs" />
     <Compile Include="Commands\Status.cs" />
+    <Compile Include="Commands\SyncRecords.cs" />
     <Compile Include="Commands\ViewDAG.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

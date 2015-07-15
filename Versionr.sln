@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Octodiff", "Octodiff-master
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VersionrCore", "VersionrCore\VersionrCore.csproj", "{55C6B198-E938-427F-96A5-C1252CB06ACD}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lzhl", "lzhl-master\lzhl.vcxproj", "{52592E35-80AA-4800-93DA-9E612143ED64}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -144,6 +146,16 @@ Global
 		{55C6B198-E938-427F-96A5-C1252CB06ACD}.Release|x64.Build.0 = Release|Any CPU
 		{55C6B198-E938-427F-96A5-C1252CB06ACD}.Release|x86.ActiveCfg = Release|Any CPU
 		{55C6B198-E938-427F-96A5-C1252CB06ACD}.Release|x86.Build.0 = Release|Any CPU
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Debug|x64.ActiveCfg = Debug|x64
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Debug|x64.Build.0 = Debug|x64
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Debug|x86.ActiveCfg = Debug|Win32
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Debug|x86.Build.0 = Debug|Win32
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Release|Any CPU.ActiveCfg = Release|Win32
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Release|x64.ActiveCfg = Release|x64
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Release|x64.Build.0 = Release|x64
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Release|x86.ActiveCfg = Release|Win32
+		{52592E35-80AA-4800-93DA-9E612143ED64}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

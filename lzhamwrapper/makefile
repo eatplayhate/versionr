@@ -5,10 +5,10 @@ SOURCES=wrapper.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
-	DLL=lzhamwrapper.dylib
+	DLL=liblzhamwrapper.dylib
 	ARCHOVERRIDE=-arch i386
 else
-	DLL=lzhamwrapper.so
+	DLL=liblzhamwrapper.so
 endif
 
 all: libraries $(SOURCES) $(DLL)

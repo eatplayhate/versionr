@@ -30,6 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="LZ4">
+      <HintPath>..\References\LZ4.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\..\Projects\Versionr\References\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -65,6 +68,12 @@
     <Compile Include="Network\StartClientTransaction.cs" />
     <Compile Include="Network\StartTransaction.cs" />
     <Compile Include="Network\Utilities.cs" />
+    <Compile Include="ObjectStore\ChunkedChecksum.cs" />
+    <Compile Include="ObjectStore\ChunkedCompressionStreamWriter.cs" />
+    <Compile Include="ObjectStore\ChunkedDecompressionStream.cs" />
+    <Compile Include="ObjectStore\LZHAMLegacyStream.cs" />
+    <Compile Include="ObjectStore\LZHAMReaderStream.cs" />
+    <Compile Include="ObjectStore\LZHAMWriter.cs" />
     <Compile Include="ObjectStore\ObjectStoreBase.cs" />
     <Compile Include="ObjectStore\StandardObjectStore.cs" />
     <Compile Include="Objects\Alteration.cs" />
@@ -82,6 +91,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Status.cs" />
     <Compile Include="Utilities\ChunkedStream.cs" />
+    <Compile Include="Utilities\LZHL.cs" />
     <Compile Include="Utilities\DiffTool.cs" />
     <Compile Include="Utilities\MultiplatformPInvoke.cs" />
     <Compile Include="Utilities\RestrictedStream.cs" />
