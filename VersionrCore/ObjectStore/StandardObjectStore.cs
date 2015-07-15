@@ -25,6 +25,7 @@ namespace Versionr.ObjectStore
         }
         public List<PendingTransaction> PendingTransactions = new List<PendingTransaction>();
         public HashSet<string> Cleanup = new HashSet<string>();
+        public HashSet<string> Inputs = new HashSet<string>();
     }
     class PackfileObject
     {
@@ -151,6 +152,9 @@ namespace Versionr.ObjectStore
             StandardObjectStoreTransaction trans = (StandardObjectStoreTransaction)transaction;
             lock (trans)
             {
+                if (trans.Inputs.Contains(GetLookup(newRecord)))
+                    return true;
+                trans.Inputs.Add(GetLookup(newRecord));
                 string filename;
                 lock (this)
                 {
@@ -522,12 +526,20 @@ namespace Versionr.ObjectStore
                         foreach (var x in transaction.PendingTransactions)
                         {
                             string fn = Path.Combine(TempFolder.FullName, x.Filename);
-                            ObjectDatabase.Insert(x.Data);
-                            if (!GetFileForDataID(x.Data.Lookup).Exists)
+                            try
                             {
-                                if (!System.IO.File.Exists(fn))
-                                    throw new Exception();
-                                System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                ObjectDatabase.Insert(x.Data);
+                                if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                {
+                                    if (!System.IO.File.Exists(fn))
+                                        throw new Exception();
+                                    System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                }
+                            }
+                            catch (SQLite.SQLiteException ex)
+                            {
+                                if (ex.Result != SQLite.SQLite3.Result.Constraint)
+                                    throw ex;
                             }
                         }
                         ObjectDatabase.Commit();
