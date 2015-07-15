@@ -11,7 +11,7 @@ namespace Versionr.Commands
     {
         [Option("regex", DefaultValue = false, HelpText = "Use regex pattern matching for arguments.")]
         public bool Regex{ get; set; }
-        [Option('f', "filename", DefaultValue = false, HelpText = "Matches filenames regardless of full path.")]
+        [Option('n', "filename", DefaultValue = false, HelpText = "Matches filenames regardless of full path.")]
         public bool Filename { get; set; }
         [Option('a', "all", DefaultValue = false, HelpText = "Adds every changed or unversioned file.", MutuallyExclusiveSet ="fullpath regex recursive nodirs")]
         public bool All { get; set; }

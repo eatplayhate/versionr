@@ -132,7 +132,20 @@ namespace Versionr
             List<Entry> result = new List<Entry>();
             if (subdirectory != string.Empty)
             {
-				if (area?.Directives?.Ignore?.RegexPatterns != null)
+                if (area?.Directives?.Include?.RegexPatterns != null)
+                {
+                    ignoreDirectory = true;
+                    foreach (var y in area.Directives.Include.RegexPatterns)
+                    {
+                        var match = y.Match(subdirectory + "/");
+                        if (match.Success)
+                        {
+                            ignoreDirectory = false;
+                            break;
+                        }
+                    }
+                }
+                if (area?.Directives?.Ignore?.RegexPatterns != null)
 				{
 					foreach (var y in area.Directives.Ignore.RegexPatterns)
 					{
@@ -154,6 +167,31 @@ namespace Versionr
                     continue;
                 string name = subdirectory == string.Empty ? x.Name : subdirectory + "/" + x.Name;
 				bool ignored = ignoreDirectory;
+                if (!ignored && area?.Directives?.Include?.RegexPatterns != null)
+                {
+                    ignored = true;
+                    foreach (var y in area.Directives.Include.RegexPatterns)
+                    {
+                        var match = y.Match(name);
+                        if (match.Success)
+                        {
+                            ignored = false;
+                            break;
+                        }
+                    }
+                }
+                if (!ignored && area?.Directives?.Include?.Extensions != null)
+                {
+                    ignored = true;
+                    foreach (var y in area.Directives.Include.Extensions)
+                    {
+                        if (x.Extension == y)
+                        {
+                            ignored = false;
+                            break;
+                        }
+                    }
+                }
                 if (!ignored && area?.Directives?.Ignore?.Extensions != null)
                 {
                     foreach (var y in area.Directives.Ignore.Extensions)

@@ -24,8 +24,6 @@ namespace Versionr
         }
         public Ignores()
         {
-            Extensions = new string[0];
-            Patterns = new string[0];
         }
         [Newtonsoft.Json.JsonIgnore]
         public System.Text.RegularExpressions.Regex[] RegexPatterns { get; set; }
@@ -33,9 +31,11 @@ namespace Versionr
     public class Directives
     {
         public Ignores Ignore { get; set; }
+        public Ignores Include { get; set; }
         public static Directives Default()
         {
             return new Directives() { Ignore = new Ignores() };
+            return new Directives() { Include = null };
         }
     }
 }
