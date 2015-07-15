@@ -2302,6 +2302,7 @@ namespace Versionr
                     Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
                     return;
                 }
+                System.Threading.Thread.Sleep(100);
                 goto Retry;
             }
             catch (System.UnauthorizedAccessException)
@@ -2311,6 +2312,7 @@ namespace Versionr
                     Printer.PrintError("Couldn't write file \"{0}\"!", rec.CanonicalName);
                     return;
                 }
+                System.Threading.Thread.Sleep(100);
                 goto Retry;
             }
         }
