@@ -28,6 +28,9 @@ namespace Versionr.Commands
             }
         }
 
+		[Option('f', "force", HelpText = "Force the merge even if the repository isn't clean" )]
+		public bool Force { get; set; }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
     }
@@ -41,7 +44,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             foreach (var x in localOptions.Target)
-                ws.Merge(x);
+                ws.Merge(x, localOptions.Force);
             return true;
         }
     }

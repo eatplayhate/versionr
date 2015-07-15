@@ -1224,7 +1224,7 @@ namespace Versionr
             return v;
         }
 
-        public void Merge(string v)
+        public void Merge(string v, bool force)
         {
             foreach (var x in LocalData.StageOperations)
             {
@@ -1234,15 +1234,18 @@ namespace Versionr
                 }
             }
 
-            var status = Status;
-            if (status.HasModifications(false))
-            {
-                Printer.PrintMessage("Repository is not clean!");
-                Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
-                return;
-            }
+			if (!force)
+			{
+				var status = Status;
+				if (status.HasModifications(false))
+				{
+					Printer.PrintMessage("Repository is not clean!");
+					Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
+					return;
+				}
+			}
 
-            var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
+			var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
             Objects.Version mergeVersion = null;
             if (possibleBranch != null)
             {
