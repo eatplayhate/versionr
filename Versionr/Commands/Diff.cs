@@ -53,7 +53,7 @@ namespace Versionr.Commands
 			string tmp = Utilities.DiffTool.GetTempFilename();
 			if (ws.ExportRecord(localOptions.Target, null, tmp))
 			{
-				Utilities.DiffTool.Diff(localOptions.Target, tmp);
+				Utilities.DiffTool.Diff(tmp, localOptions.Target);
 				System.IO.File.Delete(tmp);
 				return true;
 			}

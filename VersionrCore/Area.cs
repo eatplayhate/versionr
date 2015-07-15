@@ -1286,7 +1286,7 @@ namespace Versionr
                     {
                         // Added
                         RestoreRecord(x);
-                        Add(x.CanonicalName);
+						LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
                         LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                     }
                     else
@@ -1318,8 +1318,8 @@ namespace Versionr
                         {
                             // modified in foreign branch
                             RestoreRecord(x);
-                            Add(x.CanonicalName);
-                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
                         else if (parentRecord != null && parentRecord.DataEquals(x))
                         {
@@ -1328,7 +1328,7 @@ namespace Versionr
                         else if (parentRecord == null)
                         {
                             Printer.PrintMessage("Merging {0}", x.CanonicalName);
-                            // modified in both places
+                            // added in both places
                             string mf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
                             string ml = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
                             string mr = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
@@ -1341,8 +1341,8 @@ namespace Versionr
                                 System.IO.File.Move(mr, ml);
                                 Printer.PrintMessage(" - Resolved.");
                                 System.IO.File.Delete(mf);
-                                Add(x.CanonicalName);
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                             else
                             {
@@ -1350,8 +1350,9 @@ namespace Versionr
                                 System.IO.File.Move(mf, ml + ".theirs");
                                 Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-                            }
-                        }
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+							}
+						}
                         else
                         {
                             Printer.PrintMessage("Merging {0}", x.CanonicalName);
@@ -1371,8 +1372,8 @@ namespace Versionr
                                 Printer.PrintMessage(" - Resolved.");
                                 System.IO.File.Delete(mf);
                                 System.IO.File.Delete(mb);
-                                Add(x.CanonicalName);
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                             else
                             {
@@ -1385,17 +1386,19 @@ namespace Versionr
                                 if (resolution.StartsWith("t"))
                                 {
                                     System.IO.File.Move(mf, ml);
-                                    Add(x.CanonicalName);
-                                }
-                                if (resolution.StartsWith("c"))
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								}
+								if (resolution.StartsWith("c"))
                                 {
                                     System.IO.File.Move(ml, ml + ".mine");
                                     System.IO.File.Move(mf, ml + ".theirs");
                                     System.IO.File.Move(mb, ml + ".base");
                                     Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-                                }
-                            }
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								}
+							}
                         }
                     }
                 }
@@ -1409,9 +1412,12 @@ namespace Versionr
                     // deleted by branch
                     if (localRecord != null)
                     {
-                        if (localRecord.DataEquals(x))
+						string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
+						if (localRecord.DataEquals(x))
                         {
-                            Remove(x.CanonicalName);
+							Printer.PrintMessage("Removeing {0}", x.CanonicalName);
+							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
+							System.IO.File.Delete(path);
                         }
                         else
                         {
@@ -1421,8 +1427,11 @@ namespace Versionr
                             if (resolution.StartsWith("k"))
                                 continue;
                             if (resolution.StartsWith("r"))
-                                Remove(x.CanonicalName);
-                            if (resolution.StartsWith("c"))
+							{
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
+								System.IO.File.Delete(path);
+							}
+							if (resolution.StartsWith("c"))
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                         }
                     }
@@ -2341,142 +2350,6 @@ namespace Versionr
                 info.Attributes = info.Attributes | FileAttributes.ReadOnly;
         }
 
-        internal void Remove(string v)
-        {
-            DirectoryInfo dirInfo = new DirectoryInfo(v);
-            FileInfo info = new FileInfo(v);
-            string localPath = GetLocalPath(info.FullName);
-            if (dirInfo.Exists)
-            {
-                localPath = localPath + "/";
-            }
-            else
-            {
-                Objects.Record rec = Database.Records.Where(x => x.CanonicalName == localPath).FirstOrDefault();
-                if (rec == null)
-                {
-                    Printer.PrintWarning("Object \"{0}\" is not under versionr control.", info.FullName);
-                    return;
-                }
-                foreach (var x in LocalData.StageOperations)
-                {
-                    if (x.Operand1 == localPath)
-                    {
-                        Printer.PrintWarning("Object \"{0}\" already has a pending `{1}` operation!", x.Operand1, x.Type);
-                        return;
-                    }
-                }
-                if (info.Exists)
-                    info.Delete();
-                Printer.PrintMessage("Removed \"{0}\"", localPath);
-                LocalState.StageOperation ss = new LocalState.StageOperation();
-                ss.Type = LocalState.StageOperationType.Remove;
-                ss.Operand1 = localPath;
-                LocalData.AddStageOperation(ss);
-            }
-        }
-
-        public bool AddAll()
-        {
-            return Add(new string[] { "." }.ToList(), true, false, false, false);
-        }
-
-        public bool Add(IList<string> files, bool recursive, bool regex, bool fullpath, bool nodirs)
-        {
-            var stageOperations = LocalData.StageOperations;
-            List<StageOperation> newStageOperations = new List<StageOperation>();
-            HashSet<string> records = new HashSet<string>(Database.Records.Select(x => x.CanonicalName));
-            foreach (var x in files)
-            {
-                Printer.PrintDiagnostics("Searching for object: {0}", x);
-                List<string> matches = MatchObjects(x, recursive, regex, fullpath, nodirs);
-                if (matches.Count > 1)
-                    Printer.PrintDiagnostics(" - Matched {0} objects.", matches.Count);
-                foreach (var y in matches)
-                {
-                    if (records.Contains(y))
-                    {
-                        if (!recursive && !regex)
-                            Printer.PrintWarning("Object \"{0}\" is already under versionr control.", y);
-                    }
-                    else
-                    {
-                        var stageOperation = stageOperations.Concat(newStageOperations).Where(z => z.Operand1 == y).FirstOrDefault();
-                        if (stageOperation != null)
-                            Printer.PrintWarning("Object \"{0}\" already has a pending `{1}` operation!", stageOperation.Operand1, stageOperation.Type);
-                        else
-                        {
-                            //Printer.PrintMessage("Included in next commit: {0}", y);
-                            newStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = y });
-                            records.Add(y);
-                            DirectoryInfo info = y.EndsWith("/") ? new DirectoryInfo(y).Parent : new FileInfo(y).Directory;
-                            while (info.FullName != Root.FullName)
-                            {
-                                string localPath = GetLocalPath(info.FullName) + "/";
-                                if (records.Contains(localPath))
-                                    break;
-                                records.Add(localPath);
-                                Printer.PrintMessage("> Included containing folder: {0}", localPath);
-                                newStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = localPath, Flags = 1 });
-                                info = info.Parent;
-                            }
-                        }
-                    }
-                }
-            }
-            if (newStageOperations.Count > 0)
-            {
-                Printer.PrintMessage("Adding {0} {1}", newStageOperations.Count, newStageOperations.Count == 1 ? "Object" : "Objects");
-                LocalData.AddStageOperations(newStageOperations);
-                return true;
-            }
-            else
-            {
-                Printer.PrintError("Add operation failed to match any unversion(r)ed objects.");
-                return false;
-            }
-        }
-
-        private List<string> MatchObjects(string x, bool recursive, bool regex, bool fullpath, bool nodirs)
-        {
-            List<string> results = new List<string>();
-            if (regex)
-            {
-                System.Text.RegularExpressions.Regex regexPattern = new System.Text.RegularExpressions.Regex(x);
-                RegexMatch(results, Root, regexPattern, recursive, fullpath, nodirs);
-                return results;
-            }
-            else
-            {
-                System.IO.DirectoryInfo dirInfo = new DirectoryInfo(x);
-                FileInfo fileInfo = new FileInfo(x);
-
-                if (!fileInfo.Exists && !dirInfo.Exists)
-                {
-                    Printer.PrintError(string.Format("Object {0} does not exist!", fileInfo.FullName));
-                    return results;
-                }
-                string localPath = GetLocalPath(fileInfo.FullName);
-                if (!localPath.StartsWith(".versionr"))
-                {
-                    if (dirInfo.Exists && dirInfo.Name != ".svn")
-                    {
-                        localPath = localPath + "/";
-                        if (localPath != "/")
-                            results.Add(localPath);
-                        if (recursive)
-                        {
-                            AddRecursiveSimple(results, dirInfo);
-                        }
-                    }
-                    else
-                        results.Add(localPath);
-                }
-
-                return results;
-            }
-        }
-
         private void RegexMatch(List<string> results, DirectoryInfo root, Regex regexPattern, bool recursive, bool fullpath, bool nodirs)
         {
             foreach (var x in root.GetDirectories())
@@ -2525,55 +2398,6 @@ namespace Versionr
                 string localPath = GetLocalPath(x.FullName);
                 results.Add(localPath);
             }
-        }
-
-        internal void Add(string v)
-        {
-            if (v == "*")
-            {
-                var st = Status;
-                foreach (var x in st.Elements)
-                {
-                    if (x.Code == StatusCode.Unversioned)
-                    {
-                        Printer.PrintMessage("Added \"{0}\"", x.FilesystemEntry.CanonicalName);
-                        StageOperation ss2 = new StageOperation();
-                        ss2.Type = StageOperationType.Add;
-                        ss2.Operand1 = x.FilesystemEntry.CanonicalName;
-                        LocalData.AddStageOperation(ss2);
-                    }
-                }
-                return;
-            }
-
-            DirectoryInfo dirInfo = new DirectoryInfo(v);
-            FileInfo info = new FileInfo(v);
-            if (!info.Exists && !dirInfo.Exists)
-            {
-                throw new Exception(string.Format("File {0} does not exist!", info.FullName));
-            }
-            string localPath = GetLocalPath(info.FullName);
-            if (dirInfo.Exists)
-                localPath = localPath + "/";
-            Objects.Record rec = Database.Records.Where(x => x.CanonicalName == localPath).FirstOrDefault();
-            if (rec != null)
-            {
-                Printer.PrintWarning("Object \"{0}\" is already under versionr control.", info.FullName);
-                return;
-            }
-            foreach (var x in LocalData.StageOperations)
-            {
-                if (x.Operand1 == localPath)
-                {
-                    Printer.PrintWarning("Object \"{0}\" already has a pending `{1}` operation!", x.Operand1, x.Type);
-                    return;
-                }
-            }
-            Printer.PrintMessage("Added \"{0}\"", localPath);
-            StageOperation ss = new StageOperation();
-            ss.Type = StageOperationType.Add;
-            ss.Operand1 = localPath;
-            LocalData.AddStageOperation(ss);
         }
 
         public string GetLocalPath(string fullName)

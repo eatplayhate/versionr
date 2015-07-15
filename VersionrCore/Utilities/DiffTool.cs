@@ -22,8 +22,8 @@ namespace Versionr.Utilities
 		{
 			System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
 			{
-				FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-				Arguments = string.Format("\"{0}\" \"{1}\" --L1 \"{2}\" --L2 \"{3}\"", baseFile, file, baseAlias, fileAlias)
+				FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseMerge.exe",
+				Arguments = string.Format("/base:\"{0}\" /mine:\"{1}\"", baseFile, file)
 			};
 			var proc = System.Diagnostics.Process.Start(psi);
 			proc.WaitForExit();
