@@ -1714,23 +1714,42 @@ namespace Versionr
             }
         }
 
-        internal void Revert(string v)
+        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord)
         {
-            string localPath = GetLocalPath(Path.GetFullPath(v));
-            foreach (var x in LocalData.StageOperations)
-            {
-                if (x.Operand1 == localPath)
-                {
-                    Database.Delete(x);
-                    goto Next;
-                }
-            }
-            Next:
-            Record rec = Database.Records.Where(x => x.CanonicalName == localPath).FirstOrDefault();
-            if (rec != null)
-            {
-                RestoreRecord(rec);
-            }
+			foreach (var x in targets)
+			{
+				if (x.Staged == true)
+				{
+					Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
+					LocalData.BeginTransaction();
+					try
+					{
+						foreach (var y in LocalData.StageOperations)
+						{
+							if (y.Operand1 == x.CanonicalName)
+							{
+								LocalData.Delete(y);
+							}
+						}
+						LocalData.Commit();
+					}
+					catch (Exception e)
+					{
+						LocalData.Rollback();
+						throw new Exception("Unable to remove stage operations!", e);
+					}
+				}
+
+				if (revertRecord && x.Code != StatusCode.Unchanged)
+				{
+					Record rec = Database.Records.Where(z => z.CanonicalName == x.CanonicalName).FirstOrDefault();
+					if (rec != null)
+					{
+						Printer.PrintMessage("Restoring pristine copy of {0}", x.CanonicalName);
+						RestoreRecord(rec);
+					}
+				}
+			}
         }
 
         public bool Commit(string message = "", bool force = false)

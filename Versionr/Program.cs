@@ -125,6 +125,11 @@ namespace Versionr
 		[VerbOption("diff", HelpText = "Display file differences")]
 		public Commands.DiffVerbOptions DiffVerb { get; set; }
 
+		[VerbOption("revert", HelpText = "Revert a file or files to pristine version")]
+		public Commands.RevertVerbOptions RevertVerb { get; set; }
+		[VerbOption("unrecord", HelpText = "Removes a file from inclusion in the next commit (undoes 'record')")]
+		public Commands.RevertVerbOptions UnrecordVerb { get; set; }
+
 		[HelpOption]
         public string GetUsage()
         {
@@ -184,11 +189,15 @@ namespace Versionr
 				return CloneVerb.GetUsage();
 			else if (verb == "pull")
 				return PullVerb.GetUsage();
-            else if (verb == "syncrecords")
-                return SyncRecordsVerb.GetUsage();
+			else if (verb == "syncrecords")
+				return SyncRecordsVerb.GetUsage();
 			else if (verb == "diff")
 				return DiffVerb.GetUsage();
-            return GetUsage();
+			else if (verb == "revert")
+				return RevertVerb.GetUsage();
+			else if (verb == "unrecord")
+				return UnrecordVerb.GetUsage();
+			return GetUsage();
         }
     }
     class Program
@@ -237,6 +246,8 @@ namespace Versionr
             commands["pull"] = new Commands.Pull();
             commands["syncrecords"] = new Commands.SyncRecords();
 			commands["diff"] = new Commands.Diff();
+			commands["revert"] = new Commands.Revert();
+			commands["unrecord"] = new Commands.Unrecord();
 
 			Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
