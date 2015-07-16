@@ -1264,6 +1264,7 @@ namespace Versionr
                                 }
                                 if (resolution.StartsWith("t"))
                                 {
+                                    System.IO.File.Delete(ml);
                                     System.IO.File.Move(mf, ml);
 									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
 									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
@@ -2104,85 +2105,6 @@ namespace Versionr
             }
             return true;
         }
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "CreateCompressionStream", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern IntPtr CreateCompressionStream(int level, int windowBits);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DestroyCompressionStream", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern bool DestroyCompressionStream(IntPtr stream);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "StreamGetAdler32", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern uint StreamGetAdler32(IntPtr stream);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "CompressData", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern int CompressData(IntPtr stream, byte[] input, int inLength, byte[] output, int outLength, bool flush, bool end);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "CreateDecompressionStream", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern IntPtr CreateDecompressionStream(int windowBits);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DestroyDecompressionStream", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern bool DestroyDecompressionStream(IntPtr stream);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressData", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern int DecompressData(IntPtr stream, byte[] output, int outLength);
-
-        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressSetSource", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern int DecompressSetSource(IntPtr stream, byte[] output, int outLength);
-
-        /*private void RecordData(Entry entry, Record oldRecord, Record newRecord)
-        {
-            if (entry.IsDirectory)
-                return;
-            if (HasObjectData(newRecord))
-                return;
-            FileInfo file = GetFileForCode(entry.Hash, entry.Length);
-            try
-            {
-                FileInfo src = new FileInfo(Path.Combine(Root.FullName, entry.CanonicalName));
-                Printer.PrintMessage("Recorded data for: {0} - {1}.", entry.CanonicalName, entry.AbbreviatedHash);
-                ulong compressedSize = 0;
-                using (var fsd = file.OpenWrite())
-                using (var fss = src.OpenRead())
-                {
-                    BinaryWriter sw = new BinaryWriter(fsd);
-                    sw.Write(0);
-                    sw.Write(entry.Length);
-
-                    var stream = CreateCompressionStream(9, 23);
-
-                    byte[] dataBlob = new byte[16 * 1024 * 1024];
-                    byte[] outBufferTemp = new byte[2 * dataBlob.Length];
-                    long remainder = entry.Length;
-                    while (remainder > 0)
-                    {
-                        int max = dataBlob.Length;
-                        bool end = false;
-                        if (max > remainder)
-                        {
-                            end = true;
-                            max = (int)remainder;
-                        }
-                        fss.Read(dataBlob, 0, max);
-                        var result = CompressData(stream, dataBlob, max, outBufferTemp, outBufferTemp.Length, true, end);
-                        if (result < 0)
-                            throw new Exception();
-                        compressedSize += (ulong)result;
-                        sw.Write(outBufferTemp, 0, result);
-                        remainder -= max;
-                    }
-                    Printer.PrintMessage("Compressed {0} to {1} bytes.", entry.Length, compressedSize);
-
-                    DestroyCompressionStream(stream);
-                }
-            }
-            catch
-            {
-                if (file.Exists)
-                    file.Delete();
-                throw;
-            }
-        }*/
-
         private void RestoreRecord(Record rec, string overridePath = null)
         {
             if (rec.IsDirectory)
