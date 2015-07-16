@@ -16,23 +16,25 @@ namespace Versionr.ObjectStore
         private static extern bool DestroyDecompressionStream(IntPtr stream);
 
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressData", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern int DecompressData(IntPtr stream, byte[] output, int outLength);
+        private static extern int DecompressData(IntPtr stream, byte[] output, int outLength, out bool finished);
 
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressSetSource", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern int DecompressSetSource(IntPtr stream, byte[] output, int outLength);
 
+        byte[] m_DecompressionBuffer = null;
         protected override void RefillBuffer(byte[] data, byte[] output, int decompressedSize, bool end)
         {
+            m_DecompressionBuffer = data;
             DecompressSetSource(m_Decompressor, data, data.Length);
-            while (DecompressData(m_Decompressor, output, decompressedSize) != decompressedSize)
+            bool finished;
+            while (DecompressData(m_Decompressor, output, decompressedSize, out finished) != decompressedSize)
             {
                 DestroyDecompressionStream(m_Decompressor);
                 m_Decompressor = CreateDecompressionStream(23);
                 DecompressSetSource(m_Decompressor, data, data.Length);
             }
-            // We call decompress again to consume the sync block
-            if (DecompressData(m_Decompressor, output, 0) != 0)
-                throw new Exception();
+            while (!finished)
+                DecompressData(m_Decompressor, output, 0, out finished);
         }
 
         public LZHAMReaderStream(long size, System.IO.Stream baseStream)

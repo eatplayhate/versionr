@@ -86,12 +86,13 @@ extern "C"
 		stream->avail_in = inLength;
 	}
 
-	int WRAPPER_API DecompressData(z_stream* stream, unsigned char* dataOut, int outLength)
+	int WRAPPER_API DecompressData(z_stream* stream, unsigned char* dataOut, int outLength, bool& finishedBlock)
 	{
 		stream->next_out = dataOut;
 		stream->avail_out = outLength;
 		int status = inflate(stream, Z_SYNC_FLUSH);
 		int length = outLength - stream->avail_out;
+		finishedBlock = stream->avail_in == 0;
 		if (status == Z_STREAM_END)
 			return -length;
 		if (stream->avail_out == 0)

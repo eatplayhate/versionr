@@ -64,7 +64,7 @@ namespace Versionr.ObjectStore
         private static extern bool DestroyDecompressionStream(IntPtr stream);
 
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressData", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        private static extern int DecompressData(IntPtr stream, byte[] output, int outLength);
+        private static extern int DecompressData(IntPtr stream, byte[] output, int outLength, out bool finished);
 
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DecompressSetSource", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern int DecompressSetSource(IntPtr stream, byte[] output, int outLength);
@@ -151,7 +151,8 @@ namespace Versionr.ObjectStore
 
         private void Decompress()
         {
-            var result = DecompressData(m_Decompressor, m_OutputBuffer, m_OutputBuffer.Length);
+            bool finished = false;
+            var result = DecompressData(m_Decompressor, m_OutputBuffer, m_OutputBuffer.Length, out finished);
             if (result <= 0)
             {
                 var readAmount = BaseStream.Read(m_Buffer, 0, m_Buffer.Length);
