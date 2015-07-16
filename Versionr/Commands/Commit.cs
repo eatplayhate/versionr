@@ -7,21 +7,10 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class CommitVerbOptions : VerbOptionBase
-    {
-        [Option('a', "all", DefaultValue = false, HelpText = "Commits all modified/renamed files whether they are staged or not.")]
-        public bool AllModified { get; set; }
-
+    class CommitVerbOptions : FileCommandVerbOptions
+	{
         [Option('f', "force", DefaultValue = false, HelpText = "Forces the commit to happen even if it would create a new branch head.")]
         public bool Force { get; set; }
-
-        public override string Usage
-        {
-            get
-            {
-                return string.Format("Usage: versionr {0} [options] <additional files>", Verb);
-            }
-        }
 
         public override string[] Description
         {
@@ -35,9 +24,6 @@ namespace Versionr.Commands
                     "The process will create a new version with its parent set to the",
                     "currently checked out revision. It will then update the current ",
                     "branch head information to point to the newly created version.",
-                    "",
-                    "When the `--all` option is specified, modified files that are under",
-                    "version control are immediately committed.",
                     "",
                     "If you are committing from a version which is not the branch head",
                     "a new head will be created. As this is not typically a desired",
@@ -61,26 +47,24 @@ namespace Versionr.Commands
         [Option('m', "message", Required = true, HelpText="Commit message.")]
         public string Message { get; set; }
 
-        [ValueList(typeof(List<string>))]
-        public IList<string> AdditionalFiles { get; set; }
     }
-    class Commit : BaseCommand
+    class Commit : FileCommand
     {
-        public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
-        {
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		{
             CommitVerbOptions localOptions = options as CommitVerbOptions;
-            Printer.EnableDiagnostics = localOptions.Verbose;
-            Area ws = Area.Load(workingDirectory);
-            if (ws == null)
-                return false;
-            if (localOptions.AdditionalFiles != null && localOptions.AdditionalFiles.Count > 0)
+
+            if (targets != null && targets.Count > 0)
             {
-                if (!ws.RecordChanges(localOptions.AdditionalFiles, false, true, false, false, true))
-                    return false;
+				if (!ws.RecordChanges(status, targets, false))
+					return false;
             }
-            if (!ws.Commit(localOptions.Message, localOptions.Force, localOptions.AllModified))
+            if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;
             return true;
         }
-    }
+
+		protected override bool RequiresTargets { get { return false; } }
+
+	}
 }

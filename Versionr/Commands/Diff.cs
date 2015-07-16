@@ -7,16 +7,8 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-	class DiffVerbOptions : VerbOptionBase
+	class DiffVerbOptions : FileCommandVerbOptions
 	{
-		public override string Usage
-		{
-			get
-			{
-				return string.Format("Usage: versionr {0} files", Verb);
-			}
-		}
-
 		public override string[] Description
 		{
 			get
@@ -35,30 +27,25 @@ namespace Versionr.Commands
 				return "diff";
 			}
 		}
-
-
-		[ValueOption(0)]
-		public string Target { get; set; }
 	}
-	class Diff : BaseCommand
-	{
-		public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
-		{
-			DiffVerbOptions localOptions = options as DiffVerbOptions;
-			Printer.EnableDiagnostics = localOptions.Verbose;
-			Area ws = Area.Load(workingDirectory);
-			if (ws == null)
-				return false;
 
-			string tmp = Utilities.DiffTool.GetTempFilename();
-			if (ws.ExportRecord(localOptions.Target, null, tmp))
+	class Diff : FileCommand
+	{
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		{
+			CommitVerbOptions localOptions = options as CommitVerbOptions;
+
+			foreach (var x in targets)
 			{
-				Utilities.DiffTool.Diff(tmp, localOptions.Target);
-				System.IO.File.Delete(tmp);
-				return true;
+				string tmp = Utilities.DiffTool.GetTempFilename();
+				if (ws.ExportRecord(x.CanonicalName, null, tmp))
+				{
+					Utilities.DiffTool.Diff(tmp, x.CanonicalName);
+					System.IO.File.Delete(tmp);
+				}
+				Printer.PrintError("Could not restore {0}", x.CanonicalName);
 			}
-			Printer.PrintError("Could not restore {0}", localOptions.Target);
-			return false;
+			return true;
 		}
 	}
 }

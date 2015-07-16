@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.Objects;
+using System.IO;
+using System.Text.RegularExpressions;
 
 namespace Versionr
 {
@@ -58,7 +60,8 @@ namespace Versionr
         public Objects.Version CurrentVersion { get; set; }
         public Branch Branch { get; set; }
         public List<StatusEntry> Elements { get; set; }
-        public List<LocalState.StageOperation> Stage { get; set; }
+		public Dictionary<string, StatusEntry> Map { get; set; }
+		public List<LocalState.StageOperation> Stage { get; set; }
         public Area Workspace { get; set; }
         public bool HasData
         {
@@ -223,6 +226,99 @@ namespace Versionr
                     Next:;
                 }
             }
+
+			Map = new Dictionary<string, StatusEntry>();
+			foreach (var x in Elements)
+				Map[x.CanonicalName] = x;
         }
-    }
+
+		public List<StatusEntry> GetElements(IList<string> files, bool regex, bool filenames, bool caseInsensitive)
+		{
+			List<StatusEntry> results = new List<Status.StatusEntry>();
+
+			bool globMatching = false;
+			if (!regex)
+			{
+				foreach (var x in files)
+				{
+					if (x.Contains("*") || x.Contains("?"))
+					{
+						globMatching = true;
+						break;
+					}
+				}
+			}
+
+			if (regex || globMatching)
+			{
+				List<System.Text.RegularExpressions.Regex> regexes = new List<System.Text.RegularExpressions.Regex>();
+				RegexOptions caseOption = caseInsensitive ? RegexOptions.IgnoreCase : RegexOptions.None;
+				if (globMatching)
+				{
+					foreach (var x in files)
+					{
+						string pattern = "^" + Regex.Escape(x).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
+						regexes.Add(new Regex(pattern, RegexOptions.Singleline | caseOption));
+					}
+				}
+				else
+				{
+					foreach (var x in files)
+						regexes.Add(new Regex(x, RegexOptions.Singleline | caseOption));
+				}
+
+				foreach (var x in Elements)
+				{
+					foreach (var y in regexes)
+					{
+						if ((!filenames && y.IsMatch(x.CanonicalName)) || (filenames && x.FilesystemEntry?.Info != null && y.IsMatch(x.FilesystemEntry.Info.Name)))
+						{
+							results.Add(x);
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				List<string> canonicalPaths = new List<string>();
+				foreach (var x in files)
+					canonicalPaths.Add(Workspace.GetLocalPath(Path.GetFullPath(x)));
+
+				StringComparison comparisonOptions = caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+				foreach (var x in Elements)
+				{
+					foreach (var y in canonicalPaths)
+					{
+						if ((filenames && (string.Equals(x.Name, y, comparisonOptions) || string.Equals(x.Name, y + "/", comparisonOptions))) ||
+							(!filenames && (string.Equals(x.CanonicalName, y, comparisonOptions) || string.Equals(x.CanonicalName, y + "/", comparisonOptions))))
+						{
+							results.Add(x);
+							break;
+						}
+					}
+				}
+			}
+			return results;
+		}
+
+		public void AddRecursiveElements(List<StatusEntry> entries)
+		{
+			foreach (var x in entries)
+			{
+				if (x.IsDirectory)
+				{
+					foreach (var z in Elements)
+					{
+						if (entries.Contains(z))
+							continue;
+
+						if (z.CanonicalName.StartsWith(x.CanonicalName))
+							entries.Add(z);
+					}
+				}
+			}
+		}
+	}
 }
