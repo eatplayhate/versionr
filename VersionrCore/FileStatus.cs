@@ -217,13 +217,27 @@ namespace Versionr
                 }
                 result.Add(new Entry(area, parentEntry, x, name, ignored));
             }
+            List<Task<List<Entry>>> tasks = new List<Task<List<Entry>>>();
             foreach (var x in info.GetDirectories())
             {
                 if (x.FullName == adminFolder.FullName)
                     continue;
                 string name = subdirectory == string.Empty ? x.Name : subdirectory + "/" + x.Name;
 
-                result.AddRange(PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory));
+                if (Utilities.MultiArchPInvoke.IsRunningOnMono)
+                {
+                    result.AddRange(PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory));
+                }
+                else
+                {
+                    tasks.Add(Task.Run(() => { return PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory); }));
+                }
+            }
+            if (tasks.Count > 0)
+            {
+                Task.WaitAll(tasks.ToArray());
+                foreach (var x in tasks)
+                    result.AddRange(x.Result);
             }
             return result;
         }

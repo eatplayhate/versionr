@@ -518,9 +518,9 @@ namespace Versionr
             return ObjectStore.GetTransmissionLength(record);
         }
 
-        internal bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
+        internal bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
         {
-            return ObjectStore.TransmitRecordData(record, sender);
+            return ObjectStore.TransmitRecordData(record, sender, scratchBuffer);
         }
 
         internal Record LocateRecord(Record newRecord)

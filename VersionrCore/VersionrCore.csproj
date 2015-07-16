@@ -106,6 +106,10 @@
       <Project>{8e2f144c-b039-478d-a479-487c83cdab79}</Project>
       <Name>SQLite</Name>
     </ProjectReference>
+    <ProjectReference Include="..\xxHashSharp-master\xxHashSharp\xxHashSharp.csproj">
+      <Project>{9ac2e740-aa2f-41a8-81c2-af2e182f9d16}</Project>
+      <Name>xxHashSharp</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
