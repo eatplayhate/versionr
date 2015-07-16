@@ -161,9 +161,9 @@ namespace Versionr
 
         private List<Record> Consolidate(List<Record> baseList, List<Alteration> alterations, List<Record> deletions)
         {
-            HashSet<Record> records = new HashSet<Record>();
+            Dictionary<long, Record> records = new Dictionary<long, Record>();
             foreach (var x in baseList)
-                records.Add(x);
+                records[x.Id] = x;
             foreach (var x in alterations.Select(x => x).Reverse())
             {
                 Objects.Record rec = null;
@@ -174,7 +174,7 @@ namespace Versionr
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            records.Add(record);
+                            records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Move:
@@ -184,32 +184,29 @@ namespace Versionr
                             rec = Get<Objects.Record>(x.PriorRecord);
                             if (deletions != null)
                                 deletions.Add(rec);
-                            records.RemoveWhere(y => y.Id == x.PriorRecord);
-                            records.Add(record);
+                            records.Remove(x.PriorRecord.Value);
+                            records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Update:
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            records.RemoveWhere(y => y.Id == x.PriorRecord);
-                            records.Add(record); 
+                            records.Remove(x.PriorRecord.Value);
+                            records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Delete:
                         rec = Get<Objects.Record>(x.PriorRecord);
                         if (deletions != null)
                             deletions.Add(rec);
-                        records.RemoveWhere(y => y.Id == x.PriorRecord);
+                        records.Remove(x.PriorRecord.Value);
                         break;
                     default:
                         throw new Exception();
                 }
             }
-            Dictionary<string, Record> result = new Dictionary<string, Record>();
-            foreach (var x in records)
-                result[x.CanonicalName] = x;
-            return result.OrderBy(x => x.Key).Select(x => x.Value).ToList();
+            return records.OrderBy(x => x.Value.CanonicalName).Select(x => x.Value).ToList();
         }
 
         internal static bool AcceptDBVersion(int dbVersion)

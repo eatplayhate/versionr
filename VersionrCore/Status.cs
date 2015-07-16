@@ -36,14 +36,18 @@ namespace Versionr
             {
                 get
                 {
-                    return FilesystemEntry != null ? FilesystemEntry.CanonicalName : VersionControlRecord.CanonicalName;
+                    if (FilesystemEntry != null)
+                        return FilesystemEntry.CanonicalName;
+                    return VersionControlRecord.CanonicalName;
                 }
             }
             public string Name
             {
                 get
                 {
-                    return FilesystemEntry != null ? FilesystemEntry.Name : VersionControlRecord.Name;
+                    if (FilesystemEntry != null)
+                        return FilesystemEntry.Name;
+                    return VersionControlRecord.Name;
                 }
             }
             public bool IsDirectory
@@ -318,20 +322,44 @@ namespace Versionr
 			return results;
 		}
 
-		public void AddRecursiveElements(List<StatusEntry> entries)
-		{
-			foreach (var x in entries)
+        public class NameMatcher : IComparer<StatusEntry>
+        {
+            public int Compare(StatusEntry x, StatusEntry y)
+            {
+                return x.CanonicalName.CompareTo(y.CanonicalName);
+            }
+        }
+
+        public void AddRecursiveElements(List<StatusEntry> entries)
+        {
+            var entrySet = new HashSet<StatusEntry>();
+            foreach (var x in entries)
+                entrySet.Add(x);
+            List<StatusEntry> sortedList = Elements.Where(x => !entrySet.Contains(x)).OrderBy(x => x.CanonicalName).ToList();
+            var skipSet = new HashSet<StatusEntry>();
+            foreach (var x in entries.ToArray())
 			{
 				if (x.IsDirectory)
 				{
-					foreach (var z in Elements)
-					{
-						if (entries.Contains(z))
-							continue;
-
-						if (z.CanonicalName.StartsWith(x.CanonicalName))
-							entries.Add(z);
-					}
+                    if (skipSet.Contains(x))
+                        continue;
+                    int index = sortedList.BinarySearch(x, new NameMatcher());
+                    if (index < 0)
+                        continue;
+                    skipSet.Add(sortedList[index]);
+                    for (; index < sortedList.Count; index++)
+                    {
+                        if (entrySet.Contains(sortedList[index]))
+                            continue;
+                        if (sortedList[index].CanonicalName.StartsWith(x.CanonicalName))
+                        {
+                            entrySet.Add(sortedList[index]);
+                            entries.Add(sortedList[index]);
+                            skipSet.Add(sortedList[index]);
+                        }
+                        else
+                            break;
+                    }
 				}
 			}
 		}

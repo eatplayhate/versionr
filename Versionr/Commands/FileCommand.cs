@@ -20,8 +20,8 @@ namespace Versionr.Commands
 		public bool Recursive { get; set; }
 		[Option('i', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
 		public bool Insensitive { get; set; }
-		[Option('o', "modified", HelpText = "Matches only modified files")]
-		public bool Modified { get; set; }
+		[Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
+		public bool Tracked { get; set; }
 		public override string Usage
 		{
 			get
@@ -54,8 +54,8 @@ namespace Versionr.Commands
 			if (localOptions.Recursive)
 				status.AddRecursiveElements(targets);
 
-			if (localOptions.Modified)
-				targets = targets.Where(x => x.Code == StatusCode.Modified).ToList();
+			if (localOptions.Tracked)
+				targets = targets.Where(x => x.VersionControlRecord != null).ToList();
 
 			if (targets.Count > 0 || !RequiresTargets)
 				return RunInternal(ws, status, targets, localOptions);
