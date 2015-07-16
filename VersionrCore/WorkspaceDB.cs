@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.Objects;
+using Versionr.Utilities;
 
 namespace Versionr
 {
@@ -356,7 +357,7 @@ namespace Versionr
             {
                 Objects.FormatInfo formatInfo = new FormatInfo();
                 formatInfo.InternalFormat = InternalDBVersion;
-                ws.Insert(formatInfo);
+                ws.InsertSafe(formatInfo);
                 ws.Commit();
                 return ws;
             }

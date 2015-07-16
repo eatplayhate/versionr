@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.Objects;
+using Versionr.Utilities;
 
 namespace Versionr.ObjectStore
 {
@@ -84,7 +85,7 @@ namespace Versionr.ObjectStore
 
             var meta = new StandardObjectStoreMetadata();
             meta.Version = 1;
-            ObjectDatabase.Insert(meta);
+            ObjectDatabase.InsertSafe(meta);
         }
 
         private void InitializeDBTypes()
@@ -118,7 +119,7 @@ namespace Versionr.ObjectStore
                 }
                 var meta = new StandardObjectStoreMetadata();
                 meta.Version = 1;
-                ObjectDatabase.Insert(meta);
+                ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
             }
             return true;
@@ -137,7 +138,7 @@ namespace Versionr.ObjectStore
                 recordData.PackFileID = null;
                 try
                 {
-                    ObjectDatabase.Insert(recordData);
+                    ObjectDatabase.InsertSafe(recordData);
                 }
                 catch (SQLite.SQLiteException e)
                 {
@@ -530,7 +531,7 @@ namespace Versionr.ObjectStore
                             string fn = Path.Combine(TempFolder.FullName, x.Filename);
                             try
                             {
-                                ObjectDatabase.Insert(x.Data);
+                                ObjectDatabase.InsertSafe(x.Data);
                                 if (!GetFileForDataID(x.Data.Lookup).Exists)
                                 {
                                     if (!System.IO.File.Exists(fn))

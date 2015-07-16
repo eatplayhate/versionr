@@ -95,6 +95,7 @@
     <Compile Include="Utilities\DiffTool.cs" />
     <Compile Include="Utilities\MultiplatformPInvoke.cs" />
     <Compile Include="Utilities\RestrictedStream.cs" />
+    <Compile Include="Utilities\SQLiteExtensions.cs" />
     <Compile Include="WorkspaceDB.cs" />
   </ItemGroup>
   <ItemGroup>

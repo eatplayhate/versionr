@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.LocalState;
+using Versionr.Utilities;
 
 namespace Versionr
 {
@@ -76,7 +77,7 @@ namespace Versionr
             {
                 LocalState.Configuration conf = new LocalState.Configuration();
                 conf.Version = LocalDBVersion;
-                ldb.Insert(conf);
+                ldb.InsertSafe(conf);
                 ldb.Commit();
                 return ldb;
             }

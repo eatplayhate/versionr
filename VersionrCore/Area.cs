@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Versionr.LocalState;
 using Versionr.Network;
 using Versionr.Objects;
+using Versionr.Utilities;
 
 namespace Versionr
 {
@@ -137,7 +138,7 @@ namespace Versionr
 
                 config.Host = host;
                 config.Port = port;
-                LocalData.InsertOrReplace(config);
+                LocalData.InsertOrReplaceSafe(config);
 
                 Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
                 LocalData.Commit();
@@ -314,8 +315,8 @@ namespace Versionr
             LocalData.BeginTransaction();
             try
             {
-                LocalData.Insert(ws);
-                LocalData.Update(config);
+                LocalData.InsertSafe(ws);
+                LocalData.UpdateSafe(config);
                 LocalData.Commit();
                 Printer.PrintDiagnostics("Finished.");
             }
@@ -359,14 +360,14 @@ namespace Versionr
                 Database.BeginTransaction();
                 try
                 {
-                    Database.Insert(snapshot);
+                    Database.InsertSafe(snapshot);
                     version.AlterationList = snapshot.Id;
                     version.Snapshot = snapshot.Id;
-                    Database.Insert(version);
-                    Database.Insert(head);
-                    Database.Insert(domain);
-                    Database.Insert(branch);
-                    Database.Insert(snapshot);
+                    Database.InsertSafe(version);
+                    Database.InsertSafe(head);
+                    Database.InsertSafe(domain);
+                    Database.InsertSafe(branch);
+                    Database.InsertSafe(snapshot);
                     Database.Commit();
                 }
                 catch (Exception e)
@@ -374,8 +375,8 @@ namespace Versionr
                     Database.Rollback();
                     throw new Exception("Couldn't initialize repository!", e);
                 }
-                LocalData.Insert(ws);
-                LocalData.Update(config);
+                LocalData.InsertSafe(ws);
+                LocalData.UpdateSafe(config);
                 LocalData.Commit();
                 Printer.PrintDiagnostics("Finished.");
             }
@@ -426,14 +427,14 @@ namespace Versionr
                 Database.BeginTransaction();
                 try
                 {
-                    Database.Insert(snapshot);
+                    Database.InsertSafe(snapshot);
                     version.AlterationList = snapshot.Id;
                     version.Snapshot = snapshot.Id;
-                    Database.Insert(version);
-                    Database.Insert(head);
-                    Database.Insert(domain);
-                    Database.Insert(branch);
-                    Database.Insert(snapshot);
+                    Database.InsertSafe(version);
+                    Database.InsertSafe(head);
+                    Database.InsertSafe(domain);
+                    Database.InsertSafe(branch);
+                    Database.InsertSafe(snapshot);
                     Database.Commit();
                 }
                 catch (Exception e)
@@ -441,8 +442,8 @@ namespace Versionr
                     Database.Rollback();
                     throw new Exception("Couldn't initialize repository!", e);
                 }
-                LocalData.Insert(ws);
-                LocalData.Update(config);
+                LocalData.InsertSafe(ws);
+                LocalData.UpdateSafe(config);
                 LocalData.Commit();
                 Printer.PrintDiagnostics("Finished.");
             }
@@ -479,7 +480,7 @@ namespace Versionr
 
         internal void AddHeadNoCommit(Head x)
         {
-            Database.Insert(x);
+            Database.InsertSafe(x);
         }
 
         internal long GetTransmissionLength(Record record)
@@ -515,7 +516,7 @@ namespace Versionr
                 {
                     try
                     {
-                        Database.Insert(x);
+                        Database.InsertSafe(x);
                         Database.Commit();
                         return true;
                     }
@@ -540,16 +541,16 @@ namespace Versionr
         {
             Printer.PrintDiagnostics("Importing version {0}", x.Version.ID);
             Objects.Snapshot alterationLink = new Snapshot();
-            Database.Insert(alterationLink);
+            Database.InsertSafe(alterationLink);
             x.Version.Published = true;
             x.Version.AlterationList = alterationLink.Id;
             x.Version.Snapshot = null;
 
-            Database.Insert(x.Version);
+            Database.InsertSafe(x.Version);
             if (x.MergeInfos != null)
             {
                 foreach (var y in x.MergeInfos)
-                    Database.Insert(y);
+                    Database.InsertSafe(y);
             }
             if (x.Alterations != null)
             {
@@ -563,7 +564,7 @@ namespace Versionr
                     if (z.PriorRecord != null)
                         alteration.PriorRecord = mapRecords ? clientInfo.LocalRecordMap[z.PriorRecord.Id].Id : z.NewRecord.Id;
 
-                    Database.Insert(alteration);
+                    Database.InsertSafe(alteration);
                 }
             }
 
@@ -573,16 +574,16 @@ namespace Versionr
             if (alterationList.Count > baseList.Count)
             {
                 Objects.Snapshot snapshot = new Snapshot();
-                Database.Insert(snapshot);
+                Database.InsertSafe(snapshot);
                 foreach (var z in records)
                 {
                     Objects.RecordRef rref = new RecordRef();
                     rref.RecordID = z.Id;
                     rref.SnapshotID = snapshot.Id;
-                    Database.Insert(rref);
+                    Database.InsertSafe(rref);
                 }
                 x.Version.Snapshot = snapshot.Id;
-                Database.Update(x.Version);
+                Database.UpdateSafe(x.Version);
             }
         }
 
@@ -602,15 +603,15 @@ namespace Versionr
             if (result == null)
             {
                 result = new ObjectName() { CanonicalName = rec.CanonicalName };
-                Database.Insert(result);
+                Database.InsertSafe(result);
             }
             rec.CanonicalNameId = result.Id;
 
-            Database.Insert(rec);
+            Database.InsertSafe(rec);
 
             RecordIndex recIndex = new RecordIndex() { DataIdentifier = rec.DataIdentifier, Index = rec.Id, Pruned = false };
 
-            Database.Insert(recIndex);
+            Database.InsertSafe(recIndex);
         }
 
         internal void RollbackDatabaseTransaction()
@@ -682,9 +683,9 @@ namespace Versionr
             {
                 Printer.PrintDiagnostics("Updating head of branch {0} to version {1}", branch.Name, x.Value.Version);
                 if (heads.Count == 0)
-                    Database.Insert(x.Value);
+                    Database.InsertSafe(x.Value);
                 else
-                    Database.Update(x.Value);
+                    Database.UpdateSafe(x.Value);
             }
         }
 
@@ -753,7 +754,7 @@ namespace Versionr
             try
             {
                 foreach (var x in stageOps)
-                    LocalData.Insert(x);
+                    LocalData.InsertSafe(x);
                 LocalData.Commit();
                 return true;
             }
@@ -1429,8 +1430,8 @@ namespace Versionr
                 Database.BeginTransaction();
                 try
                 {
-                    Database.Insert(head);
-                    Database.Insert(branch);
+                    Database.InsertSafe(head);
+                    Database.InsertSafe(branch);
                     Database.Commit();
                     Printer.PrintDiagnostics("Finished.");
                 }
@@ -1439,7 +1440,7 @@ namespace Versionr
                     Database.Rollback();
                     throw new Exception("Couldn't branch!", e);
                 }
-                LocalData.Update(ws);
+                LocalData.UpdateSafe(ws);
                 LocalData.Commit();
             }
             catch (Exception e)
@@ -2019,20 +2020,20 @@ namespace Versionr
                         Printer.PrintDiagnostics("Creating new snapshot.");
                     }
                     Database.BeginTransaction();
-                    Database.Insert(ss);
+                    Database.InsertSafe(ss);
                     if (saveSnapshot)
                         vs.Snapshot = ss.Id;
                     vs.AlterationList = ss.Id;
                     Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
                     foreach (var x in canonicalNameInsertions)
                     {
-                        Database.Insert(x.Item2);
+                        Database.InsertSafe(x.Item2);
                         x.Item1.CanonicalNameId = x.Item2.Id;
                     }
                     foreach (var x in records)
                     {
-                        Database.Insert(x);
-                        Database.Insert(new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false });
+                        Database.InsertSafe(x);
+                        Database.InsertSafe(new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false });
                     }
                     foreach (var x in alterationLinkages)
                         x.Item2.NewRecord = x.Item1.Id;
@@ -2051,24 +2052,24 @@ namespace Versionr
                     foreach (var x in alterations)
                     {
                         x.Owner = ss.Id;
-                        Database.Insert(x);
+                        Database.InsertSafe(x);
                     }
                     if (mergeInfo != null)
-                        Database.Insert(mergeInfo);
+                        Database.InsertSafe(mergeInfo);
                     if (saveSnapshot)
                     {
                         Printer.PrintDiagnostics("Adding {0} snapshot ref records.", ssRefs.Count);
                         foreach (var x in ssRefs)
-                            Database.Insert(x);
+                            Database.InsertSafe(x);
                     }
                     if (newHead)
-                        Database.Insert(head);
+                        Database.InsertSafe(head);
                     else
-                        Database.Update(head);
+                        Database.UpdateSafe(head);
 
                     if (mergeHead != null)
-                        Database.Delete(mergeHead);
-                    Database.Insert(vs);
+                        Database.DeleteSafe(mergeHead);
+                    Database.InsertSafe(vs);
                     
                     Database.Commit();
                     Printer.PrintDiagnostics("Finished.");
@@ -2076,7 +2077,7 @@ namespace Versionr
                     LocalData.BeginTransaction();
                     try
                     {
-                        LocalData.Update(ws);
+                        LocalData.UpdateSafe(ws);
                         LocalData.Commit();
                     }
                     catch

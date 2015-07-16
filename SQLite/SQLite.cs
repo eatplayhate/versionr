@@ -174,6 +174,22 @@ namespace SQLite
             }
         }
 
+        public bool EnableReadUncommitted
+        {
+            set
+            {
+                if (value)
+                    SQLite3.Exec(Handle, "PRAGMA read_uncommitted=TRUE;", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                else
+                    SQLite3.Exec(Handle, "PRAGMA read_uncommitted=FALSE;", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            }
+        }
+
+        public void ExecuteDirect(string command)
+        {
+            SQLite3.Exec(Handle, command, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        }
+
 		/// <summary>
 		/// Constructs a new SQLiteConnection and opens a SQLite database specified by databasePath.
 		/// </summary>
