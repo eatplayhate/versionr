@@ -53,6 +53,21 @@ namespace Versionr
                     return FilesystemEntry != null ? FilesystemEntry.IsDirectory : VersionControlRecord.IsDirectory;
                 }
             }
+
+            public bool DataEquals(Record x)
+            {
+                if (FilesystemEntry != null)
+                    return FilesystemEntry.DataEquals(x.Fingerprint, x.Size);
+                return false;
+            }
+
+            public bool Removed
+            {
+                get
+                {
+                    return FilesystemEntry == null;
+                }
+            }
         }
         public List<Objects.Record> VersionControlRecords { get; set; }
         public List<Objects.Record> BaseRecords { get; set; }

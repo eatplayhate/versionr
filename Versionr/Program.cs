@@ -129,6 +129,8 @@ namespace Versionr
 		public Commands.RevertVerbOptions RevertVerb { get; set; }
 		[VerbOption("unrecord", HelpText = "Removes a file from inclusion in the next commit (undoes 'record')")]
 		public Commands.RevertVerbOptions UnrecordVerb { get; set; }
+		[VerbOption("update", HelpText = "Updates the current version to the head version of the current branch.")]
+		public Commands.UpdateVerbOptions UpdateVerb { get; set; }
 
 		[HelpOption]
         public string GetUsage()
@@ -197,6 +199,8 @@ namespace Versionr
 				return RevertVerb.GetUsage();
 			else if (verb == "unrecord")
 				return UnrecordVerb.GetUsage();
+			else if (verb == "update")
+				return UpdateVerb.GetUsage();
 			return GetUsage();
         }
     }
@@ -248,8 +252,9 @@ namespace Versionr
 			commands["diff"] = new Commands.Diff();
 			commands["revert"] = new Commands.Revert();
 			commands["unrecord"] = new Commands.Unrecord();
+            commands["update"] = new Commands.Update();
 
-			Commands.BaseCommand command = null;
+            Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
                 System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);

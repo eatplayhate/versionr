@@ -1076,70 +1076,92 @@ namespace Versionr
             return v;
         }
 
-        public void Merge(string v, bool force)
+        public void Merge(string v, bool updateMode, bool force)
         {
-            foreach (var x in LocalData.StageOperations)
-            {
-                if (x.Type == StageOperationType.Merge)
-                {
-                    throw new Exception("Please commit data before merging again.");
-                }
-            }
-
-			if (!force)
-			{
-				var status = Status;
-				if (status.HasModifications(false))
-				{
-					Printer.PrintMessage("Repository is not clean!");
-					Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
-					return;
-				}
-			}
-
-			var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
             Objects.Version mergeVersion = null;
-            if (possibleBranch != null)
+            Objects.Version parentVersion = null;
+            Versionr.Status status = Status;
+            if (!updateMode)
             {
-                Head head = GetBranchHead(possibleBranch);
-                mergeVersion = Database.Find<Objects.Version>(head.Version);
+                foreach (var x in LocalData.StageOperations)
+                {
+                    if (x.Type == StageOperationType.Merge)
+                    {
+                        throw new Exception("Please commit data before merging again.");
+                    }
+                }
+
+                if (!force)
+                {
+                    if (status.HasModifications(false))
+                    {
+                        Printer.PrintMessage("Repository is not clean!");
+                        Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
+                        return;
+                    }
+                }
+
+                var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
+                if (possibleBranch != null)
+                {
+                    Head head = GetBranchHead(possibleBranch);
+                    mergeVersion = Database.Find<Objects.Version>(head.Version);
+                }
+                else
+                    mergeVersion = GetPartialVersion(v);
+                if (mergeVersion == null)
+                    throw new Exception("Couldn't find version to merge from!");
+                Objects.Version parent = GetCommonParent(Database.Version, mergeVersion);
+                if (parent == null)
+                    throw new Exception("No common parent!");
+
+                if (parent.ID == mergeVersion.ID)
+                {
+                    Printer.PrintMessage("Merge information is already up to date.");
+                    return;
+                }
+                parentVersion = parent;
+
+                Printer.PrintMessage("Starting merge:");
+                Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
+                Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
+                Printer.PrintMessage(" - Parent: {0}", parentVersion.ID);
             }
             else
-                mergeVersion = GetPartialVersion(v);
-            if (mergeVersion == null)
-                throw new Exception("Couldn't find version to merge from!");
-            Objects.Version parent = GetCommonParent(Database.Version, mergeVersion);
-            if (parent == null)
-                throw new Exception("No common parent!");
-
-            if (parent.ID == mergeVersion.ID)
             {
-                Printer.PrintMessage("Merge information is already up to date.");
-                return;
+                parentVersion = Version;
+                mergeVersion = GetVersion(GetBranchHead(CurrentBranch).Version);
+                if (mergeVersion.ID == parentVersion.ID)
+                {
+                    Printer.PrintMessage("Already up-to-date.");
+                    return;
+                }
+
+                Printer.PrintMessage("Updating current vault:");
+                Printer.PrintMessage(" - Old version: {0}", parentVersion.ID);
+                Printer.PrintMessage(" - New version: {0}", mergeVersion.ID);
             }
-
-            Printer.PrintMessage("Starting merge:");
-            Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
-            Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
-            Printer.PrintMessage(" - Parent: {0}", parent.ID);
-
-            var records = Database.Records;
+            
             var foreignRecords = Database.GetRecords(mergeVersion);
-            var parentRecords = Database.GetRecords(parent);
+            var parentRecords = Database.GetRecords(parentVersion);
 
             foreach (var x in foreignRecords)
             {
                 Objects.Record parentRecord = parentRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Status.StatusEntry localObject = null;
+                status.Map.TryGetValue(x.CanonicalName, out localObject);
 
-                if (localRecord == null)
+                if (localObject == null || localObject.Removed)
                 {
                     if (parentRecord == null)
                     {
                         // Added
                         RestoreRecord(x);
-						LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                        LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                        if (!updateMode)
+                        {
+                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                        }
                     }
                     else
                     {
@@ -1151,27 +1173,31 @@ namespace Versionr
                         else
                         {
                             // less fine
-                            Printer.PrintWarning("Object \"{0}\" removed locally but present in merge source.", x.CanonicalName);
+                            Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
                             RestoreRecord(x);
                             LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            if (!updateMode)
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
                     }
                 }
                 else
                 {
-                    if (localRecord.DataEquals(x))
+                    if (localObject.DataEquals(x))
                     {
                         // all good, same data in both places
                     }
                     else
                     {
-                        if (parentRecord != null && localRecord.DataEquals(parentRecord))
+                        if (parentRecord != null && localObject.DataEquals(parentRecord))
                         {
                             // modified in foreign branch
                             RestoreRecord(x);
-							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            if (!updateMode)
+                            {
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            }
                         }
                         else if (parentRecord != null && parentRecord.DataEquals(x))
                         {
@@ -1258,16 +1284,17 @@ namespace Versionr
             foreach (var x in parentRecords)
             {
                 Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Status.StatusEntry localObject = null;
+                status.Map.TryGetValue(x.CanonicalName, out localObject);
                 if (foreignRecord == null)
                 {
                     // deleted by branch
-                    if (localRecord != null)
+                    if (localObject != null && !localObject.Removed)
                     {
 						string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
-						if (localRecord.DataEquals(x))
+						if (localObject.DataEquals(x))
                         {
-							Printer.PrintMessage("Removeing {0}", x.CanonicalName);
+							Printer.PrintMessage("Removing {0}", x.CanonicalName);
 							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
 							System.IO.File.Delete(path);
                         }
@@ -1289,7 +1316,24 @@ namespace Versionr
                     }
                 }
             }
-            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
+            if (!updateMode)
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
+            else
+            {
+                LocalData.BeginTransaction();
+                try
+                {
+                    var ws = LocalData.Workspace;
+                    ws.Tip = mergeVersion.ID;
+                    LocalData.Update(ws);
+                    LocalData.Commit();
+                    Printer.PrintMessage("Updated - at version {0}", mergeVersion.ID);
+                }
+                catch
+                {
+                    LocalData.Rollback();
+                }
+            }
         }
 
         private Objects.Version GetCommonParent(Objects.Version version, Objects.Version mergeVersion)

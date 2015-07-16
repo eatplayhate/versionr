@@ -211,7 +211,7 @@ namespace Versionr.Network
             }
         }
 
-        public bool Pull(bool pullRemoteObjects, string branchName = null)
+        public bool Pull(bool pullRemoteObjects, string branchName)
         {
             if (Workspace == null)
                 return false;

@@ -64,6 +64,7 @@
     <Compile Include="Commands\Status.cs" />
     <Compile Include="Commands\SyncRecords.cs" />
     <Compile Include="Commands\Unrecord.cs" />
+    <Compile Include="Commands\Update.cs" />
     <Compile Include="Commands\ViewDAG.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

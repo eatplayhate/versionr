@@ -55,6 +55,11 @@ namespace Versionr
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
         }
 
+        internal bool DataEquals(string fingerprint, long size)
+        {
+            return Length == size && Hash == fingerprint;
+        }
+
         public Entry(Area area, Entry parent, FileInfo info, string canonicalName, bool ignored)
         {
             Parent = parent;

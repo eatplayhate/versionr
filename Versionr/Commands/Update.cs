@@ -7,8 +7,16 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class MergeVerbOptions : VerbOptionBase
+    class UpdateVerbOptions : VerbOptionBase
     {
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("Usage: versionr {0}", Verb);
+            }
+        }
+
         public override string[] Description
         {
             get
@@ -24,27 +32,20 @@ namespace Versionr.Commands
         {
             get
             {
-                return "merge";
+                return "update";
             }
         }
-
-		[Option('f', "force", HelpText = "Force the merge even if the repository isn't clean" )]
-		public bool Force { get; set; }
-
-        [ValueList(typeof(List<string>))]
-        public IList<string> Target { get; set; }
     }
-    class Merge : BaseCommand
+    class Update : BaseCommand
     {
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
-            MergeVerbOptions localOptions = options as MergeVerbOptions;
+            BranchVerbOptions localOptions = options as BranchVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            foreach (var x in localOptions.Target)
-                ws.Merge(x, localOptions.Force, false);
+            ws.Merge(ws.CurrentBranch.ID.ToString(), true, false);
             return true;
         }
     }

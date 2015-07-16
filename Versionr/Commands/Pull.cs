@@ -32,13 +32,25 @@ namespace Versionr.Commands
         public string RemoteBranch { get; set; }
         [Option('o', "objects", DefaultValue = true, HelpText = "Retreive remote object payloads as well as metadata.")]
         public bool PullObjects { get; set; }
+        [Option('u', "update", DefaultValue = false, HelpText = "Update the local revision after pulling data.")]
+        public bool Update { get; set; }
     }
     class Pull : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PullVerbOptions localOptions = options as PullVerbOptions;
-            return client.Pull(localOptions.PullObjects, localOptions.RemoteBranch);
+            if (localOptions.RemoteBranch == null)
+            {
+                localOptions.RemoteBranch = client.Workspace.CurrentBranch.Name;
+            }
+            if (!client.Pull(localOptions.PullObjects, localOptions.RemoteBranch))
+                return false;
+            if (localOptions.Update)
+            {
+                client.Workspace.Merge(localOptions.RemoteBranch, true, true);
+            }
+            return true;
         }
 
         protected override bool UpdateRemoteTimestamp
