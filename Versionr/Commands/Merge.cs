@@ -44,7 +44,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             foreach (var x in localOptions.Target)
-                ws.Merge(x, localOptions.Force, false);
+                ws.Merge(x, false, localOptions.Force);
             return true;
         }
     }
