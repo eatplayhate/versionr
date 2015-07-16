@@ -12,7 +12,12 @@ namespace Versionr.Network
         {
             None,
             LZ4,
-            LZH
+            LZH,
+        }
+        public enum ChecksumCodec
+        {
+            None,
+            XXHash,
         }
         [ProtoBuf.ProtoContract]
         public class Packet
@@ -26,36 +31,40 @@ namespace Versionr.Network
             [ProtoBuf.ProtoMember(4)]
             public uint Hash { get; set; }
             [ProtoBuf.ProtoMember(5)]
-            public PacketCompressionCodec Codec { get; set; }
-        }
-        public static uint ComputeAdler32(byte[] array)
-        {
-            uint checksum = 1;
-            int n;
-            uint s1 = checksum & 0xFFFF;
-            uint s2 = checksum >> 16;
+            public uint Codec { get; set; }
 
-            int size = array.Length;
-            int index = 0;
-            while (size > 0)
+            [ProtoBuf.ProtoIgnore]
+            public ChecksumCodec Checksum
             {
-                n = (3800 > size) ? size : 3800;
-                size -= n;
-
-                while (--n >= 0)
+                get
                 {
-                    s1 = s1 + (uint)(array[index++] & 0xFF);
-                    s2 = s2 + s1;
+                    return (ChecksumCodec)(Codec >> 16);
                 }
-
-                s1 %= 65521;
-                s2 %= 65521;
+                set
+                {
+                    Codec = ((uint)value << 16) | (Codec & 0xFFFF);
+                }
             }
 
-            checksum = (s2 << 16) | s1;
-
-            return checksum;
+            [ProtoBuf.ProtoIgnore]
+            public PacketCompressionCodec Compression
+            {
+                get
+                {
+                    return (PacketCompressionCodec)(Codec & 0xFFFF);
+                }
+                set
+                {
+                    Codec = ((uint)value) | (Codec & 0xFFFF0000);
+                }
+            }
         }
+
+        public static uint ComputeChecksum(byte[] array)
+        {
+            return xxHashSharp.xxHash.CalculateHash(array);
+        }
+
         internal static Dictionary<Type, bool> s_Compressible = new Dictionary<Type, bool>();
         internal static bool IsCompressible(Type t)
         {
@@ -79,7 +88,7 @@ namespace Versionr.Network
                 result = memoryStream.ToArray();
             }
 
-            uint checksum = ComputeAdler32(result);
+            uint checksum = ComputeChecksum(result);
             int? decompressedSize = null;
             byte[] compressedBuffer = null;
             PacketCompressionCodec codec = PacketCompressionCodec.None;
@@ -118,7 +127,8 @@ namespace Versionr.Network
                 Data = result,
                 PayloadSize = payload,
                 Hash = checksum,
-                Codec = codec
+                Compression = codec,
+                Checksum = ChecksumCodec.XXHash
             };
 
             ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(info.Stream, packet, ProtoBuf.PrefixStyle.Fixed32);
@@ -137,7 +147,7 @@ namespace Versionr.Network
             
             if (packet.DecompressedSize.HasValue)
             {
-                switch (packet.Codec)
+                switch (packet.Compression)
                 {
                     case PacketCompressionCodec.None:
                         break;
@@ -156,9 +166,14 @@ namespace Versionr.Network
                 Printer.PrintDiagnostics(" - {0} bytes decompressed ({1})", packet.DecompressedSize.Value, packet.Codec);
             }
 
-            uint checksum = ComputeAdler32(decryptedData);
-            if (checksum != packet.Hash)
-                throw new Exception("Data did not survive the trip!");
+            if (packet.Checksum != ChecksumCodec.None)
+            {
+                uint checksum = 0;
+                if (packet.Checksum == ChecksumCodec.XXHash)
+                    checksum = ComputeChecksum(decryptedData);
+                if (checksum != packet.Hash)
+                    throw new Exception("Data did not survive the trip!");
+            }
 
             using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(decryptedData))
             {

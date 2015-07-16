@@ -203,6 +203,7 @@ namespace Versionr.Network
         {
             try
             {
+                byte[] tempBuffer = new byte[16 * 1024 * 1024];
                 if (versionsToSend.Count == 0)
                 {
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
@@ -242,36 +243,16 @@ namespace Versionr.Network
                     else if (command.Type == NetCommandType.RequestRecord)
                     {
                         var rrd = Utilities.ReceiveEncrypted<RequestRecordData>(sharedInfo);
-                        List<byte> datablock = new List<byte>();
-                        Func<IEnumerable<byte>, bool, bool> sender = (IEnumerable<byte> data, bool flush) =>
-                        {
-                            datablock.AddRange(data);
-                            int blockSize = 1024 * 1024;
-                            while (datablock.Count > blockSize)
-                            {
-                                DataPayload dataPack = new DataPayload() { Data = datablock.Take(blockSize).ToArray(), EndOfStream = false };
-                                Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
-                                datablock.RemoveRange(0, blockSize);
-                                var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                                if (reply.Type != NetCommandType.DataReceived)
-                                    return false;
-                            }
-                            if (flush)
-                            {
-                                DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
-                                Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
-                            }
-                            return true;
-                        };
+                        Func<byte[], int, bool, bool> sender = GetSender(sharedInfo);
                         foreach (var x in rrd.Records)
                         {
                             var record = sharedInfo.Workspace.GetRecord(x);
                             Printer.PrintDiagnostics("Sending data for: {0}", record.CanonicalName);
-                            sender(BitConverter.GetBytes(x), false);
-                            if (!sharedInfo.Workspace.TransmitRecordData(record, sender))
+                            sender(BitConverter.GetBytes(x), 8, false);
+                            if (!sharedInfo.Workspace.TransmitRecordData(record, sender, tempBuffer))
                                 return false;
                         }
-                        if (!sender(new byte[0], true))
+                        if (!sender(new byte[0], 0, true))
                             return false;
 
                         var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
@@ -297,6 +278,41 @@ namespace Versionr.Network
                 Printer.PrintError("Error: {0}", e);
                 return false;
             }
+        }
+
+        private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo)
+        {
+            List<byte> datablock = new List<byte>();
+            byte[] tempBuffer = new byte[1024 * 1024];
+            return (byte[] data, int size, bool flush) =>
+            {
+                if (data.Length == size)
+                    datablock.AddRange(data);
+                else
+                {
+                    if (datablock.Capacity < datablock.Count + size)
+                        datablock.Capacity = datablock.Count + size;
+                    for (int i = 0; i < size; i++)
+                        datablock.Add(data[i]);
+                }
+                int blockSize = 1024 * 1024;
+                while (datablock.Count > blockSize)
+                {
+                    datablock.CopyTo(0, tempBuffer, 0, blockSize);
+                    DataPayload dataPack = new DataPayload() { Data = tempBuffer, EndOfStream = false };
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                    datablock.RemoveRange(0, blockSize);
+                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (reply.Type != NetCommandType.DataReceived)
+                        return false;
+                }
+                if (flush)
+                {
+                    DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                }
+                return true;
+            };
         }
 
         internal static bool ImportRecords(SharedNetworkInfo sharedInfo)
@@ -537,50 +553,31 @@ namespace Versionr.Network
         internal static bool SendRecordDataUnmapped(SharedNetworkInfo sharedInfo)
         {
             var rrd = Utilities.ReceiveEncrypted<RequestRecordDataUnmapped>(sharedInfo);
-            List<byte> datablock = new List<byte>();
-            Func<IEnumerable<byte>, bool, bool> sender = (IEnumerable<byte> data, bool flush) =>
-            {
-                datablock.AddRange(data);
-                int blockSize = 1024 * 1024;
-                while (datablock.Count > blockSize)
-                {
-                    DataPayload dataPack = new DataPayload() { Data = datablock.Take(blockSize).ToArray(), EndOfStream = false };
-                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
-                    datablock.RemoveRange(0, blockSize);
-                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                    if (reply.Type != NetCommandType.DataReceived)
-                        return false;
-                }
-                if (flush)
-                {
-                    DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
-                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
-                }
-                return true;
-            };
+            byte[] blockBuffer = new byte[16 * 1024 * 1024];
+            var sender = GetSender(sharedInfo);
             int index = 0;
             foreach (var x in rrd.RecordDataKeys)
             {
-                sender(BitConverter.GetBytes(index), false);
+                sender(BitConverter.GetBytes(index), 4, false);
                 index++;
                 Objects.Record record = sharedInfo.Workspace.GetRecordFromIdentifier(x);
                 if (record == null)
                 {
                     int failure = 0;
-                    sender(BitConverter.GetBytes(failure), false);
+                    sender(BitConverter.GetBytes(failure), 4, false);
                     Printer.PrintDiagnostics("Record with identifier {0} not stored on this vault.", x);
                 }
                 else
                 {
                     int success = 1;
-                    sender(BitConverter.GetBytes(success), false);
+                    sender(BitConverter.GetBytes(success), 4, false);
                     Printer.PrintDiagnostics("Sending data for: {0}", record.Fingerprint);
 
-                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender))
+                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender, blockBuffer))
                         return false;
                 }
             }
-            if (!sender(new byte[0], true))
+            if (!sender(new byte[0], 0, true))
                 return false;
 
             var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);

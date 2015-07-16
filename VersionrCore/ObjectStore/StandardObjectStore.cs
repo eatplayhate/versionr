@@ -580,27 +580,24 @@ namespace Versionr.ObjectStore
             throw new Exception();
         }
 
-        public override bool TransmitRecordData(Record record, Func<IEnumerable<byte>, bool, bool> sender)
+        public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
         {
             if (!record.HasData)
             {
                 return true;
             }
-            sender(BitConverter.GetBytes(GetTransmissionLength(record)), false);
+            sender(BitConverter.GetBytes(GetTransmissionLength(record)), 8, false);
             using (System.IO.Stream dataStream = GetDataStream(record))
             {
                 if (dataStream == null)
                     return false;
-
-                byte[] buffer = new byte[1024 * 1024 * 16];
+                
                 while (true)
                 {
-                    var readCount = dataStream.Read(buffer, 0, buffer.Length);
+                    var readCount = dataStream.Read(scratchBuffer, 0, scratchBuffer.Length);
                     if (readCount == 0)
                         break;
-                    if (buffer.Length != readCount)
-                        Array.Resize(ref buffer, readCount);
-                    sender(buffer, false);
+                    sender(scratchBuffer, readCount, false);
                 }
             }
             return true;
