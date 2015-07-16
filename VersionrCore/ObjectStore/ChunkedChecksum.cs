@@ -307,7 +307,7 @@ namespace Versionr.ObjectStore
             return result;
         }
 
-        private static uint FastHash(byte[] block, int size)
+        public static uint FastHash(byte[] block, int size)
         {
             ushort a = 1;
             ushort b = 0;

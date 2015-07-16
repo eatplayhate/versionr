@@ -290,10 +290,7 @@ namespace Versionr.Network
                     datablock.AddRange(data);
                 else
                 {
-                    if (datablock.Capacity < datablock.Count + size)
-                        datablock.Capacity = datablock.Count + size;
-                    for (int i = 0; i < size; i++)
-                        datablock.Add(data[i]);
+                    datablock.AddRange(data.Take(size));
                 }
                 int blockSize = 1024 * 1024;
                 while (datablock.Count > blockSize)

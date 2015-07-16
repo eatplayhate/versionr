@@ -18,6 +18,7 @@ namespace Versionr.Network
         {
             None,
             XXHash,
+            Adler32,
         }
         [ProtoBuf.ProtoContract]
         public class Packet
@@ -60,7 +61,12 @@ namespace Versionr.Network
             }
         }
 
-        public static uint ComputeChecksum(byte[] array)
+        public static uint ComputeChecksumAdler32(byte[] array)
+        {
+            return ObjectStore.ChunkedChecksum.FastHash(array, array.Length);
+        }
+
+        public static uint ComputeChecksumXXHash(byte[] array)
         {
             return xxHashSharp.xxHash.CalculateHash(array);
         }
@@ -88,7 +94,12 @@ namespace Versionr.Network
                 result = memoryStream.ToArray();
             }
 
-            uint checksum = ComputeChecksum(result);
+            ChecksumCodec ccode = ChecksumCodec.Adler32;
+            uint checksum = 0;
+            if (ccode == ChecksumCodec.XXHash)
+                checksum = ComputeChecksumXXHash(result);
+            if (ccode == ChecksumCodec.Adler32)
+                checksum = ComputeChecksumAdler32(result);
             int? decompressedSize = null;
             byte[] compressedBuffer = null;
             PacketCompressionCodec codec = PacketCompressionCodec.None;
@@ -128,7 +139,7 @@ namespace Versionr.Network
                 PayloadSize = payload,
                 Hash = checksum,
                 Compression = codec,
-                Checksum = ChecksumCodec.XXHash
+                Checksum = ccode
             };
 
             ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(info.Stream, packet, ProtoBuf.PrefixStyle.Fixed32);
@@ -163,14 +174,16 @@ namespace Versionr.Network
                         break;
                     }
                 }
-                Printer.PrintDiagnostics(" - {0} bytes decompressed ({1})", packet.DecompressedSize.Value, packet.Codec);
+                Printer.PrintDiagnostics(" - {0} bytes decompressed ({1})", packet.DecompressedSize.Value, packet.Compression);
             }
 
             if (packet.Checksum != ChecksumCodec.None)
             {
                 uint checksum = 0;
                 if (packet.Checksum == ChecksumCodec.XXHash)
-                    checksum = ComputeChecksum(decryptedData);
+                    checksum = ComputeChecksumXXHash(decryptedData);
+                if (packet.Checksum == ChecksumCodec.Adler32)
+                    checksum = ComputeChecksumAdler32(decryptedData);
                 if (checksum != packet.Hash)
                     throw new Exception("Data did not survive the trip!");
             }
