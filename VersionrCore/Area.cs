@@ -137,7 +137,7 @@ namespace Versionr
 
                 config.Host = host;
                 config.Port = port;
-                LocalData.Insert(config);
+                LocalData.InsertOrReplace(config);
 
                 Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
                 LocalData.Commit();
@@ -160,11 +160,19 @@ namespace Versionr
             return ws;
         }
 
+		public List<RemoteConfig> GetRemotes()
+		{
+			return LocalData.Query<RemoteConfig>("SELECT * FROM RemoteConfig");
+		}
         public RemoteConfig GetRemote(string name)
         {
             Printer.PrintDiagnostics("Trying to find remote with name \"{0}\"", name);
             return LocalData.Find<RemoteConfig>(x => x.Name == name);
         }
+		public void ClearRemotes()
+		{
+			LocalData.DeleteAll<RemoteConfig>();
+		}
 
         public List<Branch> Branches
         {
