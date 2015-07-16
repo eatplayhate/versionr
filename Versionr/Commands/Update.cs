@@ -40,7 +40,7 @@ namespace Versionr.Commands
     {
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
-            BranchVerbOptions localOptions = options as BranchVerbOptions;
+            UpdateVerbOptions localOptions = options as UpdateVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
