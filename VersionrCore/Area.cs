@@ -1077,11 +1077,67 @@ namespace Versionr
             return v;
         }
 
+        class TransientMergeObject
+        {
+            public Record Record { get; set; }
+            public FileInfo TemporaryFile { get; set; }
+            public string Fingerprint
+            {
+                get
+                {
+                    if (m_Fingerprint == null)
+                    {
+                        if (TemporaryFile != null)
+                        {
+                            m_Fingerprint = Entry.CheckHash(TemporaryFile);
+                        }
+                        else
+                            m_Fingerprint = Record.Fingerprint;
+                    }
+                    return m_Fingerprint;
+                }
+            }
+            public long Length
+            {
+                get
+                {
+                    if (!m_Length.HasValue)
+                    {
+                        if (TemporaryFile != null)
+                        {
+                            m_Length = TemporaryFile.Length;
+                        }
+                        else
+                            m_Length = Record.Size;
+                    }
+                    return m_Length.Value;
+                }
+            }
+            public string CanonicalName { get; set; }
+            string m_Fingerprint;
+            long? m_Length;
+
+            public bool DataEquals(Record r)
+            {
+                return r.Size == Length && Fingerprint == r.Fingerprint;
+            }
+
+            internal bool DataEquals(Status.StatusEntry localObject)
+            {
+                if (localObject.FilesystemEntry != null)
+                {
+                    return localObject.FilesystemEntry.Length == Length && localObject.FilesystemEntry.Hash == Fingerprint;
+                }
+                return false;
+            }
+        }
+
         public void Merge(string v, bool updateMode, bool force)
         {
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
             Versionr.Status status = Status;
+            List<TransientMergeObject> parentData;
             if (!updateMode)
             {
                 foreach (var x in LocalData.StageOperations)
@@ -1112,25 +1168,41 @@ namespace Versionr
                     mergeVersion = GetPartialVersion(v);
                 if (mergeVersion == null)
                     throw new Exception("Couldn't find version to merge from!");
-                Objects.Version parent = GetCommonParent(Database.Version, mergeVersion);
-                if (parent == null)
+
+                var parents = GetCommonParents(Database.Version, mergeVersion);
+                if (parents == null || parents.Count == 0)
                     throw new Exception("No common parent!");
 
-                if (parent.ID == mergeVersion.ID)
+                Objects.Version parent = null;
+                if (parents.Count == 1)
                 {
-                    Printer.PrintMessage("Merge information is already up to date.");
-                    return;
+                    parent = GetVersion(parents[0].Key);
+                    if (parent.ID == mergeVersion.ID)
+                    {
+                        Printer.PrintMessage("Merge information is already up to date.");
+                        return;
+                    }
+                    Printer.PrintMessage("Starting merge:");
+                    Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
+                    Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
+                    Printer.PrintMessage(" - Parent: {0}", parent.ID);
+                    parentData = Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
-                parentVersion = parent;
-
-                Printer.PrintMessage("Starting merge:");
-                Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
-                Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
-                Printer.PrintMessage(" - Parent: {0}", parentVersion.ID);
+                else if (parents.Count == 2)
+                {
+                    // recursive merge
+                    parentData = MergeCoreRecursive(GetVersion(parents[0].Key), GetVersion(parents[1].Key));
+                }
+                else
+                {
+                    // complicated recursive merge
+                    throw new Exception();
+                }
             }
             else
             {
                 parentVersion = Version;
+                parentData = Database.GetRecords(parentVersion).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 mergeVersion = GetVersion(GetBranchHead(CurrentBranch).Version);
                 if (mergeVersion.ID == parentVersion.ID)
                 {
@@ -1144,17 +1216,16 @@ namespace Versionr
             }
             
             var foreignRecords = Database.GetRecords(mergeVersion);
-            var parentRecords = Database.GetRecords(parentVersion);
 
             foreach (var x in foreignRecords)
             {
-                Objects.Record parentRecord = parentRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                var parentObject = parentData.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
                 Status.StatusEntry localObject = null;
                 status.Map.TryGetValue(x.CanonicalName, out localObject);
 
                 if (localObject == null || localObject.Removed)
                 {
-                    if (parentRecord == null)
+                    if (parentObject == null)
                     {
                         // Added
                         RestoreRecord(x);
@@ -1167,7 +1238,7 @@ namespace Versionr
                     else
                     {
                         // Removed locally
-                        if (parentRecord.DataEquals(x))
+                        if (parentObject.DataEquals(x))
                         {
                             // this is fine, we removed it in our branch
                         }
@@ -1190,7 +1261,7 @@ namespace Versionr
                     }
                     else
                     {
-                        if (parentRecord != null && localObject.DataEquals(parentRecord))
+                        if (parentObject != null && parentObject.DataEquals(localObject))
                         {
                             // modified in foreign branch
                             RestoreRecord(x);
@@ -1200,90 +1271,81 @@ namespace Versionr
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                         }
-                        else if (parentRecord != null && parentRecord.DataEquals(x))
+                        else if (parentObject != null && parentObject.DataEquals(x))
                         {
                             // modified locally
                         }
-                        else if (parentRecord == null)
+                        else if (parentObject == null)
                         {
-                            Printer.PrintMessage("Merging {0}", x.CanonicalName);
                             // added in both places
-                            string mf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
-                            string ml = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
-                            string mr = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
+                            var mf = GetTemporaryFile(x);
+                            var ml = localObject.FilesystemEntry.Info;
+                            var mr = GetTemporaryFile(x);
                             
-                            RestoreRecord(x, mf);
+                            RestoreRecord(x, mf.FullName);
 
-							if (Utilities.DiffTool.Merge(ml, mf, mr))
+                            FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true);
+                            if (result != null)
                             {
-                                System.IO.File.Delete(ml);
-                                System.IO.File.Move(mr, ml);
-                                Printer.PrintMessage(" - Resolved.");
-                                System.IO.File.Delete(mf);
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                if (result != ml)
+                                    ml.Delete();
+                                if (result != mr)
+                                    mr.Delete();
+                                if (result != mf)
+                                    mf.Delete();
+                                result.MoveTo(ml.FullName);
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                             else
                             {
-                                System.IO.File.Move(ml, ml + ".mine");
-                                System.IO.File.Move(mf, ml + ".theirs");
-                                Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                                mr.Delete();
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
 								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 							}
 						}
                         else
                         {
-                            Printer.PrintMessage("Merging {0}", x.CanonicalName);
-                            // modified in both places
-                            string mf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
-                            string mb = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
-                            string ml = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
-                            string mr = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
+                            var mf = GetTemporaryFile(x);
+                            FileInfo mb;
+                            var ml = localObject.FilesystemEntry.Info;
+                            var mr = GetTemporaryFile(x);
 
-                            RestoreRecord(parentRecord, mb);
-                            RestoreRecord(x, mf);
-
-							if (Utilities.DiffTool.Merge3Way(mb, ml, mf, mr))
+                            if (parentObject.TemporaryFile == null)
                             {
-                                System.IO.File.Delete(ml);
-                                System.IO.File.Move(mr, ml);
-                                Printer.PrintMessage(" - Resolved.");
-                                System.IO.File.Delete(mf);
-                                System.IO.File.Delete(mb);
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                mb = GetTemporaryFile(parentObject.Record);
+                                RestoreRecord(parentObject.Record, mb.FullName);
+                            }
+                            else
+                                mb = parentObject.TemporaryFile;
+                            
+                            RestoreRecord(x, mf.FullName);
+
+                            FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true);
+                            if (result != null)
+                            {
+                                if (result != ml)
+                                    ml.Delete();
+                                if (result != mr)
+                                    mr.Delete();
+                                if (result != mf)
+                                    mf.Delete();
+                                if (result != mb)
+                                    mb.Delete();
+                                result.MoveTo(ml.FullName);
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                             else
                             {
-                                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
-                                string resolution = System.Console.ReadLine();
-                                if (resolution.StartsWith("m"))
-                                {
-                                    // no op
-                                }
-                                if (resolution.StartsWith("t"))
-                                {
-                                    System.IO.File.Delete(ml);
-                                    System.IO.File.Move(mf, ml);
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-								}
-								if (resolution.StartsWith("c"))
-                                {
-                                    System.IO.File.Move(ml, ml + ".mine");
-                                    System.IO.File.Move(mf, ml + ".theirs");
-                                    System.IO.File.Move(mb, ml + ".base");
-                                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-								}
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 							}
                         }
                     }
                 }
             }
-            foreach (var x in parentRecords)
+            foreach (var x in parentData)
             {
                 Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
                 Status.StatusEntry localObject = null;
@@ -1294,7 +1356,7 @@ namespace Versionr
                     if (localObject != null && !localObject.Removed)
                     {
 						string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
-						if (localObject.DataEquals(x))
+						if (x.DataEquals(localObject))
                         {
 							Printer.PrintMessage("Removing {0}", x.CanonicalName);
 							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
@@ -1318,6 +1380,11 @@ namespace Versionr
                     }
                 }
             }
+            foreach (var x in parentData)
+            {
+                if (x.TemporaryFile != null)
+                    x.TemporaryFile.Delete();
+            }
             if (!updateMode)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
             else
@@ -1338,14 +1405,323 @@ namespace Versionr
             }
         }
 
-        private Objects.Version GetCommonParent(Objects.Version version, Objects.Version mergeVersion)
+        class MergeResult
+        {
+            public List<TransientMergeObject> Contents { get; set; }
+            public List<Objects.Version> Inputs { get; set; }
+        }
+
+        private List<TransientMergeObject> MergeCoreRecursive(Objects.Version v1, Objects.Version v2)
+        {
+            var parents = GetCommonParents(v1, v2);
+            if (parents == null || parents.Count == 0)
+                throw new Exception("No common parent!");
+
+            List<TransientMergeObject> parentData = null;
+
+            Objects.Version parent = null;
+            if (parents.Count == 1)
+            {
+                parent = GetVersion(parents[0].Key);
+                if (parent.ID == v1.ID || parent.ID == v2.ID)
+                {
+                    Printer.PrintMessage("Merge information is already up to date.");
+                    throw new Exception();
+                }
+                Printer.PrintMessage("Starting recursive merge:");
+                Printer.PrintMessage(" - Left: {0}", v1.ID);
+                Printer.PrintMessage(" - Right: {0}", v2.ID);
+                Printer.PrintMessage(" - Parent: {0}", parent.ID);
+                parentData = Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
+            }
+            else if (parents.Count == 2)
+            {
+                // recursive merge
+                parentData = MergeCoreRecursive(GetVersion(parents[0].Key), GetVersion(parents[1].Key));
+            }
+            else
+            {
+                // complicated recursive merge
+                throw new Exception();
+            }
+
+            var localRecords = Database.GetRecords(v1);
+            var foreignRecords = Database.GetRecords(v2);
+
+            List<TransientMergeObject> results = new List<TransientMergeObject>();
+
+            foreach (var x in foreignRecords)
+            {
+                var parentObject = parentData.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                var localRecord = localRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+
+                if (localRecord == null)
+                {
+                    if (parentObject == null)
+                    {
+                        var transientResult = new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName };
+                        if (x.HasData)
+                        {
+                            transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
+                            RestoreRecord(x, transientResult.TemporaryFile.FullName);
+                        }
+                        results.Add(transientResult);
+                    }
+                    else
+                    {
+                        // Removed locally
+                        if (parentObject.DataEquals(x))
+                        {
+                            // this is fine, we removed it in our branch
+                        }
+                        else
+                        {
+                            throw new Exception();
+                        }
+                    }
+                }
+                else
+                {
+                    if (localRecord.DataEquals(x))
+                    {
+                        var transientResult = new TransientMergeObject() { Record = localRecord, CanonicalName = x.CanonicalName };
+                        results.Add(transientResult);
+                    }
+                    else
+                    {
+                        if (parentObject != null && parentObject.DataEquals(localRecord))
+                        {
+                            // modified in foreign branch
+                            var transientResult = new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName };
+                            if (x.HasData)
+                            {
+                                transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
+                                RestoreRecord(x, transientResult.TemporaryFile.FullName);
+                            }
+                            results.Add(transientResult);
+                        }
+                        else if (parentObject != null && parentObject.DataEquals(x))
+                        {
+                            // modified locally
+                            var transientResult = new TransientMergeObject() { Record = localRecord, CanonicalName = x.CanonicalName };
+                            results.Add(transientResult);
+                        }
+                        else if (parentObject == null)
+                        {
+                            var transientResult = new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName };
+                            transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
+
+                            var foreign = GetTemporaryFile(x);
+                            var local = GetTemporaryFile(localRecord);
+
+                            RestoreRecord(x, foreign.FullName);
+                            RestoreRecord(localRecord, local.FullName);
+
+                            FileInfo info = Merge2Way(x, foreign, localRecord, local, transientResult.TemporaryFile, false);
+                            if (info != transientResult.TemporaryFile)
+                            {
+                                transientResult.TemporaryFile.Delete();
+                                System.IO.File.Move(info.FullName, transientResult.TemporaryFile.FullName);
+                            }
+                            foreign.Delete();
+                            local.Delete();
+                        }
+                        else
+                        {
+                            var transientResult = new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName };
+                            transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
+
+                            var foreign = GetTemporaryFile(x);
+                            var local = GetTemporaryFile(localRecord);
+                            FileInfo parentFile = null;
+                            if (parentObject.TemporaryFile == null)
+                            {
+                                parentFile = GetTemporaryFile(parentObject.Record);
+                                RestoreRecord(parentObject.Record, parentFile.FullName);
+                            }
+                            else
+                                parentFile = parentObject.TemporaryFile;
+
+                            RestoreRecord(x, foreign.FullName);
+                            RestoreRecord(localRecord, local.FullName);
+
+                            FileInfo info = Merge3Way(x, foreign, localRecord, local, parentObject.Record, parentFile, transientResult.TemporaryFile, false);
+                            if (info != transientResult.TemporaryFile)
+                            {
+                                transientResult.TemporaryFile.Delete();
+                                System.IO.File.Move(info.FullName, transientResult.TemporaryFile.FullName);
+                            }
+                            foreign.Delete();
+                            local.Delete();
+                            if (parentObject.TemporaryFile == null)
+                                parentFile.Delete();
+                        }
+                    }
+                }
+            }
+            foreach (var x in parentData)
+            {
+                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                var localRecord = localRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                if (foreignRecord == null)
+                {
+                    // deleted by branch
+                    if (localRecord != null)
+                    {
+                        string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
+                        if (x.DataEquals(localRecord))
+                        {
+                            Printer.PrintMessage("Removing {0}", x.CanonicalName);
+                        }
+                        else
+                        {
+                            Printer.PrintError("Can't remove object \"{0}\", tree confict!", x.CanonicalName);
+                            Printer.PrintMessage("Resolve conflict by: (r)emoving file, (k)eeping local or (c)onflict?");
+                            string resolution = System.Console.ReadLine();
+                            if (resolution.StartsWith("k"))
+                            {
+                                var transientResult = new TransientMergeObject() { Record = localRecord, CanonicalName = localRecord.CanonicalName };
+                                results.Add(transientResult);
+                            }
+                            if (resolution.StartsWith("r"))
+                            {
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
+                                System.IO.File.Delete(path);
+                            }
+                            if (resolution.StartsWith("c"))
+                                throw new Exception();
+                        }
+                    }
+                }
+            }
+            foreach (var x in parentData)
+            {
+                if (x.TemporaryFile != null)
+                    x.TemporaryFile.Delete();
+            }
+            return results;
+        }
+
+        private FileInfo Merge3Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, Record record, FileInfo parentFile, FileInfo temporaryFile, bool allowConflict)
+        {
+            Printer.PrintMessage("Merging {0}", x.CanonicalName);
+            // modified in both places
+            string mf = foreign.FullName;
+            string mb = parentFile.FullName;
+            string ml = local.FullName;
+            string mr = temporaryFile.FullName;
+
+            if (Utilities.DiffTool.Merge3Way(mb, ml, mf, mr))
+            {
+                Printer.PrintMessage(" - Resolved.");
+                return temporaryFile;
+            }
+            else
+            {
+                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("m"))
+                {
+                    return local;
+                }
+                if (resolution.StartsWith("t"))
+                {
+                    return foreign;
+                }
+                else
+                {
+                    if (!allowConflict)
+                        throw new Exception();
+                    System.IO.File.Move(ml, ml + ".mine");
+                    System.IO.File.Move(mf, ml + ".theirs");
+                    System.IO.File.Move(mb, ml + ".base");
+                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                    return null;
+                }
+            }
+        }
+
+        private FileInfo Merge2Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, FileInfo temporaryFile, bool allowConflict)
+        {
+            Printer.PrintMessage("Merging {0}", x.CanonicalName);
+            string mf = foreign.FullName;
+            string ml = local.FullName;
+            string mr = temporaryFile.FullName;
+
+            if (Utilities.DiffTool.Merge(ml, mf, mr))
+            {
+                Printer.PrintMessage(" - Resolved.");
+                return temporaryFile;
+            }
+            else
+            {
+                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("m"))
+                {
+                    return local;
+                }
+                if (resolution.StartsWith("t"))
+                {
+                    return foreign;
+                }
+                else
+                {
+                    if (!allowConflict)
+                        throw new Exception();
+                    System.IO.File.Move(ml, ml + ".mine");
+                    System.IO.File.Move(mf, ml + ".theirs");
+                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                    return null;
+                }
+            }
+        }
+
+        System.Random Randomizer = new System.Random();
+        private FileInfo GetTemporaryFile(Record rec)
+        {
+            DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "temp"));
+            info.Create();
+            lock (this)
+            {
+                while (true)
+                {
+                    string fn = rec.Name + Randomizer.Next().ToString() + ".tmp";
+                    var x = new FileInfo(Path.Combine(info.FullName, fn));
+                    if (!x.Exists)
+                    {
+                        using (var t = x.Create())
+                        {
+
+                        }
+                        return x;
+                    }
+                }
+            }
+        }
+
+        private List<KeyValuePair<Guid, int>> GetCommonParents(Objects.Version version, Objects.Version mergeVersion)
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion);
             Dictionary<Guid, int> localGraph = GetParentGraph(version);
             var shared = new List<KeyValuePair<Guid, int>>(foreignGraph.Where(x => localGraph.ContainsKey(x.Key)).OrderBy(x => x.Value));
             if (shared.Count == 0)
                 return null;
-            return Database.Find<Objects.Version>(shared[0].Key);
+            HashSet<Guid> ignored = new HashSet<Guid>();
+            var pruned = new List<KeyValuePair<Guid, int>>();
+            for (int i = 0; i < shared.Count; i++)
+            {
+                if (ignored.Contains(shared[i].Key))
+                    continue;
+                pruned.Add(shared[i]);
+                var parents = GetParentGraph(GetVersion(shared[i].Key));
+                for (int j = i + 1; j < shared.Count; j++)
+                {
+                    if (parents.ContainsKey(shared[j].Key))
+                        ignored.Add(shared[j].Key);
+                }
+            }
+            return pruned;
         }
 
         private Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
