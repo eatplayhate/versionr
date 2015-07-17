@@ -1525,6 +1525,8 @@ namespace Versionr
                             }
                             foreign.Delete();
                             local.Delete();
+                            transientResult.TemporaryFile = new FileInfo(transientResult.TemporaryFile.FullName);
+                            results.Add(transientResult);
                         }
                         else
                         {
@@ -1555,6 +1557,8 @@ namespace Versionr
                             local.Delete();
                             if (parentObject.TemporaryFile == null)
                                 parentFile.Delete();
+                            transientResult.TemporaryFile = new FileInfo(transientResult.TemporaryFile.FullName);
+                            results.Add(transientResult);
                         }
                     }
                 }
@@ -1585,8 +1589,7 @@ namespace Versionr
                             }
                             if (resolution.StartsWith("r"))
                             {
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
-                                System.IO.File.Delete(path);
+                                // do nothing
                             }
                             if (resolution.StartsWith("c"))
                                 throw new Exception();
@@ -1677,7 +1680,7 @@ namespace Versionr
             }
         }
 
-        System.Random Randomizer = new System.Random();
+        int m_TempFileIndex = 0;
         private FileInfo GetTemporaryFile(Record rec)
         {
             DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "temp"));
@@ -1686,7 +1689,7 @@ namespace Versionr
             {
                 while (true)
                 {
-                    string fn = rec.Name + Randomizer.Next().ToString() + ".tmp";
+                    string fn = rec.Name + m_TempFileIndex++.ToString() + ".tmp";
                     var x = new FileInfo(Path.Combine(info.FullName, fn));
                     if (!x.Exists)
                     {
