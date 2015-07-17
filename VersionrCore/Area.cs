@@ -1132,7 +1132,7 @@ namespace Versionr
             }
         }
 
-        public void Merge(string v, bool updateMode, bool force)
+        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false)
         {
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
@@ -1174,7 +1174,10 @@ namespace Versionr
                     throw new Exception("No common parent!");
 
                 Objects.Version parent = null;
-                if (parents.Count == 1)
+                Printer.PrintMessage("Starting merge:");
+                Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
+                Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
+                if (parents.Count == 1 || !allowrecursiveMerge)
                 {
                     parent = GetVersion(parents[0].Key);
                     if (parent.ID == mergeVersion.ID)
@@ -1182,19 +1185,18 @@ namespace Versionr
                         Printer.PrintMessage("Merge information is already up to date.");
                         return;
                     }
-                    Printer.PrintMessage("Starting merge:");
-                    Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
-                    Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
                     Printer.PrintMessage(" - Parent: {0}", parent.ID);
                     parentData = Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
                 else if (parents.Count == 2)
                 {
+                    Printer.PrintMessage(" - Parent: <virtual>");
                     // recursive merge
                     parentData = MergeCoreRecursive(GetVersion(parents[0].Key), GetVersion(parents[1].Key));
                 }
                 else
                 {
+                    Printer.PrintMessage("Recursive merge is sad, do a normal merge instead :(");
                     // complicated recursive merge
                     throw new Exception();
                 }

@@ -31,6 +31,9 @@ namespace Versionr.Commands
 		[Option('f', "force", HelpText = "Force the merge even if the repository isn't clean" )]
 		public bool Force { get; set; }
 
+        [Option('s', "simple", HelpText = "Disable recursive merge engine")]
+        public bool Simple { get; set; }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
     }
@@ -44,7 +47,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             foreach (var x in localOptions.Target)
-                ws.Merge(x, false, localOptions.Force);
+                ws.Merge(x, false, localOptions.Force, !localOptions.Simple);
             return true;
         }
     }
