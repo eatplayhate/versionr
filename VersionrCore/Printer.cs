@@ -192,22 +192,25 @@ namespace Versionr
         {
             Write(MessageType.Message, string.Format(v, obj) + "\n");
         }
-
+        private static object SyncObject = new object();
         private static void FlushOutput(bool newline, Tuple<OutputColour, string> x)
         {
-            string indent = Indent;
-            if (!string.IsNullOrEmpty(x.Item2))
+            lock (SyncObject)
             {
-                SetOutputColour(x.Item1);
-                if (newline && !SuppressIndent)
-                    System.Console.Write(indent + x.Item2);
-                else
-                    System.Console.Write(x.Item2);
+                string indent = Indent;
+                if (!string.IsNullOrEmpty(x.Item2))
+                {
+                    SetOutputColour(x.Item1);
+                    if (newline && !SuppressIndent)
+                        System.Console.Write(indent + x.Item2);
+                    else
+                        System.Console.Write(x.Item2);
+                    SuppressIndent = false;
+                }
+                else if (newline && !SuppressIndent)
+                    System.Console.Write(indent);
                 SuppressIndent = false;
             }
-            else if (newline && !SuppressIndent)
-                System.Console.Write(indent);
-            SuppressIndent = false;
         }
 
         private static void SetOutputColour(OutputColour style)
