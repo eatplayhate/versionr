@@ -306,6 +306,14 @@ namespace Versionr
             }
         }
 
+        public static Tuple<string, string> ComponentVersionInfo
+        {
+            get
+            {
+                return new Tuple<string, string>("Metadata DB", string.Format("v{0} #q#(compat {1}-{2})", InternalDBVersion, MinimumDBVersion, MaximumDBVersion));
+            }
+        }
+
         public List<Objects.Version> GetHistory(Objects.Version version, int? limit = null)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();

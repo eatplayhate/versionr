@@ -76,6 +76,15 @@ namespace Versionr.ObjectStore
                 return new FileInfo(Path.Combine(DataFolder.FullName, "store.db"));
             }
         }
+
+        public static Tuple<string, string> ComponentVersionInfo
+        {
+            get
+            {
+                return new Tuple<string, string>("Standard Object DB", string.Format("v{0}, database format v{0}", 1));
+            }
+        }
+
         public override void Create(Area owner)
         {
             Owner = owner;

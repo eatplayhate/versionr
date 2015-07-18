@@ -11,6 +11,15 @@ namespace Versionr.Network
 {
     static class SharedNetwork
     {
+
+        public static Tuple<string, string> ComponentVersionInfo
+        {
+            get
+            {
+                return new Tuple<string, string>("Network Library", Handshake.InternalProtocol);
+            }
+        }
+
         internal class SharedNetworkInfo : IDisposable
         {
             public Func<ICryptoTransform> EncryptorFunction { get; set; }

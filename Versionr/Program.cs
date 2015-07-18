@@ -8,62 +8,6 @@ using CommandLine.Text;
 
 namespace Versionr
 {
-    class CommandLineBase
-    {
-        public string Name { get; set; }
-        public string ShortName { get; set; }
-        public string Description { get; set; }
-    };
-    class Command : CommandLineBase
-    {
-        public Commands.BaseCommand Processor { get; set; }
-    }
-    abstract class VerbOptionBase
-    {
-        [ParserState]
-        public IParserState LastParserState { get; set; }
-        public abstract string Verb { get; }
-        public abstract string[] Description { get; }
-        [HelpOption]
-        public string GetUsage()
-        {
-            var help = new HelpText
-            {
-                Heading = new HeadingInfo("Versionr - the less hateful version control system."),
-                AddDashesToOption = true
-            };
-
-            // ...
-            if (LastParserState != null && LastParserState.Errors.Any())
-            {
-                var errors = help.RenderParsingErrorsText(this, 2); // indent with two spaces
-
-                if (!string.IsNullOrEmpty(errors))
-                {
-                    help.AddPreOptionsLine(string.Concat(Environment.NewLine, "Invalid command:"));
-                    help.AddPreOptionsLine(errors);
-                }
-            }
-            help.AddPreOptionsLine(string.Format("\n{0}\n", Usage));
-            help.AddPreOptionsLine(string.Format("The `{0}` Command:", Verb));
-            foreach (var x in Description)
-                help.AddPreOptionsLine("  " + x);
-            help.AddPreOptionsLine("\nOptions:");
-            help.AddOptions(this);
-            return help;
-        }
-
-        [Option('v', "verbose", DefaultValue = true, HelpText = "Display verbose diagnostics information.")]
-        public bool Verbose { get; set; }
-
-        public virtual string Usage
-        {
-            get
-            {
-                return string.Format("Usage: versionr {0} [options] <arguments>", Verb);
-            }
-        }
-    }
     class VersionOptions
     {
         [Option("version", DefaultValue = false)]
@@ -74,7 +18,7 @@ namespace Versionr
         [ParserState]
         public IParserState LastParserState { get; set; }
 
-        [VerbOption("init", HelpText = "Initializes a Versionr vault here.")]
+        [VerbOption("init", HelpText = "Initializes a Versionr vault in the current directory.")]
         public Commands.InitVerbOptions InitVerb { get; set; }
 
         [VerbOption("commit", HelpText = "Chronicles recorded changes into the vault.")]
@@ -137,9 +81,10 @@ namespace Versionr
         {
             var help = new HelpText
             {
-                Heading = new HeadingInfo("Versionr - the less hateful version control system."),
-                AddDashesToOption = false
+                Heading = new HeadingInfo("#b#Versionr## #q#- the less hateful version control system.##"),
+                AddDashesToOption = false,
             };
+            help.FormatOptionHelpText += Help_FormatOptionHelpText;
 
             // ...
             if (LastParserState != null && LastParserState.Errors.Any())
@@ -152,11 +97,18 @@ namespace Versionr
                     help.AddPreOptionsLine(errors);
                 }
             }
-            help.AddPreOptionsLine("Usage: versionr COMMAND [options] <arguments>\n\nCommands:");
+            help.AddPreOptionsLine("Usage: #b#versionr## COMMAND #q#[options]## <arguments>\n\n#b#Commands:");
             help.AddOptions(this);
-            help.AddPostOptionsLine("For additional help, use: versionr COMMAND --help\nTo display version information, use the `--version` option.\n");
+            help.AddPostOptionsLine("##For additional help, use: #b#versionr## COMMAND #b#--help##.");
+            help.AddPostOptionsLine("To display version information, use the `#b#--version##` option.\n");
             return help;
         }
+
+        private void Help_FormatOptionHelpText(object sender, FormatOptionHelpTextEventArgs e)
+        {
+            e.Option.HelpText = "##" + e.Option.HelpText + "#b#";
+        }
+
         // Remainder omitted
         [HelpVerbOption]
         public string GetUsage(string verb)
@@ -210,25 +162,34 @@ namespace Versionr
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
 
+            var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
-            CommandLine.Parser.Default.ParseArguments(args, initalOpts);
+            CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
+                (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; }));
+            parser.ParseArguments(args, initalOpts);
             if (initalOpts.Version)
             {
-                System.Console.WriteLine("Versionr v{0} {1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
-                System.Console.WriteLine("  - A less hateful version control system.");
+                Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
+                Printer.WriteLineMessage("#q#  - A less hateful version control system.");
+                Printer.PushIndent();
+                Printer.WriteLineMessage("\n#b#Core version: {0}\n", Area.CoreVersion);
+                foreach (var x in Area.ComponentVersions)
+                    Printer.WriteLineMessage("{0}: #b#{1}", x.Item1, x.Item2);
+                Printer.PopIndent();
                 return;
             }
 
             var options = new Options();
             string invokedVerb = string.Empty;
             object invokedVerbInstance = null;
-            if (!CommandLine.Parser.Default.ParseArguments(args, options,
+            if (!parser.ParseArguments(args, options,
                   (verb, subOptions) =>
                   {
                       invokedVerb = verb;
                       invokedVerbInstance = subOptions;
                   }))
             {
+                printerStream.Flush();
                 Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
             }
 
@@ -257,63 +218,27 @@ namespace Versionr
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
+                printerStream.Flush();
                 System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
                 Environment.Exit(10);
             }
             try
             {
                 if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                {
+                    printerStream.Flush();
                     Environment.Exit(2);
+                }
                 return;
             }
             catch (Exception e)
             {
+                printerStream.Flush();
                 System.Console.WriteLine("Error processing action:\n{0}", e.ToString());
                 Environment.Exit(20);
             }
 
             return;
-        }
-
-		private static void ListBranches(Area ws)
-        {
-            List<Objects.Branch> branches = ws.Branches;
-            Printer.PrintMessage("Listing Branches:");
-            foreach (var x in branches)
-            {
-                Printer.PrintMessage(" {0}", x.Name);
-                var heads = ws.GetBranchHeads(x);
-                if (heads.Count > 1)
-                    Printer.PrintMessage("Warning: Branch has {0} heads!", heads.Count);
-                foreach (var y in heads)
-                    Printer.PrintMessage("  - Head {0}", y.Version);
-            }
-        }
-
-        private static string ShortStatusCode(StatusCode code)
-        {
-            switch (code)
-            {
-                case StatusCode.Missing:
-                    return "%";
-                case StatusCode.Deleted:
-                    return "D";
-                case StatusCode.Modified:
-                    return "M";
-                case StatusCode.Added:
-                    return "+";
-                case StatusCode.Unchanged:
-                    return "-";
-                case StatusCode.Unversioned:
-                    return "?";
-                case StatusCode.Renamed:
-                    return "R";
-                case StatusCode.Copied:
-                    return "C";
-                case StatusCode.Conflict:
-                    return "!";
-            }
-            throw new Exception();
         }
     }
 }

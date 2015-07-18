@@ -16,7 +16,7 @@ namespace Versionr.Network
         [ProtoMember(2)]
         public string RequestedModule { get; set; }
 
-        static string InternalProtocol
+        public static string InternalProtocol
         {
             get
             {

@@ -204,6 +204,28 @@ namespace Versionr
             return Database.GetHistory(version, limit);
         }
 
+        public static string CoreVersion
+        {
+            get
+            {
+                return "v1.0";
+            }
+        }
+
+        public static Tuple<string, string>[] ComponentVersions
+        {
+            get
+            {
+                return new Tuple<string, string>[]
+                {
+                    WorkspaceDB.ComponentVersionInfo,
+                    LocalDB.ComponentVersionInfo,
+                    Versionr.ObjectStore.StandardObjectStore.ComponentVersionInfo,
+                    SharedNetwork.ComponentVersionInfo,
+                };
+            }
+        }
+
         public bool RemoveHead(Head x)
         {
             Database.BeginTransaction();
@@ -2649,6 +2671,8 @@ namespace Versionr
         public static Area Init(DirectoryInfo workingDir, string branchname = "master")
         {
             Area ws = CreateWorkspace(workingDir);
+            if (ws == null)
+                return null;
             if (!ws.Init(branchname))
                 throw new Exception("Couldn't initialize versionr.");
             return ws;
@@ -2658,8 +2682,12 @@ namespace Versionr
         {
             Area ws = LoadWorkspace(workingDir);
             if (ws != null)
-                throw new Exception(string.Format("Path {0} is already a versionr workspace!", workingDir.FullName));
+            {
+                Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:#e# Vault Initialization Failed##\n  The current directory #b#`{0}`## is already part of a versionr vault located in #b#`{1}`##.\n", workingDir.FullName, ws.Root.FullName));
+                return null;
+            }
             DirectoryInfo adminFolder = GetAdminFolderForDirectory(workingDir);
+            Printer.Write(Printer.MessageType.Message, string.Format("Initializing new vault in location `#b#{0}##`.\n", adminFolder.FullName));
             ws = new Area(adminFolder);
             return ws;
         }
@@ -2667,8 +2695,6 @@ namespace Versionr
         public static Area Load(DirectoryInfo workingDir)
         {
             Area ws = LoadWorkspace(workingDir);
-            if (ws == null)
-                throw new Exception(string.Format("Path {0} is not a valid workspace!", workingDir.FullName));
             return ws;
         }
 
