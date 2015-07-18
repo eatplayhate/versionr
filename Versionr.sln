@@ -19,8 +19,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lzhamlib", "lzham_codec-mas
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lzhamwrapper", "lzhamwrapper\lzhamwrapper.vcxproj", "{87442F47-1E73-4F3A-8788-CC20929B205F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Octodiff", "Octodiff-master\source\Octodiff\Octodiff.csproj", "{BBA7CDC2-DE25-4131-89F2-506712178FC8}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VersionrCore", "VersionrCore\VersionrCore.csproj", "{55C6B198-E938-427F-96A5-C1252CB06ACD}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lzhl", "lzhl-master\lzhl.vcxproj", "{52592E35-80AA-4800-93DA-9E612143ED64}"
@@ -124,18 +122,6 @@ Global
 		{87442F47-1E73-4F3A-8788-CC20929B205F}.Release|x64.Build.0 = Release|x64
 		{87442F47-1E73-4F3A-8788-CC20929B205F}.Release|x86.ActiveCfg = Release|Win32
 		{87442F47-1E73-4F3A-8788-CC20929B205F}.Release|x86.Build.0 = Release|Win32
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Debug|x64.Build.0 = Debug|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Debug|x86.Build.0 = Debug|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Release|x64.ActiveCfg = Release|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Release|x64.Build.0 = Release|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Release|x86.ActiveCfg = Release|Any CPU
-		{BBA7CDC2-DE25-4131-89F2-506712178FC8}.Release|x86.Build.0 = Release|Any CPU
 		{55C6B198-E938-427F-96A5-C1252CB06ACD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{55C6B198-E938-427F-96A5-C1252CB06ACD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{55C6B198-E938-427F-96A5-C1252CB06ACD}.Debug|x64.ActiveCfg = Debug|Any CPU

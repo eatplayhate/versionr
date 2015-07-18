@@ -2501,7 +2501,10 @@ namespace Versionr
                         Database.UpdateSafe(head);
 
                     foreach (var mergeHead in mergeHeads)
-                        Database.DeleteSafe(mergeHead);
+                    {
+                        if (mergeHead != null)
+                            Database.DeleteSafe(mergeHead);
+                    }
                     Database.InsertSafe(vs);
                     
                     Database.Commit();
