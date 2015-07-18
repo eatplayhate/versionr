@@ -61,7 +61,11 @@ namespace Versionr
             public bool DataEquals(Record x)
             {
                 if (FilesystemEntry != null)
+                {
+                    if (FilesystemEntry.IsDirectory)
+                        return x.Fingerprint == FilesystemEntry.CanonicalName;
                     return FilesystemEntry.DataEquals(x.Fingerprint, x.Size);
+                }
                 return false;
             }
 
