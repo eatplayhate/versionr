@@ -24,10 +24,10 @@ namespace Versionr
         [VerbOption("commit", HelpText = "Chronicles recorded changes into the vault.")]
         public Commands.CommitVerbOptions CommitVerb { get; set; }
 
-        [VerbOption("status", HelpText = "Displays the status of the current vault.")]
+        [VerbOption("status", HelpText = "Displays the status of the current vault and objects.")]
         public Commands.StatusVerbOptions StatusVerb { get; set; }
 
-        [VerbOption("record", HelpText = "Records changes for inclusion in the next commit.")]
+        [VerbOption("record", HelpText = "Marks changes/objects for inclusion in the next commit.")]
         public Commands.RecordVerbOptions RecordVerb { get; set; }
 
         [VerbOption("checkout", HelpText = "Checks out a specific branch or revision from the vault.")]

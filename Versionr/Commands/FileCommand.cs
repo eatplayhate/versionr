@@ -10,11 +10,11 @@ namespace Versionr.Commands
 {
 	abstract class FileCommandVerbOptions : VerbOptionBase
 	{
-		[Option('g', "regex", DefaultValue = false, HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet ="all")]
+		[Option('g', "regex", HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet ="all")]
 		public bool Regex { get; set; }
-		[Option('n', "filename", DefaultValue = false, HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "all")]
+		[Option('n', "filename", HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "all")]
 		public bool Filename { get; set; }
-		[Option('a', "all", DefaultValue = false, HelpText = "Includes every changed or unversioned file.", MutuallyExclusiveSet = "regex recursive")]
+		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "regex recursive")]
 		public bool All { get; set; }
 		[Option('r', "recursive", DefaultValue = true, HelpText = "Recursively add objects in directories.")]
 		public bool Recursive { get; set; }
@@ -26,7 +26,7 @@ namespace Versionr.Commands
 		{
 			get
 			{
-				return string.Format("Usage: versionr {0} [options] file1 [file2 ... fileN]", Verb);
+				return string.Format("#b#versionr #i#{0}#q# [options] ##file1 #q#[file2 ... fileN]", Verb);
 			}
 		}
 

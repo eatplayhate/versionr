@@ -731,12 +731,12 @@ namespace Versionr
 
 					if (x.Code == StatusCode.Missing)
 					{
-						Printer.PrintMessage("Recorded deletion: {0}", x.VersionControlRecord.CanonicalName);
+						Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
 					}
 					else
 					{
-						Printer.PrintMessage("Recorded object: {0}", x.FilesystemEntry.CanonicalName);
+						Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
 					}
 				}
@@ -757,7 +757,7 @@ namespace Versionr
                         {
                             if (!stagedPaths.Contains(entry.CanonicalName))
                             {
-                                Printer.PrintMessage("Recorded object (auto): {0}", entry.CanonicalName);
+                                Printer.PrintMessage("#q#Recorded (auto): #b#{0}##", entry.CanonicalName);
                                 stageOps.Add(new StageOperation() { Operand1 = entry.CanonicalName, Type = StageOperationType.Add });
                                 stagedPaths.Add(entry.CanonicalName);
                             }
@@ -768,10 +768,10 @@ namespace Versionr
 
             if (stageOps.Count == 0)
             {
-                Printer.PrintMessage("No changes found to record.");
+                Printer.PrintMessage("#w#Warning:##\n  No changes found to record.");
                 return false;
             }
-            Printer.PrintMessage("Recorded {0} changes.", stageOps.Count);
+            Printer.PrintMessage("Recorded #b#{0}## objects.", stageOps.Count);
             LocalData.BeginTransaction();
             try
             {
@@ -2203,21 +2203,22 @@ namespace Versionr
 
         public bool Commit(string message = "", bool force = false)
         {
-            Guid? mergeID = null;
+            List<Guid> mergeIDs = new List<Guid>();
             Printer.PrintDiagnostics("Checking stage info for pending conflicts...");
             foreach (var x in LocalData.StageOperations)
             {
                 if (x.Type == StageOperationType.Conflict)
                 {
-                    throw new Exception(string.Format("Can't commit while pending conflicts on file \"{0}\"!", x.Operand1));
+                    Printer.PrintError("#x#Error:##\n  Can't commit while pending conflicts on file \"#b#{0}##\"!", x.Operand1);
+                    return false;
                 }
                 if (x.Type == StageOperationType.Merge)
-                    mergeID = new Guid(x.Operand1);
+                    mergeIDs.Add(new Guid(x.Operand1));
             }
             Objects.Version parentVersion = Database.Version;
             Printer.PrintDiagnostics("Getting status for commit.");
             Status st = Status;
-            if (st.HasModifications(true) || mergeID != null)
+            if (st.HasModifications(true) || mergeIDs.Count > 0)
             {
                 Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                 try
@@ -2228,15 +2229,18 @@ namespace Versionr
                     vs.Parent = Database.Version.ID;
                     vs.Branch = Database.Branch.ID;
                     Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);
-                    Objects.MergeInfo mergeInfo = null;
-                    Objects.Head mergeHead = null;
-                    if (mergeID.HasValue)
+                    List<Objects.MergeInfo> mergeInfos = new List<MergeInfo>();
+                    List<Objects.Head> mergeHeads = new List<Head>();
+                    foreach (var guid in mergeIDs)
                     {
-                        mergeInfo = new MergeInfo();
-                        mergeInfo.SourceVersion = mergeID.Value;
+                        Objects.MergeInfo mergeInfo = new MergeInfo();
+                        mergeInfo.SourceVersion = guid;
                         mergeInfo.DestinationVersion = vs.ID;
 
-                        mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == mergeID.Value).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
+                        Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
+
+                        mergeHeads.Add(mergeHead);
+                        mergeInfos.Add(mergeInfo);
                     }
                     vs.Message = message;
                     vs.Timestamp = DateTime.UtcNow;
@@ -2458,8 +2462,8 @@ namespace Versionr
                         x.Owner = ss.Id;
                         Database.InsertSafe(x);
                     }
-                    if (mergeInfo != null)
-                        Database.InsertSafe(mergeInfo);
+                    foreach (var info in mergeInfos)
+                        Database.InsertSafe(info);
                     if (saveSnapshot)
                     {
                         Printer.PrintDiagnostics("Adding {0} snapshot ref records.", ssRefs.Count);
@@ -2471,7 +2475,7 @@ namespace Versionr
                     else
                         Database.UpdateSafe(head);
 
-                    if (mergeHead != null)
+                    foreach (var mergeHead in mergeHeads)
                         Database.DeleteSafe(mergeHead);
                     Database.InsertSafe(vs);
                     
@@ -2503,7 +2507,7 @@ namespace Versionr
             }
             else
             {
-                Printer.PrintError("Nothing to do.");
+                Printer.PrintWarning("#w#Warning:##\n  Nothing to do.");
                 return false;
             }
             return true;

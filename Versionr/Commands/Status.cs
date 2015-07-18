@@ -39,6 +39,8 @@ namespace Versionr.Commands
                     "To record additional objects for inclusion in the next #b#commit#q#, see the #b#record#q# command.",
                     "",
                     "To reduce computation time, files are #b#not#q# checked for modifications unless their ##timestamp has been changed#q# from the current version#q#.",
+                    "",
+                    "The `#b#status#q#` command will respect patterns in the #b#.vrmeta#q# directive file.",
                 };
             }
         }
