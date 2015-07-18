@@ -1148,6 +1148,8 @@ namespace Versionr
             {
                 if (localObject.FilesystemEntry != null)
                 {
+                    if (localObject.FilesystemEntry.IsDirectory && Fingerprint == localObject.FilesystemEntry.CanonicalName)
+                        return true;
                     return localObject.FilesystemEntry.Length == Length && localObject.FilesystemEntry.Hash == Fingerprint;
                 }
                 return false;
@@ -1369,6 +1371,7 @@ namespace Versionr
                     }
                 }
             }
+            List<Tuple<string, string, bool>> deletionList = new List<Tuple<string, string, bool>>();
             foreach (var x in parentData)
             {
                 Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
@@ -1383,8 +1386,7 @@ namespace Versionr
 						if (x.DataEquals(localObject))
                         {
 							Printer.PrintMessage("Removing {0}", x.CanonicalName);
-							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
-							System.IO.File.Delete(path);
+                            deletionList.Add(new Tuple<string, string, bool>(path, x.CanonicalName, x.CanonicalName.EndsWith("/")));
                         }
                         else
                         {
@@ -1395,13 +1397,29 @@ namespace Versionr
                                 continue;
                             if (resolution.StartsWith("r"))
 							{
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
-								System.IO.File.Delete(path);
+                                deletionList.Add(new Tuple<string, string, bool>(path, x.CanonicalName, false));
 							}
 							if (resolution.StartsWith("c"))
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                         }
                     }
+                }
+            }
+            foreach (var x in deletionList.Where(x => x.Item3 == false))
+            {
+                System.IO.File.Delete(x.Item1);
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+            }
+            foreach (var x in deletionList.Where(x => x.Item3 == true).OrderByDescending(x => x.Item2.Length))
+            {
+                try
+                {
+                    System.IO.Directory.Delete(x.Item1);
+                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+                }
+                catch
+                {
+                    
                 }
             }
             foreach (var x in parentData)
