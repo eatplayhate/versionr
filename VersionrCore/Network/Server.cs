@@ -30,7 +30,7 @@ namespace Versionr.Network
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
-        public static bool Run(System.IO.DirectoryInfo info, int port)
+        public static bool Run(System.IO.DirectoryInfo info, int port, bool encryptData = true)
         {
             Area ws = Area.Load(info);
             if (ws == null)
@@ -38,13 +38,16 @@ namespace Versionr.Network
                 Printer.PrintError("Can't run server without an active vault.");
                 return false;
             }
-            Printer.PrintDiagnostics("Creating RSA pair...");
-            System.Security.Cryptography.RSACryptoServiceProvider rsaCSP = new System.Security.Cryptography.RSACryptoServiceProvider();
-            rsaCSP.KeySize = 2048;
-            PrivateKey = rsaCSP;
-            PrivateKeyData = rsaCSP.ExportParameters(true);
-            PublicKey = rsaCSP.ExportParameters(false);
-            Printer.PrintDiagnostics("RSA Fingerprint: {0}", PublicKey.Fingerprint());
+            if (encryptData)
+            {
+                Printer.PrintDiagnostics("Creating RSA pair...");
+                System.Security.Cryptography.RSACryptoServiceProvider rsaCSP = new System.Security.Cryptography.RSACryptoServiceProvider();
+                rsaCSP.KeySize = 2048;
+                PrivateKey = rsaCSP;
+                PrivateKeyData = rsaCSP.ExportParameters(true);
+                PublicKey = rsaCSP.ExportParameters(false);
+                Printer.PrintDiagnostics("RSA Fingerprint: {0}", PublicKey.Fingerprint());
+            }
             System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
@@ -83,19 +86,29 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Received handshake - protocol: {0}", hs.VersionrProtocol);
                     if (hs.Valid)
                     {
-                        Network.StartTransaction startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), PublicKey);
-                        Printer.PrintDiagnostics("Sending RSA key...");
-                        ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
-                        StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
-                        System.Security.Cryptography.RSAOAEPKeyExchangeDeformatter exch = new System.Security.Cryptography.RSAOAEPKeyExchangeDeformatter(PrivateKey);
-                        byte[] aesKey = exch.DecryptKeyExchange(clientKey.Key);
-                        byte[] aesIV = exch.DecryptKeyExchange(clientKey.IV);
-                        Printer.PrintDiagnostics("Got client key: {0}", System.Convert.ToBase64String(aesKey));
+                        Network.StartTransaction startSequence = null;
+                        if (PrivateKey != null)
+                        {
+                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), PublicKey);
+                            Printer.PrintDiagnostics("Sending RSA key...");
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                            StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                            System.Security.Cryptography.RSAOAEPKeyExchangeDeformatter exch = new System.Security.Cryptography.RSAOAEPKeyExchangeDeformatter(PrivateKey);
+                            byte[] aesKey = exch.DecryptKeyExchange(clientKey.Key);
+                            byte[] aesIV = exch.DecryptKeyExchange(clientKey.IV);
+                            Printer.PrintDiagnostics("Got client key: {0}", System.Convert.ToBase64String(aesKey));
 
-                        var aesCSP = System.Security.Cryptography.AesManaged.Create();
+                            var aesCSP = System.Security.Cryptography.AesManaged.Create();
 
-                        sharedInfo.DecryptorFunction = () => { return aesCSP.CreateDecryptor(aesKey, aesIV); };
-                        sharedInfo.EncryptorFunction = () => { return aesCSP.CreateEncryptor(aesKey, aesIV); };
+                            sharedInfo.DecryptorFunction = () => { return aesCSP.CreateDecryptor(aesKey, aesIV); };
+                            sharedInfo.EncryptorFunction = () => { return aesCSP.CreateEncryptor(aesKey, aesIV); };
+                        }
+                        else
+                        {
+                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString());
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                            StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                        }
                         sharedInfo.Stream = stream;
                         sharedInfo.Workspace = ws;
 

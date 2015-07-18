@@ -85,17 +85,19 @@ namespace Versionr.Utilities
             int bytesRead = 0;
             while (bytesRead < count)
             {
-                if (LocalPosition < CurrentBlock.Length)
-                {
-                    buffer[offset + bytesRead] = CurrentBlock[LocalPosition++];
-                    bytesRead++;
-                    InternalPosition++;
-                }
-                else
+                if (LocalPosition == CurrentBlock.Length)
                 {
                     if (!RefillBuffer())
                         return bytesRead;
                 }
+                int max = CurrentBlock.Length - LocalPosition;
+                int requested = count - bytesRead;
+                if (max < requested)
+                    requested = max;
+                Array.Copy(CurrentBlock, LocalPosition, buffer, offset + bytesRead, requested);
+                InternalPosition += requested;
+                bytesRead += requested;
+                LocalPosition += requested;
             }
             return bytesRead;
         }

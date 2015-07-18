@@ -123,13 +123,16 @@ namespace Versionr.Network
             }
 
             int payload = result.Length;
-            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
+            if (info.EncryptorFunction != null)
             {
-                using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Encryptor, System.Security.Cryptography.CryptoStreamMode.Write))
+                using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
                 {
-                    cs.Write(result, 0, result.Length);
+                    using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Encryptor, System.Security.Cryptography.CryptoStreamMode.Write))
+                    {
+                        cs.Write(result, 0, result.Length);
+                    }
+                    result = memoryStream.ToArray();
                 }
-                result = memoryStream.ToArray();
             }
             
             Packet packet = new Packet()
@@ -147,13 +150,17 @@ namespace Versionr.Network
         public static T ReceiveEncrypted<T>(SharedNetwork.SharedNetworkInfo info)
         {
             Packet packet = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Packet>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
-            Printer.PrintDiagnostics("Received {0} byte encrypted packet.", packet.Data.Length);
+            Printer.PrintDiagnostics("Received {0} byte packet.", packet.Data.Length);
 
-            byte[] decryptedData = new byte[packet.PayloadSize];
-            using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
-            using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Decryptor, System.Security.Cryptography.CryptoStreamMode.Read))
+            byte[] decryptedData = packet.Data;
+            if (info.DecryptorFunction != null)
             {
-                cs.Read(decryptedData, 0, decryptedData.Length);
+                decryptedData = new byte[packet.PayloadSize];
+                using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
+                using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Decryptor, System.Security.Cryptography.CryptoStreamMode.Read))
+                {
+                    cs.Read(decryptedData, 0, decryptedData.Length);
+                }
             }
             
             if (packet.DecompressedSize.HasValue)

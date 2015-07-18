@@ -467,39 +467,58 @@ namespace Versionr.Network
                         return false;
                     }
 
-                    var key = startTransaction.RSAKey;
-                    Printer.PrintDiagnostics("Server RSA Key: {0}", key.Fingerprint());
-
-                    var publicKey = new System.Security.Cryptography.RSACryptoServiceProvider();
-                    publicKey.ImportParameters(key);
-
-                    Printer.PrintDiagnostics("Generating secret key for data channel...");
-                    System.Security.Cryptography.RSAOAEPKeyExchangeFormatter exch = new System.Security.Cryptography.RSAOAEPKeyExchangeFormatter(publicKey);
-
-                    System.Security.Cryptography.AesManaged aesProvider = new System.Security.Cryptography.AesManaged();
-                    aesProvider.KeySize = 256;
-                    aesProvider.GenerateIV();
-                    aesProvider.GenerateKey();
-
-                    AESProvider = aesProvider;
-                    AESKey = aesProvider.Key;
-                    AESIV = aesProvider.IV;
-
-                    Printer.PrintDiagnostics("Key: {0}", System.Convert.ToBase64String(aesProvider.Key));
-                    var keyExchangeObject = new Network.StartClientTransaction() { Key = exch.CreateKeyExchange(aesProvider.Key), IV = exch.CreateKeyExchange(aesProvider.IV) };
-
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<StartClientTransaction>(Connection.GetStream(), keyExchangeObject, ProtoBuf.PrefixStyle.Fixed32);
-                    Connection.GetStream().Flush();
-                    Connected = true;
-                    SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
+                    if (startTransaction.Encrypted)
                     {
-                        DecryptorFunction = () => { return Decryptor; },
-                        EncryptorFunction = () => { return Encryptor; },
-                        Stream = Connection.GetStream(),
-                        Workspace = Workspace,
-                    };
+                        var key = startTransaction.RSAKey;
+                        Printer.PrintDiagnostics("Server RSA Key: {0}", key.Fingerprint());
 
-                    SharedInfo = sharedInfo;
+                        var publicKey = new System.Security.Cryptography.RSACryptoServiceProvider();
+                        publicKey.ImportParameters(key);
+
+                        Printer.PrintDiagnostics("Generating secret key for data channel...");
+                        System.Security.Cryptography.RSAOAEPKeyExchangeFormatter exch = new System.Security.Cryptography.RSAOAEPKeyExchangeFormatter(publicKey);
+
+                        System.Security.Cryptography.AesManaged aesProvider = new System.Security.Cryptography.AesManaged();
+                        aesProvider.KeySize = 256;
+                        aesProvider.GenerateIV();
+                        aesProvider.GenerateKey();
+
+                        AESProvider = aesProvider;
+                        AESKey = aesProvider.Key;
+                        AESIV = aesProvider.IV;
+
+                        Printer.PrintDiagnostics("Key: {0}", System.Convert.ToBase64String(aesProvider.Key));
+                        var keyExchangeObject = new Network.StartClientTransaction() { Key = exch.CreateKeyExchange(aesProvider.Key), IV = exch.CreateKeyExchange(aesProvider.IV) };
+
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<StartClientTransaction>(Connection.GetStream(), keyExchangeObject, ProtoBuf.PrefixStyle.Fixed32);
+                        Connection.GetStream().Flush();
+                        Connected = true;
+                        SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
+                        {
+                            DecryptorFunction = () => { return Decryptor; },
+                            EncryptorFunction = () => { return Encryptor; },
+                            Stream = Connection.GetStream(),
+                            Workspace = Workspace,
+                        };
+
+                        SharedInfo = sharedInfo;
+                    }
+                    else
+                    {
+                        Printer.PrintDiagnostics("Using cleartext communication");
+                        var keyExchangeObject = new Network.StartClientTransaction();
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<StartClientTransaction>(Connection.GetStream(), keyExchangeObject, ProtoBuf.PrefixStyle.Fixed32);
+                        Connection.GetStream().Flush();
+                        Connected = true;
+                        SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
+                        {
+                            DecryptorFunction = null,
+                            EncryptorFunction = null,
+                            Stream = Connection.GetStream(),
+                            Workspace = Workspace,
+                        };
+                        SharedInfo = sharedInfo;
+                    }
                     return true;
                 }
                 catch (Exception e)

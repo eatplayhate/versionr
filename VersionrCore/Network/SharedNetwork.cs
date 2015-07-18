@@ -307,6 +307,9 @@ namespace Versionr.Network
                 {
                     DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
                     Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
+                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (reply.Type != NetCommandType.DataReceived)
+                        return false;
                 }
                 return true;
             };
@@ -372,6 +375,7 @@ namespace Versionr.Network
 
                     var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
                     {
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                         var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
                         if (pack.EndOfStream)
                         {
@@ -379,7 +383,6 @@ namespace Versionr.Network
                         }
                         else
                         {
-                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                             return new Tuple<byte[], bool>(pack.Data, false);
                         }
                     });
@@ -480,6 +483,7 @@ namespace Versionr.Network
 
                     var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
                     {
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                         var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
                         if (pack.EndOfStream)
                         {
@@ -487,48 +491,47 @@ namespace Versionr.Network
                         }
                         else
                         {
-                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                             return new Tuple<byte[], bool>(pack.Data, false);
                         }
                     });
 
-                    while (!receiverStream.EndOfStream)
+
+                    var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
+                    try
                     {
-                        byte[] blob = new byte[8];
-                        int successFlag;
-                        int requestIndex;
-                        long recordSize;
-                        if (receiverStream.Read(blob, 0, 8) != 8)
-                            continue;
-                        requestIndex = BitConverter.ToInt32(blob, 0);
-                        successFlag = BitConverter.ToInt32(blob, 4);
+                        while (!receiverStream.EndOfStream)
+                        {
+                            byte[] blob = new byte[8];
+                            int successFlag;
+                            int requestIndex;
+                            long recordSize;
+                            if (receiverStream.Read(blob, 0, 8) != 8)
+                                continue;
+                            requestIndex = BitConverter.ToInt32(blob, 0);
+                            successFlag = BitConverter.ToInt32(blob, 4);
                         
-                        if (successFlag == 0)
-                        {
-                            Printer.PrintDiagnostics("Record {0} not located on remote.", recordsInPack[requestIndex]);
-                            continue;
-                        }
+                            if (successFlag == 0)
+                            {
+                                Printer.PrintDiagnostics("Record {0} not located on remote.", recordsInPack[requestIndex]);
+                                continue;
+                            }
 
-                        receiverStream.Read(blob, 0, 8);
-                        recordSize = BitConverter.ToInt64(blob, 0);
-                        Printer.PrintDiagnostics("Unpacking record {0}, payload size: {1}", recordsInPack[requestIndex], recordSize);
+                            receiverStream.Read(blob, 0, 8);
+                            recordSize = BitConverter.ToInt64(blob, 0);
+                            Printer.PrintDiagnostics("Unpacking record {0}, payload size: {1}", recordsInPack[requestIndex], recordSize);
 
-                        returnedRecords.Add(recordsInPack[requestIndex]);
-
-                        var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
-                        try
-                        {
+                            returnedRecords.Add(recordsInPack[requestIndex]);
                             string dependencies;
                             sharedInfo.Workspace.ImportRecordData(transaction, recordsInPack[requestIndex], new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
                             if (dependencies != null)
                                 dependentData.Add(dependencies);
-                            sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
                         }
-                        catch
-                        {
-                            sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
-                            throw;
-                        }
+                        sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
+                    }
+                    catch
+                    {
+                        sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
+                        throw;
                     }
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
