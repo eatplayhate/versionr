@@ -52,7 +52,7 @@ namespace Versionr
         [Option('v', "verbose", HelpText = "Display verbose diagnostics information.")]
         public bool Verbose { get; set; }
 
-        [Option("quiet", HelpText = "Disable output of all messages except errors and warnings.")]
+        [Option('q', "quiet", HelpText = "Disable output of all messages except errors and warnings.")]
         public bool Quiet { get; set; }
 
         public virtual string Usage

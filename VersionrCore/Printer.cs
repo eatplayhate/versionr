@@ -125,6 +125,11 @@ namespace Versionr
                         }
                         pos = end + 1;
                     }
+                    else
+                    {
+                        outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, nextFindLocation)));
+                        pos = nextFindLocation + 1;
+                    }
                 }
                 else if (nextLineBreak == -1)
                 {

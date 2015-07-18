@@ -19,11 +19,26 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "This command will determine the current status of the Versionr",
-                    "repository tree.", 
+                    "#q#This command will determine the current status of the Versionr repository tree.", 
                     "",
-                    "It will determine if any files have been added, changed, or removed",
-                    "when compared with the currently checked-out version on record.",
+                    "The operation will involve walking the entire directory tree of the vault and comparing each file against the #b#currently checked out version#q#.",
+                    "",
+                    "Objects that have operations #b#recorded#q# for the next ##commit#q# are marked with an asterisk (#b#*#q#).",
+                    "",
+                    "The following status codes are available:",
+                    "  #s#Added##: Not part of the vault, but marked for inclusion.",
+                    "  #s#Modified##: Object has changed, and the changes are marked for inclusion.",
+                    "  #b#Deleted##: Was part of the vault, deleted from the disk and marked for removal.",
+                    "  #w#Unversioned##: Object is not part of vault.",
+                    "  #w#Missing##: Object is part of the vault, but is not present on the disk.",
+                    "  #w#Changed##: Object has changed, but the changes are not marked for inclusion.",
+                    "  #w#Renamed##: Object has been matched to a deleted object in the vault.",
+                    "  #w#Copied##: Object is not part of the vault but is a copy of an object that is.",
+                    "  #e#Conflict##: The file ##requires intervention#q# to finish merging. It will obstruct the next ##commit#q# until it is resolved.",
+                    "",
+                    "To record additional objects for inclusion in the next #b#commit#q#, see the #b#record#q# command.",
+                    "",
+                    "To reduce computation time, files are #b#not#q# checked for modifications unless their ##timestamp has been changed#q# from the current version#q#.",
                 };
             }
         }
@@ -62,9 +77,9 @@ namespace Versionr.Commands
             }
             if (localOptions.Summary)
             {
-                Printer.WriteLineMessage("Summary:");
+                Printer.WriteLineMessage("#b#Summary:##");
                 for (int i = 0; i < codeCount.Length; i++)
-                    Printer.WriteLineMessage("  {0} {2} {1}", codeCount[i], codeCount[i] != 1 ? "Objects" : "Object", ((StatusCode)i).ToString());
+                    Printer.WriteLineMessage("  {0} #b#{2}## #q#{1}##", codeCount[i], codeCount[i] != 1 ? "Objects" : "Object", ((StatusCode)i).ToString());
             }
             return true;
         }
@@ -94,7 +109,7 @@ namespace Versionr.Commands
                     return x.Staged ? new Tuple<char, string>('e', "(conflict)")
                         : new Tuple<char, string>('e', "(conflict)");
                 case StatusCode.Copied:
-                    return x.Staged ? new Tuple<char, string>('s', "(added - copied)")
+                    return x.Staged ? new Tuple<char, string>('s', "(copied)")
                         : new Tuple<char, string>('w', "(copied)");
                 case StatusCode.Deleted:
                     return x.Staged ? new Tuple<char, string>('b', "(deleted)")
