@@ -156,12 +156,12 @@ namespace Versionr
 
         public static void PrintError(string v)
         {
-            Write(MessageType.Error, "#x#" + v + "\n");
+            Write(MessageType.Error, "#x#" + v + "##\n");
         }
 
         public static void PrintError(string v, params object[] obj)
         {
-            Write(MessageType.Error, "#x#" + string.Format(v, obj) + "\n");
+            Write(MessageType.Error, "#x#" + string.Format(v, obj) + "##\n");
         }
 
         public static void PrintDiagnostics(string v)

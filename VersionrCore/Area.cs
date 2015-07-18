@@ -2256,9 +2256,13 @@ namespace Versionr
                         mergeInfo.SourceVersion = guid;
                         mergeInfo.DestinationVersion = vs.ID;
 
+                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}\"##", guid, GetBranch(GetVersion(guid).Branch).Name);
                         Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
-
-                        mergeHeads.Add(mergeHead);
+                        if (mergeHead != null)
+                        {
+                            Printer.PrintMessage("#q# - Deleting head reference.");
+                            mergeHeads.Add(mergeHead);
+                        }
                         mergeInfos.Add(mergeInfo);
                     }
                     vs.Message = message;
@@ -2278,7 +2282,7 @@ namespace Versionr
                             return false;
                         }
                         else
-                            Printer.PrintDiagnostics("This branch has a previously recorded head, but a new head has to be inserted.");
+                            Printer.PrintWarning("#w#This branch has a previously recorded head, but a new head has to be inserted.");
                         head = new Head();
                         head.Branch = branch.ID;
                         newHead = true;
