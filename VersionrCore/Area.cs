@@ -2220,6 +2220,7 @@ namespace Versionr
             Status st = Status;
             if (st.HasModifications(true) || mergeIDs.Count > 0)
             {
+                Printer.PrintMessage("Committing changes..");
                 Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                 try
                 {
@@ -2255,7 +2256,7 @@ namespace Versionr
                         head = Database.Find<Objects.Head>(x => x.Branch == branch.ID);
                         if (head != null && !force)
                         {
-                            Printer.PrintError("Branch already has head but current version is not a direct child.\nA new head has to be inserted, but this requires that the force option is used.");
+                            Printer.PrintError("#x#Error:##\n   Branch already has head but current version is not a direct child.\nA new head has to be inserted, but this requires that the #b#`--force`## option is used.");
                             return false;
                         }
                         else
@@ -2291,6 +2292,7 @@ namespace Versionr
                         {
                             case StatusCode.Deleted:
                                 {
+                                    Printer.PrintMessage("Deleted: #b#{0}##", x.VersionControlRecord.CanonicalName);
                                     Printer.PrintDiagnostics("Recorded deletion: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
                                     Objects.Alteration alteration = new Alteration();
                                     alteration.PriorRecord = x.VersionControlRecord.Id;
@@ -2348,6 +2350,36 @@ namespace Versionr
                                             if (x.VersionControlRecord != null)
                                                 record.Parent = x.VersionControlRecord.Id;
                                         }
+
+                                        Objects.Alteration alteration = new Alteration();
+                                        alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
+                                        if (x.Code == StatusCode.Added)
+                                        {
+                                            Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
+                                            alteration.Type = AlterationType.Add;
+                                        }
+                                        else if (x.Code == StatusCode.Modified)
+                                        {
+                                            Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Update;
+                                        }
+                                        else if (x.Code == StatusCode.Copied)
+                                        {
+                                            Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Copy;
+                                        }
+                                        else if (x.Code == StatusCode.Renamed)
+                                        {
+                                            Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Move;
+                                        }
                                         if (!ObjectStore.HasData(record))
                                             ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
 
@@ -2366,31 +2398,6 @@ namespace Versionr
                                         if (record.Parent != null)
                                             Printer.PrintDiagnostics("Record parent ID: {0}", record.Parent);
 
-                                        Objects.Alteration alteration = new Alteration();
-                                        alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
-                                        if (x.Code == StatusCode.Added)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
-                                            alteration.Type = AlterationType.Add;
-                                        }
-                                        else if (x.Code == StatusCode.Modified)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Update;
-                                        }
-                                        else if (x.Code == StatusCode.Copied)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Copy;
-                                        }
-                                        else if (x.Code == StatusCode.Renamed)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Move;
-                                        }
                                         finalRecords.Add(record);
                                         alterations.Add(alteration);
                                         if (!recordIsMerged)
@@ -2415,7 +2422,7 @@ namespace Versionr
                     ObjectStore.EndStorageTransaction(transaction);
                     transaction = null;
 
-                    Printer.PrintDiagnostics("Updating internal state.");
+                    Printer.PrintMessage("Updating internal state.");
                     var ws = LocalData.Workspace;
                     ws.Tip = vs.ID;
                     Objects.Snapshot ss = new Snapshot();
@@ -2494,7 +2501,7 @@ namespace Versionr
                         throw;
                     }
 
-                    Printer.PrintMessage("At version {0} on branch \"{1}\"", Database.Version.ID, Database.Branch.Name);
+                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
                 }
                 catch (Exception e)
                 {
