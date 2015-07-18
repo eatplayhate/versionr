@@ -345,7 +345,7 @@ namespace Versionr
                         continue;
                     int index = sortedList.BinarySearch(x, new NameMatcher());
                     if (index < 0)
-                        continue;
+                        index = -index;
                     skipSet.Add(sortedList[index]);
                     for (; index < sortedList.Count; index++)
                     {
