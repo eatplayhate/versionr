@@ -252,6 +252,8 @@ namespace Versionr.ObjectStore
                                     {
                                         fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'x' }, 0, 4);
                                         CompressionMode cmode = DefaultCompression;
+                                        if (cmode != CompressionMode.None && deltaSize < 16 * 1024)
+                                            cmode = CompressionMode.LZ4;
                                         int sig = (int)cmode;
                                         fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
                                         fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
@@ -318,6 +320,8 @@ namespace Versionr.ObjectStore
                 {
                     fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'k' }, 0, 4);
                     CompressionMode cmode = DefaultCompression;
+                    if (cmode != CompressionMode.None && newRecord.Size < 16 * 1024)
+                        cmode = CompressionMode.LZ4;
                     int sig = (int)cmode;
                     if (computeSignature)
                         sig |= 0x8000;
