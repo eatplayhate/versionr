@@ -40,8 +40,11 @@ namespace Versionr.Commands
                     try
                     {
                         ws = Area.Load(workingDirectory);
-                        Printer.PrintError("This command cannot function with an active Versionr vault.");
-                        return false;
+                        if (ws != null)
+                        {
+                            Printer.PrintError("This command cannot function with an active Versionr vault.");
+                            return false;
+                        }
                     }
                     catch
                     {
