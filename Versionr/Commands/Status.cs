@@ -60,7 +60,7 @@ namespace Versionr.Commands
             StatusVerbOptions localOptions = (StatusVerbOptions)options;
             var ss = Workspace.Status;
             Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"\n", ss.CurrentVersion.ID, ss.Branch.Name);
-            int[] codeCount = new int[(int)StatusCode.Count];
+            int[] codeCount = new int[(int)StatusCode.Ignored];
             foreach (var x in ss.Elements)
             {
 				if (x.Code == StatusCode.Unchanged)
@@ -79,9 +79,10 @@ namespace Versionr.Commands
             }
             if (localOptions.Summary)
             {
-                Printer.WriteLineMessage("#b#Summary:##");
+                Printer.WriteLineMessage("\n#b#Summary:##");
                 for (int i = 0; i < codeCount.Length; i++)
                     Printer.WriteLineMessage("  {0} #b#{2}## #q#{1}##", codeCount[i], codeCount[i] != 1 ? "Objects" : "Object", ((StatusCode)i).ToString());
+                Printer.WriteLineMessage("\n  {0}#q# files in ##{1}#q# diectories ({2} ignored)", ss.Files, ss.Directories, ss.IgnoredObjects);
             }
             return true;
         }
@@ -134,34 +135,6 @@ namespace Versionr.Commands
                 default:
                     throw new Exception();
             }
-        }
-
-        private static string ShortStatusCode(StatusCode code)
-        {
-            switch (code)
-            {
-                case StatusCode.Missing:
-                    return "%";
-                case StatusCode.Deleted:
-                    return "D";
-                case StatusCode.Modified:
-                    return "M";
-                case StatusCode.Added:
-                    return "+";
-                case StatusCode.Unchanged:
-                    return "-";
-                case StatusCode.Unversioned:
-                    return "?";
-                case StatusCode.Renamed:
-                    return "R";
-                case StatusCode.Copied:
-                    return "C";
-                case StatusCode.Conflict:
-                    return "!";
-				case StatusCode.Ignored:
-					return string.Empty;
-            }
-            throw new Exception();
         }
     }
 }
