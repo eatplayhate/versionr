@@ -716,7 +716,7 @@ namespace Versionr
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
 
 			HashSet<string> stagedPaths = new HashSet<string>();
-
+            HashSet<string> removals = new HashSet<string>();
 			foreach (var x in files)
 			{
 				if (x.Staged == false && (
@@ -733,7 +733,8 @@ namespace Versionr
 					{
 						Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
-					}
+                        removals.Add(x.VersionControlRecord.CanonicalName);
+                    }
 					else
 					{
 						Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
@@ -760,6 +761,24 @@ namespace Versionr
                                 Printer.PrintMessage("#q#Recorded (auto): #b#{0}##", entry.CanonicalName);
                                 stageOps.Add(new StageOperation() { Operand1 = entry.CanonicalName, Type = StageOperationType.Add });
                                 stagedPaths.Add(entry.CanonicalName);
+                            }
+                        }
+                    }
+                }
+                else if (x.Type == StageOperationType.Remove)
+                {
+                    Status.StatusEntry entry = status.Map[x.Operand1];
+                    if (entry.IsDirectory)
+                    {
+                        foreach (var y in status.Elements)
+                        {
+                            if (y.CanonicalName.StartsWith(entry.CanonicalName))
+                            {
+                                if (y.Code != StatusCode.Deleted && !removals.Contains(y.CanonicalName))
+                                {
+                                    Printer.PrintMessage("#x#Error:##\n  Can't stage removal of \"#b#{0}##\", obstructed by object \"#b#{1}##\". Remove contained objects first.", x.Operand1, y.CanonicalName);
+                                    return false;
+                                }
                             }
                         }
                     }

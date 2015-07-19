@@ -47,7 +47,8 @@ namespace Versionr
             Error,
             Warning,
             Message,
-            Diagnostics
+            Diagnostics,
+            Interactive
         }
 
         enum OutputColour
@@ -261,12 +262,32 @@ namespace Versionr
         }
         public static void Write(MessageType type, string message)
         {
-            if (type == MessageType.Diagnostics && !EnableDiagnostics)
-                return;
-            if (Quiet && (type == MessageType.Message || type == MessageType.Diagnostics))
-                return;
-            FormatOutput(message);
+            lock (SyncObject)
+            {
+                if (type == MessageType.Diagnostics && !EnableDiagnostics)
+                    return;
+                if (Quiet && type != MessageType.Warning && type != MessageType.Error)
+                    return;
+                if (type != MessageType.Interactive)
+                {
+                    ClearInteractive();
+                }
+                FormatOutput(message);
+            }
         }
+
+        internal static void ClearInteractive()
+        {
+            if (LastPrinter != null)
+            {
+                int clearLength = System.Console.CursorLeft;
+                System.Console.CursorLeft = 0;
+                FormatOutput(new string(' ', clearLength));
+                System.Console.CursorLeft = 0;
+                LastPrinter = null;
+            }
+        }
+
         public static void WriteLineError(string error)
         {
             Write(MessageType.Error, error + "\n");
@@ -302,6 +323,156 @@ namespace Versionr
         {
             string result = string.Format(message, args);
             WriteLineMessage(result);
+        }
+
+        public abstract class InteractivePrinter
+        {
+            internal string Header { get; set; }
+            internal string Last { get; set; }
+            internal int ConsoleLeft { get; set; }
+            internal Func<object, string> Formatter { get; set; }
+            internal abstract void Start(string s);
+            public abstract void Update(object obj);
+            public virtual void End(object obj)
+            {
+                lock (Printer.SyncObject)
+                {
+                    Update(obj);
+                    Printer.Write(MessageType.Interactive, "\n");
+                    Printer.LastPrinter = null;
+                }
+            }
+        }
+
+        internal class SimplePrinter : InteractivePrinter
+        {
+            internal override void Start(string title)
+            {
+                Header = title + ": ";
+                lock (Printer.SyncObject)
+                {
+                    Printer.ClearInteractive();
+                    Printer.Write(MessageType.Interactive, Header);
+                    Printer.LastPrinter = this;
+                    ConsoleLeft = System.Console.CursorLeft;
+                }
+                Last = string.Empty;
+            }
+            public override void Update(object amount)
+            {
+                lock (Printer.SyncObject)
+                {
+                    if (Printer.LastPrinter != this)
+                    {
+                        Printer.ClearInteractive();
+                        Printer.Write(MessageType.Interactive, Header);
+                        Printer.LastPrinter = this;
+                        ConsoleLeft = System.Console.CursorLeft;
+                    }
+                    string last = Last;
+                    Last = Formatter(amount);
+                    System.Console.CursorLeft = ConsoleLeft;
+                    string output = Last;
+                    while (output.Length < last.Length)
+                        output += ' ';
+                    System.Console.CursorLeft = ConsoleLeft;
+                    Write(MessageType.Interactive, output);
+                }
+            }
+        }
+
+        internal class BarPrinter : InteractivePrinter
+        {
+            internal Func<object, float> PercentCalculator { get; set; }
+            internal Func<float, string> PercentFormatter { get; set; }
+            internal int Width { get; set; }
+            internal string Before { get; set; }
+            internal override void Start(string title)
+            {
+                if (string.IsNullOrEmpty(title))
+                    Header = null;
+                else
+                    Header = title + ":\n";
+                lock (Printer.SyncObject)
+                {
+                    if (!string.IsNullOrEmpty(Header))
+                        Printer.Write(MessageType.Interactive, Header);
+                    Printer.LastPrinter = this;
+                    ConsoleLeft = System.Console.CursorLeft;
+                }
+                Last = string.Empty;
+            }
+            public override void Update(object amount)
+            {
+                string fmt = Formatter(amount);
+                float pct = PercentCalculator(amount);
+                lock (Printer.SyncObject)
+                {
+                    if (Printer.LastPrinter != this)
+                    {
+                        Printer.LastPrinter = this;
+                        ConsoleLeft = 0;
+                    }
+                    string pctString = PercentFormatter(pct);
+                    string bar;
+                    int extra = 0;
+                    if (!string.IsNullOrEmpty(Before))
+                    {
+                        extra += Before.Length + 2;
+                        bar = Before + " [";
+                    }
+                    else
+                        bar = "[";
+                    int midpoint = ((Width - 2) - pctString.Length) / 2;
+                    int totalValue = (int)System.Math.Ceiling(((Width) / 100.0) * pct);
+                    for (int i = 0; i < midpoint; i++)
+                    {
+                        if (i < totalValue)
+                            bar += '=';
+                        else
+                            bar += '.';
+                    }
+                    bar += pctString;
+                    for (int i = bar.Length; i < Width - 1 + extra; i++)
+                    {
+                        if (i < totalValue + extra)
+                            bar += '=';
+                        else
+                            bar += '.';
+                    }
+                    System.Console.CursorLeft = 0;
+                    bar += "] " + fmt;
+                    Write(MessageType.Interactive, bar);
+                }
+            }
+        }
+        static InteractivePrinter LastPrinter = null;
+        public static InteractivePrinter CreateSimplePrinter(string title, Func<object, string> formatter)
+        {
+            InteractivePrinter printer = new SimplePrinter()
+            {
+                Header = title,
+                Formatter = formatter
+            };
+
+            printer.Start(title);
+
+            return printer;
+        }
+        public static InteractivePrinter CreateProgressBarPrinter(string initialLine, string title, Func<object, string> formatter, Func<object, float> percentCalculator, Func<float, string> percentFormatter, int barWidth)
+        {
+            InteractivePrinter printer = new BarPrinter()
+            {
+                Before = title,
+                Formatter = formatter,
+                PercentCalculator = percentCalculator,
+                PercentFormatter = percentFormatter,
+                Width = barWidth
+            };
+
+            printer.Start(initialLine);
+
+            return printer;
         }
     }
 }

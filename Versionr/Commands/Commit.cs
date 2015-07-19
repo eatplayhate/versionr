@@ -58,8 +58,7 @@ namespace Versionr.Commands
 
             if (targets != null && targets.Count > 0)
             {
-				if (!ws.RecordChanges(status, targets, false))
-					return false;
+                ws.RecordChanges(status, targets, false);
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;

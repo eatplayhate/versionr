@@ -26,7 +26,7 @@ namespace Versionr.Commands
                     "",
                     "Any recorded files will also add their containing folders to the control system unless already present.",
                     "",
-                    "This command will also allow you to specify missing files as being intended for deletion. To match multiple deleted files, use the `#b#--deleted#q#` option.",
+                    "This command will also allow you to specify missing files as being intended for deletion, but to make this explicit, you must use the `#b#--deleted#q#` option.",
                     "",
                     "#b#NOTE:#q# Unlike other version control systems, ##recording#q# a file is only a mechanism for marking inclusion in a future ##commit#q#. The object must be committed before it is saved in the Versionr system.",
                     "",

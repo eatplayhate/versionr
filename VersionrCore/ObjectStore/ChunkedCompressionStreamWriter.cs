@@ -9,7 +9,7 @@ namespace Versionr.ObjectStore
 {
     public abstract class ChunkedCompressionStreamWriter : IDisposable
     {
-        protected void Run(long fileLength, int chunkSize, out long resultSize, Stream inputData, Stream outputData)
+        protected void Run(long fileLength, int chunkSize, out long resultSize, Stream inputData, Stream outputData, Action<long, long, long> feedback = null)
         {
             if (!outputData.CanSeek)
                 throw new Exception();
@@ -34,6 +34,8 @@ namespace Versionr.ObjectStore
 
             while (remainder > 0)
             {
+                if (feedback != null)
+                    feedback(fileLength, fileLength - remainder, resultSize);
                 int available = chunkSize;
                 if (available > remainder)
                     available = (int)remainder;
@@ -45,7 +47,6 @@ namespace Versionr.ObjectStore
                 resultSize += blockSize;
                 sizes.Add(blockSize);
                 outputData.Write(outBuffer, 0, (int)blockSize);
-
             }
 
             outputData.Seek(baseOutputPos, SeekOrigin.Begin);

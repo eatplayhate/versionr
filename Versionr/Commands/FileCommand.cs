@@ -33,17 +33,14 @@ namespace Versionr.Commands
 		[ValueList(typeof(List<string>))]
 		public IList<string> Objects { get; set; }
 	}
-	abstract class FileCommand : BaseCommand
+	abstract class FileCommand : BaseWorkspaceCommand
 	{
-		public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+		protected override bool RunInternal(object options)
 		{
 			FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;
 			Printer.EnableDiagnostics = localOptions.Verbose;
-			Area ws = Area.Load(workingDirectory);
-			if (ws == null)
-				return false;
 
-			var status = ws.Status;
+			var status = Workspace.Status;
 			List<Versionr.Status.StatusEntry> targets;
 
 			if (localOptions.All)
@@ -58,7 +55,7 @@ namespace Versionr.Commands
 				targets = targets.Where(x => x.VersionControlRecord != null).ToList();
 
 			if (targets.Count > 0 || !RequiresTargets)
-				return RunInternal(ws, status, targets, localOptions);
+				return RunInternal(Workspace, status, targets, localOptions);
 
 			Printer.PrintWarning("No files selected for {0}", localOptions.Verb);
 			return false;
