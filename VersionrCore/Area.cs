@@ -2225,6 +2225,27 @@ namespace Versionr
 						throw new Exception("Unable to remove stage operations!", e);
 					}
 				}
+                else if (x.Code == StatusCode.Conflict)
+                {
+                    Printer.PrintMessage("Marking {0} as resolved.", x.CanonicalName);
+                    LocalData.BeginTransaction();
+                    try
+                    {
+                        foreach (var y in LocalData.StageOperations)
+                        {
+                            if (y.Type == StageOperationType.Conflict && y.Operand1 == x.CanonicalName)
+                            {
+                                LocalData.Delete(y);
+                            }
+                        }
+                        LocalData.Commit();
+                    }
+                    catch (Exception e)
+                    {
+                        LocalData.Rollback();
+                        throw new Exception("Unable to remove stage operations!", e);
+                    }
+                }
 
 				if (revertRecord && x.Code != StatusCode.Unchanged)
 				{

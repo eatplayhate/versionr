@@ -118,7 +118,7 @@ namespace Versionr.Network
                     }
 
                     System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetRandomFileName());
-                    Printer.PrintError("Attempting to import metadata file to temp path {0}", fsInfo.FullName);
+                    Printer.PrintMessage("Attempting to import metadata file to temp path {0}", fsInfo.FullName);
                     try
                     {
                         using (var stream = fsInfo.OpenWrite())
@@ -137,7 +137,7 @@ namespace Versionr.Network
                                 return false;
                             }
                         }
-                        Printer.PrintError("Metadata written, importing DB.");
+                        Printer.PrintMessage("Metadata written, importing DB.");
                         Area area = new Area(Area.GetAdminFolderForDirectory(BaseDirectory));
                         try
                         {
