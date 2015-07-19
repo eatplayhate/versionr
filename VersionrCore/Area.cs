@@ -204,6 +204,28 @@ namespace Versionr
             return Database.GetHistory(version, limit);
         }
 
+        public static string CoreVersion
+        {
+            get
+            {
+                return "v1.0";
+            }
+        }
+
+        public static Tuple<string, string>[] ComponentVersions
+        {
+            get
+            {
+                return new Tuple<string, string>[]
+                {
+                    WorkspaceDB.ComponentVersionInfo,
+                    LocalDB.ComponentVersionInfo,
+                    Versionr.ObjectStore.StandardObjectStore.ComponentVersionInfo,
+                    SharedNetwork.ComponentVersionInfo,
+                };
+            }
+        }
+
         public bool RemoveHead(Head x)
         {
             Database.BeginTransaction();
@@ -694,7 +716,7 @@ namespace Versionr
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
 
 			HashSet<string> stagedPaths = new HashSet<string>();
-
+            HashSet<string> removals = new HashSet<string>();
 			foreach (var x in files)
 			{
 				if (x.Staged == false && (
@@ -709,12 +731,13 @@ namespace Versionr
 
 					if (x.Code == StatusCode.Missing)
 					{
-						Printer.PrintMessage("Recorded deletion: {0}", x.VersionControlRecord.CanonicalName);
+						Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
-					}
+                        removals.Add(x.VersionControlRecord.CanonicalName);
+                    }
 					else
 					{
-						Printer.PrintMessage("Recorded object: {0}", x.FilesystemEntry.CanonicalName);
+						Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
 					}
 				}
@@ -735,9 +758,27 @@ namespace Versionr
                         {
                             if (!stagedPaths.Contains(entry.CanonicalName))
                             {
-                                Printer.PrintMessage("Recorded object (auto): {0}", entry.CanonicalName);
+                                Printer.PrintMessage("#q#Recorded (auto): #b#{0}##", entry.CanonicalName);
                                 stageOps.Add(new StageOperation() { Operand1 = entry.CanonicalName, Type = StageOperationType.Add });
                                 stagedPaths.Add(entry.CanonicalName);
+                            }
+                        }
+                    }
+                }
+                else if (x.Type == StageOperationType.Remove)
+                {
+                    Status.StatusEntry entry = status.Map[x.Operand1];
+                    if (entry.IsDirectory)
+                    {
+                        foreach (var y in status.Elements)
+                        {
+                            if (y.CanonicalName.StartsWith(entry.CanonicalName))
+                            {
+                                if (y.Code != StatusCode.Deleted && !removals.Contains(y.CanonicalName))
+                                {
+                                    Printer.PrintMessage("#x#Error:##\n  Can't stage removal of \"#b#{0}##\", obstructed by object \"#b#{1}##\". Remove contained objects first.", x.Operand1, y.CanonicalName);
+                                    return false;
+                                }
                             }
                         }
                     }
@@ -746,10 +787,10 @@ namespace Versionr
 
             if (stageOps.Count == 0)
             {
-                Printer.PrintMessage("No changes found to record.");
+                Printer.PrintMessage("#w#Warning:##\n  No changes found to record.");
                 return false;
             }
-            Printer.PrintMessage("Recorded {0} changes.", stageOps.Count);
+            Printer.PrintMessage("Recorded #b#{0}## objects.", stageOps.Count);
             LocalData.BeginTransaction();
             try
             {
@@ -1126,6 +1167,8 @@ namespace Versionr
             {
                 if (localObject.FilesystemEntry != null)
                 {
+                    if (localObject.FilesystemEntry.IsDirectory && Fingerprint == localObject.FilesystemEntry.CanonicalName)
+                        return true;
                     return localObject.FilesystemEntry.Length == Length && localObject.FilesystemEntry.Hash == Fingerprint;
                 }
                 return false;
@@ -1347,6 +1390,7 @@ namespace Versionr
                     }
                 }
             }
+            List<Tuple<string, string, bool>> deletionList = new List<Tuple<string, string, bool>>();
             foreach (var x in parentData)
             {
                 Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
@@ -1361,8 +1405,7 @@ namespace Versionr
 						if (x.DataEquals(localObject))
                         {
 							Printer.PrintMessage("Removing {0}", x.CanonicalName);
-							LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
-							System.IO.File.Delete(path);
+                            deletionList.Add(new Tuple<string, string, bool>(path, x.CanonicalName, x.CanonicalName.EndsWith("/")));
                         }
                         else
                         {
@@ -1373,13 +1416,29 @@ namespace Versionr
                                 continue;
                             if (resolution.StartsWith("r"))
 							{
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
-								System.IO.File.Delete(path);
+                                deletionList.Add(new Tuple<string, string, bool>(path, x.CanonicalName, false));
 							}
 							if (resolution.StartsWith("c"))
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                         }
                     }
+                }
+            }
+            foreach (var x in deletionList.Where(x => x.Item3 == false))
+            {
+                System.IO.File.Delete(x.Item1);
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+            }
+            foreach (var x in deletionList.Where(x => x.Item3 == true).OrderByDescending(x => x.Item2.Length))
+            {
+                try
+                {
+                    System.IO.Directory.Delete(x.Item1);
+                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+                }
+                catch
+                {
+                    
                 }
             }
             foreach (var x in parentData)
@@ -2181,22 +2240,24 @@ namespace Versionr
 
         public bool Commit(string message = "", bool force = false)
         {
-            Guid? mergeID = null;
+            List<Guid> mergeIDs = new List<Guid>();
             Printer.PrintDiagnostics("Checking stage info for pending conflicts...");
             foreach (var x in LocalData.StageOperations)
             {
                 if (x.Type == StageOperationType.Conflict)
                 {
-                    throw new Exception(string.Format("Can't commit while pending conflicts on file \"{0}\"!", x.Operand1));
+                    Printer.PrintError("#x#Error:##\n  Can't commit while pending conflicts on file \"#b#{0}##\"!", x.Operand1);
+                    return false;
                 }
                 if (x.Type == StageOperationType.Merge)
-                    mergeID = new Guid(x.Operand1);
+                    mergeIDs.Add(new Guid(x.Operand1));
             }
             Objects.Version parentVersion = Database.Version;
             Printer.PrintDiagnostics("Getting status for commit.");
             Status st = Status;
-            if (st.HasModifications(true) || mergeID != null)
+            if (st.HasModifications(true) || mergeIDs.Count > 0)
             {
+                Printer.PrintMessage("Committing changes..");
                 Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                 try
                 {
@@ -2206,15 +2267,22 @@ namespace Versionr
                     vs.Parent = Database.Version.ID;
                     vs.Branch = Database.Branch.ID;
                     Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);
-                    Objects.MergeInfo mergeInfo = null;
-                    Objects.Head mergeHead = null;
-                    if (mergeID.HasValue)
+                    List<Objects.MergeInfo> mergeInfos = new List<MergeInfo>();
+                    List<Objects.Head> mergeHeads = new List<Head>();
+                    foreach (var guid in mergeIDs)
                     {
-                        mergeInfo = new MergeInfo();
-                        mergeInfo.SourceVersion = mergeID.Value;
+                        Objects.MergeInfo mergeInfo = new MergeInfo();
+                        mergeInfo.SourceVersion = guid;
                         mergeInfo.DestinationVersion = vs.ID;
 
-                        mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == mergeID.Value).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
+                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}\"##", guid, GetBranch(GetVersion(guid).Branch).Name);
+                        Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
+                        if (mergeHead != null)
+                        {
+                            Printer.PrintMessage("#q# - Deleting head reference.");
+                            mergeHeads.Add(mergeHead);
+                        }
+                        mergeInfos.Add(mergeInfo);
                     }
                     vs.Message = message;
                     vs.Timestamp = DateTime.UtcNow;
@@ -2229,11 +2297,11 @@ namespace Versionr
                         head = Database.Find<Objects.Head>(x => x.Branch == branch.ID);
                         if (head != null && !force)
                         {
-                            Printer.PrintError("Branch already has head but current version is not a direct child.\nA new head has to be inserted, but this requires that the force option is used.");
+                            Printer.PrintError("#x#Error:##\n   Branch already has head but current version is not a direct child.\nA new head has to be inserted, but this requires that the #b#`--force`## option is used.");
                             return false;
                         }
                         else
-                            Printer.PrintDiagnostics("This branch has a previously recorded head, but a new head has to be inserted.");
+                            Printer.PrintWarning("#w#This branch has a previously recorded head, but a new head has to be inserted.");
                         head = new Head();
                         head.Branch = branch.ID;
                         newHead = true;
@@ -2265,6 +2333,7 @@ namespace Versionr
                         {
                             case StatusCode.Deleted:
                                 {
+                                    Printer.PrintMessage("Deleted: #b#{0}##", x.VersionControlRecord.CanonicalName);
                                     Printer.PrintDiagnostics("Recorded deletion: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
                                     Objects.Alteration alteration = new Alteration();
                                     alteration.PriorRecord = x.VersionControlRecord.Id;
@@ -2322,6 +2391,36 @@ namespace Versionr
                                             if (x.VersionControlRecord != null)
                                                 record.Parent = x.VersionControlRecord.Id;
                                         }
+
+                                        Objects.Alteration alteration = new Alteration();
+                                        alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
+                                        if (x.Code == StatusCode.Added)
+                                        {
+                                            Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
+                                            alteration.Type = AlterationType.Add;
+                                        }
+                                        else if (x.Code == StatusCode.Modified)
+                                        {
+                                            Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Update;
+                                        }
+                                        else if (x.Code == StatusCode.Copied)
+                                        {
+                                            Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Copy;
+                                        }
+                                        else if (x.Code == StatusCode.Renamed)
+                                        {
+                                            Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Move;
+                                        }
                                         if (!ObjectStore.HasData(record))
                                             ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
 
@@ -2340,31 +2439,6 @@ namespace Versionr
                                         if (record.Parent != null)
                                             Printer.PrintDiagnostics("Record parent ID: {0}", record.Parent);
 
-                                        Objects.Alteration alteration = new Alteration();
-                                        alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
-                                        if (x.Code == StatusCode.Added)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
-                                            alteration.Type = AlterationType.Add;
-                                        }
-                                        else if (x.Code == StatusCode.Modified)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Update;
-                                        }
-                                        else if (x.Code == StatusCode.Copied)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Copy;
-                                        }
-                                        else if (x.Code == StatusCode.Renamed)
-                                        {
-                                            Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Move;
-                                        }
                                         finalRecords.Add(record);
                                         alterations.Add(alteration);
                                         if (!recordIsMerged)
@@ -2389,7 +2463,7 @@ namespace Versionr
                     ObjectStore.EndStorageTransaction(transaction);
                     transaction = null;
 
-                    Printer.PrintDiagnostics("Updating internal state.");
+                    Printer.PrintMessage("Updating internal state.");
                     var ws = LocalData.Workspace;
                     ws.Tip = vs.ID;
                     Objects.Snapshot ss = new Snapshot();
@@ -2436,8 +2510,8 @@ namespace Versionr
                         x.Owner = ss.Id;
                         Database.InsertSafe(x);
                     }
-                    if (mergeInfo != null)
-                        Database.InsertSafe(mergeInfo);
+                    foreach (var info in mergeInfos)
+                        Database.InsertSafe(info);
                     if (saveSnapshot)
                     {
                         Printer.PrintDiagnostics("Adding {0} snapshot ref records.", ssRefs.Count);
@@ -2449,8 +2523,11 @@ namespace Versionr
                     else
                         Database.UpdateSafe(head);
 
-                    if (mergeHead != null)
-                        Database.DeleteSafe(mergeHead);
+                    foreach (var mergeHead in mergeHeads)
+                    {
+                        if (mergeHead != null)
+                            Database.DeleteSafe(mergeHead);
+                    }
                     Database.InsertSafe(vs);
                     
                     Database.Commit();
@@ -2468,7 +2545,7 @@ namespace Versionr
                         throw;
                     }
 
-                    Printer.PrintMessage("At version {0} on branch \"{1}\"", Database.Version.ID, Database.Branch.Name);
+                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
                 }
                 catch (Exception e)
                 {
@@ -2481,7 +2558,7 @@ namespace Versionr
             }
             else
             {
-                Printer.PrintError("Nothing to do.");
+                Printer.PrintWarning("#w#Warning:##\n  Nothing to do.");
                 return false;
             }
             return true;
@@ -2649,6 +2726,8 @@ namespace Versionr
         public static Area Init(DirectoryInfo workingDir, string branchname = "master")
         {
             Area ws = CreateWorkspace(workingDir);
+            if (ws == null)
+                return null;
             if (!ws.Init(branchname))
                 throw new Exception("Couldn't initialize versionr.");
             return ws;
@@ -2658,8 +2737,12 @@ namespace Versionr
         {
             Area ws = LoadWorkspace(workingDir);
             if (ws != null)
-                throw new Exception(string.Format("Path {0} is already a versionr workspace!", workingDir.FullName));
+            {
+                Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:#e# Vault Initialization Failed##\n  The current directory #b#`{0}`## is already part of a versionr vault located in #b#`{1}`##.\n", workingDir.FullName, ws.Root.FullName));
+                return null;
+            }
             DirectoryInfo adminFolder = GetAdminFolderForDirectory(workingDir);
+            Printer.Write(Printer.MessageType.Message, string.Format("Initializing new vault in location `#b#{0}##`.\n", adminFolder.FullName));
             ws = new Area(adminFolder);
             return ws;
         }
@@ -2667,8 +2750,6 @@ namespace Versionr
         public static Area Load(DirectoryInfo workingDir)
         {
             Area ws = LoadWorkspace(workingDir);
-            if (ws == null)
-                throw new Exception(string.Format("Path {0} is not a valid workspace!", workingDir.FullName));
             return ws;
         }
 

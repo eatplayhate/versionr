@@ -9,7 +9,7 @@ namespace Versionr.Commands
 {
     class CommitVerbOptions : FileCommandVerbOptions
 	{
-        [Option('f', "force", DefaultValue = false, HelpText = "Forces the commit to happen even if it would create a new branch head.")]
+        [Option('f', "force", HelpText = "Forces the commit to happen even if it would create a new branch head.")]
         public bool Force { get; set; }
 
         public override string[] Description
@@ -18,21 +18,23 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "This command will record any staged changes into the Versionr",
-                    "repository.",
+                    "#q#This command will chonicle any recorded changes into the Versionr repository.",
                     "",
-                    "The process will create a new version with its parent set to the",
-                    "currently checked out revision. It will then update the current ",
-                    "branch head information to point to the newly created version.",
+                    "The process will create a new #b#version#q# with its parent set to the current revision. It will then update the current branch head information to point to the newly created version.",
                     "",
-                    "If you are committing from a version which is not the branch head",
-                    "a new head will be created. As this is not typically a desired",
-                    "outcome, the commit operation will not succeed without the",
-                    "`--force` option.",
+                    "If you are committing from a version which is not the branch head, a new head will be created. As this is not typically a desired outcome, the commit operation will not succeed without the `#b#--force#q#` option.",
                     "",
-                    "Additional files to add to the commit can be added during this",
-                    "operation.",
+                    "The `#b#--message#q#` option specifies the message that is associated with the new version. A message is required.",
+                    "",
+                    "The commit command also allows recording additional objects for inclusion in the new version, and has the same options and behaviour as the #b#record#q# command.",
                 };
+            }
+        }
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("#b#versionr #i#{0}#q# [options] [file1, file2 ... fileN]", Verb);
             }
         }
 
@@ -56,8 +58,7 @@ namespace Versionr.Commands
 
             if (targets != null && targets.Count > 0)
             {
-				if (!ws.RecordChanges(status, targets, false))
-					return false;
+                ws.RecordChanges(status, targets, false);
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;

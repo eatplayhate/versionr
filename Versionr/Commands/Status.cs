@@ -9,9 +9,9 @@ namespace Versionr.Commands
 {
     class StatusVerbOptions : VerbOptionBase
     {
-        [Option("nolist", DefaultValue = false, HelpText = "Does not display the full list of files.")]
+        [Option('n', "nolist", HelpText = "Does not display a listing of file statuses.")]
         public bool NoList { get; set; }
-        [Option('s', "summary", DefaultValue = false, HelpText = "Displays a summary at the end of the status block.")]
+        [Option('s', "summary", HelpText = "Displays a summary at the end of the status block.")]
         public bool Summary { get; set; }
         public override string[] Description
         {
@@ -19,20 +19,29 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "This command will determine the current status of the Versionr",
-                    "repository tree.", 
+                    "#q#This command will determine the current status of the Versionr repository tree.", 
                     "",
-                    "It will determine if any files have been added, changed, or removed",
-                    "when compared with the currently checked-out version on record.",
+                    "The operation will involve walking the entire directory tree of the vault and comparing each file against the #b#currently checked out version#q#.",
+                    "",
+                    "Objects that have operations #b#recorded#q# for the next ##commit#q# are marked with an asterisk (#b#*#q#).",
+                    "",
+                    "The following status codes are available:",
+                    "  #s#Added##: Not part of the vault, but marked for inclusion.",
+                    "  #s#Modified##: Object has changed, and the changes are marked for inclusion.",
+                    "  #b#Deleted##: Was part of the vault, deleted from the disk and marked for removal.",
+                    "  #w#Unversioned##: Object is not part of vault.",
+                    "  #w#Missing##: Object is part of the vault, but is not present on the disk.",
+                    "  #w#Changed##: Object has changed, but the changes are not marked for inclusion.",
+                    "  #w#Renamed##: Object has been matched to a deleted object in the vault.",
+                    "  #w#Copied##: Object is not part of the vault but is a copy of an object that is.",
+                    "  #e#Conflict##: The file ##requires intervention#q# to finish merging. It will obstruct the next ##commit#q# until it is resolved.",
+                    "",
+                    "To record additional objects for inclusion in the next #b#commit#q#, see the #b#record#q# command.",
+                    "",
+                    "To reduce computation time, files are #b#not#q# checked for modifications unless their ##timestamp has been changed#q# from the current version#q#.",
+                    "",
+                    "The `#b#status#q#` command will respect patterns in the #b#.vrmeta#q# directive file.",
                 };
-            }
-        }
-
-        public override string Usage
-        {
-            get
-            {
-                return string.Format("Usage: versionr {0} [options]", Verb);
             }
         }
 
@@ -44,19 +53,14 @@ namespace Versionr.Commands
             }
         }
     }
-    class Status : BaseCommand
+    class Status : BaseWorkspaceCommand
     {
-        public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        protected override bool RunInternal(object options)
         {
-            StatusVerbOptions localOptions = options as StatusVerbOptions;
-            Printer.EnableDiagnostics = localOptions.Verbose;
-            Area ws = Area.Load(workingDirectory);
-            if (ws == null)
-                return false;
-
-            var ss = ws.Status;
-            System.Console.WriteLine("Version {0} on branch \"{1}\"\n", ss.CurrentVersion.ID, ss.Branch.Name);
-            int[] codeCount = new int[(int)StatusCode.Count];
+            StatusVerbOptions localOptions = (StatusVerbOptions)options;
+            var ss = Workspace.Status;
+            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"\n", ss.CurrentVersion.ID, ss.Branch.Name);
+            int[] codeCount = new int[(int)StatusCode.Ignored];
             foreach (var x in ss.Elements)
             {
 				if (x.Code == StatusCode.Unchanged)
@@ -65,73 +69,72 @@ namespace Versionr.Commands
                 if (!localOptions.NoList)
                 {
                     string name = x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName;
-                    System.Console.WriteLine(" {1} {0}", name, GetStatus(x));
+                    int index = name.LastIndexOf('/');
+                    if (index != name.Length - 1)
+                        name = name.Insert(index + 1, "#b#");
+                    Printer.WriteLineMessage("{1}## {0}", name, GetStatus(x));
                     if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
-                        System.Console.WriteLine("  <== {0}", x.VersionControlRecord.CanonicalName);
+                        Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
                 }
             }
             if (localOptions.Summary)
             {
-                System.Console.WriteLine("Summary:");
+                Printer.WriteLineMessage("\n#b#Summary:##");
                 for (int i = 0; i < codeCount.Length; i++)
-                    System.Console.WriteLine("  {0} {2} {1}", codeCount[i], codeCount[i] != 1 ? "Objects" : "Object", ((StatusCode)i).ToString());
+                    Printer.WriteLineMessage("  {0} #b#{2}## #q#{1}##", codeCount[i], codeCount[i] != 1 ? "Objects" : "Object", ((StatusCode)i).ToString());
+                Printer.WriteLineMessage("\n  {0}#q# files in ##{1}#q# diectories ({2} ignored)", ss.Files, ss.Directories, ss.IgnoredObjects);
             }
             return true;
         }
 
         private string GetStatus(Versionr.Status.StatusEntry x)
         {
+            var info = GetStatusText(x);
+            string text = info.Item2;
+            while (text.Length < 14)
+                text = " " + text;
+            text = "#" + info.Item1 + "#" + text;
+            if (x.Staged)
+                text += "#b#*##";
+            else
+                text += " ";
+            return text;
+        }
+
+        private Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
+        {
             switch (x.Code)
             {
                 case StatusCode.Added:
-                    return x.Staged ? "(added)" : "(error)";
+                    return x.Staged ? new Tuple<char, string>('s', "(added)")
+                        : new Tuple<char, string>('e', "(error)");
                 case StatusCode.Conflict:
-                    return x.Staged ? "(conflict)" : "(conflict)";
+                    return x.Staged ? new Tuple<char, string>('e', "(conflict)")
+                        : new Tuple<char, string>('e', "(conflict)");
                 case StatusCode.Copied:
-                    return x.Staged ? "(added - copied)" : "(copied)";
+                    return x.Staged ? new Tuple<char, string>('s', "(copied)")
+                        : new Tuple<char, string>('w', "(copied)");
                 case StatusCode.Deleted:
-                    return x.Staged ? "(deleted)" : "(missing)";
+                    return x.Staged ? new Tuple<char, string>('c', "(deleted)")
+                        : new Tuple<char, string>('w', "(missing)");
                 case StatusCode.Missing:
-                    return x.Staged ? "(error)" : "(missing)";
+                    return x.Staged ? new Tuple<char, string>('e', "(error)")
+                        : new Tuple<char, string>('w', "(missing)");
                 case StatusCode.Modified:
-                    return x.Staged ? "(modified)" : "(changed)";
+                    return x.Staged ? new Tuple<char, string>('s', "(modified)")
+                        : new Tuple<char, string>('w', "(changed)");
                 case StatusCode.Renamed:
-                    return x.Staged ? "(renamed)" : "(renamed)";
+                    return x.Staged ? new Tuple<char, string>('s', "(renamed)")
+                        : new Tuple<char, string>('w', "(renamed)");
                 case StatusCode.Unversioned:
-                    return x.Staged ? "(error)" : "(unversioned)";
-				case StatusCode.Ignored:
-					return x.Staged ? "(error)" : "(ignored)";
+                    return x.Staged ? new Tuple<char, string>('e', "(error)")
+                        : new Tuple<char, string>('w', "(unversioned)");
+                case StatusCode.Ignored:
+                    return x.Staged ? new Tuple<char, string>('e', "(error)")
+                        : new Tuple<char, string>('q', "(ignored)");
                 default:
                     throw new Exception();
             }
-        }
-
-        private static string ShortStatusCode(StatusCode code)
-        {
-            switch (code)
-            {
-                case StatusCode.Missing:
-                    return "%";
-                case StatusCode.Deleted:
-                    return "D";
-                case StatusCode.Modified:
-                    return "M";
-                case StatusCode.Added:
-                    return "+";
-                case StatusCode.Unchanged:
-                    return "-";
-                case StatusCode.Unversioned:
-                    return "?";
-                case StatusCode.Renamed:
-                    return "R";
-                case StatusCode.Copied:
-                    return "C";
-                case StatusCode.Conflict:
-                    return "!";
-				case StatusCode.Ignored:
-					return string.Empty;
-            }
-            throw new Exception();
         }
     }
 }

@@ -107,7 +107,7 @@ namespace Versionr.ObjectStore
             }
         }
         
-        public static List<FileBlock> ComputeDelta(System.IO.Stream input, long inputSize, ChunkedChecksum chunks, out long deltaSize)
+        public static List<FileBlock> ComputeDelta(System.IO.Stream input, long inputSize, ChunkedChecksum chunks, out long deltaSize, Action<long, long> progress = null)
         {
             List<FileBlock> deltas = new List<FileBlock>();
             if (inputSize < chunks.ChunkSize)
@@ -140,6 +140,8 @@ namespace Versionr.ObjectStore
                 }
 
                 int remainder = (int)(readHead - processHead);
+                if (progress != null)
+                    progress(inputSize, processHead);
                 int possibleChunkLookup;
                 Chunk match = null;
                 if (adlerToIndex.TryGetValue(checksum, out possibleChunkLookup))
@@ -229,7 +231,7 @@ namespace Versionr.ObjectStore
 
             return (uint)((b << 16) | a);
         }
-
+        
         public static void Skip(System.IO.Stream stream)
         {
             byte[] temp = new byte[16];
@@ -274,7 +276,7 @@ namespace Versionr.ObjectStore
             return result;
         }
 
-        public static ChunkedChecksum Compute(int size, System.IO.Stream stream)
+        public static ChunkedChecksum Compute(int size, System.IO.Stream stream, Action<long, long> progress = null)
         {
             ChunkedChecksum result = new ChunkedChecksum();
             result.ChunkSize = size;
@@ -286,6 +288,8 @@ namespace Versionr.ObjectStore
             int index = 0;
             while (true)
             {
+                if (progress != null)
+                    progress(size, offset);
                 int count = stream.Read(block, 0, size);
                 if (count == 0)
                     break;

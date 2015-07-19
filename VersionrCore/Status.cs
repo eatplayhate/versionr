@@ -61,7 +61,11 @@ namespace Versionr
             public bool DataEquals(Record x)
             {
                 if (FilesystemEntry != null)
+                {
+                    if (FilesystemEntry.IsDirectory)
+                        return x.Fingerprint == FilesystemEntry.CanonicalName;
                     return FilesystemEntry.DataEquals(x.Fingerprint, x.Size);
+                }
                 return false;
             }
 
@@ -82,6 +86,9 @@ namespace Versionr
 		public Dictionary<string, StatusEntry> Map { get; set; }
 		public List<LocalState.StageOperation> Stage { get; set; }
         public Area Workspace { get; set; }
+        public int Files { get; set; }
+        public int Directories { get; set; }
+        public int IgnoredObjects { get; set; }
         public bool HasData
         {
             get
@@ -198,8 +205,15 @@ namespace Versionr
             Elements.AddRange(tasks.Where(x => x != null).Select(x => x.Result));
             foreach (var x in snapshotData)
             {
-				if (x.Value.Ignored)
-					continue;
+                if (x.Value.IsDirectory)
+                    Directories++;
+                else
+                    Files++;
+                if (x.Value.Ignored)
+                {
+                    IgnoredObjects++;
+                    continue;
+                }
 
                 StageFlags objectFlags;
                 stageInformation.TryGetValue(x.Value.CanonicalName, out objectFlags);
@@ -345,9 +359,11 @@ namespace Versionr
                         continue;
                     int index = sortedList.BinarySearch(x, new NameMatcher());
                     if (index < 0)
-                        index = -index;
-                    if (index >= sortedList.Count)
-                        continue;
+                    {
+                        index = ~index;
+                        if (index == sortedList.Count)
+                            continue;
+                    }
                     skipSet.Add(sortedList[index]);
                     for (; index < sortedList.Count; index++)
                     {

@@ -35,22 +35,34 @@ namespace Versionr.Commands
                 return "checkout";
             }
         }
-		[Option('p', "purge", HelpText = "Remove all unversioned files from the repository")]
+        [Option('f', "force", HelpText = "Allow checking out even if non-pristine files will be overwritten.")]
+        public bool Force { get; set; }
+        [Option('p', "purge", HelpText = "Remove all unversioned files from the repository")]
 		public bool Purge { get; set; }
 
-        [ValueList(typeof(List<string>))]
-        public IList<string> Target { get; set; }
+        [ValueOption(0)]
+        public string Target { get; set; }
     }
-    class Checkout : BaseCommand
+    class Checkout : BaseWorkspaceCommand
     {
-        public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        protected override bool RunInternal(object options)
         {
             CheckoutVerbOptions localOptions = options as CheckoutVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
-            Area ws = Area.Load(workingDirectory);
-            if (ws == null)
-                return false;
-            ws.Checkout(localOptions.Target[0], localOptions.Purge);
+            string target;
+            if (string.IsNullOrEmpty(localOptions.Target))
+                target = Workspace.CurrentBranch.Name;
+            else
+                target = localOptions.Target;
+            if (!localOptions.Force)
+            {
+                if (Workspace.Status.HasModifications(false))
+                {
+                    Printer.Write(Printer.MessageType.Error, "#x#Error:##\n  Vault contains uncommitted changes. Use the `#b#--force##` option to allow overwriting.\n");
+                    return false;
+                }
+            }
+            Workspace.Checkout(target, localOptions.Purge);
 			return true;
         }
     }

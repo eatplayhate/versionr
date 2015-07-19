@@ -18,22 +18,21 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "This command adds objects to the versionr tracking system for",
-                    "inclusion in the next commit.",
+                    "#q#This command adds non-pristine objects to the versionr tracking system for inclusion in the next commit.",
                     "",
-                    "Any recorded files will also add their containing folders to the",
-                    "control system unless already present.",
+                    "Objects are matched by path by default. By using the #b#--filename#q# option, objects can be matched regardless of what path they are in. Alternatively, the #b#--regex#q# option allows pattern matching using .NET regular expressions.",
                     "",
-                    "The `record` command will respect patterns in the .vrmeta",
-                    "directive file.",
+                    "All the non-pristine objects can be matched using the #b#--all#q# option. It is possible to match only objects that are part of the vault using the #b#--tracked#q# option.",
                     "",
-                    "This command will also allow you to specify missing files as",
-                    "being intended for deletion. To match multiple deleted files,",
-					"use the `--deleted` option.",
+                    "Any recorded files will also add their containing folders to the control system unless already present.",
                     "",
-                    "NOTE: Unlike other version control systems, adding a file is only",
-                    "a mechanism for marking inclusion in a future commit. The object",
-                    "must be committed before it is saved in the Versionr system."
+                    "This command will also allow you to specify missing files as being intended for deletion, but to make this explicit, you must use the `#b#--deleted#q#` option.",
+                    "",
+                    "#b#NOTE:#q# Unlike other version control systems, ##recording#q# a file is only a mechanism for marking inclusion in a future ##commit#q#. The object must be committed before it is saved in the Versionr system.",
+                    "",
+                    "This command does not do anything for objects that are unchanged.",
+                    "",
+                    "The `#b#record#q#` command will respect patterns in the #b#.vrmeta#q# directive file.",
                 };
             }
         }

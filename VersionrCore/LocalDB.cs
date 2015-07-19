@@ -64,6 +64,14 @@ namespace Versionr
             }
         }
 
+        public static Tuple<string, string> ComponentVersionInfo
+        {
+            get
+            {
+                return new Tuple<string, string>("User DB", string.Format("v{0}", LocalDBVersion));
+            }
+        }
+
         public static LocalDB Open(string fullPath)
         {
             return new LocalDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex);

@@ -50,6 +50,13 @@ namespace Versionr.ObjectStore
         public int Id { get; set; }
         public int Version { get; set; }
     }
+    public enum CompressionMode
+    {
+        None = 0,
+        LZHAM = 1,
+        LZ4 = 2,
+        LZ4HC = 3
+    }
     public class StandardObjectStore : ObjectStoreBase
     {
         Area Owner { get; set; }
@@ -76,6 +83,15 @@ namespace Versionr.ObjectStore
                 return new FileInfo(Path.Combine(DataFolder.FullName, "store.db"));
             }
         }
+
+        public static Tuple<string, string> ComponentVersionInfo
+        {
+            get
+            {
+                return new Tuple<string, string>("Standard Object DB", string.Format("v{0}, database format v{0}", 1));
+            }
+        }
+
         public override void Create(Area owner)
         {
             Owner = owner;
@@ -188,9 +204,17 @@ namespace Versionr.ObjectStore
                                 long deltaSize;
                                 List<ChunkedChecksum.FileBlock> blocks;
                                 Printer.PrintDiagnostics(" - Trying delta encoding");
+                                Printer.InteractivePrinter printer = null;
+                                if (newRecord.Size > 16 * 1024 * 1024)
+                                    printer = Printer.CreateSimplePrinter(" Computing Delta", (obj) => { return string.Format("{0:N1}%", (float)((long)obj / (double)newRecord.Size) * 100.0f); });
                                 using (var fileInput = fileEntry.Info.OpenRead())
                                 {
-                                    blocks = ChunkedChecksum.ComputeDelta(fileInput, fileEntry.Length, signature, out deltaSize);
+                                    blocks = ChunkedChecksum.ComputeDelta(fileInput, fileEntry.Length, signature, out deltaSize, (fs, ps) => { if (ps % (512 * 1024) == 0 && printer != null) printer.Update(ps); });
+                                }
+                                if (printer != null)
+                                {
+                                    printer.End(newRecord.Size);
+                                    printer = null;
                                 }
                                 // dont encode as delta unless we get a 50% saving
                                 if (deltaSize < fileEntry.Length / 2)
@@ -224,10 +248,23 @@ namespace Versionr.ObjectStore
                                         fileOutput.Write(BitConverter.GetBytes(priorData.Lookup.Length), 0, 4);
                                         byte[] lookupBytes = ASCIIEncoding.ASCII.GetBytes(priorData.Lookup);
                                         fileOutput.Write(lookupBytes, 0, lookupBytes.Length);
-                                        LZHAMWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput);
+                                        if (deltaSize > 16 * 1024 * 1024)
+                                        {
+                                            printer = Printer.CreateProgressBarPrinter(string.Empty, " Compressing ", (obj) =>
+                                            {
+                                                return string.Format("{0}/{1}", FormatSizeFriendly((long)obj), FormatSizeFriendly(deltaSize));
+                                            },
+                                            (obj) =>
+                                            {
+                                                return (float)((long)obj / (double)deltaSize) * 100.0f;
+                                            },
+                                            (obj) => { return string.Empty; }, 60);
+                                        }
+                                        LZHAMWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                                        if (printer != null)
+                                            printer.End(newRecord.Size);
                                     }
-                                    Printer.PrintMessage("Packed {0}: {1} => {2}", newRecord.CanonicalName, FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(resultSize));
-                                    Printer.PrintMessage(" - Encoded as {0} delta.", FormatSizeFriendly(deltaSize));
+                                    Printer.PrintMessage(" - Compressed: {0} ({1} delta) => {2}", FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(deltaSize), FormatSizeFriendly(resultSize));
                                     trans.PendingTransactions.Add(
                                         new StandardObjectStoreTransaction.PendingTransaction()
                                         {
@@ -259,22 +296,51 @@ namespace Versionr.ObjectStore
                 using (var fileOutput = new FileInfo(fn).OpenWrite())
                 {
                     fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'k' }, 0, 4);
-                    int sig = 1;
+                    CompressionMode cmode = CompressionMode.LZHAM;
+                    int sig = (int)cmode;
                     if (computeSignature)
                         sig |= 0x8000;
                     fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
                     fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
+                    Printer.InteractivePrinter printer = null;
+                    if (newRecord.Size > 16 * 1024 * 1024)
+                        printer = Printer.CreateSimplePrinter(" Computing Signature", (obj) => { return string.Format("{0:N1}%", (float)((long)obj / (double)newRecord.Size) * 100.0f); });
                     if (computeSignature)
                     {
                         Printer.PrintDiagnostics(" - Computing signature");
-                        var checksum = ChunkedChecksum.Compute(1024, fileInput);
+                        var checksum = ChunkedChecksum.Compute(1024, fileInput, (fs, ps) => { if (ps % (512 * 1024) == 0 && printer != null) printer.Update(ps); });
                         fileInput.Position = 0;
                         ChunkedChecksum.Write(fileOutput, checksum);
                     }
                     Printer.PrintDiagnostics(" - Compressing data");
-                    LZHAMWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput);
+                    if (printer != null)
+                    {
+                        printer.End(newRecord.Size);
+                        printer = Printer.CreateProgressBarPrinter(string.Empty, string.Format(" Compressing ({0}) ", cmode), (obj) =>
+                        {
+                            return string.Format("{0}/{1}", FormatSizeFriendly((long)obj), FormatSizeFriendly(newRecord.Size));
+                        },
+                        (obj) =>
+                        {
+                            return (float)((long)obj / (double)newRecord.Size) * 100.0f;
+                        },
+                        (obj) => { return string.Empty; }, 60);
+                    }
+                    if (cmode == CompressionMode.LZHAM)
+                        LZHAMWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                    else if (cmode == CompressionMode.LZ4)
+                        LZ4Writer.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                    else if (cmode == CompressionMode.LZ4HC)
+                        LZ4HCWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                    else
+                    {
+                        resultSize = newRecord.Size;
+                        fileInput.CopyTo(fileOutput);
+                    }
+                    if (printer != null)
+                        printer.End(newRecord.Size);
                 }
-                Printer.PrintMessage("Packed {0}: {1} => {2}{3}", newRecord.CanonicalName, FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(resultSize), computeSignature ? " (computed signatures)" : "");
+                Printer.PrintMessage(" - Compressed: {1} => {2}{3}", newRecord.CanonicalName, FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(resultSize), computeSignature ? " (computed signatures)" : "");
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
@@ -653,14 +719,28 @@ namespace Versionr.ObjectStore
                     dataStream = OpenCodecStream(OpenLegacyStream(storeData));
                 else
                     throw new Exception();
+                Printer.InteractivePrinter printer = null;
+                if (false && record.Size > 16 * 1024 * 1024)
+                {
+                    printer = Printer.CreateSimplePrinter(string.Format(" - Unpacking {0}", record.Name), (obj) =>
+                    {
+                        return string.Format("{0}/{1}", FormatSizeFriendly((long)obj), FormatSizeFriendly(record.Size));
+                    });
+                }
+                long total = 0;
                 byte[] dataBlob = new byte[16 * 1024 * 1024];
                 while (true)
                 {
                     var res = dataStream.Read(dataBlob, 0, dataBlob.Length);
                     if (res == 0)
                         break;
+                    if (printer != null)
+                        printer.Update(total);
                     outputStream.Write(dataBlob, 0, res);
+                    total += res;
                 }
+                if (printer != null)
+                    printer.End(total);
                 dataStream.Dispose();
             }
         }
@@ -723,10 +803,16 @@ namespace Versionr.ObjectStore
             long length = BitConverter.ToInt64(buffer, 0);
             if (((uint)data & 0x8000) != 0)
                 ChunkedChecksum.Skip(stream);
-            switch (data & 0x0FFF)
+            switch ((CompressionMode)(data & 0x0FFF))
             {
-                case 1:
+                case CompressionMode.None:
+                    return new RestrictedStream(stream, length);
+                case CompressionMode.LZHAM:
                     return new LZHAMReaderStream(length, stream);
+                case CompressionMode.LZ4:
+                    return new LZ4ReaderStream(length, stream);
+                case CompressionMode.LZ4HC:
+                    return new LZ4ReaderStream(length, stream);
                 default:
                     throw new Exception();
             }

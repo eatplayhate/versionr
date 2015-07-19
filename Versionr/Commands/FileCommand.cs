@@ -10,11 +10,11 @@ namespace Versionr.Commands
 {
 	abstract class FileCommandVerbOptions : VerbOptionBase
 	{
-		[Option('g', "regex", DefaultValue = false, HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet ="all")]
+		[Option('g', "regex", HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet ="all")]
 		public bool Regex { get; set; }
-		[Option('n', "filename", DefaultValue = false, HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "all")]
+		[Option('n', "filename", HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "all")]
 		public bool Filename { get; set; }
-		[Option('a', "all", DefaultValue = false, HelpText = "Includes every changed or unversioned file.", MutuallyExclusiveSet = "regex recursive")]
+		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "regex recursive")]
 		public bool All { get; set; }
 		[Option('r', "recursive", DefaultValue = true, HelpText = "Recursively add objects in directories.")]
 		public bool Recursive { get; set; }
@@ -26,24 +26,21 @@ namespace Versionr.Commands
 		{
 			get
 			{
-				return string.Format("Usage: versionr {0} [options] file1 [file2 ... fileN]", Verb);
+				return string.Format("#b#versionr #i#{0}#q# [options] ##file1 #q#[file2 ... fileN]", Verb);
 			}
 		}
 
 		[ValueList(typeof(List<string>))]
 		public IList<string> Objects { get; set; }
 	}
-	abstract class FileCommand : BaseCommand
+	abstract class FileCommand : BaseWorkspaceCommand
 	{
-		public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+		protected override bool RunInternal(object options)
 		{
 			FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;
 			Printer.EnableDiagnostics = localOptions.Verbose;
-			Area ws = Area.Load(workingDirectory);
-			if (ws == null)
-				return false;
 
-			var status = ws.Status;
+			var status = Workspace.Status;
 			List<Versionr.Status.StatusEntry> targets;
 
 			if (localOptions.All)
@@ -58,7 +55,7 @@ namespace Versionr.Commands
 				targets = targets.Where(x => x.VersionControlRecord != null).ToList();
 
 			if (targets.Count > 0 || !RequiresTargets)
-				return RunInternal(ws, status, targets, localOptions);
+				return RunInternal(Workspace, status, targets, localOptions);
 
 			Printer.PrintWarning("No files selected for {0}", localOptions.Verb);
 			return false;

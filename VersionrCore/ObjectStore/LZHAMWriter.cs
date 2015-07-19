@@ -37,11 +37,11 @@ namespace Versionr.ObjectStore
                 DestroyCompressionStream(m_Compressor);
             m_Compressor = IntPtr.Zero;
         }
-        public static void CompressToStream(long fileLength, int chunkSize, out long resultSize, System.IO.Stream inputData, System.IO.Stream outputData)
+        public static void CompressToStream(long fileLength, int chunkSize, out long resultSize, System.IO.Stream inputData, System.IO.Stream outputData, Action<long, long, long> feedback = null)
         {
             using (LZHAMWriter writer = new LZHAMWriter())
             {
-                writer.Run(fileLength, chunkSize, out resultSize, inputData, outputData);
+                writer.Run(fileLength, chunkSize, out resultSize, inputData, outputData, feedback);
             }
         }
     }
