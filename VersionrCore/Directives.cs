@@ -32,6 +32,7 @@ namespace Versionr
     {
         public Ignores Ignore { get; set; }
         public Ignores Include { get; set; }
+        public string DefaultCompression { get; set; }
         public static Directives Default()
         {
             return new Directives() { Ignore = new Ignores() };

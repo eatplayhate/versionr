@@ -92,6 +92,8 @@ namespace Versionr.ObjectStore
             }
         }
 
+        public CompressionMode DefaultCompression { get; set; }
+
         public override void Create(Area owner)
         {
             Owner = owner;
@@ -106,6 +108,14 @@ namespace Versionr.ObjectStore
 
         private void InitializeDBTypes()
         {
+            CompressionMode cmode = CompressionMode.LZHAM;
+            if (!string.IsNullOrEmpty(Owner.Directives.DefaultCompression))
+            {
+                if (!Enum.TryParse<CompressionMode>(Owner.Directives.DefaultCompression, out cmode))
+                    cmode = CompressionMode.LZHAM;
+            }
+            DefaultCompression = cmode;
+
             ObjectDatabase.EnableWAL = true;
             ObjectDatabase.CreateTable<FileObjectStoreData>();
             ObjectDatabase.CreateTable<PackfileObject>();
@@ -241,7 +251,8 @@ namespace Versionr.ObjectStore
                                     using (var fileOutput = new FileInfo(fn).OpenWrite())
                                     {
                                         fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'x' }, 0, 4);
-                                        int sig = 1;
+                                        CompressionMode cmode = DefaultCompression;
+                                        int sig = (int)cmode;
                                         fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
                                         fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
                                         fileOutput.Write(BitConverter.GetBytes(deltaSize), 0, 8);
@@ -260,7 +271,17 @@ namespace Versionr.ObjectStore
                                             },
                                             (obj) => { return string.Empty; }, 60);
                                         }
-                                        LZHAMWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                                        if (cmode == CompressionMode.LZHAM)
+                                            LZHAMWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                                        else if (cmode == CompressionMode.LZ4)
+                                            LZ4Writer.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                                        else if (cmode == CompressionMode.LZ4HC)
+                                            LZ4HCWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                                        else
+                                        {
+                                            resultSize = deltaSize;
+                                            fileInput.CopyTo(fileOutput);
+                                        }
                                         if (printer != null)
                                             printer.End(newRecord.Size);
                                     }
@@ -296,7 +317,7 @@ namespace Versionr.ObjectStore
                 using (var fileOutput = new FileInfo(fn).OpenWrite())
                 {
                     fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'k' }, 0, 4);
-                    CompressionMode cmode = CompressionMode.LZHAM;
+                    CompressionMode cmode = DefaultCompression;
                     int sig = (int)cmode;
                     if (computeSignature)
                         sig |= 0x8000;
@@ -497,7 +518,7 @@ namespace Versionr.ObjectStore
                             }
                             using (var fileInput = importTempInfo.OpenRead())
                             {
-                                int signature = 1;
+                                int signature = (int)CompressionMode.LZHAM;
                                 bool computeSignature = data.FileSize > 1024 * 64;
                                 if (computeSignature)
                                     signature |= 0x8000;

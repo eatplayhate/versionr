@@ -836,9 +836,6 @@ namespace Versionr
                     return false;
                 if (LocalData.Domain != Database.Domain)
                     return false;
-                ObjectStore = new ObjectStore.StandardObjectStore();
-                if (!ObjectStore.Open(this))
-                    return false;
                 
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
                 if (info.Exists)
@@ -852,6 +849,10 @@ namespace Versionr
                 }
                 else
                     Directives = Directives.Default();
+
+                ObjectStore = new ObjectStore.StandardObjectStore();
+                if (!ObjectStore.Open(this))
+                    return false;
 
                 return true;
             }
