@@ -264,8 +264,7 @@ namespace Versionr.ObjectStore
                                         if (printer != null)
                                             printer.End(newRecord.Size);
                                     }
-                                    Printer.PrintMessage("Packed {0}: {1} => {2}", newRecord.CanonicalName, FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(resultSize));
-                                    Printer.PrintMessage(" - Encoded as {0} delta.", FormatSizeFriendly(deltaSize));
+                                    Printer.PrintMessage(" - Compressed: {0} ({1} delta) => {2}", FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(deltaSize), FormatSizeFriendly(resultSize));
                                     trans.PendingTransactions.Add(
                                         new StandardObjectStoreTransaction.PendingTransaction()
                                         {

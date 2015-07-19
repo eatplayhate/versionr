@@ -34,6 +34,7 @@ namespace Versionr
             EnableDiagnostics = false;
             OutputStyles = new Dictionary<char, OutputColour>();
             OutputStyles['b'] = OutputColour.Emphasis;
+            OutputStyles['c'] = OutputColour.Blue;
             OutputStyles['w'] = OutputColour.Warning;
             OutputStyles['e'] = OutputColour.Error;
             OutputStyles['x'] = OutputColour.ErrorHeader;
@@ -56,6 +57,7 @@ namespace Versionr
             Normal,
             Success,
             Emphasis,
+            Blue,
             Warning,
             Error,
             Trace,
@@ -225,6 +227,10 @@ namespace Versionr
                 case OutputColour.Success:
                     System.Console.BackgroundColor = ConsoleColor.Black;
                     System.Console.ForegroundColor = ConsoleColor.Green;
+                    break;
+                case OutputColour.Blue:
+                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.ForegroundColor = ConsoleColor.Cyan;
                     break;
                 case OutputColour.Emphasis:
                     System.Console.BackgroundColor = ConsoleColor.Black;

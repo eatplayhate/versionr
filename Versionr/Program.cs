@@ -33,25 +33,25 @@ namespace Versionr
         [VerbOption("checkout", HelpText = "Checks out a specific branch or revision from the vault.")]
         public Commands.CheckoutVerbOptions CheckoutVerb { get; set; }
 
-        [VerbOption("branch", HelpText = "blah blah")]
+        [VerbOption("branch", HelpText = "Creates a new branch and points it to the current version.")]
         public Commands.BranchVerbOptions BranchVerb { get; set; }
 
-        [VerbOption("merge", HelpText = "blah blah")]
+        [VerbOption("merge", HelpText = "Incorporates a sequence of changes from another branch or head.")]
         public Commands.MergeVerbOptions MergeVerb { get; set; }
 
-        [VerbOption("server", HelpText = "blah blah")]
+        [VerbOption("server", HelpText = "Runs the server daemon.")]
         public Commands.ServerVerbOptions ServerVerb { get; set; }
 
-        [VerbOption("push", HelpText = "blah blah")]
+        [VerbOption("push", HelpText = "Pushes version metadata and object data to a server.")]
         public Commands.PushVerbOptions PushVerb { get; set; }
 
         [VerbOption("remote", HelpText = "Used to set the remote parameters for an external vault.")]
         public Commands.RemoteVerbOptions RemoteVerb { get; set; }
         
-		[VerbOption("log", HelpText = "Print a log")]
+		[VerbOption("log", HelpText = "Prints a log of versions.")]
 		public Commands.LogVerbOptions LogVerb { get; set; }
         
-		[VerbOption("viewdag", HelpText = "Output dag info")]
+		[VerbOption("viewdag", HelpText = "Outputs a directed acyclic graph of version metadata.")]
 		public Commands.ViewDAGVerbOptions ViewDAGVerb { get; set; }
 
         [VerbOption("behead", HelpText = "Forcefully removes a head from a branch.")]

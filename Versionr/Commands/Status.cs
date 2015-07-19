@@ -115,7 +115,7 @@ namespace Versionr.Commands
                     return x.Staged ? new Tuple<char, string>('s', "(copied)")
                         : new Tuple<char, string>('w', "(copied)");
                 case StatusCode.Deleted:
-                    return x.Staged ? new Tuple<char, string>('b', "(deleted)")
+                    return x.Staged ? new Tuple<char, string>('c', "(deleted)")
                         : new Tuple<char, string>('w', "(missing)");
                 case StatusCode.Missing:
                     return x.Staged ? new Tuple<char, string>('e', "(error)")
