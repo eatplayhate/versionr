@@ -18,22 +18,6 @@ namespace Versionr
             CreateTable<LocalState.Configuration>();
             CreateTable<LocalState.StageOperation>();
             CreateTable<LocalState.RemoteConfig>();
-
-            if (Configuration.Version == 1)
-            {
-                Configuration config = Configuration;
-                config.Version = LocalDBVersion;
-                try
-                {
-                    BeginTransaction();
-                    Update(config);
-                    Commit();
-                }
-                catch
-                {
-                    Rollback();
-                }
-            }
         }
 
         public DateTime WorkspaceReferenceTime
@@ -113,7 +97,32 @@ namespace Versionr
 
         public static LocalDB Open(string fullPath)
         {
-            return new LocalDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex);
+            LocalDB db = new LocalDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex);
+            if (!db.Upgrade())
+                return null;
+            return db;
+        }
+
+        private bool Upgrade()
+        {
+            if (Configuration.Version == 1)
+            {
+                Configuration config = Configuration;
+                config.Version = LocalDBVersion;
+                try
+                {
+                    BeginTransaction();
+                    Update(config);
+                    Commit();
+                    return true;
+                }
+                catch
+                {
+                    Rollback();
+                    return false;
+                }
+            }
+            return true;
         }
 
         public static LocalDB Create(string fullPath)
