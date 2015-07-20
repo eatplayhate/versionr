@@ -204,7 +204,7 @@ namespace Versionr
                         if (objectFlags.HasFlag(StageFlags.Conflicted))
                             return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-						if (!snapshotRecord.Ignored && (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime < Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint)))
+						if (!snapshotRecord.Ignored && (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime > Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint)))
                             return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                         else
                         {
