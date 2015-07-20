@@ -1939,8 +1939,13 @@ namespace Versionr
 				{
 					System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
 					Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
-				}
-			}
+                }
+                else if (x.Code == StatusCode.Copied)
+                {
+                    System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                    Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
+                }
+            }
 		}
 
 		public bool ExportRecord(string cannonicalPath, Guid? versionId, string outputPath)
