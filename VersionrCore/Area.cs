@@ -2048,7 +2048,7 @@ namespace Versionr
             
             List<Record> targetRecords = Database.GetRecords(tipVersion);
 
-            ReferenceTime = DateTime.UtcNow;
+            DateTime newRefTime = DateTime.UtcNow;
 
             if (!GetMissingRecords(targetRecords))
             {
@@ -2059,13 +2059,13 @@ namespace Versionr
             HashSet<string> canonicalNames = new HashSet<string>();
             foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
             {
-                RestoreRecord(x, ReferenceTime);
+                RestoreRecord(x, newRefTime);
                 canonicalNames.Add(x.CanonicalName);
             }
             List<Task> tasks = new List<Task>();
             foreach (var x in targetRecords.Where(x => !x.IsDirectory))
             {
-                tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, ReferenceTime); }));
+                tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
@@ -2106,7 +2106,7 @@ namespace Versionr
                     }
                 }
             }
-
+            ReferenceTime = newRefTime;
             LocalData.BeginTransaction();
             try
             {
