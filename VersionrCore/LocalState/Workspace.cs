@@ -14,6 +14,7 @@ namespace Versionr.LocalState
         public Guid Tip { get; set; }
         public Guid Domain { get; set; }
         public string Name { get; set; }
+        public DateTime LocalCheckoutTime { get; set; }
 
         public static Workspace Create()
         {

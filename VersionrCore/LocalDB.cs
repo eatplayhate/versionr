@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 1;
+        public const int LocalDBVersion = 2;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -18,6 +18,45 @@ namespace Versionr
             CreateTable<LocalState.Configuration>();
             CreateTable<LocalState.StageOperation>();
             CreateTable<LocalState.RemoteConfig>();
+
+            if (Configuration.Version == 1)
+            {
+                Configuration config = Configuration;
+                config.Version = LocalDBVersion;
+                try
+                {
+                    BeginTransaction();
+                    Update(config);
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                }
+            }
+        }
+
+        public DateTime WorkspaceReferenceTime
+        {
+            get
+            {
+                return Workspace.LocalCheckoutTime;
+            }
+            set
+            {
+                Workspace ws = Workspace;
+                ws.LocalCheckoutTime = WorkspaceReferenceTime;
+                try
+                {
+                    BeginTransaction();
+                    Update(ws);
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                }
+            }
         }
 
         public LocalState.Workspace Workspace

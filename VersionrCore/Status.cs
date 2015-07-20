@@ -64,9 +64,29 @@ namespace Versionr
                 {
                     if (FilesystemEntry.IsDirectory)
                         return x.Fingerprint == FilesystemEntry.CanonicalName;
+                    if (Code == StatusCode.Unchanged)
+                        return x.DataEquals(VersionControlRecord);
                     return FilesystemEntry.DataEquals(x.Fingerprint, x.Size);
                 }
                 return false;
+            }
+
+            public string Hash
+            {
+                get
+                {
+                    if (Code == StatusCode.Unchanged)
+                        return VersionControlRecord.Fingerprint;
+                    return FilesystemEntry.Hash;
+                }
+            }
+
+            public long Length
+            {
+                get
+                {
+                    return FilesystemEntry != null ? FilesystemEntry.Length : 0;
+                }
             }
 
             public bool Removed
@@ -184,7 +204,7 @@ namespace Versionr
                         if (objectFlags.HasFlag(StageFlags.Conflicted))
                             return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-						if (!snapshotRecord.Ignored && (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime)) && snapshotRecord.Hash != x.Fingerprint)))
+						if (!snapshotRecord.Ignored && (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime < Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint)))
                             return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                         else
                         {

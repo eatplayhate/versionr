@@ -19,6 +19,7 @@ namespace Versionr
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
+        public DateTime ReferenceTime { get; set; }
         public Guid Domain
         {
             get
@@ -836,7 +837,9 @@ namespace Versionr
                     return false;
                 if (LocalData.Domain != Database.Domain)
                     return false;
-                
+
+                ReferenceTime = LocalData.WorkspaceReferenceTime;
+
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
                 if (info.Exists)
                 {
@@ -1168,9 +1171,9 @@ namespace Versionr
             {
                 if (localObject.FilesystemEntry != null)
                 {
-                    if (localObject.FilesystemEntry.IsDirectory && Fingerprint == localObject.FilesystemEntry.CanonicalName)
+                    if (localObject.FilesystemEntry.IsDirectory && Fingerprint == localObject.CanonicalName)
                         return true;
-                    return localObject.FilesystemEntry.Length == Length && localObject.FilesystemEntry.Hash == Fingerprint;
+                    return localObject.Length == Length && localObject.Hash == Fingerprint;
                 }
                 return false;
             }
@@ -1262,6 +1265,7 @@ namespace Versionr
             }
             
             var foreignRecords = Database.GetRecords(mergeVersion);
+            DateTime newRefTime = DateTime.UtcNow;
 
             foreach (var x in foreignRecords)
             {
@@ -1274,7 +1278,7 @@ namespace Versionr
                     if (parentObject == null)
                     {
                         // Added
-                        RestoreRecord(x);
+                        RestoreRecord(x, newRefTime);
                         if (!updateMode)
                         {
                             LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
@@ -1292,7 +1296,7 @@ namespace Versionr
                         {
                             // less fine
                             Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
-                            RestoreRecord(x);
+                            RestoreRecord(x, newRefTime);
                             LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                             if (!updateMode)
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
@@ -1310,7 +1314,7 @@ namespace Versionr
                         if (parentObject != null && parentObject.DataEquals(localObject))
                         {
                             // modified in foreign branch
-                            RestoreRecord(x);
+                            RestoreRecord(x, newRefTime);
                             if (!updateMode)
                             {
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
@@ -1328,7 +1332,7 @@ namespace Versionr
                             var ml = localObject.FilesystemEntry.Info;
                             var mr = GetTemporaryFile(x);
                             
-                            RestoreRecord(x, mf.FullName);
+                            RestoreRecord(x, newRefTime, mf.FullName);
 
                             FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true);
                             if (result != null)
@@ -1360,12 +1364,12 @@ namespace Versionr
                             if (parentObject.TemporaryFile == null)
                             {
                                 mb = GetTemporaryFile(parentObject.Record);
-                                RestoreRecord(parentObject.Record, mb.FullName);
+                                RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
                             }
                             else
                                 mb = parentObject.TemporaryFile;
                             
-                            RestoreRecord(x, mf.FullName);
+                            RestoreRecord(x, newRefTime, mf.FullName);
 
                             FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true);
                             if (result != null)
@@ -1510,6 +1514,8 @@ namespace Versionr
             var localRecords = Database.GetRecords(v1);
             var foreignRecords = Database.GetRecords(v2);
 
+            DateTime newRefTime = DateTime.UtcNow;
+
             List<TransientMergeObject> results = new List<TransientMergeObject>();
 
             foreach (var x in foreignRecords)
@@ -1525,7 +1531,7 @@ namespace Versionr
                         if (x.HasData)
                         {
                             transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
-                            RestoreRecord(x, transientResult.TemporaryFile.FullName);
+                            RestoreRecord(x, newRefTime, transientResult.TemporaryFile.FullName);
                         }
                         results.Add(transientResult);
                     }
@@ -1558,7 +1564,7 @@ namespace Versionr
                             if (x.HasData)
                             {
                                 transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
-                                RestoreRecord(x, transientResult.TemporaryFile.FullName);
+                                RestoreRecord(x, newRefTime, transientResult.TemporaryFile.FullName);
                             }
                             results.Add(transientResult);
                         }
@@ -1576,8 +1582,8 @@ namespace Versionr
                             var foreign = GetTemporaryFile(x);
                             var local = GetTemporaryFile(localRecord);
 
-                            RestoreRecord(x, foreign.FullName);
-                            RestoreRecord(localRecord, local.FullName);
+                            RestoreRecord(x, newRefTime, foreign.FullName);
+                            RestoreRecord(localRecord, newRefTime, local.FullName);
 
                             FileInfo info = Merge2Way(x, foreign, localRecord, local, transientResult.TemporaryFile, false);
                             if (info != transientResult.TemporaryFile)
@@ -1601,13 +1607,13 @@ namespace Versionr
                             if (parentObject.TemporaryFile == null)
                             {
                                 parentFile = GetTemporaryFile(parentObject.Record);
-                                RestoreRecord(parentObject.Record, parentFile.FullName);
+                                RestoreRecord(parentObject.Record, newRefTime, parentFile.FullName);
                             }
                             else
                                 parentFile = parentObject.TemporaryFile;
 
-                            RestoreRecord(x, foreign.FullName);
-                            RestoreRecord(localRecord, local.FullName);
+                            RestoreRecord(x, newRefTime, foreign.FullName);
+                            RestoreRecord(localRecord, newRefTime, local.FullName);
 
                             FileInfo info = Merge3Way(x, foreign, localRecord, local, parentObject.Record, parentFile, transientResult.TemporaryFile, false);
                             if (info != transientResult.TemporaryFile)
@@ -1950,7 +1956,7 @@ namespace Versionr
 			{
 				if (x.CanonicalName == cannonicalPath)
 				{
-					RestoreRecord(x, outputPath);
+					RestoreRecord(x, DateTime.UtcNow, outputPath);
 					return true;
 				}
 			}
@@ -2042,6 +2048,8 @@ namespace Versionr
             
             List<Record> targetRecords = Database.GetRecords(tipVersion);
 
+            ReferenceTime = DateTime.UtcNow;
+
             if (!GetMissingRecords(targetRecords))
             {
                 Printer.PrintError("Missing record data!");
@@ -2051,14 +2059,13 @@ namespace Versionr
             HashSet<string> canonicalNames = new HashSet<string>();
             foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
             {
-                RestoreRecord(x);
+                RestoreRecord(x, ReferenceTime);
                 canonicalNames.Add(x.CanonicalName);
             }
             List<Task> tasks = new List<Task>();
             foreach (var x in targetRecords.Where(x => !x.IsDirectory))
             {
-                tasks.Add(Task.Run(() => { RestoreRecord(x); }));
-                //RestoreRecord(x);
+                tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, ReferenceTime); }));
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
@@ -2105,6 +2112,7 @@ namespace Versionr
             {
                 var ws = LocalData.Workspace;
                 ws.Tip = tipVersion.ID;
+                ws.LocalCheckoutTime = ReferenceTime;
                 LocalData.Update(ws);
                 LocalData.Commit();
             }
@@ -2254,7 +2262,7 @@ namespace Versionr
 					if (rec != null)
 					{
 						Printer.PrintMessage("Restoring pristine copy of {0}", x.CanonicalName);
-						RestoreRecord(rec);
+						RestoreRecord(rec, DateTime.UtcNow);
 					}
 				}
 			}
@@ -2585,7 +2593,7 @@ namespace Versionr
             }
             return true;
         }
-        private void RestoreRecord(Record rec, string overridePath = null)
+        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null)
         {
             if (rec.IsDirectory)
             {
@@ -2594,7 +2602,7 @@ namespace Versionr
                 {
                     Printer.PrintMessage("Creating directory {0}", rec.CanonicalName);
                     directory.Create();
-                    ApplyAttributes(directory, rec);
+                    ApplyAttributes(directory, referenceTime, rec);
                 }
                 return;
             }
@@ -2602,23 +2610,27 @@ namespace Versionr
             if (rec.Size == 0)
             {
                 using (var fs = dest.Create()) { }
-                ApplyAttributes(dest, rec);
+                ApplyAttributes(dest, referenceTime, rec);
                 return;
             }
             if (dest.Exists)
             {
-                try
-                {
-                    dest.LastWriteTimeUtc = rec.ModificationTime;
-                }
-                catch
-                {
-                    // ignore
-                }
+                if (dest.LastWriteTimeUtc <= ReferenceTime && dest.Length == rec.Size)
+                    return;
                 if (dest.Length == rec.Size)
                 {
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
+                    {
+                        try
+                        {
+                            dest.LastWriteTimeUtc = referenceTime;
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
                         return;
+                    }
                 }
                 if (overridePath == null)
                     Printer.PrintMessage("Updating {0}", rec.CanonicalName);
@@ -2633,7 +2645,7 @@ namespace Versionr
                 {
                     ObjectStore.WriteRecordStream(rec, fsd);
                 }
-                ApplyAttributes(dest, rec);
+                ApplyAttributes(dest, referenceTime, rec);
                 if (dest.Length != rec.Size)
                 {
                     Printer.PrintError("Size mismatch after decoding record!");
@@ -2672,9 +2684,9 @@ namespace Versionr
             }
         }
 
-        private void ApplyAttributes(FileSystemInfo info, Record rec)
+        private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
         {
-            info.LastWriteTimeUtc = rec.ModificationTime;
+            info.LastWriteTimeUtc = newRefTime;
             if (rec.Attributes.HasFlag(Objects.Attributes.Hidden))
                 info.Attributes = info.Attributes | FileAttributes.Hidden;
             if (rec.Attributes.HasFlag(Objects.Attributes.ReadOnly))

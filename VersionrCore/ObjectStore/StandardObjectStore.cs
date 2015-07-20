@@ -27,6 +27,24 @@ namespace Versionr.ObjectStore
         public List<PendingTransaction> PendingTransactions = new List<PendingTransaction>();
         public HashSet<string> Cleanup = new HashSet<string>();
         public HashSet<string> Inputs = new HashSet<string>();
+
+        internal long m_PendingBytes;
+        internal int m_PendingCount;
+        public override long PendingRecordBytes
+        {
+            get
+            {
+                return m_PendingBytes;
+            }
+        }
+
+        public override int PendingRecords
+        {
+            get
+            {
+                return m_PendingCount;
+            }
+        }
     }
     class PackfileObject
     {
@@ -109,7 +127,7 @@ namespace Versionr.ObjectStore
         private void InitializeDBTypes()
         {
             CompressionMode cmode = CompressionMode.LZHAM;
-            if (!string.IsNullOrEmpty(Owner.Directives.DefaultCompression))
+            if (!string.IsNullOrEmpty(Owner.Directives?.DefaultCompression))
             {
                 if (!Enum.TryParse<CompressionMode>(Owner.Directives.DefaultCompression, out cmode))
                     cmode = CompressionMode.LZHAM;
@@ -181,7 +199,6 @@ namespace Versionr.ObjectStore
             {
                 if (trans.Inputs.Contains(GetLookup(newRecord)))
                     return true;
-                trans.Inputs.Add(GetLookup(newRecord));
                 string filename;
                 lock (this)
                 {
@@ -193,6 +210,9 @@ namespace Versionr.ObjectStore
                     } while (TempFiles.Contains(filename));
                     TempFiles.Add(filename);
                 }
+                trans.Inputs.Add(GetLookup(newRecord));
+                trans.m_PendingCount++;
+                trans.m_PendingBytes += newRecord.Size;
                 Printer.PrintDiagnostics("Processing {0}", fileEntry.CanonicalName);
                 trans.Cleanup.Add(filename);
                 long resultSize;
@@ -598,6 +618,14 @@ namespace Versionr.ObjectStore
             }
         }
 
+        public override bool FlushStorageTransaction(ObjectStoreTransaction transaction)
+        {
+            lock (this)
+            {
+                return CompleteTransaction(transaction as StandardObjectStoreTransaction, false);
+            }
+        }
+
         public override bool EndStorageTransaction(ObjectStoreTransaction transaction)
         {
             lock (this)
@@ -636,6 +664,7 @@ namespace Versionr.ObjectStore
                                     throw ex;
                             }
                         }
+                        transaction.PendingTransactions.Clear();
                         ObjectDatabase.Commit();
                     }
                     catch
@@ -651,6 +680,7 @@ namespace Versionr.ObjectStore
                         System.IO.File.Delete(fn);
                     TempFiles.Remove(x);
                 }
+                transaction.Cleanup.Clear();
             }
             return true;
         }
@@ -808,10 +838,15 @@ namespace Versionr.ObjectStore
 
             baseFileStream = tempFileName.OpenRead();
 
-            switch (data & 0x0FFF)
+            switch ((CompressionMode)(data & 0x0FFF))
             {
-                case 1:
+                case CompressionMode.LZ4:
+                case CompressionMode.LZ4HC:
+                    return new LZ4ReaderStream(deltaLength, stream);
+                case CompressionMode.LZHAM:
                     return new LZHAMReaderStream(deltaLength, stream);
+                case CompressionMode.None:
+                    return new RestrictedStream(stream, deltaLength);
                 default:
                     throw new Exception();
             }

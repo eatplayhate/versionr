@@ -8,9 +8,10 @@ using Versionr.Objects;
 
 namespace Versionr.ObjectStore
 {
-    public class ObjectStoreTransaction
+    public abstract class ObjectStoreTransaction
     {
-
+        public abstract long PendingRecordBytes { get; }
+        public abstract int PendingRecords { get; }
     }
     public abstract class ObjectStoreBase
     {
@@ -24,6 +25,7 @@ namespace Versionr.ObjectStore
         public abstract long GetTransmissionLength(Record record);
         public abstract bool HasData(Objects.Record recordInfo);
         public abstract bool AbortStorageTransaction(ObjectStoreTransaction transaction);
+        public abstract bool FlushStorageTransaction(ObjectStoreTransaction transaction);
         public abstract bool EndStorageTransaction(ObjectStoreTransaction transaction);
         public abstract void WriteRecordStream(Record rec, System.IO.Stream outputStream);
         public abstract bool HasDataDirect(string x);
