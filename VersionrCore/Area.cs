@@ -1267,9 +1267,17 @@ namespace Versionr
             var foreignRecords = Database.GetRecords(mergeVersion);
             DateTime newRefTime = DateTime.UtcNow;
 
+            Dictionary<string, TransientMergeObject> parentDataLookup = new Dictionary<string, TransientMergeObject>();
+            foreach (var x in parentData)
+                parentDataLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> foreignLookup = new Dictionary<string, Record>();
+            foreach (var x in foreignRecords)
+                foreignLookup[x.CanonicalName] = x;
+
             foreach (var x in foreignRecords)
             {
-                var parentObject = parentData.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                TransientMergeObject parentObject = null;
+                parentDataLookup.TryGetValue(x.CanonicalName, out parentObject);
                 Status.StatusEntry localObject = null;
                 status.Map.TryGetValue(x.CanonicalName, out localObject);
 
@@ -1398,7 +1406,8 @@ namespace Versionr
             List<Tuple<string, string, bool>> deletionList = new List<Tuple<string, string, bool>>();
             foreach (var x in parentData)
             {
-                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record foreignRecord = null;
+                foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
                 Status.StatusEntry localObject = null;
                 status.Map.TryGetValue(x.CanonicalName, out localObject);
                 if (foreignRecord == null)
@@ -1518,10 +1527,22 @@ namespace Versionr
 
             List<TransientMergeObject> results = new List<TransientMergeObject>();
 
+            Dictionary<string, TransientMergeObject> parentDataLookup = new Dictionary<string, TransientMergeObject>();
+            foreach (var x in parentData)
+                parentDataLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> foreignLookup = new Dictionary<string, Record>();
+            foreach (var x in foreignRecords)
+                foreignLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> localLookup = new Dictionary<string, Record>();
+            foreach (var x in localRecords)
+                localLookup[x.CanonicalName] = x;
+
             foreach (var x in foreignRecords)
             {
-                var parentObject = parentData.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
-                var localRecord = localRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                TransientMergeObject parentObject = null;
+                parentDataLookup.TryGetValue(x.CanonicalName, out parentObject);
+                Record localRecord = null;
+                localLookup.TryGetValue(x.CanonicalName, out localRecord);
 
                 if (localRecord == null)
                 {
@@ -1633,7 +1654,8 @@ namespace Versionr
             }
             foreach (var x in parentData)
             {
-                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record foreignRecord = null;
+                foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
                 var localRecord = localRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
                 if (foreignRecord == null)
                 {
