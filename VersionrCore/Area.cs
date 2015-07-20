@@ -110,6 +110,13 @@ namespace Versionr
             return true;
         }
 
+        public Versionr.Status GetStatus(DirectoryInfo activeDirectory)
+        {
+            if (activeDirectory.FullName == Root.FullName)
+                return Status;
+            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName));
+        }
+
         public List<Objects.Record> GetAllRecords()
         {
             return Database.GetAllRecords();

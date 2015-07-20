@@ -9,8 +9,10 @@ namespace Versionr.Commands
     abstract class BaseWorkspaceCommand : BaseCommand
     {
         public Area Workspace { get; set; }
+        public System.IO.DirectoryInfo ActiveDirectory { get; set; }
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
+            ActiveDirectory = workingDirectory;
             VerbOptionBase localOptions = options as VerbOptionBase;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Printer.Quiet = localOptions.Quiet;

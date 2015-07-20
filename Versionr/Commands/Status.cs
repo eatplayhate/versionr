@@ -52,20 +52,44 @@ namespace Versionr.Commands
                 return "status";
             }
         }
+
+        [ValueOption(0)]
+        public string Folder { get; set; }
     }
     class Status : BaseWorkspaceCommand
     {
         protected override bool RunInternal(object options)
         {
             StatusVerbOptions localOptions = (StatusVerbOptions)options;
-            var ss = Workspace.Status;
-            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"\n", ss.CurrentVersion.ID, ss.Branch.Name);
-            int[] codeCount = new int[(int)StatusCode.Ignored];
+            System.IO.DirectoryInfo info = ActiveDirectory;
+            if (localOptions.Folder != null)
+            {
+                System.IO.DirectoryInfo path = new System.IO.DirectoryInfo(localOptions.Folder);
+                if (!path.Exists)
+                {
+                    Printer.PrintError("#x#Error:##\n  Path \"#b#{0}##\" does not exist!", localOptions.Folder);
+                    return false;
+                }
+                if (!path.FullName.StartsWith(Workspace.Root.FullName))
+                {
+                    Printer.PrintError("#x#Error:##\n  Path \"#b#{0}##\" is not part of the vault!", localOptions.Folder);
+                    return false;
+                }
+                info = path;
+            }
+            var ss = Workspace.GetStatus(info);
+            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"", ss.CurrentVersion.ID, ss.Branch.Name);
+            if (ss.RestrictedPath != null)
+                Printer.WriteLineMessage("  Computing status for path: #b#{0}/##", ss.RestrictedPath);
+            Printer.WriteLineMessage("");
+            int[] codeCount = new int[(int)StatusCode.Count];
             foreach (var x in ss.Elements)
             {
 				if (x.Code == StatusCode.Unchanged)
                     continue;
                 codeCount[(int)x.Code]++;
+                if (x.Code == StatusCode.Ignored)
+                    continue;
                 if (!localOptions.NoList)
                 {
                     string name = x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName;

@@ -128,7 +128,7 @@ namespace Versionr
 
         public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
-            List<Entry> entries = PopulateList(area, null, root, string.Empty, adminFolder, false);
+            List<Entry> entries = PopulateList(area, null, root, area.GetLocalPath(root.FullName), adminFolder, false);
             return entries;
         }
 

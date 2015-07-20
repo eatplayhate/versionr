@@ -106,6 +106,7 @@ namespace Versionr
 		public Dictionary<string, StatusEntry> Map { get; set; }
 		public List<LocalState.StageOperation> Stage { get; set; }
         public Area Workspace { get; set; }
+        public string RestrictedPath { get; set; }
         public int Files { get; set; }
         public int Directories { get; set; }
         public int IgnoredObjects { get; set; }
@@ -143,8 +144,9 @@ namespace Versionr
             Renamed = 4,
             Conflicted = 8,
         }
-        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot)
+        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null)
         {
+            RestrictedPath = restrictedPath;
             Workspace = workspace;
             CurrentVersion = db.Version;
             Branch = db.Branch;
@@ -190,6 +192,9 @@ namespace Versionr
                     StageFlags objectFlags;
                     stageInformation.TryGetValue(x.CanonicalName, out objectFlags);
                     Entry snapshotRecord = null;
+                    if (restrictedPath != null && !x.CanonicalName.StartsWith(restrictedPath))
+                        return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+
                     if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord))
                     {
                         lock (foundEntries)
