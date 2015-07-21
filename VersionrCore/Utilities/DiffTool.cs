@@ -10,7 +10,7 @@ namespace Versionr.Utilities
 	{
 		public static string GetTempFilename()
 		{
-			return System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetTempFileName());
+			return System.IO.Path.GetTempFileName();
 		}
 
 		public static void Diff(string baseFile, string file)
@@ -25,6 +25,14 @@ namespace Versionr.Utilities
 				FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseMerge.exe",
 				Arguments = string.Format("/base:\"{0}\" /mine:\"{1}\"", baseFile, file)
 			};
+            if (!System.IO.File.Exists(psi.FileName))
+            {
+                psi = new System.Diagnostics.ProcessStartInfo()
+                {
+                    FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                    Arguments = string.Format("{0} {1} --L1 {2} --L2 {3}", baseFile, file, baseAlias, fileAlias)
+                };
+            }
 			var proc = System.Diagnostics.Process.Start(psi);
 			proc.WaitForExit();
 		}
