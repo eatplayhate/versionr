@@ -195,7 +195,7 @@ namespace Versionr
                     if (restrictedPath != null && !x.CanonicalName.StartsWith(restrictedPath))
                         return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord))
+                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
                     {
                         lock (foundEntries)
                             foundEntries.Add(snapshotRecord);
