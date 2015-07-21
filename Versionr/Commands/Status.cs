@@ -34,7 +34,7 @@ namespace Versionr.Commands
                     "  #w#Changed##: Object has changed, but the changes are not marked for inclusion.",
                     "  #w#Renamed##: Object has been matched to a deleted object in the vault.",
                     "  #w#Copied##: Object is not part of the vault but is a copy of an object that is.",
-                    "  #e#Conflict##: The file ##requires intervention#q# to finish merging. It will obstruct the next ##commit#q# until it is resolved.",
+                    "  #e#Conflict##: The file #b#requires intervention## to finish merging. It will #e#obstruct the next commit## until it is resolved.",
                     "",
                     "To record additional objects for inclusion in the next #b#commit#q#, see the #b#record#q# command.",
                     "",

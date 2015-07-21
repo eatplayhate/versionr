@@ -31,6 +31,9 @@ namespace Versionr.Commands
 
         [Option('f', "fullmeta", DefaultValue = false, HelpText = "Clones entire vault metadata table.")]
         public bool Full { get; set; }
+
+        [Option('s', "sync", DefaultValue = false, HelpText = "Synchronizes all objects in metadata after cloning. Requires #b#--fullmeta## to be useful.")]
+        public bool Synchronize { get; set; }
     }
     class Clone : RemoteCommand
     {
@@ -42,6 +45,9 @@ namespace Versionr.Commands
             {
                 string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
                 client.Workspace.SetRemote(client.Host, client.Port, remoteName);
+
+                if (localOptions.Synchronize)
+                    return client.SyncRecords();
             }
             return result;
         }

@@ -1338,6 +1338,12 @@ namespace Versionr
             var foreignRecords = Database.GetRecords(mergeVersion);
             DateTime newRefTime = DateTime.UtcNow;
 
+            if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(foreignRecords).ToList()))
+            {
+                Printer.PrintError("Missing record data!");
+                throw new Exception();
+            }
+
             Dictionary<string, TransientMergeObject> parentDataLookup = new Dictionary<string, TransientMergeObject>();
             foreach (var x in parentData)
                 parentDataLookup[x.CanonicalName] = x;
@@ -1593,6 +1599,12 @@ namespace Versionr
 
             var localRecords = Database.GetRecords(v1);
             var foreignRecords = Database.GetRecords(v2);
+
+            if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(localRecords.Concat(foreignRecords)).ToList()))
+            {
+                Printer.PrintError("Missing record data!");
+                throw new Exception();
+            }
 
             DateTime newRefTime = DateTime.UtcNow;
 
@@ -2046,8 +2058,8 @@ namespace Versionr
 			Objects.Version version = null;
 			if (versionId != null)
 				version = Database.Get<Objects.Version>(versionId);
-			if (version == null)
-				version = Database.Get<Objects.Version>(GetBranchHead(Database.Branch).Version);
+            if (version == null)
+                version = Version;
 
 			List<Record> records = Database.GetRecords(version);
 			foreach (var x in records)

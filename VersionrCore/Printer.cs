@@ -400,7 +400,7 @@ namespace Versionr
         internal class BarPrinter : InteractivePrinter
         {
             internal Func<object, float> PercentCalculator { get; set; }
-            internal Func<float, string> PercentFormatter { get; set; }
+            internal Func<float, object, string> PercentFormatter { get; set; }
             internal int Width { get; set; }
             internal string Before { get; set; }
             internal override void Start(string title)
@@ -429,7 +429,7 @@ namespace Versionr
                         Printer.LastPrinter = this;
                         ConsoleLeft = 0;
                     }
-                    string pctString = PercentFormatter(pct);
+                    string pctString = PercentFormatter(pct, amount);
                     string bar;
                     int extra = 0;
                     if (!string.IsNullOrEmpty(Before))
@@ -475,7 +475,7 @@ namespace Versionr
 
             return printer;
         }
-        public static InteractivePrinter CreateProgressBarPrinter(string initialLine, string title, Func<object, string> formatter, Func<object, float> percentCalculator, Func<float, string> percentFormatter, int barWidth)
+        public static InteractivePrinter CreateProgressBarPrinter(string initialLine, string title, Func<object, string> formatter, Func<object, float> percentCalculator, Func<float, object, string> percentFormatter, int barWidth)
         {
             InteractivePrinter printer = new BarPrinter()
             {
