@@ -63,6 +63,18 @@ using Sqlite3Statement = System.IntPtr;
 
 namespace SQLite
 {
+    public static class StandardTypes
+    {
+        public static ConstructorInfo GuidConstructor;
+        public static ConstructorInfo TimeSpanConstructor;
+        public static ConstructorInfo DateTimeConstructor;
+        static StandardTypes()
+        {
+            GuidConstructor = typeof(Guid).GetConstructor(new Type[] { typeof(string) });
+            TimeSpanConstructor = typeof(TimeSpan).GetConstructor(new Type[1] { typeof(long) });
+            DateTimeConstructor = typeof(DateTime).GetConstructor(new Type[1] { typeof(long) });
+        }
+    }
 	public class SQLiteException : Exception
 	{
 		public SQLite3.Result Result { get; private set; }
@@ -1926,15 +1938,17 @@ namespace SQLite
 	{
 	}
 
-	public class TableMapping
-	{
-		public Type MappedType { get; private set; }
+    public class TableMapping
+    {
+        public Type MappedType { get; private set; }
 
-		public string TableName { get; private set; }
+        public string TableName { get; private set; }
 
-		public Column[] Columns { get; private set; }
+        public Column[] Columns { get; private set; }
 
         public Column[] ReadOnlyColumns { get; private set; }
+
+        protected Dictionary<string, Column> ColumnMap { get; private set; }
 
         public Column PK { get; private set; }
 
@@ -1988,6 +2002,12 @@ namespace SQLite
 			}
 			Columns = cols.ToArray ();
             ReadOnlyColumns = readonlyCols.ToArray();
+            ColumnMap = new Dictionary<string, Column>();
+            foreach (var c in ReadOnlyColumns)
+            {
+                ColumnMap[c.Name] = c;
+                c.CreateReaderFunction();
+            }
             foreach (var c in Columns) {
 				if (c.IsAutoInc && c.IsPK) {
 					_autoPk = c;
@@ -1995,7 +2015,9 @@ namespace SQLite
 				if (c.IsPK) {
 					PK = c;
 				}
-			}
+                ColumnMap[c.Name] = c;
+                c.CreateReaderFunction();
+            }
 			
 			HasAutoIncPK = _autoPk != null;
 
@@ -2044,6 +2066,9 @@ namespace SQLite
 
 		public Column FindColumn (string columnName)
 		{
+            Column value = null;
+            ColumnMap.TryGetValue(columnName, out value);
+            return value;
 			var exact = Columns.FirstOrDefault (c => c.Name == columnName);
             if (exact == null)
                 exact = ReadOnlyColumns.FirstOrDefault(c => c.Name == columnName);
@@ -2168,7 +2193,116 @@ namespace SQLite
 			{
 				return _prop.GetValue (obj, null);
 			}
-		}
+
+            public delegate void DynamicSetter(object obj, IntPtr stmt, int index);
+            public DynamicSetter Setter { get; private set; }
+
+            internal void CreateReaderFunction()
+            {
+                System.Reflection.Emit.DynamicMethod dm = new System.Reflection.Emit.DynamicMethod(
+                    string.Format("Set+{0}-{1}", _prop.DeclaringType.Name, _prop.Name),
+                    typeof(void),
+                    new Type[] { typeof(object), typeof(IntPtr), typeof(int) });
+
+                var gen = dm.GetILGenerator();
+                var notNull = gen.DefineLabel();
+                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_1);
+                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_2);
+                gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnTypeMethod);
+                gen.Emit(System.Reflection.Emit.OpCodes.Ldc_I4, (int)SQLite3.ColType.Null);
+                gen.Emit(System.Reflection.Emit.OpCodes.Bne_Un_S, notNull);
+                gen.Emit(System.Reflection.Emit.OpCodes.Ret);
+                gen.MarkLabel(notNull);
+                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_0);
+                gen.Emit(System.Reflection.Emit.OpCodes.Castclass, _prop.DeclaringType);
+                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_1);
+                gen.Emit(System.Reflection.Emit.OpCodes.Ldarg_2);
+                if (ColumnType == typeof(String))
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnStringMethod);
+                else if (ColumnType == typeof(Int32))
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                else if (ColumnType == typeof(Boolean))
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                else if (ColumnType == typeof(double))
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnDoubleMethod);
+                else if (ColumnType == typeof(float))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnDoubleMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Conv_R4);
+                }
+                else if (ColumnType == typeof(TimeSpan))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnInt64Method);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Newobj, StandardTypes.TimeSpanConstructor);
+                }
+                else if (ColumnType == typeof(DateTime))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnInt64Method);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Newobj, StandardTypes.DateTimeConstructor);
+                }
+                else if (ColumnType == typeof(DateTimeOffset))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnInt64Method);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, typeof(TimeSpan).GetProperty("Zero").GetGetMethod());
+                    gen.Emit(System.Reflection.Emit.OpCodes.Newobj, typeof(DateTimeOffset).GetConstructor(new Type[] { typeof(long), typeof(TimeSpan) }));
+                }
+                else if (ColumnType.GetTypeInfo().IsEnum)
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                else if (ColumnType == typeof(long))
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnInt64Method);
+                else if (ColumnType == typeof(uint))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnInt64Method);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Conv_U4);
+                }
+                else if (ColumnType == typeof(decimal))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnDoubleMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Newobj, typeof(decimal).GetConstructor(new Type[] { typeof(double) }));
+                }
+                else if (ColumnType == typeof(byte))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Conv_U1);
+                }
+                else if (ColumnType == typeof(ushort))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Conv_U2);
+                }
+                else if (ColumnType == typeof(short))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Conv_I2);
+                }
+                else if (ColumnType == typeof(sbyte))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnIntMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Conv_I1);
+                }
+                else if (ColumnType == typeof(byte[]))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnByteArrayMethod);
+                }
+                else if (ColumnType == typeof(Guid))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Call, SQLite3.ColumnStringMethod);
+                    gen.Emit(System.Reflection.Emit.OpCodes.Newobj, StandardTypes.GuidConstructor);
+                }
+                else
+                {
+                    throw new NotSupportedException("Don't know how to read " + ColumnType);
+                }
+                if (_prop.PropertyType.IsGenericType && _prop.PropertyType.GetGenericTypeDefinition().Equals(typeof(Nullable<>)))
+                {
+                    gen.Emit(System.Reflection.Emit.OpCodes.Newobj, _prop.PropertyType.GetConstructor(new Type[] { ColumnType }));
+                }
+                gen.Emit(System.Reflection.Emit.OpCodes.Callvirt, _prop.GetSetMethod());
+                gen.Emit(System.Reflection.Emit.OpCodes.Ret);
+
+                Setter = dm.CreateDelegate(typeof(DynamicSetter)) as DynamicSetter;
+            }
+        }
 	}
 
 	public static class Orm
@@ -2376,35 +2510,32 @@ namespace SQLite
 			if (_conn.Trace) {
 				Debug.WriteLine ("Executing Query: " + this);
 			}
-
+            
 			var stmt = Prepare ();
-			try
+            try
 			{
 				var cols = new TableMapping.Column[SQLite3.ColumnCount (stmt)];
-
 				for (int i = 0; i < cols.Length; i++) {
 					var name = SQLite3.ColumnName16 (stmt, i);
 					cols [i] = map.FindColumn (name);
-				}
-			
-				while (SQLite3.Step (stmt) == SQLite3.Result.Row) {
+                }
+
+                while (SQLite3.Step (stmt) == SQLite3.Result.Row) {
 					var obj = Activator.CreateInstance(map.MappedType);
 					for (int i = 0; i < cols.Length; i++) {
 						if (cols [i] == null)
 							continue;
-						var colType = SQLite3.ColumnType (stmt, i);
-						var val = ReadCol (stmt, i, colType, cols [i].ColumnType);
-						cols [i].SetValue (obj, val);
- 					}
-					OnInstanceCreated (obj);
+                        cols[i].Setter(obj, stmt, i);
+                    }
+                    OnInstanceCreated (obj);
 					yield return (T)obj;
 				}
 			}
 			finally
 			{
 				SQLite3.Finalize(stmt);
-			}
-		}
+            }
+        }
 
 		public T ExecuteScalar<T> ()
 		{
@@ -3192,6 +3323,21 @@ namespace SQLite
 
 	public static class SQLite3
 	{
+        public static MethodInfo ColumnTypeMethod;
+        public static MethodInfo ColumnStringMethod;
+        public static MethodInfo ColumnIntMethod;
+        public static MethodInfo ColumnInt64Method;
+        public static MethodInfo ColumnDoubleMethod;
+        public static MethodInfo ColumnByteArrayMethod;
+        static SQLite3()
+        {
+            ColumnTypeMethod = typeof(SQLite3).GetMethod("ColumnType");
+            ColumnStringMethod = typeof(SQLite3).GetMethod("ColumnString");
+            ColumnIntMethod = typeof(SQLite3).GetMethod("ColumnInt");
+            ColumnInt64Method = typeof(SQLite3).GetMethod("ColumnInt64");
+            ColumnDoubleMethod = typeof(SQLite3).GetMethod("ColumnDouble");
+            ColumnByteArrayMethod = typeof(SQLite3).GetMethod("ColumnByteArray");
+        }
 		public enum Result : int
 		{
 			OK = 0,

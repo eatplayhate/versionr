@@ -16,7 +16,7 @@ namespace Versionr.Commands
         public bool Filename { get; set; }
         [Option('r', "recursive", DefaultValue = true, HelpText = "Recursively consider objects in directories.")]
         public bool Recursive { get; set; }
-        [Option('i', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
+        [Option('u', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
         public bool Insensitive { get; set; }
         public override string Usage
         {

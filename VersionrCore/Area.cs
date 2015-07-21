@@ -724,7 +724,7 @@ namespace Versionr
             }
         }
 
-		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing)
+		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive)
         {
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
 
@@ -744,18 +744,62 @@ namespace Versionr
 
 					if (x.Code == StatusCode.Missing)
 					{
-						Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
+                        if (interactive)
+                        {
+                            Printer.PrintMessageSingleLine("Record #e#deletion## of #b#{0}##", x.VersionControlRecord.CanonicalName);
+                            bool skip = false;
+                            while (true)
+                            {
+                                Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                                string input = System.Console.ReadLine();
+                                if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                                    break;
+                                if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                                    goto End;
+                                if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    skip = true;
+                                    break;
+                                }
+                            }
+                            if (skip)
+                                continue;
+                        }
+
+                        Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
                         removals.Add(x.VersionControlRecord.CanonicalName);
                     }
 					else
-					{
-						Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                    {
+                        if (interactive)
+                        {
+                            Printer.PrintMessageSingleLine("Record {1} of #b#{0}##", x.FilesystemEntry.CanonicalName, x.Code == StatusCode.Modified ? "#s#update##" : "#w#addition##");
+                            bool skip = false;
+                            while (true)
+                            {
+                                Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                                string input = System.Console.ReadLine();
+                                if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                                    break;
+                                if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                                    goto End;
+                                if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    skip = true;
+                                    break;
+                                }
+                            }
+                            if (skip)
+                                continue;
+                        }
+
+                        Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
 					}
 				}
 			}
-
+            End:
             // add parent directories
             foreach (var x in stageOps.ToArray())
             {
