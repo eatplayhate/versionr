@@ -2654,7 +2654,7 @@ namespace Versionr
             }
             if (dest.Exists)
             {
-                if (dest.LastWriteTimeUtc <= ReferenceTime && dest.Length == rec.Size)
+                if ((dest.LastWriteTimeUtc <= ReferenceTime || dest.LastWriteTimeUtc == rec.ModificationTime) && dest.Length == rec.Size)
                     return;
                 if (dest.Length == rec.Size)
                 {

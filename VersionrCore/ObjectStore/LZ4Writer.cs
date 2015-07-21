@@ -33,7 +33,7 @@ namespace Versionr.ObjectStore
         protected LZ4HCWriter() : base(true)
         {
         }
-        public static void CompressToStream(long fileLength, int chunkSize, out long resultSize, System.IO.Stream inputData, System.IO.Stream outputData, Action<long, long, long> feedback = null)
+        public static new void CompressToStream(long fileLength, int chunkSize, out long resultSize, System.IO.Stream inputData, System.IO.Stream outputData, Action<long, long, long> feedback = null)
         {
             using (LZ4HCWriter writer = new LZ4HCWriter())
             {
