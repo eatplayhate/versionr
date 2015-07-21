@@ -29,7 +29,7 @@ namespace Versionr
             set
             {
                 Workspace ws = Workspace;
-                ws.LocalCheckoutTime = WorkspaceReferenceTime;
+                ws.LocalCheckoutTime = value;
                 try
                 {
                     BeginTransaction();

@@ -80,7 +80,7 @@ namespace Versionr.Commands
             var ss = Workspace.GetStatus(info);
             Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"", ss.CurrentVersion.ID, ss.Branch.Name);
             if (ss.RestrictedPath != null)
-                Printer.WriteLineMessage("  Computing status for path: #b#{0}/##", ss.RestrictedPath);
+                Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
             Printer.WriteLineMessage("");
             int[] codeCount = new int[(int)StatusCode.Count];
             foreach (var x in ss.Elements)
