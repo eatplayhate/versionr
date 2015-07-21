@@ -917,10 +917,22 @@ namespace Versionr
             var parentRecords = Database.GetRecords(parent);
             List<FusedAlteration> alterations = new List<FusedAlteration>();
 
+            Dictionary<string, Record> foreignLookup = new Dictionary<string, Record>();
+            foreach (var x in foreignRecords)
+                foreignLookup[x.Item1.CanonicalName] = x.Item1;
+            Dictionary<string, Record> localLookup = new Dictionary<string, Record>();
+            foreach (var x in records)
+                localLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> parentLookup = new Dictionary<string, Record>();
+            foreach (var x in parentRecords)
+                parentLookup[x.CanonicalName] = x;
+
             foreach (var x in foreignRecords)
             {
-                Objects.Record parentRecord = parentRecords.Where(z => x.Item1.CanonicalName == z.CanonicalName).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.Item1.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record parentRecord = null;
+                Objects.Record localRecord = null;
+                parentLookup.TryGetValue(x.Item1.CanonicalName, out parentRecord);
+                localLookup.TryGetValue(x.Item1.CanonicalName, out localRecord);
 
                 if (localRecord == null)
                 {
@@ -976,8 +988,11 @@ namespace Versionr
             }
             foreach (var x in parentRecords)
             {
-                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.Item1.CanonicalName).Select(z => z.Item1).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record foreignRecord = null;
+                Objects.Record localRecord = null;
+                foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
+                localLookup.TryGetValue(x.CanonicalName, out localRecord);
+                
                 if (foreignRecord == null)
                 {
                     // deleted by branch
