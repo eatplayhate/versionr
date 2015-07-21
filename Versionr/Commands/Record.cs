@@ -50,8 +50,36 @@ namespace Versionr.Commands
 	{
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
 		{
-			RecordVerbOptions localOptions = options as RecordVerbOptions;
-            return ws.RecordChanges(status, targets, localOptions.Missing);
+			string fileTargetPath = "wow/lol.txt";
+            string fileLinkPath = System.IO.Path.Combine(ws.Root.FullName, "wow.txt");
+
+			Printer.PrintMessage("Creating file link {0} to {1}", fileLinkPath, fileTargetPath);
+			bool fileCreateSuccess = Utilities.Symlink.Create(fileLinkPath, fileTargetPath);
+			Printer.PrintMessage("Successful {0}", fileCreateSuccess);
+
+			string dirTargetPath = "wow/loldir";
+			string dirLinkPath = System.IO.Path.Combine(ws.Root.FullName, "wow.dir");
+
+			Printer.PrintMessage("Creating dir link {0} to {1}", dirLinkPath, dirTargetPath);
+			bool dirCreateSuccess = Utilities.Symlink.Create(dirLinkPath, dirTargetPath);
+			Printer.PrintMessage("Successful {0}", dirCreateSuccess);
+
+			if (fileCreateSuccess)
+			{
+				Printer.PrintMessage("File link is a symlink? {0}", Utilities.Symlink.Exists(fileLinkPath));
+				Printer.PrintMessage("File link targets: {0}", Utilities.Symlink.GetTarget(fileLinkPath));
+			}
+
+			if (dirCreateSuccess)
+			{
+				Printer.PrintMessage("Dir link is a symlink? {0}", Utilities.Symlink.Exists(dirLinkPath));
+				Printer.PrintMessage("Dir link targets: {0}", Utilities.Symlink.GetTarget(dirLinkPath));
+			}
+
+			return true;
+
+			//RecordVerbOptions localOptions = options as RecordVerbOptions;
+   //         return ws.RecordChanges(status, targets, localOptions.Missing);
 		}
 	}
 }
