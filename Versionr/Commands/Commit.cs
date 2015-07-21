@@ -52,13 +52,13 @@ namespace Versionr.Commands
     }
     class Commit : FileCommand
     {
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
             CommitVerbOptions localOptions = options as CommitVerbOptions;
 
             if (targets != null && targets.Count > 0)
             {
-                ws.RecordChanges(status, targets, false);
+                ws.RecordChanges(status, targets, false, false);
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;

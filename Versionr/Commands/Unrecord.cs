@@ -31,7 +31,7 @@ namespace Versionr.Commands
 	}
 	class Unrecord : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			UnrecordVerbOptions localOptions = options as UnrecordVerbOptions;
 			ws.Revert(targets, false);

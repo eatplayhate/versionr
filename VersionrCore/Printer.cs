@@ -195,6 +195,16 @@ namespace Versionr
         {
             Write(MessageType.Message, string.Format(v, obj) + "\n");
         }
+
+        public static void PrintMessageSingleLine(string v)
+        {
+            Write(MessageType.Message, v);
+        }
+
+        public static void PrintMessageSingleLine(string v, params object[] obj)
+        {
+            Write(MessageType.Message, string.Format(v, obj));
+        }
         private static object SyncObject = new object();
         private static void FlushOutput(bool newline, Tuple<OutputColour, string> x)
         {

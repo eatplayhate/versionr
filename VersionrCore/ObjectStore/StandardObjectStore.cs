@@ -9,7 +9,7 @@ using Versionr.Utilities;
 
 namespace Versionr.ObjectStore
 {
-    enum StorageMode
+    public enum StorageMode
     {
         Legacy,
         Flat,
@@ -46,12 +46,12 @@ namespace Versionr.ObjectStore
             }
         }
     }
-    class PackfileObject
+    public class PackfileObject
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
         public Guid ID { get; set; }
     }
-    class FileObjectStoreData
+    public class FileObjectStoreData
     {
         [SQLite.PrimaryKey]
         public string Lookup { get; set; }
@@ -62,7 +62,7 @@ namespace Versionr.ObjectStore
         public Guid? PackFileID { get; set; }
         public string DeltaBase { get; set; }
     }
-    class StandardObjectStoreMetadata
+    public class StandardObjectStoreMetadata
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
         public int Id { get; set; }

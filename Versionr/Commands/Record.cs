@@ -11,6 +11,8 @@ namespace Versionr.Commands
 	{
         [Option('d', "deleted", DefaultValue = false, HelpText = "Allows recording deletion of files matched with --all, --recursive or --regex.")]
         public bool Missing { get; set; }
+        [Option('i', "interactive", HelpText = "Provides an interactive prompt for each matched file.")]
+        public bool Interactive { get; set; }
 
         public override string[] Description
         {
@@ -48,10 +50,10 @@ namespace Versionr.Commands
     }
     class Record : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RecordVerbOptions localOptions = options as RecordVerbOptions;
-            return ws.RecordChanges(status, targets, localOptions.Missing);
+            return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive);
 		}
 	}
 }
