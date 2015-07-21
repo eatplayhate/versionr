@@ -2307,13 +2307,40 @@ namespace Versionr
             }
         }
 
-        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord)
+        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord, bool interactive)
         {
 			foreach (var x in targets)
-			{
-				if (x.Staged == true)
-				{
-					Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
+            {
+                if (interactive && (x.Staged || x.Code != StatusCode.Unchanged))
+                {
+                    Printer.PrintMessageSingleLine("{1} object #b#{0}##", x.CanonicalName, (revertRecord && x.Code == StatusCode.Modified) ? "#e#Revert##" : "#b#Unrecord##");
+                    bool skip = false;
+                    bool stop = false;
+                    while (true)
+                    {
+                        Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                        string input = System.Console.ReadLine();
+                        if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                            break;
+                        if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                        {
+                            stop = true;
+                            break;
+                        }
+                        if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                        {
+                            skip = true;
+                            break;
+                        }
+                    }
+                    if (stop)
+                        break;
+                    if (skip)
+                        continue;
+                }
+                if (x.Staged == true)
+                {
+                    Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
 					LocalData.BeginTransaction();
 					try
 					{

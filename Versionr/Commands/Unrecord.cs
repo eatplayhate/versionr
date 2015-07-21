@@ -28,13 +28,15 @@ namespace Versionr.Commands
 			}
 		}
 
-	}
+        [Option('i', "interactive", HelpText = "Provides an interactive prompt for each matched file.")]
+        public bool Interactive { get; set; }
+    }
 	class Unrecord : FileCommand
 	{
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			UnrecordVerbOptions localOptions = options as UnrecordVerbOptions;
-			ws.Revert(targets, false);
+			ws.Revert(targets, false, localOptions.Interactive);
 			return true;
 		}
 

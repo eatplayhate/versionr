@@ -26,15 +26,17 @@ namespace Versionr.Commands
 			{
 				return "revert";
 			}
-		}
+        }
+        [Option('i', "interactive", HelpText = "Provides an interactive prompt for each matched file.")]
+        public bool Interactive { get; set; }
 
-	}
+    }
 	class Revert : FileCommand
 	{
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RevertVerbOptions localOptions = options as RevertVerbOptions;
-			ws.Revert(targets, true);
+			ws.Revert(targets, true, localOptions.Interactive);
 			return true;
 		}
 
