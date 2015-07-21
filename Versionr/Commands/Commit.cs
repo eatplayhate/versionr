@@ -18,7 +18,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "#q#This command will chonicle any recorded changes into the Versionr repository.",
+                    "#q#This command will chronicle any recorded changes into the Versionr repository.",
                     "",
                     "The process will create a new #b#version#q# with its parent set to the current revision. It will then update the current branch head information to point to the newly created version.",
                     "",
