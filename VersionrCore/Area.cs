@@ -2311,7 +2311,7 @@ namespace Versionr
         {
 			foreach (var x in targets)
             {
-                if (interactive && (x.Staged || x.Code != StatusCode.Unchanged))
+                if (interactive && (x.Staged || (revertRecord && x.Code != StatusCode.Unchanged)))
                 {
                     Printer.PrintMessageSingleLine("{1} object #b#{0}##", x.CanonicalName, (revertRecord && x.Code == StatusCode.Modified) ? "#e#Revert##" : "#b#Unrecord##");
                     bool skip = false;

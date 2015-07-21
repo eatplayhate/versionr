@@ -15,7 +15,7 @@ namespace Versionr.Commands
 			{
 				return new string[]
 				{
-					"Removes the file form inclusion in the next commit.",
+					"Removes the file from inclusion in the next commit.",
 				};
 			}
 		}
