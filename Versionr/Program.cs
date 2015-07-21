@@ -162,6 +162,14 @@ namespace Versionr
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
 
+            if (args[0] == "hax1")
+            {
+                Area area = Area.Load(new System.IO.DirectoryInfo(workingDirectoryPath));
+                area.UpdateReferenceTime(DateTime.UtcNow);
+                Printer.PrintMessage("Applied Hax");
+                return;
+            }
+
             var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
             CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(

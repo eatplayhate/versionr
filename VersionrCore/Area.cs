@@ -251,6 +251,11 @@ namespace Versionr
             }
         }
 
+        public void UpdateReferenceTime(DateTime utcNow)
+        {
+            LocalData.WorkspaceReferenceTime = utcNow;
+        }
+
         public List<Objects.Branch> GetBranchByName(string name)
         {
             return Database.Table<Objects.Branch>().Where(x => x.Name == name).ToList();
