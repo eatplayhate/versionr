@@ -597,7 +597,7 @@ namespace Versionr
                     if (z.NewRecord != null)
                         alteration.NewRecord = mapRecords ? clientInfo.LocalRecordMap[z.NewRecord.Id].Id : z.NewRecord.Id;
                     if (z.PriorRecord != null)
-                        alteration.PriorRecord = mapRecords ? clientInfo.LocalRecordMap[z.PriorRecord.Id].Id : z.NewRecord.Id;
+                        alteration.PriorRecord = mapRecords ? clientInfo.LocalRecordMap[z.PriorRecord.Id].Id : z.PriorRecord.Id;
 
                     Database.InsertSafe(alteration);
                 }
