@@ -280,6 +280,7 @@ namespace Versionr.Network
                                         return string.Format("{0}/{1}", (int)obj, rrd.Records.Length);
                                     },
                                     60);
+                            sw.Start();
                         }
                         Func<byte[], int, bool, bool> sender = GetSender(sharedInfo, sstats);
                         int processed = 0;
