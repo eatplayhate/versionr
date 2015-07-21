@@ -208,6 +208,11 @@ namespace Versionr.Network
             alteration.PriorRecord = y.PriorRecord.HasValue ? sharedInfo.Workspace.GetRecord(y.PriorRecord.Value) : null;
             return alteration;
         }
+
+        class SendStats
+        {
+            public long BytesSent;
+        }
         
         internal static bool SendVersions(SharedNetworkInfo sharedInfo, Stack<Objects.Version> versionsToSend)
         {
@@ -254,17 +259,17 @@ namespace Versionr.Network
                     {
                         var rrd = Utilities.ReceiveEncrypted<RequestRecordData>(sharedInfo);
                         Printer.InteractivePrinter printer = null;
-                        object longRef = null;
+                        SendStats sstats = null;
                         System.Diagnostics.Stopwatch sw = null;
                         if (sharedInfo.Client)
                         {
-                            longRef = (long)0;
+                            sstats = new SendStats();
                             sw = new System.Diagnostics.Stopwatch();
                             Printer.PrintMessage("Remote has requested #b#{0}## records...", rrd.Records.Length);
                             printer = Printer.CreateProgressBarPrinter("Sending data", string.Empty,
                                     (obj) =>
                                     {
-                                        return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)((long)longRef / sw.Elapsed.TotalSeconds)));
+                                        return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(sstats.BytesSent / sw.Elapsed.TotalSeconds)));
                                     },
                                     (obj) =>
                                     {
@@ -276,7 +281,7 @@ namespace Versionr.Network
                                     },
                                     60);
                         }
-                        Func<byte[], int, bool, bool> sender = GetSender(sharedInfo, longRef);
+                        Func<byte[], int, bool, bool> sender = GetSender(sharedInfo, sstats);
                         int processed = 0;
                         foreach (var x in rrd.Records)
                         {
@@ -319,7 +324,7 @@ namespace Versionr.Network
             }
         }
 
-        private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo, object totalOutLong = null)
+        private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo, SendStats stats = null)
         {
             List<byte> datablock = new List<byte>();
             byte[] tempBuffer = new byte[1024 * 1024];
@@ -341,9 +346,9 @@ namespace Versionr.Network
                     var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (reply.Type != NetCommandType.DataReceived)
                         return false;
-                    if (totalOutLong != null)
+                    if (stats != null)
                     {
-                        totalOutLong = (long)totalOutLong + dataPack.Data.Length;
+                        stats.BytesSent += dataPack.Data.Length;
                     }
                 }
                 if (flush)
@@ -353,9 +358,9 @@ namespace Versionr.Network
                     var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (reply.Type != NetCommandType.DataReceived)
                         return false;
-                    if (totalOutLong != null)
+                    if (stats != null)
                     {
-                        totalOutLong = (long)totalOutLong + dataPack.Data.Length;
+                        stats.BytesSent += dataPack.Data.Length;
                     }
                 }
                 return true;
