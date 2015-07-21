@@ -7,9 +7,9 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class StatusVerbOptions : VerbOptionBase
+    class StatusVerbOptions : FileBaseCommandVerbOptions
     {
-        [Option('n', "nolist", HelpText = "Does not display a listing of file statuses.")]
+        [Option('l', "nolist", HelpText = "Does not display a listing of file statuses.")]
         public bool NoList { get; set; }
         [Option('s', "summary", HelpText = "Displays a summary at the end of the status block.")]
         public bool Summary { get; set; }
@@ -52,38 +52,29 @@ namespace Versionr.Commands
                 return "status";
             }
         }
-
-        [ValueOption(0)]
-        public string Folder { get; set; }
     }
-    class Status : BaseWorkspaceCommand
+    class Status : FileBaseCommand
     {
-        protected override bool RunInternal(object options)
+        protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
         {
             StatusVerbOptions localOptions = (StatusVerbOptions)options;
-            System.IO.DirectoryInfo info = ActiveDirectory;
-            if (localOptions.Folder != null)
+            if (localOptions.Objects != null && localOptions.Objects.Count > 0)
             {
-                System.IO.DirectoryInfo path = new System.IO.DirectoryInfo(localOptions.Folder);
-                if (!path.Exists)
+                if (targets.Count == 0)
                 {
-                    Printer.PrintError("#x#Error:##\n  Path \"#b#{0}##\" does not exist!", localOptions.Folder);
+                    Printer.PrintError("#x#Error:##\n  Could not find objects matching pattern #b#{0}##", GetPatterns(localOptions.Objects));
+                    if (ActiveDirectory.FullName != Workspace.Root.FullName)
+                        Printer.PrintMessage("  - Relative to folder \"#b#{0}##\"", Workspace.GetLocalPath(ActiveDirectory.FullName));
                     return false;
                 }
-                if (!path.FullName.StartsWith(Workspace.Root.FullName))
-                {
-                    Printer.PrintError("#x#Error:##\n  Path \"#b#{0}##\" is not part of the vault!", localOptions.Folder);
-                    return false;
-                }
-                info = path;
             }
-            var ss = Workspace.GetStatus(info);
+            var ss = status;
             Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"", ss.CurrentVersion.ID, ss.Branch.Name);
             if (ss.RestrictedPath != null)
                 Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
             Printer.WriteLineMessage("");
             int[] codeCount = new int[(int)StatusCode.Count];
-            foreach (var x in ss.Elements)
+            foreach (var x in targets)
             {
 				if (x.Code == StatusCode.Unchanged)
                     continue;
@@ -109,6 +100,14 @@ namespace Versionr.Commands
                 Printer.WriteLineMessage("\n  {0}#q# files in ##{1}#q# diectories ({2} ignored)", ss.Files, ss.Directories, ss.IgnoredObjects);
             }
             return true;
+        }
+
+        private string GetPatterns(IList<string> objects)
+        {
+            var patterns = objects.Select(x => "`" + x + "`").ToList();
+            if (patterns.Count == 1)
+                return patterns[0];
+            return "[" + string.Join(", ", patterns) + "]";
         }
 
         private string GetStatus(Versionr.Status.StatusEntry x)

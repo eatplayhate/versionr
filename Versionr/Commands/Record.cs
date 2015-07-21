@@ -48,7 +48,7 @@ namespace Versionr.Commands
     }
     class Record : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RecordVerbOptions localOptions = options as RecordVerbOptions;
             return ws.RecordChanges(status, targets, localOptions.Missing);

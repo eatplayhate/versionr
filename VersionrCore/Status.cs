@@ -103,6 +103,7 @@ namespace Versionr
         public Objects.Version CurrentVersion { get; set; }
         public Branch Branch { get; set; }
         public List<StatusEntry> Elements { get; set; }
+        public List<Objects.Version> MergeInputs { get; set; }
 		public Dictionary<string, StatusEntry> Map { get; set; }
 		public List<LocalState.StageOperation> Stage { get; set; }
         public Area Workspace { get; set; }
@@ -167,9 +168,12 @@ namespace Versionr
             HashSet<string> recordCanonicalNames = new HashSet<string>();
             foreach (var x in records)
                 recordCanonicalNames.Add(x.CanonicalName);
+            MergeInputs = new List<Objects.Version>();
             Dictionary<string, StageFlags> stageInformation = new Dictionary<string, StageFlags>();
             foreach (var x in stage)
             {
+                if (x.Type == LocalState.StageOperationType.Merge)
+                    MergeInputs.Add(Workspace.GetVersion(new Guid(x.Operand1)));
                 if (!x.IsFileOperation)
                     continue;
                 StageFlags ops;

@@ -31,7 +31,7 @@ namespace Versionr.Commands
 
 	class Diff : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			CommitVerbOptions localOptions = options as CommitVerbOptions;
 
