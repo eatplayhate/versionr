@@ -19,6 +19,7 @@ namespace Versionr.Network
             None,
             XXHash,
             Adler32,
+            MurMur3,
         }
         [ProtoBuf.ProtoContract]
         public class Packet
@@ -94,12 +95,18 @@ namespace Versionr.Network
                 result = memoryStream.ToArray();
             }
 
-            ChecksumCodec ccode = ChecksumCodec.Adler32;
+            ChecksumCodec ccode = ChecksumCodec.MurMur3;
             uint checksum = 0;
             if (ccode == ChecksumCodec.XXHash)
                 checksum = ComputeChecksumXXHash(result);
             if (ccode == ChecksumCodec.Adler32)
                 checksum = ComputeChecksumAdler32(result);
+            if (ccode == ChecksumCodec.MurMur3)
+            {
+                var hasher = new Versionr.Utilities.Murmur3();
+                var hash = hasher.ComputeHash(result);
+                checksum = BitConverter.ToUInt32(hash, 0) ^ BitConverter.ToUInt32(hash, 4) ^ BitConverter.ToUInt32(hash, 8) ^ BitConverter.ToUInt32(hash, 12);
+            }
             int? decompressedSize = null;
             byte[] compressedBuffer = null;
             PacketCompressionCodec codec = PacketCompressionCodec.None;
@@ -191,6 +198,12 @@ namespace Versionr.Network
                     checksum = ComputeChecksumXXHash(decryptedData);
                 if (packet.Checksum == ChecksumCodec.Adler32)
                     checksum = ComputeChecksumAdler32(decryptedData);
+                if (packet.Checksum == ChecksumCodec.MurMur3)
+                {
+                    var hasher = new Versionr.Utilities.Murmur3();
+                    var hash = hasher.ComputeHash(decryptedData);
+                    checksum = BitConverter.ToUInt32(hash, 0) ^ BitConverter.ToUInt32(hash, 4) ^ BitConverter.ToUInt32(hash, 8) ^ BitConverter.ToUInt32(hash, 12);
+                }
                 if (checksum != packet.Hash)
                     throw new Exception("Data did not survive the trip!");
             }

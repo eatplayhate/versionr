@@ -331,19 +331,23 @@ namespace Versionr.Network
             byte[] tempBuffer = new byte[1024 * 1024];
             return (byte[] data, int size, bool flush) =>
             {
-                if (data.Length == size)
-                    datablock.AddRange(data);
-                else
-                {
-                    datablock.AddRange(data.Take(size));
-                }
+                int totalSize = datablock.Count + size;
                 int blockSize = 1024 * 1024;
-                while (datablock.Count > blockSize)
+                int remainder = size;
+                int offset = 0;
+                while (totalSize > blockSize)
                 {
-                    datablock.CopyTo(0, tempBuffer, 0, blockSize);
+                    datablock.CopyTo(0, tempBuffer, 0, datablock.Count);
+                    int nextBlockSize = blockSize - datablock.Count;
+                    if (nextBlockSize > remainder)
+                        nextBlockSize = remainder;
+                    Array.Copy(data, offset, tempBuffer, datablock.Count, nextBlockSize);
+                    offset += nextBlockSize;
+                    datablock.Clear();
+                    totalSize -= blockSize;
+                    remainder -= nextBlockSize;
                     DataPayload dataPack = new DataPayload() { Data = tempBuffer, EndOfStream = false };
                     Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
-                    datablock.RemoveRange(0, blockSize);
                     var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (reply.Type != NetCommandType.DataReceived)
                         return false;
@@ -351,6 +355,11 @@ namespace Versionr.Network
                     {
                         stats.BytesSent += dataPack.Data.Length;
                     }
+                }
+                if (remainder > 0)
+                {
+                    for (int i = offset; i < size; i++)
+                        datablock.Add(data[i]);
                 }
                 if (flush)
                 {

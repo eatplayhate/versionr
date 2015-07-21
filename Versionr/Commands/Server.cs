@@ -12,6 +12,8 @@ namespace Versionr.Commands
     {
         [Option('p', "port", Required = true, HelpText = "Specifies the port to run on.")]
         public int Port { get; set; }
+        [Option('u', "unsecure", DefaultValue = false, HelpText = "Disables AES encryption for data communications.")]
+        public bool Unsecure { get; set; }
 
         public override string[] Description
         {
@@ -38,7 +40,7 @@ namespace Versionr.Commands
         {
             ServerVerbOptions localOptions = options as ServerVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
-            return Network.Server.Run(workingDirectory, localOptions.Port);
+            return Network.Server.Run(workingDirectory, localOptions.Port, !localOptions.Unsecure);
         }
     }
 }

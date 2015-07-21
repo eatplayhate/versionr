@@ -98,6 +98,7 @@
     <Compile Include="Utilities\DiffTool.cs" />
     <Compile Include="Utilities\Misc.cs" />
     <Compile Include="Utilities\MultiplatformPInvoke.cs" />
+    <Compile Include="Utilities\Murmur3.cs" />
     <Compile Include="Utilities\RestrictedStream.cs" />
     <Compile Include="Utilities\SQLiteExtensions.cs" />
     <Compile Include="WorkspaceDB.cs" />
