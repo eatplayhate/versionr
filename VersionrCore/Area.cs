@@ -216,7 +216,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.0";
+                return "v1.0.1";
             }
         }
 
@@ -2129,10 +2129,10 @@ namespace Versionr
             if (v.StartsWith("..."))
             {
                 postfix = true;
-                potentials = Database.Query<Objects.Version>(string.Format("SELECT Version.* FROM Version WHERE Version.ID LIKE '%{0}'", v.Substring(3)));
+                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '%{0}'", v.Substring(3)));
             }
             else
-                potentials = Database.Query<Objects.Version>(string.Format("SELECT Version.* FROM Version WHERE Version.ID LIKE '{0}%'", v));
+                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '{0}%'", v));
             if (potentials.Count > 1)
             {
                 Printer.PrintError("Can't find a unique version with {1}: {0}\nCould be:", v, postfix ? "postfix" : "prefix");

@@ -2022,11 +2022,11 @@ namespace SQLite
 			HasAutoIncPK = _autoPk != null;
 
 			if (PK != null) {
-				GetByPrimaryKeySql = string.Format ("select * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
+				GetByPrimaryKeySql = string.Format ("select rowid, * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
 			}
 			else {
 				// People should not be calling Get/Find without a PK
-				GetByPrimaryKeySql = string.Format ("select * from \"{0}\" limit 1", TableName);
+				GetByPrimaryKeySql = string.Format ("select rowid, * from \"{0}\" limit 1", TableName);
 			}
 			_insertCommandMap = new ConcurrentStringDictionary ();
 		}
@@ -3029,7 +3029,7 @@ namespace SQLite
 				throw new NotSupportedException ("Joins are not supported.");
 			}
 			else {
-				var cmdText = "select " + selectionList + " from \"" + Table.TableName + "\"";
+				var cmdText = "select rowid, " + selectionList + " from \"" + Table.TableName + "\"";
 				var args = new List<object> ();
 				if (_where != null) {
 					var w = CompileExpr (_where, args);

@@ -224,9 +224,9 @@ namespace Versionr
             List<Objects.Version> parents = Query<Objects.Version>(
                 @"WITH RECURSIVE
                   ancestors(ID, Author, Message, Published, Branch, Parent, Timestamp, Snapshot, AlterationList) AS (
-                      SELECT Version.* FROM Version WHERE Version.ID = ?
+                      SELECT rowid, * FROM Version WHERE Version.ID = ?
                       UNION ALL
-                      SELECT Version.* FROM ancestors, Version
+                      SELECT rowid, * FROM ancestors, Version
                       WHERE ancestors.Parent = Version.ID AND ancestors.Snapshot IS NULL
                   )
                   SELECT * FROM ancestors;", version.ID);
@@ -336,9 +336,9 @@ namespace Versionr
             var result = Query<Objects.Version>(string.Format(
                 @"WITH RECURSIVE
                   ancestors(ID, Author, Message, Published, Branch, Parent, Timestamp, Snapshot, AlterationList) AS (
-                      SELECT Version.* FROM Version WHERE Version.ID = ?
+                      SELECT rowid, * FROM Version WHERE Version.ID = ?
                       UNION ALL
-                      SELECT Version.* FROM ancestors, Version
+                      SELECT rowid, * FROM ancestors, Version
                       WHERE ancestors.Parent = Version.ID
                       {0}
                   )
