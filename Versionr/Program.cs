@@ -158,9 +158,139 @@ namespace Versionr
     }
     class Program
     {
+        class Region
+        {
+            public int Start1;
+            public int End1;
+            public int Start2;
+            public int End2;
+        }
         static void Main(string[] args)
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
+
+            if (args[0] == "hax")
+            {
+                List<string> lines1 = new List<string>();
+                List<string> lines2 = new List<string>();
+                using (var fs = new System.IO.FileInfo(args[1]).OpenText())
+                {
+                    while (true)
+                    {
+                        if (fs.EndOfStream)
+                            break;
+                        lines1.Add(fs.ReadLine());
+                    }
+                }
+                using (var fs = new System.IO.FileInfo(args[2]).OpenText())
+                {
+                    while (true)
+                    {
+                        if (fs.EndOfStream)
+                            break;
+                        lines2.Add(fs.ReadLine());
+                    }
+                }
+
+                var diff = Versionr.Utilities.Diff.diff_comm(lines1.ToArray(), lines2.ToArray());
+                int line0 = 0;
+                int line1 = 0;
+                int minDisplayedLine0 = 0;
+                int minDisplayedLine1 = 0;
+                Printer.PrintMessage("--- a/{0}", args[1]);
+                Printer.PrintMessage("+++ b/{0}", args[2]);
+                List<Region> regions = new List<Region>();
+                Region openRegion = null;
+                Region last = null;
+                for (int i = 0; i < diff.Count; i++)
+                {
+                    if (regions.Count > 0)
+                        last = regions[regions.Count - 1];
+                    if (diff[i].common != null)
+                    {
+                        foreach (var x in diff[i].common)
+                        {
+                            line0++;
+                            line1++;
+                        }
+                    }
+                    int cf0 = diff[i].file1 == null ? 0 : diff[i].file1.Count;
+                    int cf1 = diff[i].file2 == null ? 0 : diff[i].file2.Count;
+                    for (int j = 1; j <= cf0 || j <= cf1; j++)
+                    {
+                        if (openRegion == null)
+                        {
+                            int s1 = System.Math.Max(0, line0 - 2);
+                            int s2 = System.Math.Max(0, line1 - 2);
+                            if (last != null && (last.End1 + 3 > s1 || last.End2 + 3 > s2))
+                                openRegion = last;
+                            else
+                                openRegion = new Region() { Start1 = s1, Start2 = s2 };
+                        }
+                        openRegion.End1 = line0 + 4;
+                        openRegion.End2 = line1 + 4;
+                        if (j <= cf0)
+                        {
+                            line0++;
+                        }
+                        if (j <= cf1)
+                        {
+                            line1++;
+                        }
+                    }
+                    if (openRegion != null && openRegion != last && (openRegion.End1 < line0 && openRegion.End2 < line1))
+                    {
+                        regions.Add(openRegion);
+                        openRegion = null;
+                    }
+                }
+                if (openRegion != null && openRegion != last)
+                    regions.Add(openRegion);
+                int activeRegion = 0;
+                while (activeRegion < regions.Count)
+                {
+                    Region reg = regions[activeRegion];
+                    line0 = 0;
+                    line1 = 0;
+                    Printer.PrintMessage("#c#@@ -{0},{1} +{2},{3} @@", reg.Start1, reg.End1 - reg.Start1, reg.Start2, reg.End2 - reg.Start2);
+                    for (int i = 0; i < diff.Count; i++)
+                    {
+                        if ((line0 > reg.End1) || (line1 > reg.End2))
+                        {
+                            break;
+                        }
+                        if (diff[i].common != null)
+                        {
+                            foreach (var x in diff[i].common)
+                            {
+                                line0++;
+                                line1++;
+                                if ((line0 >= reg.Start1 && line0 <= reg.End1) || (line1 >= reg.Start2 && line1 <= reg.End2))
+                                    Printer.PrintMessage(" {0}", x);
+                            }
+                        }
+                        int cf0 = diff[i].file1 == null ? 0 : diff[i].file1.Count;
+                        int cf1 = diff[i].file2 == null ? 0 : diff[i].file2.Count;
+                        for (int j = 1; j <= cf0 || j <= cf1; j++)
+                        {
+                            if (j <= cf0)
+                            {
+                                line0++;
+                                if ((line0 >= reg.Start1 && line0 <= reg.End1) || (line1 >= reg.Start2 && line1 <= reg.End2))
+                                    Printer.PrintMessage("#e#-{0}", diff[i].file1[j - 1]);
+                            }
+                            if (j <= cf1)
+                            {
+                                line1++;
+                                if ((line0 >= reg.Start1 && line0 <= reg.End1) || (line1 >= reg.Start2 && line1 <= reg.End2))
+                                Printer.PrintMessage("#s#+{0}", diff[i].file2[j - 1]);
+                            }
+                        }
+                    }
+                    activeRegion++;
+                }
+                return;       
+            }
 
             var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
