@@ -359,18 +359,22 @@ namespace Versionr.Network
                     foreach (var x in versionsToImport)
                         importList[x.Version.ID] = false;
                     int importCount = versionsToImport.Length;
+                    var orderedImports = versionsToImport.OrderBy(x => x.Version.Revision).ToList();
                     while (importCount > 0)
                     {
-                        foreach (var x in versionsToImport)
+                        foreach (var x in orderedImports)
                         {
                             if (importList[x.Version.ID] != true)
                             {
                                 bool accept;
                                 if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
                                     accept = true;
-                                sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
-                                importList[x.Version.ID] = true;
-                                importCount--;
+                                if (accept)
+                                {
+                                    sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
+                                    importList[x.Version.ID] = true;
+                                    importCount--;
+                                }
                             }
                         }
                     }
