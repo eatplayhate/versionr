@@ -185,7 +185,8 @@ namespace Versionr
                             rec = Get<Objects.Record>(x.PriorRecord);
                             if (deletions != null)
                                 deletions.Add(rec);
-                            records.Remove(x.PriorRecord.Value);
+                            if (!records.Remove(x.PriorRecord.Value))
+                                throw new Exception("This is bad");
                             records[record.Id] = record;
                             break;
                         }
@@ -193,7 +194,8 @@ namespace Versionr
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            records.Remove(x.PriorRecord.Value);
+                            if (!records.Remove(x.PriorRecord.Value))
+                                throw new Exception("This is bad");
                             records[record.Id] = record;
                             break;
                         }
@@ -201,7 +203,8 @@ namespace Versionr
                         rec = Get<Objects.Record>(x.PriorRecord);
                         if (deletions != null)
                             deletions.Add(rec);
-                        records.Remove(x.PriorRecord.Value);
+                        if (!records.Remove(x.PriorRecord.Value))
+                            throw new Exception("This is bad");
                         break;
                     default:
                         throw new Exception();

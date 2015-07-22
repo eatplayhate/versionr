@@ -533,7 +533,7 @@ namespace Versionr
             var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint);
             foreach (var x in results)
             {
-                if (x.UniqueIdentifier == newRecord.UniqueIdentifier)
+                if (x.UniqueIdentifier == newRecord.UniqueIdentifier && x.ModificationTime == newRecord.ModificationTime)
                 {
                     if (newRecord.CanonicalName == Database.Table<ObjectName>().Where(y => y.Id == x.CanonicalNameId).First().CanonicalName)
                         return x;
