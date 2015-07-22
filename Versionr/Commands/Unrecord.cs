@@ -15,7 +15,7 @@ namespace Versionr.Commands
 			{
 				return new string[]
 				{
-					"Removes the file form inclusion in the next commit.",
+					"Removes the file from inclusion in the next commit.",
 				};
 			}
 		}
@@ -28,13 +28,15 @@ namespace Versionr.Commands
 			}
 		}
 
-	}
+        [Option('i', "interactive", HelpText = "Provides an interactive prompt for each matched file.")]
+        public bool Interactive { get; set; }
+    }
 	class Unrecord : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			UnrecordVerbOptions localOptions = options as UnrecordVerbOptions;
-			ws.Revert(targets, false);
+			ws.Revert(targets, false, localOptions.Interactive);
 			return true;
 		}
 

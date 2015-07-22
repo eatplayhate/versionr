@@ -162,6 +162,7 @@ namespace Versionr.Network
                         return false;
                     }
                 }
+                SharedInfo.Workspace = Workspace;
                 return true;
             }
             catch (Exception e)
@@ -499,6 +500,7 @@ namespace Versionr.Network
                             EncryptorFunction = () => { return Encryptor; },
                             Stream = Connection.GetStream(),
                             Workspace = Workspace,
+                            Client = true,
                         };
 
                         SharedInfo = sharedInfo;
@@ -516,6 +518,7 @@ namespace Versionr.Network
                             EncryptorFunction = null,
                             Stream = Connection.GetStream(),
                             Workspace = Workspace,
+                            Client = true,
                         };
                         SharedInfo = sharedInfo;
                     }

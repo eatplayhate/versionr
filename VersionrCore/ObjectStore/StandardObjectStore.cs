@@ -9,7 +9,7 @@ using Versionr.Utilities;
 
 namespace Versionr.ObjectStore
 {
-    enum StorageMode
+    public enum StorageMode
     {
         Legacy,
         Flat,
@@ -46,12 +46,12 @@ namespace Versionr.ObjectStore
             }
         }
     }
-    class PackfileObject
+    public class PackfileObject
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
         public Guid ID { get; set; }
     }
-    class FileObjectStoreData
+    public class FileObjectStoreData
     {
         [SQLite.PrimaryKey]
         public string Lookup { get; set; }
@@ -62,7 +62,7 @@ namespace Versionr.ObjectStore
         public Guid? PackFileID { get; set; }
         public string DeltaBase { get; set; }
     }
-    class StandardObjectStoreMetadata
+    public class StandardObjectStoreMetadata
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
         public int Id { get; set; }
@@ -285,13 +285,13 @@ namespace Versionr.ObjectStore
                                         {
                                             printer = Printer.CreateProgressBarPrinter(string.Empty, " Compressing ", (obj) =>
                                             {
-                                                return string.Format("{0}/{1}", FormatSizeFriendly((long)obj), FormatSizeFriendly(deltaSize));
+                                                return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(deltaSize));
                                             },
                                             (obj) =>
                                             {
                                                 return (float)((long)obj / (double)deltaSize) * 100.0f;
                                             },
-                                            (obj) => { return string.Empty; }, 60);
+                                            (obj, lol) => { return string.Empty; }, 60);
                                         }
                                         if (cmode == CompressionMode.LZHAM)
                                             LZHAMWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
@@ -307,7 +307,7 @@ namespace Versionr.ObjectStore
                                         if (printer != null)
                                             printer.End(newRecord.Size);
                                     }
-                                    Printer.PrintMessage(" - Compressed: {0} ({1} delta) => {2}", FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(deltaSize), FormatSizeFriendly(resultSize));
+                                    Printer.PrintMessage(" - Compressed: {0} ({1} delta) => {2}", Misc.FormatSizeFriendly(newRecord.Size), Misc.FormatSizeFriendly(deltaSize), Misc.FormatSizeFriendly(resultSize));
                                     trans.PendingTransactions.Add(
                                         new StandardObjectStoreTransaction.PendingTransaction()
                                         {
@@ -363,13 +363,13 @@ namespace Versionr.ObjectStore
                         printer.End(newRecord.Size);
                         printer = Printer.CreateProgressBarPrinter(string.Empty, string.Format(" Compressing ({0}) ", cmode), (obj) =>
                         {
-                            return string.Format("{0}/{1}", FormatSizeFriendly((long)obj), FormatSizeFriendly(newRecord.Size));
+                            return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(newRecord.Size));
                         },
                         (obj) =>
                         {
                             return (float)((long)obj / (double)newRecord.Size) * 100.0f;
                         },
-                        (obj) => { return string.Empty; }, 60);
+                        (obj, lol) => { return string.Empty; }, 60);
                     }
                     if (cmode == CompressionMode.LZHAM)
                         LZHAMWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
@@ -385,7 +385,7 @@ namespace Versionr.ObjectStore
                     if (printer != null)
                         printer.End(newRecord.Size);
                 }
-                Printer.PrintMessage(" - Compressed: {1} => {2}{3}", newRecord.CanonicalName, FormatSizeFriendly(newRecord.Size), FormatSizeFriendly(resultSize), computeSignature ? " (computed signatures)" : "");
+                Printer.PrintMessage(" - Compressed: {1} => {2}{3}", newRecord.CanonicalName, Misc.FormatSizeFriendly(newRecord.Size), Misc.FormatSizeFriendly(resultSize), computeSignature ? " (computed signatures)" : "");
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
@@ -425,15 +425,6 @@ namespace Versionr.ObjectStore
                 return ChunkedChecksum.Load(length, stream);
             else
                 throw new Exception();
-        }
-
-        private string FormatSizeFriendly(long size)
-        {
-            if (size < 1024)
-                return string.Format("{0} bytes", size);
-            if (size < 1024 * 1024)
-                return string.Format("{0:N2} KiB", size / 1024.0);
-            return string.Format("{0:N2} MiB", size / (1024.0 * 1024.0));
         }
 
         public override bool ReceiveRecordData(ObjectStoreTransaction transaction, string directName, System.IO.Stream dataStream, out string dependency)
@@ -779,7 +770,7 @@ namespace Versionr.ObjectStore
                 {
                     printer = Printer.CreateSimplePrinter(string.Format(" - Unpacking {0}", record.Name), (obj) =>
                     {
-                        return string.Format("{0}/{1}", FormatSizeFriendly((long)obj), FormatSizeFriendly(record.Size));
+                        return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(record.Size));
                     });
                 }
                 long total = 0;

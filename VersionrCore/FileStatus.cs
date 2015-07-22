@@ -135,14 +135,17 @@ namespace Versionr
         private static List<Entry> PopulateList(Area area, Entry parentEntry, DirectoryInfo info, string subdirectory, DirectoryInfo adminFolder, bool ignoreDirectory)
         {
             List<Entry> result = new List<Entry>();
+            string slashedSubdirectory = subdirectory;
             if (subdirectory != string.Empty)
             {
+                if (slashedSubdirectory[slashedSubdirectory.Length - 1] != '/')
+                    slashedSubdirectory += '/';
                 if (area?.Directives?.Include?.RegexPatterns != null)
                 {
                     ignoreDirectory = true;
                     foreach (var y in area.Directives.Include.RegexPatterns)
                     {
-                        var match = y.Match(subdirectory + "/");
+                        var match = y.Match(slashedSubdirectory);
                         if (match.Success)
                         {
                             ignoreDirectory = false;
@@ -154,7 +157,7 @@ namespace Versionr
 				{
 					foreach (var y in area.Directives.Ignore.RegexPatterns)
 					{
-                        var match = y.Match(subdirectory + "/");
+                        var match = y.Match(slashedSubdirectory);
                         if (match.Success)
 						{
 							ignoreDirectory = true;
@@ -163,14 +166,14 @@ namespace Versionr
 					}
 				}
 
-				parentEntry = new Entry(area, parentEntry, info, subdirectory + "/", ignoreDirectory);
+				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
                 result.Add(parentEntry);
             }
             foreach (var x in info.GetFiles())
             {
                 if (x.Name == "." || x.Name == "..")
                     continue;
-                string name = subdirectory == string.Empty ? x.Name : subdirectory + "/" + x.Name;
+                string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
 				bool ignored = ignoreDirectory;
                 if (!ignored && area?.Directives?.Include?.RegexPatterns != null)
                 {
@@ -227,7 +230,7 @@ namespace Versionr
             {
                 if (x.FullName == adminFolder.FullName)
                     continue;
-                string name = subdirectory == string.Empty ? x.Name : subdirectory + "/" + x.Name;
+                string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
 
                 if (Utilities.MultiArchPInvoke.IsRunningOnMono)
                 {

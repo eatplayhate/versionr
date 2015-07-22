@@ -103,6 +103,7 @@ namespace Versionr
         public Objects.Version CurrentVersion { get; set; }
         public Branch Branch { get; set; }
         public List<StatusEntry> Elements { get; set; }
+        public List<Objects.Version> MergeInputs { get; set; }
 		public Dictionary<string, StatusEntry> Map { get; set; }
 		public List<LocalState.StageOperation> Stage { get; set; }
         public Area Workspace { get; set; }
@@ -167,9 +168,12 @@ namespace Versionr
             HashSet<string> recordCanonicalNames = new HashSet<string>();
             foreach (var x in records)
                 recordCanonicalNames.Add(x.CanonicalName);
+            MergeInputs = new List<Objects.Version>();
             Dictionary<string, StageFlags> stageInformation = new Dictionary<string, StageFlags>();
             foreach (var x in stage)
             {
+                if (x.Type == LocalState.StageOperationType.Merge)
+                    MergeInputs.Add(Workspace.GetVersion(new Guid(x.Operand1)));
                 if (!x.IsFileOperation)
                     continue;
                 StageFlags ops;
@@ -195,7 +199,7 @@ namespace Versionr
                     if (restrictedPath != null && !x.CanonicalName.StartsWith(restrictedPath))
                         return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord))
+                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
                     {
                         lock (foundEntries)
                             foundEntries.Add(snapshotRecord);
@@ -209,7 +213,7 @@ namespace Versionr
                         if (objectFlags.HasFlag(StageFlags.Conflicted))
                             return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-						if (!snapshotRecord.Ignored && (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime > Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint)))
+						if (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime > Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint))
                             return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                         else
                         {

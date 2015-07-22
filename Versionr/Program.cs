@@ -72,7 +72,7 @@ namespace Versionr
 		[VerbOption("revert", HelpText = "Revert a file or files to pristine version")]
 		public Commands.RevertVerbOptions RevertVerb { get; set; }
 		[VerbOption("unrecord", HelpText = "Removes a file from inclusion in the next commit (undoes 'record')")]
-		public Commands.RevertVerbOptions UnrecordVerb { get; set; }
+		public Commands.UnrecordVerbOptions UnrecordVerb { get; set; }
 		[VerbOption("update", HelpText = "Updates the current version to the head version of the current branch.")]
 		public Commands.UpdateVerbOptions UpdateVerb { get; set; }
 

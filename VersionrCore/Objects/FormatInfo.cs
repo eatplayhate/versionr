@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Versionr.Objects
 {
-    internal class FormatInfo
+    public class FormatInfo
     {
         public int InternalFormat { get; set; }
     }

@@ -31,19 +31,27 @@ namespace Versionr.Commands
 
 	class Diff : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileCommandVerbOptions options)
+		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			CommitVerbOptions localOptions = options as CommitVerbOptions;
 
 			foreach (var x in targets)
 			{
-				string tmp = Utilities.DiffTool.GetTempFilename();
-				if (ws.ExportRecord(x.CanonicalName, null, tmp))
-				{
-					Utilities.DiffTool.Diff(tmp, x.CanonicalName);
-					System.IO.File.Delete(tmp);
-				}
-				Printer.PrintError("Could not restore {0}", x.CanonicalName);
+                if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
+                {
+                    string tmp = Utilities.DiffTool.GetTempFilename();
+                    if (ws.ExportRecord(x.CanonicalName, null, tmp))
+                    {
+                        try
+                        {
+                            Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
+                        }
+                        finally
+                        {
+                            System.IO.File.Delete(tmp);
+                        }
+                    }
+                }
 			}
 			return true;
 		}

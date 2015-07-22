@@ -96,7 +96,9 @@
     <Compile Include="Utilities\LimitedConcurrencyScheduler.cs" />
     <Compile Include="Utilities\LZHL.cs" />
     <Compile Include="Utilities\DiffTool.cs" />
+    <Compile Include="Utilities\Misc.cs" />
     <Compile Include="Utilities\MultiplatformPInvoke.cs" />
+    <Compile Include="Utilities\Murmur3.cs" />
     <Compile Include="Utilities\RestrictedStream.cs" />
     <Compile Include="Utilities\SQLiteExtensions.cs" />
     <Compile Include="Utilities\Symlink.cs" />

@@ -114,7 +114,7 @@ namespace Versionr
         {
             if (activeDirectory.FullName == Root.FullName)
                 return Status;
-            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName));
+            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName) + "/");
         }
 
         public List<Objects.Record> GetAllRecords()
@@ -142,13 +142,20 @@ namespace Versionr
             {
                 RemoteConfig config = LocalData.Find<RemoteConfig>(x => x.Name == name);
                 if (config == null)
-                    config = new RemoteConfig() { Name = name };
+				{
+					config = new RemoteConfig() { Name = name };
+					config.Host = host;
+					config.Port = port;
+					LocalData.InsertSafe(config);
+				}
+				else
+				{
+					config.Host = host;
+					config.Port = port;
+					LocalData.UpdateSafe(config);
+				}
 
-                config.Host = host;
-                config.Port = port;
-                LocalData.InsertOrReplaceSafe(config);
-
-                Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
+				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
                 LocalData.Commit();
 
                 return true;
@@ -249,6 +256,11 @@ namespace Versionr
                 Database.Rollback();
                 return false;
             }
+        }
+
+        public void UpdateReferenceTime(DateTime utcNow)
+        {
+            LocalData.WorkspaceReferenceTime = utcNow;
         }
 
         public List<Objects.Branch> GetBranchByName(string name)
@@ -592,7 +604,7 @@ namespace Versionr
                     if (z.NewRecord != null)
                         alteration.NewRecord = mapRecords ? clientInfo.LocalRecordMap[z.NewRecord.Id].Id : z.NewRecord.Id;
                     if (z.PriorRecord != null)
-                        alteration.PriorRecord = mapRecords ? clientInfo.LocalRecordMap[z.PriorRecord.Id].Id : z.NewRecord.Id;
+                        alteration.PriorRecord = mapRecords ? clientInfo.LocalRecordMap[z.PriorRecord.Id].Id : z.PriorRecord.Id;
 
                     Database.InsertSafe(alteration);
                 }
@@ -719,7 +731,7 @@ namespace Versionr
             }
         }
 
-		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing)
+		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive)
         {
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
 
@@ -739,18 +751,62 @@ namespace Versionr
 
 					if (x.Code == StatusCode.Missing)
 					{
-						Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
+                        if (interactive)
+                        {
+                            Printer.PrintMessageSingleLine("Record #e#deletion## of #b#{0}##", x.VersionControlRecord.CanonicalName);
+                            bool skip = false;
+                            while (true)
+                            {
+                                Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                                string input = System.Console.ReadLine();
+                                if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                                    break;
+                                if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                                    goto End;
+                                if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    skip = true;
+                                    break;
+                                }
+                            }
+                            if (skip)
+                                continue;
+                        }
+
+                        Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
                         removals.Add(x.VersionControlRecord.CanonicalName);
                     }
 					else
-					{
-						Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                    {
+                        if (interactive)
+                        {
+                            Printer.PrintMessageSingleLine("Record {1} of #b#{0}##", x.FilesystemEntry.CanonicalName, x.Code == StatusCode.Modified ? "#s#update##" : "#w#addition##");
+                            bool skip = false;
+                            while (true)
+                            {
+                                Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                                string input = System.Console.ReadLine();
+                                if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                                    break;
+                                if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                                    goto End;
+                                if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    skip = true;
+                                    break;
+                                }
+                            }
+                            if (skip)
+                                continue;
+                        }
+
+                        Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
 					}
 				}
 			}
-
+            End:
             // add parent directories
             foreach (var x in stageOps.ToArray())
             {
@@ -912,10 +968,22 @@ namespace Versionr
             var parentRecords = Database.GetRecords(parent);
             List<FusedAlteration> alterations = new List<FusedAlteration>();
 
+            Dictionary<string, Record> foreignLookup = new Dictionary<string, Record>();
+            foreach (var x in foreignRecords)
+                foreignLookup[x.Item1.CanonicalName] = x.Item1;
+            Dictionary<string, Record> localLookup = new Dictionary<string, Record>();
+            foreach (var x in records)
+                localLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> parentLookup = new Dictionary<string, Record>();
+            foreach (var x in parentRecords)
+                parentLookup[x.CanonicalName] = x;
+
             foreach (var x in foreignRecords)
             {
-                Objects.Record parentRecord = parentRecords.Where(z => x.Item1.CanonicalName == z.CanonicalName).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.Item1.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record parentRecord = null;
+                Objects.Record localRecord = null;
+                parentLookup.TryGetValue(x.Item1.CanonicalName, out parentRecord);
+                localLookup.TryGetValue(x.Item1.CanonicalName, out localRecord);
 
                 if (localRecord == null)
                 {
@@ -971,8 +1039,11 @@ namespace Versionr
             }
             foreach (var x in parentRecords)
             {
-                Objects.Record foreignRecord = foreignRecords.Where(z => x.CanonicalName == z.Item1.CanonicalName).Select(z => z.Item1).FirstOrDefault();
-                Objects.Record localRecord = records.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record foreignRecord = null;
+                Objects.Record localRecord = null;
+                foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
+                localLookup.TryGetValue(x.CanonicalName, out localRecord);
+                
                 if (foreignRecord == null)
                 {
                     // deleted by branch
@@ -1274,6 +1345,12 @@ namespace Versionr
             var foreignRecords = Database.GetRecords(mergeVersion);
             DateTime newRefTime = DateTime.UtcNow;
 
+            if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(foreignRecords).ToList()))
+            {
+                Printer.PrintError("Missing record data!");
+                throw new Exception();
+            }
+
             Dictionary<string, TransientMergeObject> parentDataLookup = new Dictionary<string, TransientMergeObject>();
             foreach (var x in parentData)
                 parentDataLookup[x.CanonicalName] = x;
@@ -1529,6 +1606,12 @@ namespace Versionr
 
             var localRecords = Database.GetRecords(v1);
             var foreignRecords = Database.GetRecords(v2);
+
+            if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(localRecords.Concat(foreignRecords)).ToList()))
+            {
+                Printer.PrintError("Missing record data!");
+                throw new Exception();
+            }
 
             DateTime newRefTime = DateTime.UtcNow;
 
@@ -1982,8 +2065,8 @@ namespace Versionr
 			Objects.Version version = null;
 			if (versionId != null)
 				version = Database.Get<Objects.Version>(versionId);
-			if (version == null)
-				version = Database.Get<Objects.Version>(GetBranchHead(Database.Branch).Version);
+            if (version == null)
+                version = Version;
 
 			List<Record> records = Database.GetRecords(version);
 			foreach (var x in records)
@@ -2243,13 +2326,40 @@ namespace Versionr
             }
         }
 
-        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord)
+        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord, bool interactive)
         {
 			foreach (var x in targets)
-			{
-				if (x.Staged == true)
-				{
-					Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
+            {
+                if (interactive && (x.Staged || (revertRecord && x.Code != StatusCode.Unchanged)))
+                {
+                    Printer.PrintMessageSingleLine("{1} object #b#{0}##", x.CanonicalName, (revertRecord && x.Code == StatusCode.Modified) ? "#e#Revert##" : "#b#Unrecord##");
+                    bool skip = false;
+                    bool stop = false;
+                    while (true)
+                    {
+                        Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                        string input = System.Console.ReadLine();
+                        if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                            break;
+                        if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                        {
+                            stop = true;
+                            break;
+                        }
+                        if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                        {
+                            skip = true;
+                            break;
+                        }
+                    }
+                    if (stop)
+                        break;
+                    if (skip)
+                        continue;
+                }
+                if (x.Staged == true)
+                {
+                    Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
 					LocalData.BeginTransaction();
 					try
 					{
@@ -2649,7 +2759,7 @@ namespace Versionr
             }
             if (dest.Exists)
             {
-                if (dest.LastWriteTimeUtc <= ReferenceTime && dest.Length == rec.Size)
+                if ((dest.LastWriteTimeUtc <= ReferenceTime || dest.LastWriteTimeUtc == rec.ModificationTime) && dest.Length == rec.Size)
                     return;
                 if (dest.Length == rec.Size)
                 {
