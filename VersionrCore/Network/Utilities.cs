@@ -95,7 +95,7 @@ namespace Versionr.Network
                 result = memoryStream.ToArray();
             }
 
-            ChecksumCodec ccode = ChecksumCodec.Adler32;
+            ChecksumCodec ccode = ChecksumCodec.MurMur3;
             uint checksum = 0;
             if (ccode == ChecksumCodec.XXHash)
                 checksum = ComputeChecksumXXHash(result);
