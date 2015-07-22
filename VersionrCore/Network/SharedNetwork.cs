@@ -435,10 +435,12 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecord }, ProtoBuf.PrefixStyle.Fixed32);
                     Utilities.SendEncrypted<RequestRecordData>(sharedInfo, rrd);
 
+                    RecordStatus status = new RecordStatus();
                     var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
                     {
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                         var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
+                        status.Bytes += pack.Data.Length;
                         if (pack.EndOfStream)
                         {
                             return new Tuple<byte[], bool>(pack.Data, true);
@@ -449,34 +451,66 @@ namespace Versionr.Network
                         }
                     });
 
-                    while (!receiverStream.EndOfStream)
-                    {
-                        byte[] blob = new byte[16];
-                        long recordIndex;
-                        long recordSize;
-                        if (receiverStream.Read(blob, 0, 8) != 8)
-                            continue;
-                        receiverStream.Read(blob, 8, 8);
-                        recordIndex = BitConverter.ToInt64(blob, 0);
-                        recordSize = BitConverter.ToInt64(blob, 8);
-                        Printer.PrintDiagnostics("Unpacking remote record {0}, payload size: {1}", recordIndex, recordSize);
-                        var rec = sharedInfo.RemoteRecordMap[recordIndex];
+                    status.Stopwatch = new System.Diagnostics.Stopwatch();
+                    status.Requested = recordsInPack.Count;
+                    Printer.InteractivePrinter printer = null;
+                    if (sharedInfo.Client)
+                        printer = Printer.CreateProgressBarPrinter("Importing data", string.Empty,
+                            (obj) =>
+                            {
+                                RecordStatus stat = (RecordStatus)obj;
+                                return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(stat.Bytes / stat.Stopwatch.Elapsed.TotalSeconds)));
+                            },
+                            (obj) =>
+                            {
+                                RecordStatus stat = (RecordStatus)obj;
+                                return (100.0f * stat.Processed) / (float)stat.Requested;
+                            },
+                            (pct, obj) =>
+                            {
+                                RecordStatus stat = (RecordStatus)obj;
+                                return string.Format("{0}/{1}", stat.Processed, stat.Requested);
+                            },
+                            60);
 
-                        var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
-                        try
+                    status.Stopwatch.Start();
+
+                    var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
+                    try
+                    {
+                        while (!receiverStream.EndOfStream)
                         {
+                            byte[] blob = new byte[16];
+                            long recordIndex;
+                            long recordSize;
+                            if (receiverStream.Read(blob, 0, 8) != 8)
+                                continue;
+                            if (printer != null)
+                                printer.Update(status);
+                            status.Processed++;
+                            receiverStream.Read(blob, 8, 8);
+                            recordIndex = BitConverter.ToInt64(blob, 0);
+                            recordSize = BitConverter.ToInt64(blob, 8);
+                            Printer.PrintDiagnostics("Unpacking remote record {0}, payload size: {1}", recordIndex, recordSize);
+                            var rec = sharedInfo.RemoteRecordMap[recordIndex];
+
                             string dependencies = null;
                             sharedInfo.Workspace.ImportRecordData(transaction, rec.DataIdentifier, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
                             if (dependencies != null)
                                 dependentData.Add(dependencies);
-                            sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
+
+                            if (transaction.PendingRecords > 1024 || transaction.PendingRecordBytes > 5 * 1024 * 1024)
+                                sharedInfo.Workspace.ObjectStore.FlushStorageTransaction(transaction);
                         }
-                        catch
-                        {
-                            sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
-                            throw;
-                        }
+                        sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
                     }
+                    catch
+                    {
+                        sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
+                        throw;
+                    }
+                    if (printer != null)
+                        printer.End(status);
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
             }
