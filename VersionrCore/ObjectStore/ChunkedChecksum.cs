@@ -326,8 +326,6 @@ namespace Versionr.ObjectStore
 
         public static ChunkedChecksum Compute(int size, System.IO.Stream stream, Action<long, long> progress = null)
         {
-            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-            sw.Start();
             ChunkedChecksum result = new ChunkedChecksum();
             result.ChunkSize = size;
             result.HashType = HashMode.Murmur3;
@@ -362,7 +360,6 @@ namespace Versionr.ObjectStore
             }
             result.Chunks = chunks.ToArray();
             result.ChunkCount = (uint)chunks.Count;
-            System.Console.WriteLine("LOLS: {0}", sw.ElapsedTicks);
             return result;
         }
 
