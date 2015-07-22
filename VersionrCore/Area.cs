@@ -2441,8 +2441,9 @@ namespace Versionr
                         Objects.MergeInfo mergeInfo = new MergeInfo();
                         mergeInfo.SourceVersion = guid;
                         mergeInfo.DestinationVersion = vs.ID;
+                        var mergeVersion = GetVersion(guid);
 
-                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}\"##", guid, GetBranch(GetVersion(guid).Branch).Name);
+                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}##\" (rev {2})", guid, GetBranch(mergeVersion.Branch).Name, mergeVersion.Revision);
                         Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
                         if (mergeHead != null)
                         {
@@ -2712,7 +2713,7 @@ namespace Versionr
                         throw;
                     }
 
-                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
+                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
                 }
                 catch (Exception e)
                 {
