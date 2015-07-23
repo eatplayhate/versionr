@@ -9,17 +9,23 @@ namespace Versionr.ObjectStore
 {
     public class ChunkedChecksum
     {
+        enum HashMode
+        {
+            SHA1 = 0,
+            Murmur3 = 1,
+        }
         class Chunk
         {
             public int Index;
             public long Offset;
             public uint Adler32;
             public int Length;
-            public byte[] SHA1;
+            public byte[] Hash;
         };
         int ChunkSize { get; set; }
         uint ChunkCount { get; set; }
         Chunk[] Chunks { get; set; }
+        HashMode HashType { get; set; }
 
         class CircularBuffer
         {
@@ -127,7 +133,9 @@ namespace Versionr.ObjectStore
             long processHead = 0;
             uint checksum = 0;
             FileBlock lastMatch = null;
-            var sha1 = System.Security.Cryptography.SHA1.Create();
+            System.Security.Cryptography.SHA1 sha1 = null;
+            if (chunks.HashType == HashMode.SHA1)
+                sha1 = System.Security.Cryptography.SHA1.Create();
             while (processHead != inputSize)
             {
                 // first run through
@@ -146,14 +154,19 @@ namespace Versionr.ObjectStore
                 Chunk match = null;
                 if (adlerToIndex.TryGetValue(checksum, out possibleChunkLookup))
                 {
-                    byte[] realHash = sha1.ComputeHash(circularBuffer.ToArray(chunks.ChunkSize > remainder ? remainder : chunks.ChunkSize), 0, remainder);
+                    byte[] data = circularBuffer.ToArray(chunks.ChunkSize > remainder ? remainder : chunks.ChunkSize);
+                    byte[] realHash = null;
+                    if (sha1 != null)
+                        realHash = sha1.ComputeHash(data, 0, data.Length);
+                    else
+                        realHash = (new Utilities.Murmur3()).ComputeHash(data);
                     while (true)
                     {
                         Chunk inspectedChunk = sortedChunks[possibleChunkLookup];
                         if (inspectedChunk.Adler32 != checksum)
                             break;
                         if (inspectedChunk.Length == remainder &&
-                            System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(realHash, inspectedChunk.SHA1))
+                            System.Collections.StructuralComparisons.StructuralEqualityComparer.Equals(realHash, inspectedChunk.Hash))
                         {
                             match = inspectedChunk;
                             break;
@@ -236,11 +249,25 @@ namespace Versionr.ObjectStore
         {
             byte[] temp = new byte[16];
             stream.Read(temp, 0, 16);
-            if (temp[0] != 'h' || temp[1] != 'a' || temp[2] != 's' || temp[3] != 'h')
+            int version = 0;
+            if (temp[0] == 'h' && temp[1] == 'a' && temp[2] == 's' && temp[3] == 'h')
+                version = 1;
+            else if (temp[0] == 'h' && temp[1] == 's' && temp[2] == 'h' && temp[3] == '2')
+                version = 2;
+            if (version == 0)
                 throw new Exception();
             int chunkSize = BitConverter.ToInt32(temp, 8);
             uint chunkCount = BitConverter.ToUInt32(temp, 12);
-            stream.Seek(chunkCount * 24, SeekOrigin.Current);
+            int offset = 0;
+            int perchunk = 4;
+            if (version == 1)
+                perchunk += 20;
+            else
+            {
+                offset += 4;
+                perchunk += 16;
+            }
+            stream.Seek(offset + chunkCount * perchunk, SeekOrigin.Current);
         }
 
         public static ChunkedChecksum Load(long filesize, System.IO.Stream stream)
@@ -249,11 +276,23 @@ namespace Versionr.ObjectStore
 
             byte[] temp = new byte[16];
             stream.Read(temp, 0, 16);
-            if (temp[0] != 'h' || temp[1] != 'a' || temp[2] != 's' || temp[3] != 'h')
+            int version = 0;
+            if (temp[0] == 'h' && temp[1] == 'a' && temp[2] == 's' && temp[3] == 'h')
+                version = 1;
+            else if (temp[0] == 'h' && temp[1] == 's' && temp[2] == 'h' && temp[3] == '2')
+                version = 2;
+            if (version == 0)
                 throw new Exception();
             result.ChunkSize = BitConverter.ToInt32(temp, 8);
             result.ChunkCount = BitConverter.ToUInt32(temp, 12);
             result.Chunks = new Chunk[result.ChunkCount];
+            if (version == 1)
+                result.HashType = HashMode.SHA1;
+            else if (version == 2)
+            {
+                stream.Read(temp, 0, 4);
+                result.HashType = (HashMode)BitConverter.ToInt32(temp, 0);
+            }
 
             uint remaining = result.ChunkCount;
             long offset = 0;
@@ -261,13 +300,22 @@ namespace Versionr.ObjectStore
             while (remaining > 0)
             {
                 stream.Read(temp, 0, 4);
-                Chunk c = new Chunk() { Adler32 = BitConverter.ToUInt32(temp, 0), SHA1 = new byte[20], Offset = offset };
+                Chunk c = new Chunk() { Adler32 = BitConverter.ToUInt32(temp, 0), Offset = offset };
                 offset += result.ChunkSize;
                 if (remaining == 1)
                     c.Length = (int)(filesize - offset);
                 else
                     c.Length = result.ChunkSize;
-                stream.Read(c.SHA1, 0, 20);
+                if (result.HashType == HashMode.SHA1)
+                {
+                    c.Hash = new byte[20];
+                    stream.Read(c.Hash, 0, 20);
+                }
+                else if (result.HashType == HashMode.Murmur3)
+                {
+                    c.Hash = new byte[16];
+                    stream.Read(c.Hash, 0, 16);
+                }
                 c.Index = index;
                 result.Chunks[index++] = c;
                 remaining--;
@@ -280,12 +328,15 @@ namespace Versionr.ObjectStore
         {
             ChunkedChecksum result = new ChunkedChecksum();
             result.ChunkSize = size;
+            result.HashType = HashMode.Murmur3;
             byte[] block = new byte[size];
             List<Chunk> chunks = new List<Chunk>();
-
-            var sha1 = System.Security.Cryptography.SHA1.Create();
+            
             long offset = 0;
             int index = 0;
+            System.Security.Cryptography.SHA1 sha1 = null;
+            if (result.HashType == HashMode.SHA1)
+                sha1 = System.Security.Cryptography.SHA1.Create();
             while (true)
             {
                 if (progress != null)
@@ -298,7 +349,8 @@ namespace Versionr.ObjectStore
                     Index = index++,
                     Offset = offset,
                     Adler32 = FastHash(block, count),
-                    SHA1 = sha1.ComputeHash(block, 0, count),
+                    //Hash = sha1.ComputeHash(block, 0, count),
+                    Hash = new Utilities.Murmur3().ComputeHash(block, count),
                     Length = count
                 };
                 offset += size;
@@ -325,14 +377,18 @@ namespace Versionr.ObjectStore
 
         internal static void Write(System.IO.Stream stream, ChunkedChecksum result)
         {
-            stream.Write(new byte[] { (byte)'h', (byte)'a', (byte)'s', (byte)'h' }, 0, 4);
+            if (result.HashType == HashMode.SHA1)
+                stream.Write(new byte[] { (byte)'h', (byte)'a', (byte)'s', (byte)'h' }, 0, 4);
+            else
+                stream.Write(new byte[] { (byte)'h', (byte)'s', (byte)'h', (byte)'2' }, 0, 4);
             stream.Write(BitConverter.GetBytes(result.Chunks.Length), 0, 4);
             stream.Write(BitConverter.GetBytes(result.ChunkSize), 0, 4);
             stream.Write(BitConverter.GetBytes(result.ChunkCount), 0, 4);
+            stream.Write(BitConverter.GetBytes((int)result.HashType), 0, 4);
             foreach (var x in result.Chunks)
             {
                 stream.Write(BitConverter.GetBytes(x.Adler32), 0, 4);
-                stream.Write(x.SHA1, 0, x.SHA1.Length);
+                stream.Write(x.Hash, 0, x.Hash.Length);
             }
         }
         internal static void ApplyDelta(System.IO.Stream baseFile, System.IO.Stream deltaFile, System.IO.Stream outputFile)

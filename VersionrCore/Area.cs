@@ -223,7 +223,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.0";
+                return "v1.0.1";
             }
         }
 
@@ -540,7 +540,7 @@ namespace Versionr
             var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint);
             foreach (var x in results)
             {
-                if (x.UniqueIdentifier == newRecord.UniqueIdentifier)
+                if (x.UniqueIdentifier == newRecord.UniqueIdentifier && x.ModificationTime == newRecord.ModificationTime)
                 {
                     if (newRecord.CanonicalName == Database.Table<ObjectName>().Where(y => y.Id == x.CanonicalNameId).First().CanonicalName)
                         return x;
@@ -2136,10 +2136,10 @@ namespace Versionr
             if (v.StartsWith("..."))
             {
                 postfix = true;
-                potentials = Database.Query<Objects.Version>(string.Format("SELECT Version.* FROM Version WHERE Version.ID LIKE '%{0}'", v.Substring(3)));
+                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '%{0}'", v.Substring(3)));
             }
             else
-                potentials = Database.Query<Objects.Version>(string.Format("SELECT Version.* FROM Version WHERE Version.ID LIKE '{0}%'", v));
+                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '{0}%'", v));
             if (potentials.Count > 1)
             {
                 Printer.PrintError("Can't find a unique version with {1}: {0}\nCould be:", v, postfix ? "postfix" : "prefix");
@@ -2448,8 +2448,9 @@ namespace Versionr
                         Objects.MergeInfo mergeInfo = new MergeInfo();
                         mergeInfo.SourceVersion = guid;
                         mergeInfo.DestinationVersion = vs.ID;
+                        var mergeVersion = GetVersion(guid);
 
-                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}\"##", guid, GetBranch(GetVersion(guid).Branch).Name);
+                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}##\" (rev {2})", guid, GetBranch(mergeVersion.Branch).Name, mergeVersion.Revision);
                         Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
                         if (mergeHead != null)
                         {
@@ -2721,7 +2722,7 @@ namespace Versionr
                         throw;
                     }
 
-                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
+                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
                 }
                 catch (Exception e)
                 {

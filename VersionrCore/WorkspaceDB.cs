@@ -185,7 +185,8 @@ namespace Versionr
                             rec = Get<Objects.Record>(x.PriorRecord);
                             if (deletions != null)
                                 deletions.Add(rec);
-                            records.Remove(x.PriorRecord.Value);
+                            if (!records.Remove(x.PriorRecord.Value))
+                                throw new Exception("This is bad");
                             records[record.Id] = record;
                             break;
                         }
@@ -193,7 +194,8 @@ namespace Versionr
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            records.Remove(x.PriorRecord.Value);
+                            if (!records.Remove(x.PriorRecord.Value))
+                                throw new Exception("This is bad");
                             records[record.Id] = record;
                             break;
                         }
@@ -201,7 +203,8 @@ namespace Versionr
                         rec = Get<Objects.Record>(x.PriorRecord);
                         if (deletions != null)
                             deletions.Add(rec);
-                        records.Remove(x.PriorRecord.Value);
+                        if (!records.Remove(x.PriorRecord.Value))
+                            throw new Exception("This is bad");
                         break;
                     default:
                         throw new Exception();
@@ -220,10 +223,10 @@ namespace Versionr
         {
             List<Objects.Version> parents = Query<Objects.Version>(
                 @"WITH RECURSIVE
-                  ancestors(ID, Author, Message, Published, Branch, Parent, Timestamp, Snapshot, AlterationList) AS (
-                      SELECT Version.* FROM Version WHERE Version.ID = ?
+                  ancestors(rowid, ID, Author, Message, Published, Branch, Parent, Timestamp, Snapshot, AlterationList) AS (
+                      SELECT rowid, * FROM Version WHERE Version.ID = ?
                       UNION ALL
-                      SELECT Version.* FROM ancestors, Version
+                      SELECT Version.rowid, Version.* FROM ancestors, Version
                       WHERE ancestors.Parent = Version.ID AND ancestors.Snapshot IS NULL
                   )
                   SELECT * FROM ancestors;", version.ID);
@@ -332,10 +335,10 @@ namespace Versionr
             //result.AddRange(results);
             var result = Query<Objects.Version>(string.Format(
                 @"WITH RECURSIVE
-                  ancestors(ID, Author, Message, Published, Branch, Parent, Timestamp, Snapshot, AlterationList) AS (
-                      SELECT Version.* FROM Version WHERE Version.ID = ?
+                  ancestors(rowid, ID, Author, Message, Published, Branch, Parent, Timestamp, Snapshot, AlterationList) AS (
+                      SELECT rowid, * FROM Version WHERE Version.ID = ?
                       UNION ALL
-                      SELECT Version.* FROM ancestors, Version
+                      SELECT Version.rowid, Version.* FROM ancestors, Version
                       WHERE ancestors.Parent = Version.ID
                       {0}
                   )

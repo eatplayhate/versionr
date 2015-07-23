@@ -18,9 +18,12 @@ namespace Versionr.Utilities
             return (original >> bits) | (original << (64 - bits));
         }
 
-        public static ulong GetUInt64(this byte[] bb, int pos)
+        public unsafe static ulong GetUInt64(this byte[] bb, int pos)
         {
-            return BitConverter.ToUInt64(bb, pos);
+            fixed (byte* pbyte = &bb[pos])
+            {
+                return *((ulong*)pbyte);
+            }
         }
     }
     class Murmur3
@@ -79,19 +82,19 @@ namespace Versionr.Utilities
             return k;
         }
 
-        public byte[] ComputeHash(byte[] bb)
+        public byte[] ComputeHash(byte[] bb, int length = -1)
         {
-            ProcessBytes(bb);
+            ProcessBytes(bb, length == -1 ? bb.Length : length);
             return Hash;
         }
 
-        private void ProcessBytes(byte[] bb)
+        private void ProcessBytes(byte[] bb, int count)
         {
             h1 = seed;
             this.length = 0L;
 
             int pos = 0;
-            ulong remaining = (ulong)bb.Length;
+            ulong remaining = (ulong)count;
 
             // read 128 bits, 16 bytes, 2 longs in eacy cycle
             while (remaining >= READ_SIZE)

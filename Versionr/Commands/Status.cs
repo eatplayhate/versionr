@@ -69,7 +69,7 @@ namespace Versionr.Commands
                 }
             }
             var ss = status;
-            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"", ss.CurrentVersion.ID, ss.Branch.Name);
+            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", ss.CurrentVersion.ID, ss.Branch.Name, ss.CurrentVersion.Revision);
             if (ss.RestrictedPath != null)
                 Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
             Printer.WriteLineMessage("");
@@ -78,7 +78,7 @@ namespace Versionr.Commands
                 Printer.WriteLineMessage("Workspace has #b#{0}## pending merges.", status.MergeInputs.Count);
             foreach (var x in status.MergeInputs)
             {
-                Printer.WriteLineMessage(" #c#{0}#q# from branch \"#b#{1}##\"", x.ID, Workspace.GetBranch(x.Branch).Name);
+                Printer.WriteLineMessage(" #c#{0}#q# from branch \"#b#{1}##\" (rev {2})", x.ID, Workspace.GetBranch(x.Branch).Name, x.Revision);
             }
             if (status.MergeInputs.Count > 0)
                 Printer.WriteLineMessage("");

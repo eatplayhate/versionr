@@ -28,6 +28,9 @@ namespace Versionr.Objects
         public long? Snapshot { get; set; }
         [ProtoBuf.ProtoIgnore]
         public long AlterationList { get; set; }
+        [ProtoBuf.ProtoMember(8)]
+        [SQLite.LoadOnly, SQLite.Column("rowid")]
+        public uint Revision { get; set; }
 
         public static Version Create()
         {

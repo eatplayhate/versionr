@@ -58,7 +58,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
 
-            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\"\n", ws.Version.ID, ws.CurrentBranch.Name);
+            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})\n", ws.Version.ID, ws.CurrentBranch.Name, ws.Version.Revision);
 
             return true;
         }
