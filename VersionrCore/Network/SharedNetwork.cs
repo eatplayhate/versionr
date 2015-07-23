@@ -45,6 +45,7 @@ namespace Versionr.Network
             public HashSet<Guid> RemoteCheckedBranches { get; set; }
             public List<Objects.Branch> ReceivedBranches { get; set; }
             public List<VersionInfo> PushedVersions { get; set; }
+            public HashSet<Guid> ReceivedVersionSet { get; set; }
             public Dictionary<long, Objects.Record> RemoteRecordMap { get; set; }
             public Dictionary<long, Objects.Record> LocalRecordMap { get; set; }
             public List<long> UnknownRecords { get; set; }
@@ -745,10 +746,16 @@ namespace Versionr.Network
 
         private static void ReceivePack(SharedNetworkInfo sharedInfo, VersionPack pack)
         {
+            if (sharedInfo.ReceivedVersionSet == null)
+                sharedInfo.ReceivedVersionSet = new HashSet<Guid>();
             foreach (var x in pack.Versions)
             {
-                sharedInfo.PushedVersions.Add(x);
-                CheckRecords(sharedInfo, x);
+                if (!sharedInfo.ReceivedVersionSet.Contains(x.Version.ID))
+                {
+                    sharedInfo.PushedVersions.Add(x);
+                    CheckRecords(sharedInfo, x);
+                    sharedInfo.ReceivedVersionSet.Add(x.Version.ID);
+                }
             }
         }
 
