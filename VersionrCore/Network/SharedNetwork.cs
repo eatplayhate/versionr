@@ -115,11 +115,12 @@ namespace Versionr.Network
                     List<Objects.Version> partialHistory = info.Workspace.GetHistory(currentVersion, 64);
                     foreach (var x in partialHistory)
                     {
-                        if (info.RemoteCheckedVersions.Contains(x.ID))
-                            break;
-                        info.RemoteCheckedVersions.Add(x.ID);
-                        currentVersion = x;
-                        versionsToCheck.Add(x);
+                        if (!info.RemoteCheckedVersions.Contains(x.ID))
+						{
+							info.RemoteCheckedVersions.Add(x.ID);
+							currentVersion = x;
+							versionsToCheck.Add(x);
+						}
                     }
 
                     if (versionsToCheck.Count > 0)
@@ -140,7 +141,7 @@ namespace Versionr.Network
                             Printer.PrintDiagnostics(" - Version ID: {0}", query.IDs[i]);
                             if (!response.Recognized[i])
                             {
-                                versionsToSend.Push(partialHistory[i]);
+                                versionsToSend.Push(versionsToCheck[i]);
                                 Printer.PrintDiagnostics("   (not recognized on remote vault)");
                             }
                             else
@@ -153,9 +154,9 @@ namespace Versionr.Network
                         {
                             if (!response.Recognized[i])
                             {
-                                if (!QueryBranch(info, branchesToSend, info.Workspace.GetBranch(partialHistory[i].Branch)))
+                                if (!QueryBranch(info, branchesToSend, info.Workspace.GetBranch(versionsToCheck[i].Branch)))
                                     return false;
-                                var mergeInfo = info.Workspace.GetMergeInfo(partialHistory[i].ID);
+                                var mergeInfo = info.Workspace.GetMergeInfo(versionsToCheck[i].ID);
                                 foreach (var x in mergeInfo)
                                 {
                                     var srcVersion = info.Workspace.GetVersion(x.SourceVersion);
