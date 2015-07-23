@@ -213,7 +213,18 @@ namespace Versionr
                         if (objectFlags.HasFlag(StageFlags.Conflicted))
                             return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-						if (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime > Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint))
+                        bool changed = false;
+                        if (snapshotRecord.Length != x.Size)
+                            changed = true;
+                        if (!changed && !snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime != Workspace.GetReferenceTime(x.CanonicalName)))
+                        {
+                            Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
+                            if (snapshotRecord.Hash != x.Fingerprint)
+                                changed = true;
+                            else
+                                Workspace.UpdateFileTimeCache(x.CanonicalName, snapshotRecord.ModificationTime);
+                        }
+                        if (changed == true)
                             return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                         else
                         {

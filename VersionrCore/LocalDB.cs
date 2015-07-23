@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 2;
+        public const int LocalDBVersion = 3;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -18,6 +18,7 @@ namespace Versionr
             CreateTable<LocalState.Configuration>();
             CreateTable<LocalState.StageOperation>();
             CreateTable<LocalState.RemoteConfig>();
+            CreateTable<LocalState.FileTimestamp>();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -103,9 +104,28 @@ namespace Versionr
             return db;
         }
 
+        public bool RefreshLocalTimes { get; set; }
+
         private bool Upgrade()
         {
-            if (Configuration.Version == 1)
+            if (Configuration.Version == 2)
+            {
+                Configuration config = Configuration;
+                config.Version = LocalDBVersion;
+                try
+                {
+                    Update(config);
+                    RefreshLocalTimes = true;
+                    Commit();
+                    return true;
+                }
+                catch
+                {
+                    Rollback();
+                    return false;
+                }
+            }
+            else if (Configuration.Version == 1)
             {
                 Configuration config = Configuration;
                 config.Version = LocalDBVersion;
@@ -144,6 +164,29 @@ namespace Versionr
                 if (System.IO.File.Exists(fullPath))
                     System.IO.File.Delete(fullPath);
                 throw new Exception("Couldn't create database!", e);
+            }
+        }
+
+        internal void ReplaceFileTimes(Dictionary<string, DateTime> filetimes)
+        {
+            try
+            {
+                BeginExclusive();
+                DropTable<LocalState.FileTimestamp>();
+                CreateTable<LocalState.FileTimestamp>();
+
+                foreach (var x in filetimes)
+                {
+                    LocalState.FileTimestamp fst = new FileTimestamp() { CanonicalName = x.Key, LastSeenTime = x.Value };
+                    Insert(fst);
+                }
+
+                Commit();
+            }
+            catch
+            {
+                Rollback();
+                throw;
             }
         }
 
@@ -194,6 +237,36 @@ namespace Versionr
                 ops.Add(x);
             }
             return result;
+        }
+
+        internal Dictionary<string, DateTime> LoadFileTimes()
+        {
+            Dictionary<string, DateTime> result = new Dictionary<string, DateTime>();
+            foreach (var x in Table<LocalState.FileTimestamp>())
+                result[x.CanonicalName] = x.LastSeenTime;
+            return result;
+        }
+
+        internal void UpdateFileTime(string canonicalName, DateTime lastAccessTimeUtc)
+        {
+            var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
+            if (timestamp == null)
+            {
+                timestamp = new FileTimestamp() { CanonicalName = canonicalName, LastSeenTime = lastAccessTimeUtc };
+                Insert(timestamp);
+            }
+            else
+            {
+                timestamp.LastSeenTime = lastAccessTimeUtc;
+                Update(timestamp);
+            }
+        }
+
+        internal void RemoveFileTime(string canonicalName)
+        {
+            var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
+            if (timestamp != null)
+                Delete(timestamp);
         }
     }
 }

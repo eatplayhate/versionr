@@ -20,6 +20,8 @@ namespace Versionr
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
+
+        public Dictionary<string, DateTime> FileTimeCache { get; set; }
         public Guid Domain
         {
             get
@@ -115,6 +117,42 @@ namespace Versionr
             if (activeDirectory.FullName == Root.FullName)
                 return Status;
             return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName) + "/");
+        }
+
+        class LocalRefreshState
+        {
+            public int RecordsTotal;
+            public int RecordsProcessed;
+        }
+
+        internal void RefreshLocalTimes()
+        {
+            var records = Database.Records;
+            LocalRefreshState lrs = new LocalRefreshState() { RecordsTotal = records.Count };
+            var printer = Printer.CreateProgressBarPrinter("Updating local timestamp cache", "Record",
+                (obj) => { return string.Empty; },
+                (obj) => { return (float)System.Math.Round(100.0 * lrs.RecordsProcessed / (float)lrs.RecordsTotal); },
+                (pct, obj) => { return string.Format("{0}/{1}", lrs.RecordsProcessed, lrs.RecordsTotal); },
+                70);
+            Dictionary<string, DateTime> filetimes = new Dictionary<string, DateTime>();
+            foreach (var x in records)
+            {
+                printer.Update(null);
+                FileInfo dest = new FileInfo(Path.Combine(Root.FullName, x.CanonicalName));
+                if (dest.Exists)
+                {
+                    if (dest.Length == x.Size)
+                    {
+                        if (Entry.CheckHash(dest) == x.Fingerprint)
+                        {
+                            filetimes[x.CanonicalName] = dest.LastWriteTimeUtc;
+                        }
+                    }
+                }
+                lrs.RecordsProcessed++;
+            }
+            printer.End(null);
+            LocalData.ReplaceFileTimes(filetimes);
         }
 
         public List<Objects.Record> GetAllRecords()
@@ -249,6 +287,14 @@ namespace Versionr
                 Database.Rollback();
                 return false;
             }
+        }
+
+        internal DateTime GetReferenceTime(string canonicalName)
+        {
+            DateTime result;
+            if (FileTimeCache.TryGetValue(canonicalName, out result))
+                return result;
+            return DateTime.MinValue;
         }
 
         public void UpdateReferenceTime(DateTime utcNow)
@@ -663,44 +709,6 @@ namespace Versionr
         {
             if (!ObjectStore.ReceiveRecordData(transaction, directName, data, out dependency))
                 throw new Exception();
-         /*   DirectoryInfo tempDirectory = new DirectoryInfo(System.IO.Path.Combine(AdministrationFolder.FullName, "temp"));
-            if (!tempDirectory.Exists)
-                tempDirectory.Create();
-            FileInfo temp;
-            do
-            {
-                temp = new FileInfo(System.IO.Path.Combine(tempDirectory.FullName, System.IO.Path.GetRandomFileName()));
-            } while (temp.Exists);
-            try
-            {
-                FileInfo info = GetFileForCode(rec.Fingerprint, rec.Size);
-                int bufferSize = 1024 * 1024 * 4;
-                byte[] buffer = new byte[bufferSize];
-                long remainder = data.Length;
-                using (var tempStream = temp.OpenWrite())
-                {
-                    while (remainder > 0)
-                    {
-                        int readSize = remainder > bufferSize ? bufferSize : (int)remainder;
-                        data.Read(buffer, 0, readSize);
-                        tempStream.Write(buffer, 0, readSize);
-                        remainder -= readSize;
-                    }
-                }
-                lock (this)
-                {
-                    if (!info.Exists)
-                    {
-                        temp.MoveTo(info.FullName);
-                        temp = null;
-                    }
-                }
-            }
-            finally
-            {
-                if (temp != null)
-                    temp.Delete();
-            }*/
         }
 
         internal bool HasObjectData(Record rec)
@@ -894,6 +902,11 @@ namespace Versionr
                 if (LocalData.Domain != Database.Domain)
                     return false;
 
+                if (LocalData.RefreshLocalTimes)
+                    RefreshLocalTimes();
+
+                FileTimeCache = LocalData.LoadFileTimes();
+
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
                 FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
@@ -919,30 +932,6 @@ namespace Versionr
             {
                 Printer.PrintError(e.ToString());
                 return false;
-            }
-        }
-
-        private void TestDeltas(string v1, string v2, int chunksize = 2048, string output = null)
-        {
-            FileInfo test = new FileInfo(v1);
-            FileInfo test2 = new FileInfo(v2);
-            if (output == null)
-                output = test2 + ".out";
-            using (var fs = test.OpenRead())
-            using (var fs2 = test2.OpenRead())
-            {
-                var result = Versionr.ObjectStore.ChunkedChecksum.Compute(chunksize, fs);
-                using (var fs4 = new FileInfo(v1 + ".hash").Open(FileMode.Create))
-                {
-                    Versionr.ObjectStore.ChunkedChecksum.Write(fs4, result);
-                }
-                fs.Position = 0;
-                long deltaLength;
-                var deltas = Versionr.ObjectStore.ChunkedChecksum.ComputeDelta(fs2, test2.Length, result, out deltaLength);
-                Printer.PrintMessage("Delta compressed {0} -> {1}: {2} bytes ({3:N2}%)", v1, v2, deltaLength, deltaLength / (double)test2.Length * 100.0);
-
-                using (var fs4 = new FileInfo(output).Open(FileMode.Create))
-                    Versionr.ObjectStore.ChunkedChecksum.WriteDelta(fs2, fs4, deltas);
             }
         }
 
@@ -1517,6 +1506,7 @@ namespace Versionr
             }
             foreach (var x in deletionList.Where(x => x.Item3 == false))
             {
+                RemoveFileTimeCache(x.Item2);
                 System.IO.File.Delete(x.Item1);
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
             }
@@ -1524,6 +1514,7 @@ namespace Versionr
             {
                 try
                 {
+                    RemoveFileTimeCache(x.Item2);
                     System.IO.Directory.Delete(x.Item1);
                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
                 }
@@ -1555,6 +1546,12 @@ namespace Versionr
                     LocalData.Rollback();
                 }
             }
+        }
+
+        private void RemoveFileTimeCache(string item2)
+        {
+            FileTimeCache.Remove(item2);
+            LocalData.RemoveFileTime(item2);
         }
 
         class MergeResult
@@ -2050,6 +2047,7 @@ namespace Versionr
                     System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
                     Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
                 }
+                RemoveFileTimeCache(x.CanonicalName);
             }
 		}
 
@@ -2188,6 +2186,7 @@ namespace Versionr
                     {
                         try
                         {
+                            RemoveFileTimeCache(x.CanonicalName);
                             System.IO.File.Delete(path);
                             Printer.PrintMessage("Deleted {0}", x.CanonicalName);
                         }
@@ -2207,6 +2206,7 @@ namespace Versionr
                     {
                         try
                         {
+                            RemoveFileTimeCache(x.CanonicalName);
                             System.IO.Directory.Delete(path);
                         }
                         catch
@@ -2745,28 +2745,16 @@ namespace Versionr
                 return;
             }
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
-            if (rec.Size == 0)
+            if (overridePath == null && dest.Exists)
             {
-                using (var fs = dest.Create()) { }
-                ApplyAttributes(dest, referenceTime, rec);
-                return;
-            }
-            if (dest.Exists)
-            {
-                if ((dest.LastWriteTimeUtc <= ReferenceTime || dest.LastWriteTimeUtc == rec.ModificationTime) && dest.Length == rec.Size)
+                if ((dest.LastWriteTimeUtc == GetReferenceTime(rec.CanonicalName)) && dest.Length == rec.Size)
                     return;
                 if (dest.Length == rec.Size)
                 {
+                    Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
                     {
-                        try
-                        {
-                            dest.LastWriteTimeUtc = referenceTime;
-                        }
-                        catch
-                        {
-                            // ignore
-                        }
+                        UpdateFileTimeCache(rec.CanonicalName, dest.LastAccessTimeUtc);
                         return;
                     }
                 }
@@ -2779,9 +2767,16 @@ namespace Versionr
         Retry:
             try
             {
-                using (var fsd = dest.Open(FileMode.Create))
+                if (rec.Size == 0)
                 {
-                    ObjectStore.WriteRecordStream(rec, fsd);
+                    using (var fs = dest.Create()) { }
+                }
+                else
+                {
+                    using (var fsd = dest.Open(FileMode.Create))
+                    {
+                        ObjectStore.WriteRecordStream(rec, fsd);
+                    }
                 }
                 ApplyAttributes(dest, referenceTime, rec);
                 if (dest.Length != rec.Size)
@@ -2799,6 +2794,8 @@ namespace Versionr
                     Printer.PrintError(" - Found: {0}", hash);
                     throw new Exception();
                 }
+                if (overridePath == null)
+                    UpdateFileTimeCache(rec.CanonicalName, dest.LastAccessTimeUtc);
             }
             catch (System.IO.IOException)
             {
@@ -2820,6 +2817,12 @@ namespace Versionr
                 System.Threading.Thread.Sleep(100);
                 goto Retry;
             }
+        }
+
+        public void UpdateFileTimeCache(string canonicalName, DateTime lastAccessTimeUtc)
+        {
+            FileTimeCache[canonicalName] = lastAccessTimeUtc;
+            LocalData.UpdateFileTime(canonicalName, lastAccessTimeUtc);
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
