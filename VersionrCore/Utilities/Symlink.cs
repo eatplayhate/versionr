@@ -22,17 +22,10 @@ namespace Versionr.Utilities
 
 		public static bool Create(string path, string target)
 		{
-			bool asDirectory = Directory.Exists(target);
-			if (!asDirectory && !File.Exists(target))
-			{
-				// Don't know what kind of link to make in this case.
-				return false;
-			}
-
 			if (MultiArchPInvoke.IsRunningOnMono)
-				return SymlinkMono.CreateSymlink(path, target, asDirectory);
+				return SymlinkMono.CreateSymlink(path, target);
 			else
-				return SymlinkWin32.CreateSymlink(path, target, asDirectory);
+				return SymlinkWin32.CreateSymlink(path, target);
 		}
 
 		public static string GetTarget(string path)
@@ -51,8 +44,9 @@ namespace Versionr.Utilities
 			[DllImport("kernel32.dll", SetLastError = true)]
 			static extern bool CreateSymbolicLink(string lpSymlinkFileName, string lpTargetFileName, int dwFlags);
 
-			public static bool CreateSymlink(string path, string target, bool asDirectory)
+			public static bool CreateSymlink(string path, string target)
 			{
+				bool asDirectory = path.EndsWith("/");
 				target = target.Replace('/', '\\');
 
 				if (!CreateSymbolicLink(path, target, asDirectory ? targetIsADirectory : targetIsAFile) || Marshal.GetLastWin32Error() != 0)
@@ -220,7 +214,7 @@ namespace Versionr.Utilities
 				MonoObj = Activator.CreateInstance(MonoType, new object[] { Path });
 			}
 
-			public static bool CreateSymlink(string path, string target, bool asDirectory)
+			public static bool CreateSymlink(string path, string target)
 			{
 				target = target.Replace('\\', '/');
 

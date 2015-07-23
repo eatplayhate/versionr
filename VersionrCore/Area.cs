@@ -2180,13 +2180,18 @@ namespace Versionr
                 canonicalNames.Add(x.CanonicalName);
             }
             List<Task> tasks = new List<Task>();
-            foreach (var x in targetRecords.Where(x => !x.IsDirectory))
+            foreach (var x in targetRecords.Where(x => !x.IsDirectory && !x.IsSymlink))
             {
                 tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
-            foreach (var x in records.Where(x => !x.IsDirectory))
+			foreach (var x in targetRecords.Where(x => x.IsSymlink)/*.OrderByDescending(x => x.CanonicalName.Length)*/)
+			{
+				RestoreRecord(x, newRefTime);
+				canonicalNames.Add(x.CanonicalName);
+			}
+			foreach (var x in records.Where(x => !x.IsDirectory))
             {
                 if (!canonicalNames.Contains(x.CanonicalName))
                 {
