@@ -2555,11 +2555,13 @@ namespace Versionr
                                         {
                                             record = new Objects.Record();
                                             record.CanonicalName = x.FilesystemEntry.CanonicalName;
-                                            if (record.IsDirectory)
-                                                record.Fingerprint = x.FilesystemEntry.CanonicalName;
-                                            else
-                                                record.Fingerprint = x.FilesystemEntry.Hash;
                                             record.Attributes = x.FilesystemEntry.Attributes;
+											if (record.IsSymlink)
+												record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
+											else if (record.IsDirectory)
+												record.Fingerprint = x.FilesystemEntry.CanonicalName;
+											else
+												record.Fingerprint = x.FilesystemEntry.Hash;
                                             record.Size = x.FilesystemEntry.Length;
                                             record.ModificationTime = x.FilesystemEntry.ModificationTime;
                                             if (x.VersionControlRecord != null)
@@ -2750,6 +2752,13 @@ namespace Versionr
                 }
                 return;
             }
+			if (rec.IsSymlink)
+			{
+				Printer.PrintMessage("Creating symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
+				string path = Path.Combine(Root.FullName, rec.CanonicalName);
+				Utilities.Symlink.Create(path, rec.Fingerprint);
+				return;
+			}
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
             if (rec.Size == 0)
             {

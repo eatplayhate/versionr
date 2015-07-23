@@ -58,12 +58,22 @@ namespace Versionr
                 }
             }
 
+			public bool IsSymlink
+			{
+				get
+				{
+					return FilesystemEntry != null ? FilesystemEntry.Attributes.HasFlag(Objects.Attributes.Symlink) : VersionControlRecord.Attributes.HasFlag(Objects.Attributes.Symlink);
+				}
+			}
+
             public bool DataEquals(Record x)
             {
                 if (FilesystemEntry != null)
                 {
                     if (FilesystemEntry.IsDirectory)
                         return x.Fingerprint == FilesystemEntry.CanonicalName;
+					if (FilesystemEntry.IsSymlink)
+						return x.Fingerprint == FilesystemEntry.SymlinkTarget;
                     if (Code == StatusCode.Unchanged)
                         return x.DataEquals(VersionControlRecord);
                     return FilesystemEntry.DataEquals(x.Fingerprint, x.Size);
@@ -213,7 +223,10 @@ namespace Versionr
                         if (objectFlags.HasFlag(StageFlags.Conflicted))
                             return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-						if (snapshotRecord.Length != x.Size || ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime > Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint))
+						if (snapshotRecord.Length != x.Size
+							|| (snapshotRecord.IsSymlink 
+								? snapshotRecord.SymlinkTarget != x.Fingerprint 
+								: ((!snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime > Workspace.ReferenceTime)) && snapshotRecord.Hash != x.Fingerprint)))
                             return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                         else
                         {

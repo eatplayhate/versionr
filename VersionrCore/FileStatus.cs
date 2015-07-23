@@ -34,9 +34,27 @@ namespace Versionr
         {
             get
             {
-                return CanonicalName.EndsWith("/");
+                return !IsSymlink && CanonicalName.EndsWith("/");
             }
         }
+		public bool IsSymlink
+		{
+			get
+			{
+				return Attributes.HasFlag(Objects.Attributes.Symlink);
+            }
+		}
+		public string SymlinkTarget
+		{
+			get
+			{
+				if (Info != null)
+					return Utilities.Symlink.GetTarget(Info.FullName);
+				if (DirectoryInfo != null)
+					return Utilities.Symlink.GetTarget(DirectoryInfo.FullName);
+				return null;
+			}
+		}
 		public bool Ignored { get; private set; }
 
         public Entry(Area area, Entry parent, DirectoryInfo info, string canonicalName, bool ignored)
@@ -53,6 +71,8 @@ namespace Versionr
                 Attributes = Attributes | Objects.Attributes.Hidden;
             if (info.Attributes.HasFlag(FileAttributes.ReadOnly))
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
+			if (Utilities.Symlink.Exists(info.FullName))
+				Attributes = Attributes | Objects.Attributes.Symlink;
         }
 
         internal bool DataEquals(string fingerprint, long size)
@@ -97,6 +117,8 @@ namespace Versionr
             Length = Info.Length;
             ModificationTime = Info.LastWriteTimeUtc;
 
+			if (Utilities.Symlink.Exists(Info.FullName))
+				Attributes = Attributes | Objects.Attributes.Symlink;
             if (Info.Attributes.HasFlag(FileAttributes.Hidden))
                 Attributes = Attributes | Objects.Attributes.Hidden;
             if (Info.Attributes.HasFlag(FileAttributes.ReadOnly))
@@ -169,6 +191,11 @@ namespace Versionr
 				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
                 result.Add(parentEntry);
             }
+
+			// Don't add children for symlinks.
+			if (Utilities.Symlink.Exists(info.FullName))
+				return result;
+
             foreach (var x in info.GetFiles())
             {
                 if (x.Name == "." || x.Name == "..")

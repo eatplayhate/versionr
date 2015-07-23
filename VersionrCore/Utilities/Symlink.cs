@@ -192,6 +192,8 @@ namespace Versionr.Utilities
 				string target = Encoding.Unicode.GetString(reparseDataBuffer.PathBuffer,
 					reparseDataBuffer.PrintNameOffset, reparseDataBuffer.PrintNameLength);
 
+				target = target.Replace('\\', '/');
+
 				return target;
 			}
 		}

@@ -95,6 +95,8 @@ namespace Versionr.Commands
                     int index = name.LastIndexOf('/');
                     if (index != name.Length - 1)
                         name = name.Insert(index + 1, "#b#");
+					if (x.IsSymlink)
+						name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
                     Printer.WriteLineMessage("{1}## {0}", name, GetStatus(x));
                     if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
                         Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
