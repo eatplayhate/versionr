@@ -129,7 +129,7 @@ namespace Versionr
         {
             var records = Database.Records;
             LocalRefreshState lrs = new LocalRefreshState() { RecordsTotal = records.Count };
-            var printer = Printer.CreateProgressBarPrinter("Updating local times...", "Record",
+            var printer = Printer.CreateProgressBarPrinter("Updating local timestamp cache", "Record",
                 (obj) => { return string.Empty; },
                 (obj) => { return (float)System.Math.Round(100.0 * lrs.RecordsProcessed / (float)lrs.RecordsTotal); },
                 (pct, obj) => { return string.Format("{0}/{1}", lrs.RecordsProcessed, lrs.RecordsTotal); },
