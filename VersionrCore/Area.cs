@@ -2186,12 +2186,12 @@ namespace Versionr
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
-			foreach (var x in targetRecords.Where(x => x.IsSymlink)/*.OrderByDescending(x => x.CanonicalName.Length)*/)
+			foreach (var x in targetRecords.Where(x => x.IsSymlink))
 			{
 				RestoreRecord(x, newRefTime);
 				canonicalNames.Add(x.CanonicalName);
 			}
-			foreach (var x in records.Where(x => !x.IsDirectory))
+			foreach (var x in records.Where(x => !x.IsDirectory && !x.IsSymlink))
             {
                 if (!canonicalNames.Contains(x.CanonicalName))
                 {
@@ -2210,7 +2210,26 @@ namespace Versionr
                     }
                 }
             }
-            foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
+			foreach (var x in records.Where(x => x.IsSymlink))
+			{
+				if (!canonicalNames.Contains(x.CanonicalName))
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName);
+					if (Utilities.Symlink.Exists(path))
+					{
+						try
+						{
+							Utilities.Symlink.Delete(path);
+							Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
+						}
+						catch
+						{
+							Printer.PrintMessage("Couldn't delete symlink `{0}`!", x.CanonicalName);
+						}
+					}
+				}
+			}
+			foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
             {
                 if (!canonicalNames.Contains(x.CanonicalName))
                 {
@@ -2747,6 +2766,20 @@ namespace Versionr
         }
         private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null)
         {
+			if (rec.IsSymlink)
+			{
+				string path = Path.Combine(Root.FullName, rec.CanonicalName);
+				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
+				{
+					Printer.PrintMessage("Creating symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
+					Utilities.Symlink.Create(path, rec.Fingerprint, true);
+				}
+				return;
+			}
+			// Otherwise, have to make sure we first get rid of the symlink to replace with the real file/dir
+			else
+				Utilities.Symlink.Delete(Path.Combine(Root.FullName, rec.CanonicalName));
+
             if (rec.IsDirectory)
             {
                 DirectoryInfo directory = new DirectoryInfo(Path.Combine(Root.FullName, rec.CanonicalName));
@@ -2758,13 +2791,6 @@ namespace Versionr
                 }
                 return;
             }
-			if (rec.IsSymlink)
-			{
-				Printer.PrintMessage("Creating symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
-				string path = Path.Combine(Root.FullName, rec.CanonicalName);
-				Utilities.Symlink.Create(path, rec.Fingerprint);
-				return;
-			}
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
             if (rec.Size == 0)
             {

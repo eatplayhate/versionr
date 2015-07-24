@@ -20,8 +20,28 @@ namespace Versionr.Utilities
 			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
 		}
 
-		public static bool Create(string path, string target)
+		public static void Delete(string path)
 		{
+			if (!Exists(path))
+				return;
+
+			if (Directory.Exists(path))
+				Directory.Delete(path);
+			else if (File.Exists(path))
+				File.Delete(path);
+		}
+
+		public static bool Create(string path, string target, bool clearExisting = false)
+		{
+			if (clearExisting)
+			{
+				string clearPath = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
+				if (Directory.Exists(clearPath))
+					Directory.Delete(clearPath);
+				else if (File.Exists(clearPath))
+					File.Delete(clearPath);
+			}
+
 			if (MultiArchPInvoke.IsRunningOnMono)
 				return SymlinkMono.CreateSymlink(path, target);
 			else
@@ -57,6 +77,7 @@ namespace Versionr.Utilities
 					}
 					catch (COMException e)
 					{
+						Printer.PrintDiagnostics("Could not create symlink, trying fallback method. Exception:\n{0}", e.ToString());
 						return CreateSymlinkFallback(path, target, asDirectory);
 					}
 					return false;
