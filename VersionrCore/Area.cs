@@ -2067,14 +2067,28 @@ namespace Versionr
 			foreach (var x in status.Elements)
 			{
 				if (x.Code == StatusCode.Unversioned)
-				{
-					System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
-					Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
+                {
+                    try
+                    {
+                        System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
+                    }
+                    catch
+                    {
+                        Printer.PrintMessage("#x#Couldn't delete {0}", x.CanonicalName);
+                    }
                 }
                 else if (x.Code == StatusCode.Copied)
                 {
-                    System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
-                    Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
+                    try
+                    {
+                        System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
+                    }
+                    catch
+                    {
+                        Printer.PrintMessage("#x#Couldn't delete {0}", x.CanonicalName);
+                    }
                 }
                 RemoveFileTimeCache(x.CanonicalName);
             }
