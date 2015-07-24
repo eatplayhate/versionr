@@ -265,7 +265,7 @@ namespace Versionr
                 }
                 else
                 {
-                    tasks.Add(Task.Run(() => { return PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory); }));
+                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { return PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory); }));
                 }
             }
             if (tasks.Count > 0)
