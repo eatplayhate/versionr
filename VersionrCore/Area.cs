@@ -1536,7 +1536,14 @@ namespace Versionr
             foreach (var x in deletionList.Where(x => x.Item3 == false))
             {
                 RemoveFileTimeCache(x.Item2);
-                System.IO.File.Delete(x.Item1);
+                try
+                {
+                    System.IO.File.Delete(x.Item1);
+                }
+                catch
+                {
+                    Printer.PrintError("#x#Can't remove object \"{0}\"!", x.Item2);
+                }
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
             }
             foreach (var x in deletionList.Where(x => x.Item3 == true).OrderByDescending(x => x.Item2.Length))
@@ -1604,7 +1611,7 @@ namespace Versionr
                 if (parent.ID == v1.ID || parent.ID == v2.ID)
                 {
                     Printer.PrintMessage("Merge information is already up to date.");
-                    throw new Exception();
+                    return Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
                 Printer.PrintMessage("Starting recursive merge:");
                 Printer.PrintMessage(" - Left: {0}", v1.ID);
