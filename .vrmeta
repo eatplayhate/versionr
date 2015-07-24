@@ -14,7 +14,8 @@
 			".ipch",
 			".suo",
 			".user",
-			".cache"
+			".cache",
+			".DS_Store"
 		],
 		"Patterns" :
 		[
