@@ -242,8 +242,16 @@ namespace Versionr
         internal Dictionary<string, DateTime> LoadFileTimes()
         {
             Dictionary<string, DateTime> result = new Dictionary<string, DateTime>();
+            bool refresh = false;
             foreach (var x in Table<LocalState.FileTimestamp>())
-                result[x.CanonicalName] = x.LastSeenTime;
+            {
+                if (x.CanonicalName != null)
+                    result[x.CanonicalName] = x.LastSeenTime;
+                else
+                    refresh = true;
+            }
+            if (refresh)
+                ReplaceFileTimes(result);
             return result;
         }
 
