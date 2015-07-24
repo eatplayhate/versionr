@@ -11,12 +11,27 @@ namespace Versionr.Utilities
 {
 	public class Symlink
 	{
-		public static bool Exists(string v)
+		public static bool Exists(string path)
 		{
+			string v = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
+
+			Printer.PrintDiagnostics("Checking for symlink at {0}", v);
 			FileInfo file = new FileInfo(v);
 			if (file.Exists)
+			{
+				Printer.PrintDiagnostics("  as a file");
+				bool result = file.Attributes.HasFlag(FileAttributes.ReparsePoint);
+				Printer.PrintDiagnostics("  result: {0}", result);
 				return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
+
+			}
 			DirectoryInfo dir = new DirectoryInfo(v);
+			if (dir.Exists)
+			{
+				Printer.PrintDiagnostics("  as a directory");
+				bool result = dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
+				Printer.PrintDiagnostics("  result: {0}", result);
+			}
 			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
 		}
 
@@ -25,21 +40,38 @@ namespace Versionr.Utilities
 			if (!Exists(path))
 				return;
 
-			if (Directory.Exists(path))
-				Directory.Delete(path);
-			else if (File.Exists(path))
+			Printer.PrintDiagnostics("Deleting symlink at {0}", path);
+
+			if (File.Exists(path))
+			{
+				Printer.PrintDiagnostics("   as a file");
 				File.Delete(path);
+			}
+			else if (Directory.Exists(path))
+			{
+				Directory.Delete(path);
+				Printer.PrintDiagnostics("   as a directory");
+			}
+
 		}
 
 		public static bool Create(string path, string target, bool clearExisting = false)
 		{
 			if (clearExisting)
 			{
+				Printer.PrintDiagnostics("Clearing existing symlink at {0}", path);
+
 				string clearPath = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
-				if (Directory.Exists(clearPath))
-					Directory.Delete(clearPath);
-				else if (File.Exists(clearPath))
+				if (File.Exists(clearPath))
+				{
+					Printer.PrintDiagnostics("   as a file");
 					File.Delete(clearPath);
+				}
+				else if (Directory.Exists(clearPath))
+				{
+					Directory.Delete(clearPath);
+					Printer.PrintDiagnostics("   as a directory");
+				}
 			}
 
 			if (MultiArchPInvoke.IsRunningOnMono)
