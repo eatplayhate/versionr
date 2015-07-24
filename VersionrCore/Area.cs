@@ -12,7 +12,7 @@ using Versionr.Utilities;
 
 namespace Versionr
 {
-    public class Area
+    public class Area : IDisposable
     {
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
@@ -21,7 +21,7 @@ namespace Versionr
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
 
-        public Dictionary<string, DateTime> FileTimeCache { get; set; }
+        public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
         public Guid Domain
         {
             get
@@ -134,7 +134,7 @@ namespace Versionr
                 (obj) => { return (float)System.Math.Round(100.0 * lrs.RecordsProcessed / (float)lrs.RecordsTotal); },
                 (pct, obj) => { return string.Format("{0}/{1}", lrs.RecordsProcessed, lrs.RecordsTotal); },
                 70);
-            Dictionary<string, DateTime> filetimes = new Dictionary<string, DateTime>();
+            Dictionary<string, FileTimestamp> filetimes = new Dictionary<string, FileTimestamp>();
             foreach (var x in records)
             {
                 printer.Update(null);
@@ -145,7 +145,7 @@ namespace Versionr
                     {
                         if (Entry.CheckHash(dest) == x.Fingerprint)
                         {
-                            filetimes[x.CanonicalName] = dest.LastWriteTimeUtc;
+                            filetimes[x.CanonicalName] = new FileTimestamp() { CanonicalName = x.CanonicalName, LastSeenTime = dest.LastWriteTimeUtc, DataIdentifier = x.DataIdentifier };
                         }
                     }
                 }
@@ -301,12 +301,15 @@ namespace Versionr
             }
         }
 
-        internal DateTime GetReferenceTime(string canonicalName)
+        internal FileTimestamp GetReferenceTime(string canonicalName)
         {
-            DateTime result;
-            if (FileTimeCache.TryGetValue(canonicalName, out result))
-                return result;
-            return DateTime.MinValue;
+            lock (FileTimeCache)
+            {
+                FileTimestamp result;
+                if (FileTimeCache.TryGetValue(canonicalName, out result))
+                    return result;
+                return new FileTimestamp() { CanonicalName = canonicalName, DataIdentifier = string.Empty, LastSeenTime = DateTime.MinValue };
+            }
         }
 
         public void UpdateReferenceTime(DateTime utcNow)
@@ -588,14 +591,11 @@ namespace Versionr
 
         internal Record LocateRecord(Record newRecord)
         {
-            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint);
+            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime);
             foreach (var x in results)
             {
-                if (x.UniqueIdentifier == newRecord.UniqueIdentifier && x.ModificationTime == newRecord.ModificationTime)
-                {
-                    if (newRecord.CanonicalName == Database.Table<ObjectName>().Where(y => y.Id == x.CanonicalNameId).First().CanonicalName)
-                        return x;
-                }
+                if (newRecord.CanonicalName == Database.Get<ObjectName>(x.CanonicalNameId).CanonicalName)
+                    return x;
             }
             return null;
         }
@@ -1186,7 +1186,7 @@ namespace Versionr
             return result;
         }
 
-        private Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
+        internal Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
             Objects.Version v = Database.Find<Objects.Version>(x => x.ID == versionID);
             if (v == null)
@@ -1222,7 +1222,21 @@ namespace Versionr
                     {
                         if (TemporaryFile != null)
                         {
-                            m_Length = TemporaryFile.Length;
+                            while (true)
+                            {
+                                try
+                                {
+                                    m_Length = TemporaryFile.Length;
+                                    break;
+                                }
+                                catch
+                                {
+                                    if (System.IO.File.Exists(TemporaryFile.FullName))
+                                        TemporaryFile = new System.IO.FileInfo(TemporaryFile.FullName);
+                                    else
+                                        throw;
+                                }
+                            }
                         }
                         else
                             m_Length = Record.Size;
@@ -2183,13 +2197,19 @@ namespace Versionr
                 canonicalNames.Add(x.CanonicalName);
             }
             List<Task> tasks = new List<Task>();
-            foreach (var x in targetRecords.Where(x => !x.IsDirectory))
+            foreach (var x in targetRecords.Where(x => !x.IsDirectory && !x.IsSymlink))
             {
-                tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
+                RestoreRecord(x, newRefTime);
+                //tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
-            foreach (var x in records.Where(x => !x.IsDirectory))
+			foreach (var x in targetRecords.Where(x => x.IsSymlink))
+			{
+				RestoreRecord(x, newRefTime);
+				canonicalNames.Add(x.CanonicalName);
+			}
+			foreach (var x in records.Where(x => !x.IsDirectory && !x.IsSymlink))
             {
                 if (!canonicalNames.Contains(x.CanonicalName))
                 {
@@ -2209,7 +2229,26 @@ namespace Versionr
                     }
                 }
             }
-            foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
+			foreach (var x in records.Where(x => x.IsSymlink))
+			{
+				if (!canonicalNames.Contains(x.CanonicalName))
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName);
+					if (Utilities.Symlink.Exists(path))
+					{
+						try
+						{
+							Utilities.Symlink.Delete(path);
+							Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
+						}
+						catch (Exception e)
+						{
+							Printer.PrintMessage("Couldn't delete symlink `{0}`!\n{1}", x.CanonicalName, e.ToString());
+						}
+					}
+				}
+			}
+			foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
             {
                 if (!canonicalNames.Contains(x.CanonicalName))
                 {
@@ -2561,11 +2600,13 @@ namespace Versionr
                                         {
                                             record = new Objects.Record();
                                             record.CanonicalName = x.FilesystemEntry.CanonicalName;
-                                            if (record.IsDirectory)
-                                                record.Fingerprint = x.FilesystemEntry.CanonicalName;
-                                            else
-                                                record.Fingerprint = x.FilesystemEntry.Hash;
                                             record.Attributes = x.FilesystemEntry.Attributes;
+											if (record.IsSymlink)
+												record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
+											else if (record.IsDirectory)
+												record.Fingerprint = x.FilesystemEntry.CanonicalName;
+											else
+												record.Fingerprint = x.FilesystemEntry.Hash;
                                             record.Size = x.FilesystemEntry.Length;
                                             record.ModificationTime = x.FilesystemEntry.ModificationTime;
                                             if (x.VersionControlRecord != null)
@@ -2745,7 +2786,21 @@ namespace Versionr
         }
         private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null)
         {
-            if (rec.IsDirectory)
+			if (rec.IsSymlink)
+			{
+				string path = Path.Combine(Root.FullName, rec.CanonicalName);
+				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
+				{
+					Printer.PrintMessage("Creating symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
+					Utilities.Symlink.Create(path, rec.Fingerprint, true);
+				}
+				return;
+			}
+			// Otherwise, have to make sure we first get rid of the symlink to replace with the real file/dir
+			else
+				Utilities.Symlink.Delete(Path.Combine(Root.FullName, rec.CanonicalName));
+
+			if (rec.IsDirectory)
             {
                 DirectoryInfo directory = new DirectoryInfo(Path.Combine(Root.FullName, rec.CanonicalName));
                 if (!directory.Exists)
@@ -2759,14 +2814,16 @@ namespace Versionr
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
             if (overridePath == null && dest.Exists)
             {
-                if ((dest.LastWriteTimeUtc == GetReferenceTime(rec.CanonicalName)) && dest.Length == rec.Size)
+                FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
+
+                if (dest.LastWriteTimeUtc == fst.LastSeenTime && dest.Length == rec.Size && rec.DataIdentifier == fst.DataIdentifier)
                     return;
                 if (dest.Length == rec.Size)
                 {
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
                     {
-                        UpdateFileTimeCache(rec.CanonicalName, dest.LastAccessTimeUtc);
+                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
                         return;
                     }
                 }
@@ -2807,7 +2864,7 @@ namespace Versionr
                     throw new Exception();
                 }
                 if (overridePath == null)
-                    UpdateFileTimeCache(rec.CanonicalName, dest.LastAccessTimeUtc);
+                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastAccessTimeUtc);
             }
             catch (System.IO.IOException)
             {
@@ -2831,11 +2888,15 @@ namespace Versionr
             }
         }
 
-        public void UpdateFileTimeCache(string canonicalName, DateTime lastAccessTimeUtc, bool commit = true)
+        public void UpdateFileTimeCache(string canonicalName, Record rec, DateTime lastAccessTimeUtc, bool commit = true)
         {
-            FileTimeCache[canonicalName] = lastAccessTimeUtc;
-            if (commit)
-                LocalData.UpdateFileTime(canonicalName, lastAccessTimeUtc);
+            lock (FileTimeCache)
+            {
+                var fst = new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName };
+                FileTimeCache[canonicalName] = fst;
+                if (commit)
+                    LocalData.UpdateFileTime(canonicalName, fst);
+            }
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
@@ -2970,5 +3031,41 @@ namespace Versionr
         {
             return new DirectoryInfo(Path.Combine(workingDir.FullName, ".versionr"));
         }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    Database.Dispose();
+                    LocalData.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~Area() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }

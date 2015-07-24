@@ -58,12 +58,22 @@ namespace Versionr
                 }
             }
 
+			public bool IsSymlink
+			{
+				get
+				{
+					return FilesystemEntry != null ? FilesystemEntry.Attributes.HasFlag(Objects.Attributes.Symlink) : VersionControlRecord.Attributes.HasFlag(Objects.Attributes.Symlink);
+				}
+			}
+
             public bool DataEquals(Record x)
             {
                 if (FilesystemEntry != null)
                 {
                     if (FilesystemEntry.IsDirectory)
                         return x.Fingerprint == FilesystemEntry.CanonicalName;
+					if (FilesystemEntry.IsSymlink)
+						return x.Fingerprint == FilesystemEntry.SymlinkTarget;
                     if (Code == StatusCode.Unchanged)
                         return x.DataEquals(VersionControlRecord);
                     return FilesystemEntry.DataEquals(x.Fingerprint, x.Size);
@@ -218,13 +228,21 @@ namespace Versionr
                             bool changed = false;
                             if (snapshotRecord.Length != x.Size)
                                 changed = true;
-                            if (!changed && !snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime != Workspace.GetReferenceTime(x.CanonicalName)))
+                            if (!changed && snapshotRecord.IsSymlink && snapshotRecord.SymlinkTarget != x.Fingerprint)
+                                changed = true;
+                            if (!changed && !snapshotRecord.IsDirectory && !snapshotRecord.IsSymlink)
                             {
-                                Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
-                                if (snapshotRecord.Hash != x.Fingerprint)
-                                    changed = true;
+                                LocalState.FileTimestamp fst = Workspace.GetReferenceTime(x.CanonicalName);
+                                if (snapshotRecord.ModificationTime == x.ModificationTime || (fst.DataIdentifier == x.DataIdentifier && snapshotRecord.ModificationTime == fst.LastSeenTime))
+                                    changed = false;
                                 else
-                                    Workspace.UpdateFileTimeCache(x.CanonicalName, snapshotRecord.ModificationTime, false);
+                                {
+                                    Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
+                                    if (snapshotRecord.Hash != x.Fingerprint)
+                                        changed = true;
+                                    else
+                                        Workspace.UpdateFileTimeCache(x.CanonicalName, x, snapshotRecord.ModificationTime, false);
+                                }
                             }
                             if (changed == true)
                                 return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
