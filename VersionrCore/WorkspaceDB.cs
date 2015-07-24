@@ -200,10 +200,38 @@ namespace Versionr
 
         private List<Record> Consolidate(List<Record> baseList, List<Alteration> alterations, List<Record> deletions)
         {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
             Dictionary<long, Record> records = new Dictionary<long, Record>();
 			foreach (var x in baseList)
 				records[x.Id] = x;
-			HashSet<KeyValuePair<long, long>> moveDeletions = new HashSet<KeyValuePair<long, long>>();
+            Dictionary<long, Record> associatedRecords = new Dictionary<long, Record>();
+            foreach (var x in alterations)
+            {
+                if (x.NewRecord.HasValue)
+                    associatedRecords[x.NewRecord.Value] = null;
+            }
+            List<long> pending = new List<long>();
+            foreach (var x in associatedRecords.Keys.ToList())
+            {
+                pending.Add(x);
+                if (pending.Count == 256)
+                {
+                    var temp = Table<Record>().Where(z => pending.Contains(z.Id)).ToList();
+                    foreach (var z in temp)
+                        associatedRecords[z.Id] = z;
+                    pending.Clear();
+                }
+            }
+            if (pending.Count > 0)
+            {
+                var temp = Table<Record>().Where(z => pending.Contains(z.Id)).ToList();
+                foreach (var z in temp)
+                    associatedRecords[z.Id] = z;
+                pending.Clear();
+            }
+            Dictionary<long, string> canonicalNames = new Dictionary<long, string>();
+            HashSet<KeyValuePair<long, long>> moveDeletions = new HashSet<KeyValuePair<long, long>>();
 			foreach (var x in alterations.Select(x => x).Reverse())
             {
                 Objects.Record rec = null;
@@ -212,14 +240,14 @@ namespace Versionr
                     case AlterationType.Add:
                     case AlterationType.Copy:
                         {
-                            var record = Get<Objects.Record>(x.NewRecord);
+                            var record = associatedRecords[x.NewRecord.Value];
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
 							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Move:
                         {
-                            var record = Get<Objects.Record>(x.NewRecord);
+                            var record = associatedRecords[x.NewRecord.Value];
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
 							if (deletions != null)
 							{
@@ -242,7 +270,7 @@ namespace Versionr
                         }
                     case AlterationType.Update:
 						{
-                            var record = Get<Objects.Record>(x.NewRecord);
+                            var record = associatedRecords[x.NewRecord.Value];
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
 							if (!records.Remove(x.PriorRecord.Value))
 							{
@@ -278,7 +306,9 @@ namespace Versionr
                         throw new Exception();
                 }
             }
-            return records.OrderBy(x => x.Value.CanonicalName).Select(x => x.Value).ToList();
+            var result = records.OrderBy(x => x.Value.CanonicalName).Select(x => x.Value).ToList();
+            Printer.PrintDiagnostics("Consolidated record list in {0} ticks", sw.ElapsedTicks);
+            return result;
         }
 
         private long? RelinkMissingDelete(Dictionary<long, Record> records, Alteration x)
