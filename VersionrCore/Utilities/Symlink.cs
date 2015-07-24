@@ -11,12 +11,13 @@ namespace Versionr.Utilities
 {
 	public class Symlink
 	{
-		public static bool Exists(string v)
+		public static bool Exists(string path)
 		{
-			FileInfo file = new FileInfo(v);
+			path = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
+			FileInfo file = new FileInfo(path);
 			if (file.Exists)
 				return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
-			DirectoryInfo dir = new DirectoryInfo(v);
+			DirectoryInfo dir = new DirectoryInfo(path);
 			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
 		}
 
@@ -25,21 +26,26 @@ namespace Versionr.Utilities
 			if (!Exists(path))
 				return;
 
-			if (Directory.Exists(path))
-				Directory.Delete(path);
-			else if (File.Exists(path))
-				File.Delete(path);
+			if (MultiArchPInvoke.IsRunningOnMono)
+				SymlinkMono.Delete(path);
+			else
+				SymlinkWin32.Delete(path);
 		}
 
 		public static bool Create(string path, string target, bool clearExisting = false)
 		{
 			if (clearExisting)
 			{
-				string clearPath = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
-				if (Directory.Exists(clearPath))
-					Directory.Delete(clearPath);
-				else if (File.Exists(clearPath))
-					File.Delete(clearPath);
+				if (Exists(path))
+					Delete(path);
+				else
+				{
+					string clearPath = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
+					if (File.Exists(clearPath))
+						File.Delete(clearPath);
+					else if (Directory.Exists(clearPath))
+						Directory.Delete(clearPath);
+				}
 			}
 
 			if (MultiArchPInvoke.IsRunningOnMono)
@@ -77,7 +83,6 @@ namespace Versionr.Utilities
 					}
 					catch (COMException e)
 					{
-						Printer.PrintDiagnostics("Could not create symlink, trying fallback method. Exception:\n{0}", e.ToString());
 						return CreateSymlinkFallback(path, target, asDirectory);
 					}
 					return false;
@@ -211,6 +216,15 @@ namespace Versionr.Utilities
 
 				return target;
 			}
+
+			public static void Delete(string path)
+			{
+				if (File.Exists(path))
+					File.Delete(path);
+				else if (Directory.Exists(path))
+					Directory.Delete(path);
+			}
+
 		}
 
 		private class SymlinkMono
@@ -258,6 +272,17 @@ namespace Versionr.Utilities
 				//return link.ContentsPath;
 				return (string)MonoType.GetProperty("ContentsPath").GetValue(link.MonoObj);
 			}
+
+			public static void Delete(string path)
+			{
+				//var link = new Mono.Unix.UnixSymbolicLinkInfo(path);
+				var link = new SymlinkMono(path);
+
+				// link.Delete();
+				MethodInfo method = MonoType.GetMethod("Delete");
+				method.Invoke(link.MonoObj, null);
+			}
+
 		}
 
 

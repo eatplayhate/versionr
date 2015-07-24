@@ -2241,9 +2241,9 @@ namespace Versionr
 							Utilities.Symlink.Delete(path);
 							Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
 						}
-						catch
+						catch (Exception e)
 						{
-							Printer.PrintMessage("Couldn't delete symlink `{0}`!", x.CanonicalName);
+							Printer.PrintMessage("Couldn't delete symlink `{0}`!\n{1}", x.CanonicalName, e.ToString());
 						}
 					}
 				}
@@ -2800,7 +2800,7 @@ namespace Versionr
 			else
 				Utilities.Symlink.Delete(Path.Combine(Root.FullName, rec.CanonicalName));
 
-            if (rec.IsDirectory)
+			if (rec.IsDirectory)
             {
                 DirectoryInfo directory = new DirectoryInfo(Path.Combine(Root.FullName, rec.CanonicalName));
                 if (!directory.Exists)
