@@ -17,14 +17,16 @@ namespace Versionr.Commands
             Printer.EnableDiagnostics = localOptions.Verbose;
             Printer.Quiet = localOptions.Quiet;
 
-            Workspace = Area.Load(workingDirectory);
-            if (Workspace == null)
+            using (Workspace = Area.Load(workingDirectory))
             {
-                Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:##\n  The current directory #b#`{0}`## is not part of a vault.\n", workingDirectory.FullName));
-                return false;
-            }
+                if (Workspace == null)
+                {
+                    Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:##\n  The current directory #b#`{0}`## is not part of a vault.\n", workingDirectory.FullName));
+                    return false;
+                }
 
-            return RunInternal(options);
+                return RunInternal(options);
+            }
         }
 
         protected abstract bool RunInternal(object options);
