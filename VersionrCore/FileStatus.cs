@@ -168,6 +168,8 @@ namespace Versionr
 
 				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
                 result.Add(parentEntry);
+                if (ignoreDirectory)
+                    return result;
             }
             foreach (var x in info.GetFiles())
             {
