@@ -2199,7 +2199,8 @@ namespace Versionr
             List<Task> tasks = new List<Task>();
             foreach (var x in targetRecords.Where(x => !x.IsDirectory && !x.IsSymlink))
             {
-                tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
+                RestoreRecord(x, newRefTime);
+                //tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
@@ -2822,7 +2823,7 @@ namespace Versionr
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
                     {
-                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastAccessTimeUtc);
+                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
                         return;
                     }
                 }
