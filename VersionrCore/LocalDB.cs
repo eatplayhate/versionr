@@ -186,14 +186,18 @@ namespace Versionr
             {
                 try
                 {
-                    DropTable<LocalState.FileTimestamp>();
-                    CreateTable<LocalState.FileTimestamp>();
                     BeginTransaction();
 
+                    var oldList = LoadFileTimes();
                     foreach (var x in filetimes)
                     {
                         LocalState.FileTimestamp fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
                         Insert(fst);
+                    }
+                    foreach (var x in oldList)
+                    {
+                        if (!filetimes.ContainsKey(x.Key))
+                            Delete<LocalState.FileTimestamp>(x.Value.Id);
                     }
 
                     Commit();
