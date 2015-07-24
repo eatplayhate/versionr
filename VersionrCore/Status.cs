@@ -189,59 +189,66 @@ namespace Versionr
                     ops |= StageFlags.Renamed;
                 stageInformation[x.Operand1] = ops;
             }
-            foreach (var x in records)
+            try
             {
-                tasks.Add(Task.Run<StatusEntry>(() =>
+                foreach (var x in records)
                 {
-                    StageFlags objectFlags;
-                    stageInformation.TryGetValue(x.CanonicalName, out objectFlags);
-                    Entry snapshotRecord = null;
-                    if (restrictedPath != null && !x.CanonicalName.StartsWith(restrictedPath))
-                        return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
-
-                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
+                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew<StatusEntry>(() =>
                     {
-                        lock (foundEntries)
-                            foundEntries.Add(snapshotRecord);
+                        StageFlags objectFlags;
+                        stageInformation.TryGetValue(x.CanonicalName, out objectFlags);
+                        Entry snapshotRecord = null;
+                        if (restrictedPath != null && !x.CanonicalName.StartsWith(restrictedPath))
+                            return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
 
-                        if (objectFlags.HasFlag(StageFlags.Removed))
-                            Printer.PrintWarning("Removed object `{0}` still in filesystem!", x.CanonicalName);
-
-                        if (objectFlags.HasFlag(StageFlags.Renamed))
-                            Printer.PrintWarning("Renamed object `{0}` still in filesystem!", x.CanonicalName);
-
-                        if (objectFlags.HasFlag(StageFlags.Conflicted))
-                            return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
-
-                        bool changed = false;
-                        if (snapshotRecord.Length != x.Size)
-                            changed = true;
-                        if (!changed && !snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime != Workspace.GetReferenceTime(x.CanonicalName)))
+                        if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
                         {
-                            Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
-                            if (snapshotRecord.Hash != x.Fingerprint)
+                            lock (foundEntries)
+                                foundEntries.Add(snapshotRecord);
+
+                            if (objectFlags.HasFlag(StageFlags.Removed))
+                                Printer.PrintWarning("Removed object `{0}` still in filesystem!", x.CanonicalName);
+
+                            if (objectFlags.HasFlag(StageFlags.Renamed))
+                                Printer.PrintWarning("Renamed object `{0}` still in filesystem!", x.CanonicalName);
+
+                            if (objectFlags.HasFlag(StageFlags.Conflicted))
+                                return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+
+                            bool changed = false;
+                            if (snapshotRecord.Length != x.Size)
                                 changed = true;
+                            if (!changed && !snapshotRecord.IsDirectory && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime != Workspace.GetReferenceTime(x.CanonicalName)))
+                            {
+                                Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
+                                if (snapshotRecord.Hash != x.Fingerprint)
+                                    changed = true;
+                                else
+                                    Workspace.UpdateFileTimeCache(x.CanonicalName, snapshotRecord.ModificationTime, false);
+                            }
+                            if (changed == true)
+                                return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                             else
-                                Workspace.UpdateFileTimeCache(x.CanonicalName, snapshotRecord.ModificationTime);
+                            {
+                                if (objectFlags.HasFlag(StageFlags.Recorded))
+                                    Printer.PrintWarning("Unchanged object `{0}` still marked as recorded in commit!", x.CanonicalName);
+                                return new StatusEntry() { Code = StatusCode.Unchanged, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                            }
                         }
-                        if (changed == true)
-                            return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                         else
                         {
-                            if (objectFlags.HasFlag(StageFlags.Recorded))
-                                Printer.PrintWarning("Unchanged object `{0}` still marked as recorded in commit!", x.CanonicalName);
-                            return new StatusEntry() { Code = StatusCode.Unchanged, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                            if (objectFlags.HasFlag(StageFlags.Removed))
+                                return new StatusEntry() { Code = StatusCode.Deleted, FilesystemEntry = null, VersionControlRecord = x, Staged = true };
+                            return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
-                    }
-                    else
-                    {
-                        if (objectFlags.HasFlag(StageFlags.Removed))
-                            return new StatusEntry() { Code = StatusCode.Deleted, FilesystemEntry = null, VersionControlRecord = x, Staged = true };
-                        return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
-                    }
-                }));
+                    }));
+                }
+                Task.WaitAll(tasks.ToArray());
             }
-            Task.WaitAll(tasks.ToArray());
+            finally
+            {
+                Workspace.ReplaceFileTimes();
+            }
             Elements.AddRange(tasks.Where(x => x != null).Select(x => x.Result));
             foreach (var x in snapshotData)
             {

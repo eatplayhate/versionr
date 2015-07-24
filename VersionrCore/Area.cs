@@ -155,6 +155,11 @@ namespace Versionr
             LocalData.ReplaceFileTimes(filetimes);
         }
 
+        public void ReplaceFileTimes()
+        {
+            LocalData.ReplaceFileTimes(FileTimeCache);
+        }
+
         public List<Objects.Record> GetAllRecords()
         {
             return Database.GetAllRecords();
@@ -2819,10 +2824,11 @@ namespace Versionr
             }
         }
 
-        public void UpdateFileTimeCache(string canonicalName, DateTime lastAccessTimeUtc)
+        public void UpdateFileTimeCache(string canonicalName, DateTime lastAccessTimeUtc, bool commit = true)
         {
             FileTimeCache[canonicalName] = lastAccessTimeUtc;
-            LocalData.UpdateFileTime(canonicalName, lastAccessTimeUtc);
+            if (commit)
+                LocalData.UpdateFileTime(canonicalName, lastAccessTimeUtc);
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
