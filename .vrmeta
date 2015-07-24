@@ -13,7 +13,8 @@
 			".opensdf",
 			".ipch",
 			".suo",
-			".user"
+			".user",
+			".cache"
 		],
 		"Patterns" :
 		[
@@ -23,8 +24,6 @@
 			"^Debug/",
 			".*\\.tlog",
 			"^x64",
-			"Versionr\\.exe",
-			"VersionrCore\\.dll"
 		]
 	}
 }
