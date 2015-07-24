@@ -111,7 +111,7 @@ namespace Versionr
 
         public static LocalDB Open(string fullPath)
         {
-            LocalDB db = new LocalDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.NoMutex);
+            LocalDB db = new LocalDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex);
             if (!db.Upgrade())
                 return null;
             return db;
@@ -160,7 +160,7 @@ namespace Versionr
 
         public static LocalDB Create(string fullPath)
         {
-            LocalDB ldb = new LocalDB(fullPath, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.NoMutex);
+            LocalDB ldb = new LocalDB(fullPath, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex);
             ldb.BeginTransaction();
             try
             {
