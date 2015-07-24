@@ -21,7 +21,7 @@ namespace Versionr
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
 
-        public Dictionary<string, DateTime> FileTimeCache { get; set; }
+        public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
         public Guid Domain
         {
             get
@@ -134,7 +134,7 @@ namespace Versionr
                 (obj) => { return (float)System.Math.Round(100.0 * lrs.RecordsProcessed / (float)lrs.RecordsTotal); },
                 (pct, obj) => { return string.Format("{0}/{1}", lrs.RecordsProcessed, lrs.RecordsTotal); },
                 70);
-            Dictionary<string, DateTime> filetimes = new Dictionary<string, DateTime>();
+            Dictionary<string, FileTimestamp> filetimes = new Dictionary<string, FileTimestamp>();
             foreach (var x in records)
             {
                 printer.Update(null);
@@ -145,7 +145,7 @@ namespace Versionr
                     {
                         if (Entry.CheckHash(dest) == x.Fingerprint)
                         {
-                            filetimes[x.CanonicalName] = dest.LastWriteTimeUtc;
+                            filetimes[x.CanonicalName] = new FileTimestamp() { CanonicalName = x.CanonicalName, LastSeenTime = dest.LastWriteTimeUtc, DataIdentifier = x.DataIdentifier };
                         }
                     }
                 }
@@ -301,12 +301,12 @@ namespace Versionr
             }
         }
 
-        internal DateTime GetReferenceTime(string canonicalName)
+        internal FileTimestamp GetReferenceTime(string canonicalName)
         {
-            DateTime result;
+            FileTimestamp result;
             if (FileTimeCache.TryGetValue(canonicalName, out result))
                 return result;
-            return DateTime.MinValue;
+            return new FileTimestamp() { CanonicalName = canonicalName, DataIdentifier = string.Empty, LastSeenTime = DateTime.MinValue };
         }
 
         public void UpdateReferenceTime(DateTime utcNow)
@@ -588,14 +588,11 @@ namespace Versionr
 
         internal Record LocateRecord(Record newRecord)
         {
-            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint);
+            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime);
             foreach (var x in results)
             {
-                if (x.UniqueIdentifier == newRecord.UniqueIdentifier && x.ModificationTime == newRecord.ModificationTime)
-                {
-                    if (newRecord.CanonicalName == Database.Table<ObjectName>().Where(y => y.Id == x.CanonicalNameId).First().CanonicalName)
-                        return x;
-                }
+                if (newRecord.CanonicalName == Database.Get<ObjectName>(x.CanonicalNameId).CanonicalName)
+                    return x;
             }
             return null;
         }
@@ -1186,7 +1183,7 @@ namespace Versionr
             return result;
         }
 
-        private Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
+        internal Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
             Objects.Version v = Database.Find<Objects.Version>(x => x.ID == versionID);
             if (v == null)
@@ -2813,14 +2810,16 @@ namespace Versionr
             FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
             if (overridePath == null && dest.Exists)
             {
-                if ((dest.LastWriteTimeUtc == GetReferenceTime(rec.CanonicalName)) && dest.Length == rec.Size)
+                FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
+
+                if (dest.LastWriteTimeUtc == fst.LastSeenTime && dest.Length == rec.Size && rec.DataIdentifier == fst.DataIdentifier)
                     return;
                 if (dest.Length == rec.Size)
                 {
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
                     {
-                        UpdateFileTimeCache(rec.CanonicalName, dest.LastAccessTimeUtc);
+                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastAccessTimeUtc);
                         return;
                     }
                 }
@@ -2861,7 +2860,7 @@ namespace Versionr
                     throw new Exception();
                 }
                 if (overridePath == null)
-                    UpdateFileTimeCache(rec.CanonicalName, dest.LastAccessTimeUtc);
+                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastAccessTimeUtc);
             }
             catch (System.IO.IOException)
             {
@@ -2885,11 +2884,12 @@ namespace Versionr
             }
         }
 
-        public void UpdateFileTimeCache(string canonicalName, DateTime lastAccessTimeUtc, bool commit = true)
+        public void UpdateFileTimeCache(string canonicalName, Record rec, DateTime lastAccessTimeUtc, bool commit = true)
         {
-            FileTimeCache[canonicalName] = lastAccessTimeUtc;
+            var fst = new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName };
+            FileTimeCache[canonicalName] = fst;
             if (commit)
-                LocalData.UpdateFileTime(canonicalName, lastAccessTimeUtc);
+                LocalData.UpdateFileTime(canonicalName, fst);
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)

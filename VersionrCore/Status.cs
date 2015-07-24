@@ -230,13 +230,19 @@ namespace Versionr
                                 changed = true;
                             if (!changed && snapshotRecord.IsSymlink && snapshotRecord.SymlinkTarget != x.Fingerprint)
                                 changed = true;
-                            if (!changed && !snapshotRecord.IsDirectory && !snapshotRecord.IsSymlink && (snapshotRecord.ModificationTime != x.ModificationTime && snapshotRecord.ModificationTime != Workspace.GetReferenceTime(x.CanonicalName)))
+                            if (!changed && !snapshotRecord.IsDirectory && !snapshotRecord.IsSymlink)
                             {
-                                Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
-                                if (snapshotRecord.Hash != x.Fingerprint)
-                                    changed = true;
+                                LocalState.FileTimestamp fst = Workspace.GetReferenceTime(x.CanonicalName);
+                                if (snapshotRecord.ModificationTime == x.ModificationTime || (fst.DataIdentifier == x.DataIdentifier && snapshotRecord.ModificationTime == fst.LastSeenTime))
+                                    changed = false;
                                 else
-                                    Workspace.UpdateFileTimeCache(x.CanonicalName, snapshotRecord.ModificationTime, false);
+                                {
+                                    Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
+                                    if (snapshotRecord.Hash != x.Fingerprint)
+                                        changed = true;
+                                    else
+                                        Workspace.UpdateFileTimeCache(x.CanonicalName, x, snapshotRecord.ModificationTime, false);
+                                }
                             }
                             if (changed == true)
                                 return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };

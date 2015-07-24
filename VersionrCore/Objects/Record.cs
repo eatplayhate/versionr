@@ -35,6 +35,7 @@ namespace Versionr.Objects
         [ProtoBuf.ProtoMember(3)]
         public Attributes Attributes { get; set; }
         [ProtoBuf.ProtoMember(4)]
+        [SQLite.Indexed]
         public string Fingerprint { get; set; }
         [ProtoBuf.ProtoIgnore]
         public long CanonicalNameId { get; set; }
