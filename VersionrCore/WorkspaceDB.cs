@@ -163,9 +163,14 @@ namespace Versionr
         private List<Record> Consolidate(List<Record> baseList, List<Alteration> alterations, List<Record> deletions)
         {
             Dictionary<long, Record> records = new Dictionary<long, Record>();
-            foreach (var x in baseList)
-                records[x.Id] = x;
-            foreach (var x in alterations.Select(x => x).Reverse())
+			Printer.PrintDiagnostics("Initial snapshot:");
+			foreach (var x in baseList)
+			{
+				records[x.Id] = x;
+				Printer.PrintDiagnostics("Record {0}: {1} - {2}", x.Id, x.CanonicalName, x.Fingerprint);
+			}
+			HashSet<KeyValuePair<long, long>> moveDeletions = new HashSet<KeyValuePair<long, long>>();
+			foreach (var x in alterations.Select(x => x).Reverse())
             {
                 Objects.Record rec = null;
                 switch (x.Type)
@@ -175,37 +180,65 @@ namespace Versionr
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            records[record.Id] = record;
+							//Printer.PrintDiagnostics("Add [{3}] {0}: {1} - {2}", record.Id, record.CanonicalName, record.Fingerprint, x.Owner);
+							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Move:
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            rec = Get<Objects.Record>(x.PriorRecord);
-                            if (deletions != null)
-                                deletions.Add(rec);
-                            if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("This is bad");
-                            records[record.Id] = record;
+							if (deletions != null)
+							{
+								rec = Get<Objects.Record>(x.PriorRecord);
+								rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+								deletions.Add(rec);
+							}
+							//Printer.PrintDiagnostics("Delete [{3}] (move) {0}: {1} - {2}", x.PriorRecord.Value, rec.CanonicalName, rec.Fingerprint, x.Owner);
+							if (!records.Remove(x.PriorRecord.Value))
+							{
+								if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
+									throw new Exception("this is bad");
+								//Printer.PrintDiagnostics("(Failed)");
+							}
+							moveDeletions.Add(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value));
+							//Printer.PrintDiagnostics("Add [{3}] (move) {0}: {1} - {2}", x.NewRecord.Value, record.CanonicalName, record.Fingerprint, x.Owner);
+							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Update:
-                        {
-                            var record = Get<Objects.Record>(x.NewRecord);
+						{
+							//rec = Get<Objects.Record>(x.PriorRecord);
+							//rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+							var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("This is bad");
-                            records[record.Id] = record;
+							//Printer.PrintDiagnostics("Delete [{3}] (update) {0}: {1} - {2}", x.PriorRecord.Value, rec.CanonicalName, rec.Fingerprint, x.Owner);
+							if (!records.Remove(x.PriorRecord.Value))
+							{
+								if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
+									throw new Exception("this is bad");
+								//Printer.PrintDiagnostics("(Failed)");
+							}
+							//Printer.PrintDiagnostics("Add [{3}] (update) {0}: {1} - {2}", x.NewRecord.Value, record.CanonicalName, record.Fingerprint, x.Owner);
+							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Delete:
-                        rec = Get<Objects.Record>(x.PriorRecord);
-                        if (deletions != null)
-                            deletions.Add(rec);
-                        if (!records.Remove(x.PriorRecord.Value))
-                            throw new Exception("This is bad");
-                        break;
+						if (deletions != null)
+						{
+							rec = Get<Objects.Record>(x.PriorRecord);
+							rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+							deletions.Add(rec);
+						}
+						//Printer.PrintDiagnostics("Delete [{3}] {0}: {1} - {2}", x.PriorRecord.Value, rec.CanonicalName, rec.Fingerprint, x.Owner);
+						if (!records.Remove(x.PriorRecord.Value))
+						{
+							//Printer.PrintDiagnostics("(Failed)");
+							if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
+								throw new Exception("this is bad");
+						}
+						moveDeletions.Add(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value));
+						break;
                     default:
                         throw new Exception();
                 }
