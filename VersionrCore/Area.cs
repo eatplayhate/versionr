@@ -1222,7 +1222,21 @@ namespace Versionr
                     {
                         if (TemporaryFile != null)
                         {
-                            m_Length = TemporaryFile.Length;
+                            while (true)
+                            {
+                                try
+                                {
+                                    m_Length = TemporaryFile.Length;
+                                    break;
+                                }
+                                catch
+                                {
+                                    if (System.IO.File.Exists(TemporaryFile.FullName))
+                                        TemporaryFile = new System.IO.FileInfo(TemporaryFile.FullName);
+                                    else
+                                        throw;
+                                }
+                            }
                         }
                         else
                             m_Length = Record.Size;

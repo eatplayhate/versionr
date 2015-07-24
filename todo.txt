@@ -1,0 +1,17 @@
+Versionr features
+
+- revert+conflicts
+	.mine, .base, .theirs	(not deleted by revert but should be)
+	resolve?
+- default .vrmeta
+- .vruser
+- blame
+- symlinks
+- remove/rename
+- docs
+- detect binary files for merge
+- internal diff and merge engine
+- configurable merge/diff tools
+- cherry pick revisions?
+- better log
+- switch
