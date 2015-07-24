@@ -303,10 +303,13 @@ namespace Versionr
 
         internal FileTimestamp GetReferenceTime(string canonicalName)
         {
-            FileTimestamp result;
-            if (FileTimeCache.TryGetValue(canonicalName, out result))
-                return result;
-            return new FileTimestamp() { CanonicalName = canonicalName, DataIdentifier = string.Empty, LastSeenTime = DateTime.MinValue };
+            lock (FileTimeCache)
+            {
+                FileTimestamp result;
+                if (FileTimeCache.TryGetValue(canonicalName, out result))
+                    return result;
+                return new FileTimestamp() { CanonicalName = canonicalName, DataIdentifier = string.Empty, LastSeenTime = DateTime.MinValue };
+            }
         }
 
         public void UpdateReferenceTime(DateTime utcNow)
@@ -2886,10 +2889,13 @@ namespace Versionr
 
         public void UpdateFileTimeCache(string canonicalName, Record rec, DateTime lastAccessTimeUtc, bool commit = true)
         {
-            var fst = new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName };
-            FileTimeCache[canonicalName] = fst;
-            if (commit)
-                LocalData.UpdateFileTime(canonicalName, fst);
+            lock (FileTimeCache)
+            {
+                var fst = new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName };
+                FileTimeCache[canonicalName] = fst;
+                if (commit)
+                    LocalData.UpdateFileTime(canonicalName, fst);
+            }
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
