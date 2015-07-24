@@ -591,10 +591,13 @@ namespace Versionr
 
         internal Record LocateRecord(Record newRecord)
         {
-            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime);
+            ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == newRecord.CanonicalName);
+            if (canonicalNameId == null)
+                return null;
+            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime && x.CanonicalNameId == canonicalNameId.Id).ToList();
             foreach (var x in results)
             {
-                if (newRecord.CanonicalName == Database.Get<ObjectName>(x.CanonicalNameId).CanonicalName)
+                if (newRecord.UniqueIdentifier == x.UniqueIdentifier)
                     return x;
             }
             return null;
@@ -885,7 +888,7 @@ namespace Versionr
 
         internal Record GetRecordFromIdentifier(string id)
         {
-            var index = Database.Table<Objects.RecordIndex>().Where(x => x.DataIdentifier == id).First();
+            var index = Database.Table<Objects.RecordIndex>().Where(x => x.DataIdentifier == id).FirstOrDefault();
             if (index != null)
                 return Database.Find<Objects.Record>(index.Index);
             else
@@ -2612,6 +2615,9 @@ namespace Versionr
                                             if (x.VersionControlRecord != null)
                                                 record.Parent = x.VersionControlRecord.Id;
                                         }
+                                        Objects.Record possibleRecord = LocateRecord(record);
+                                        if (possibleRecord != null)
+                                            record = possibleRecord;
 
                                         Objects.Alteration alteration = new Alteration();
                                         alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
