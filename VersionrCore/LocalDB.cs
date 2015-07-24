@@ -186,23 +186,14 @@ namespace Versionr
             {
                 try
                 {
+                    DropTable<LocalState.FileTimestamp>();
                     CreateTable<LocalState.FileTimestamp>();
-                    BeginExclusive();
+                    BeginTransaction();
 
                     foreach (var x in filetimes)
                     {
-                        LocalState.FileTimestamp fst = Find<LocalState.FileTimestamp>(y => y.CanonicalName == x.Key);
-                        if (fst == null)
-                        {
-                            fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
-                            Insert(fst);
-                        }
-                        else
-                        {
-                            fst.DataIdentifier = x.Value.DataIdentifier;
-                            fst.LastSeenTime = x.Value.LastSeenTime;
-                            Update(fst);
-                        }
+                        LocalState.FileTimestamp fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
+                        Insert(fst);
                     }
 
                     Commit();
