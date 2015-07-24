@@ -167,7 +167,7 @@ namespace Versionr
 			foreach (var x in baseList)
 			{
 				records[x.Id] = x;
-				Printer.PrintDiagnostics("Record {0}: {1} - {2}", x.Id, x.CanonicalName, x.Fingerprint);
+				//Printer.PrintDiagnostics("Record {0}: {1} - {2}", x.Id, x.CanonicalName, x.Fingerprint);
 			}
 			HashSet<KeyValuePair<long, long>> moveDeletions = new HashSet<KeyValuePair<long, long>>();
 			foreach (var x in alterations.Select(x => x).Reverse())
