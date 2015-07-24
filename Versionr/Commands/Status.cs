@@ -13,7 +13,9 @@ namespace Versionr.Commands
         public bool NoList { get; set; }
         [Option('s', "summary", HelpText = "Displays a summary at the end of the status block.")]
         public bool Summary { get; set; }
-        public override string[] Description
+		[Option('a', "all", HelpText = "Includes unchanged files.")]
+		public bool All { get; set; }
+		public override string[] Description
         {
             get
             {
@@ -35,6 +37,7 @@ namespace Versionr.Commands
                     "  #w#Renamed##: Object has been matched to a deleted object in the vault.",
                     "  #w#Copied##: Object is not part of the vault but is a copy of an object that is.",
                     "  #e#Conflict##: The file #b#requires intervention## to finish merging. It will #e#obstruct the next commit## until it is resolved.",
+					"  #q#Unchanged##: The object has no changes. Only displayed with the #b#--all## option.",
                     "",
                     "To record additional objects for inclusion in the next #b#commit#q#, see the #b#record#q# command.",
                     "",
@@ -84,7 +87,7 @@ namespace Versionr.Commands
                 Printer.WriteLineMessage("");
             foreach (var x in targets)
             {
-				if (x.Code == StatusCode.Unchanged)
+				if (x.Code == StatusCode.Unchanged && !localOptions.All)
                     continue;
                 codeCount[(int)x.Code]++;
                 if (x.Code == StatusCode.Ignored)
@@ -162,10 +165,13 @@ namespace Versionr.Commands
                 case StatusCode.Unversioned:
                     return x.Staged ? new Tuple<char, string>('e', "(error)")
                         : new Tuple<char, string>('w', "(unversioned)");
-                case StatusCode.Ignored:
-                    return x.Staged ? new Tuple<char, string>('e', "(error)")
-                        : new Tuple<char, string>('q', "(ignored)");
-                default:
+				case StatusCode.Ignored:
+					return x.Staged ? new Tuple<char, string>('e', "(error)")
+						: new Tuple<char, string>('q', "(ignored)");
+				case StatusCode.Unchanged:
+					return x.Staged ? new Tuple<char, string>('e', "(unchanged)")
+						: new Tuple<char, string>('q', "(unchanged)");
+				default:
                     throw new Exception();
             }
         }
