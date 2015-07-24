@@ -185,13 +185,20 @@ namespace Versionr
             {
                 RemoteConfig config = LocalData.Find<RemoteConfig>(x => x.Name == name);
                 if (config == null)
-                    config = new RemoteConfig() { Name = name };
+				{
+					config = new RemoteConfig() { Name = name };
+					config.Host = host;
+					config.Port = port;
+					LocalData.InsertSafe(config);
+				}
+				else
+				{
+					config.Host = host;
+					config.Port = port;
+					LocalData.UpdateSafe(config);
+				}
 
-                config.Host = host;
-                config.Port = port;
-                LocalData.InsertOrReplaceSafe(config);
-
-                Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
+				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
                 LocalData.Commit();
 
                 return true;
