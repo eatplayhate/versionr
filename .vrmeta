@@ -13,7 +13,9 @@
 			".opensdf",
 			".ipch",
 			".suo",
-			".user"
+			".user",
+			".cache",
+			".DS_Store"
 		],
 		"Patterns" :
 		[
@@ -21,10 +23,12 @@
 			"^\\.vs/",
 			"^ipch",
 			"^Debug/",
+			"/bin/Debug/",
+			"^Release/",
+			"/bin/Release/",
 			".*\\.tlog",
 			"^x64",
-			"Versionr\\.exe",
-			"VersionrCore\\.dll"
+			"^lib/"
 		]
 	}
 }

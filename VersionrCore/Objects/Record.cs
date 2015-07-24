@@ -19,6 +19,7 @@ namespace Versionr.Objects
         ReadOnly = 32,
         Executable = 64,
         Hidden = 128,
+		Symlink = 256,
     }
     [ProtoBuf.ProtoContract]
     public class Record
@@ -34,6 +35,7 @@ namespace Versionr.Objects
         [ProtoBuf.ProtoMember(3)]
         public Attributes Attributes { get; set; }
         [ProtoBuf.ProtoMember(4)]
+        [SQLite.Indexed]
         public string Fingerprint { get; set; }
         [ProtoBuf.ProtoIgnore]
         public long CanonicalNameId { get; set; }
@@ -49,16 +51,24 @@ namespace Versionr.Objects
         [SQLite.LoadOnly]
         public string CanonicalName { get; set; }
 
-        [SQLite.Ignore]
-        public bool IsDirectory
-        {
-            get
-            {
-                return CanonicalName.EndsWith("/");
-            }
-        }
+		[SQLite.Ignore]
+		public bool IsDirectory
+		{
+			get
+			{
+				return !IsSymlink && CanonicalName.EndsWith("/");
+			}
+		}
+		[SQLite.Ignore]
+		public bool IsSymlink
+		{
+			get
+			{
+				return Attributes.HasFlag(Objects.Attributes.Symlink);
+			}
+		}
 
-        [ProtoBuf.ProtoIgnore]
+		[ProtoBuf.ProtoIgnore]
         [SQLite.Ignore]
         public string DataIdentifier
         {

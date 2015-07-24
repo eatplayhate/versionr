@@ -10,14 +10,16 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 2;
+        public const int LocalDBVersion = 3;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
+            EnableWAL = true;
             CreateTable<LocalState.Workspace>();
             CreateTable<LocalState.Configuration>();
             CreateTable<LocalState.StageOperation>();
             CreateTable<LocalState.RemoteConfig>();
+            CreateTable<LocalState.FileTimestamp>();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -28,17 +30,20 @@ namespace Versionr
             }
             set
             {
-                Workspace ws = Workspace;
-                ws.LocalCheckoutTime = value;
-                try
+                lock (this)
                 {
-                    BeginTransaction();
-                    Update(ws);
-                    Commit();
-                }
-                catch
-                {
-                    Rollback();
+                    Workspace ws = Workspace;
+                    ws.LocalCheckoutTime = value;
+                    try
+                    {
+                        BeginTransaction();
+                        Update(ws);
+                        Commit();
+                    }
+                    catch
+                    {
+                        Rollback();
+                    }
                 }
             }
         }
@@ -47,7 +52,10 @@ namespace Versionr
         {
             get
             {
-                return Get<LocalState.Workspace>(x => x.ID == Configuration.WorkspaceID);
+                lock (this)
+                {
+                    return Get<LocalState.Workspace>(x => x.ID == Configuration.WorkspaceID);
+                }
             }
         }
 
@@ -63,10 +71,13 @@ namespace Versionr
         {
             get
             {
-                var table = Table<LocalState.StageOperation>();
-                var list = table.ToList();
-                Printer.PrintDiagnostics("Stage has {0} events.", list.Count);
-                return list;
+                lock (this)
+                {
+                    var table = Table<LocalState.StageOperation>();
+                    var list = table.ToList();
+                    Printer.PrintDiagnostics("Stage has {0} events.", list.Count);
+                    return list;
+                }
             }
         }
 
@@ -74,8 +85,11 @@ namespace Versionr
         {
             get
             {
-                var table = Table<LocalState.Configuration>();
-                return table.First();
+                lock (this)
+                {
+                    var table = Table<LocalState.Configuration>();
+                    return table.First();
+                }
             }
         }
 
@@ -103,9 +117,28 @@ namespace Versionr
             return db;
         }
 
+        public bool RefreshLocalTimes { get; set; }
+
         private bool Upgrade()
         {
-            if (Configuration.Version == 1)
+            if (Configuration.Version == 2)
+            {
+                Configuration config = Configuration;
+                config.Version = LocalDBVersion;
+                try
+                {
+                    Update(config);
+                    RefreshLocalTimes = true;
+                    Commit();
+                    return true;
+                }
+                catch
+                {
+                    Rollback();
+                    return false;
+                }
+            }
+            else if (Configuration.Version == 1)
             {
                 Configuration config = Configuration;
                 config.Version = LocalDBVersion;
@@ -147,34 +180,70 @@ namespace Versionr
             }
         }
 
+        internal void ReplaceFileTimes(Dictionary<string, LocalState.FileTimestamp> filetimes)
+        {
+            lock (this)
+            {
+                try
+                {
+                    BeginTransaction();
+
+                    var oldList = LoadFileTimes();
+                    foreach (var x in filetimes)
+                    {
+                        LocalState.FileTimestamp fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
+                        Insert(fst);
+                    }
+                    foreach (var x in oldList)
+                    {
+                        if (!filetimes.ContainsKey(x.Key))
+                            Delete<LocalState.FileTimestamp>(x.Value.Id);
+                    }
+
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                    throw;
+                }
+            }
+        }
+
         internal void AddStageOperation(LocalState.StageOperation ss)
         {
-            BeginTransaction();
-            try
+            lock (this)
             {
-                Insert(ss);
-                Commit();
-            }
-            catch (Exception e)
-            {
-                Rollback();
-                throw new Exception("Unable to stage operation!", e);
+                BeginTransaction();
+                try
+                {
+                    Insert(ss);
+                    Commit();
+                }
+                catch (Exception e)
+                {
+                    Rollback();
+                    throw new Exception("Unable to stage operation!", e);
+                }
             }
         }
 
         internal void AddStageOperations(IEnumerable<StageOperation> newStageOperations)
         {
-            BeginTransaction();
-            try
+            lock (this)
             {
-                foreach (var x in newStageOperations)
-                    Insert(x);
-                Commit();
-            }
-            catch (Exception e)
-            {
-                Rollback();
-                throw new Exception("Unable to add stage operations!", e);
+                BeginTransaction();
+                try
+                {
+                    foreach (var x in newStageOperations)
+                        Insert(x);
+                    Commit();
+                }
+                catch (Exception e)
+                {
+                    Rollback();
+                    throw new Exception("Unable to add stage operations!", e);
+                }
             }
         }
 
@@ -194,6 +263,51 @@ namespace Versionr
                 ops.Add(x);
             }
             return result;
+        }
+
+        internal Dictionary<string, LocalState.FileTimestamp> LoadFileTimes()
+        {
+            Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
+            bool refresh = false;
+            foreach (var x in Table<LocalState.FileTimestamp>())
+            {
+                if (x.CanonicalName != null)
+                    result[x.CanonicalName] = x;
+                else
+                    refresh = true;
+            }
+            if (refresh)
+                ReplaceFileTimes(result);
+            return result;
+        }
+
+        internal void UpdateFileTime(string canonicalName, LocalState.FileTimestamp ft)
+        {
+            lock (this)
+            {
+                var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
+                if (timestamp == null)
+                {
+                    timestamp = new FileTimestamp() { CanonicalName = canonicalName, LastSeenTime = ft.LastSeenTime, DataIdentifier = ft.DataIdentifier };
+                    Insert(timestamp);
+                }
+                else
+                {
+                    timestamp.LastSeenTime = ft.LastSeenTime;
+                    timestamp.DataIdentifier = ft.DataIdentifier;
+                    Update(timestamp);
+                }
+            }
+        }
+
+        internal void RemoveFileTime(string canonicalName)
+        {
+            lock (this)
+            {
+                var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
+                if (timestamp != null)
+                    Delete(timestamp);
+            }
         }
     }
 }

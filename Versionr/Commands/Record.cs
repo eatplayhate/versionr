@@ -53,7 +53,7 @@ namespace Versionr.Commands
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RecordVerbOptions localOptions = options as RecordVerbOptions;
-            return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive);
+			return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive);
 		}
 	}
 }

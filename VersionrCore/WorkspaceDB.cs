@@ -11,7 +11,7 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 8;
+        public const int InternalDBVersion = 11;
         public const int MinimumDBVersion = 3;
         public const int MaximumDBVersion = 15;
 
@@ -47,7 +47,45 @@ namespace Versionr
                     CreateTable<Objects.FormatInfo>();
                     Insert(fmt);
 
-                    if (priorFormat == 7)
+                    if (priorFormat < 11)
+                    {
+                        Printer.PrintMessage(" - Upgrading database - running full consistency check.");
+                        Dictionary<Tuple<string, long, DateTime>, Record> records = new Dictionary<Tuple<string, long, DateTime>, Record>();
+                        foreach (var x in Table<Objects.Record>().ToList())
+                        {
+                            var key = new Tuple<string, long, DateTime>(x.UniqueIdentifier, x.CanonicalNameId, x.ModificationTime);
+                            if (records.ContainsKey(key))
+                            {
+                                var other = records[key];
+                                Printer.PrintDiagnostics("Found duplicate records {0} ==> {1}", x.Id, other.Id);
+                                Printer.PrintDiagnostics(" - UID: {0}", x.UniqueIdentifier);
+                                Printer.PrintDiagnostics(" - Time: {0}", x.ModificationTime);
+                                Printer.PrintDiagnostics(" - Name: {0}", Get<ObjectName>(x.CanonicalNameId).CanonicalName);
+
+                                int updates = 0;
+                                foreach (var s in Table<Alteration>().Where(z => z.PriorRecord == x.Id || z.NewRecord == x.Id))
+                                {
+                                    if (s.NewRecord.HasValue && s.NewRecord.Value == x.Id)
+                                        s.NewRecord = other.Id;
+                                    if (s.PriorRecord.HasValue && s.PriorRecord.Value == x.Id)
+                                        s.PriorRecord = other.Id;
+                                    Update(s);
+                                    updates++;
+                                }
+                                foreach (var s in Table<RecordRef>().Where(z => z.RecordID == x.Id))
+                                {
+                                    s.RecordID = other.Id;
+                                    Update(s);
+                                    updates++;
+                                }
+                                Delete(x);
+                                Printer.PrintDiagnostics("Deleted record and updated {0} links.", updates);
+                            }
+                            else
+                                records[key] = x;
+                        }
+                    }
+                    else if (priorFormat == 7)
                     {
                         Printer.PrintMessage(" - Upgrading database - adding branch root version.");
                         foreach (var x in Table<Objects.Branch>().ToList())
@@ -163,9 +201,10 @@ namespace Versionr
         private List<Record> Consolidate(List<Record> baseList, List<Alteration> alterations, List<Record> deletions)
         {
             Dictionary<long, Record> records = new Dictionary<long, Record>();
-            foreach (var x in baseList)
-                records[x.Id] = x;
-            foreach (var x in alterations.Select(x => x).Reverse())
+			foreach (var x in baseList)
+				records[x.Id] = x;
+			HashSet<KeyValuePair<long, long>> moveDeletions = new HashSet<KeyValuePair<long, long>>();
+			foreach (var x in alterations.Select(x => x).Reverse())
             {
                 Objects.Record rec = null;
                 switch (x.Type)
@@ -175,42 +214,104 @@ namespace Versionr
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            records[record.Id] = record;
+							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Move:
                         {
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            rec = Get<Objects.Record>(x.PriorRecord);
-                            if (deletions != null)
-                                deletions.Add(rec);
-                            if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("This is bad");
-                            records[record.Id] = record;
+							if (deletions != null)
+							{
+								rec = Get<Objects.Record>(x.PriorRecord);
+								rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+								deletions.Add(rec);
+                            }
+							if (!records.Remove(x.PriorRecord.Value))
+                            {
+                                if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
+                                {
+                                    long? repaired = RelinkMissingDelete(records, x);
+                                    if (!repaired.HasValue)
+                                        throw new Exception("this is bad");
+                                }
+							}
+							moveDeletions.Add(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value));
+							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Update:
-                        {
+						{
                             var record = Get<Objects.Record>(x.NewRecord);
                             record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-                            if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("This is bad");
-                            records[record.Id] = record;
+							if (!records.Remove(x.PriorRecord.Value))
+							{
+								if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
+                                {
+                                    long? repaired = RelinkMissingDelete(records, x);
+                                    if (!repaired.HasValue)
+                                        throw new Exception("this is bad");
+                                }
+							}
+							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Delete:
-                        rec = Get<Objects.Record>(x.PriorRecord);
-                        if (deletions != null)
-                            deletions.Add(rec);
-                        if (!records.Remove(x.PriorRecord.Value))
-                            throw new Exception("This is bad");
-                        break;
+						if (deletions != null)
+						{
+							rec = Get<Objects.Record>(x.PriorRecord);
+							rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+							deletions.Add(rec);
+                        }
+						if (!records.Remove(x.PriorRecord.Value))
+						{
+							if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
+                            {
+                                long? repaired = RelinkMissingDelete(records, x);
+                                if (!repaired.HasValue)
+                                    throw new Exception("this is bad");
+                            }
+                        }
+						moveDeletions.Add(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value));
+						break;
                     default:
                         throw new Exception();
                 }
             }
             return records.OrderBy(x => x.Value.CanonicalName).Select(x => x.Value).ToList();
+        }
+
+        private long? RelinkMissingDelete(Dictionary<long, Record> records, Alteration x)
+        {
+            // Attempt to repair a possible disaster
+            var rec = Get<Objects.Record>(x.PriorRecord.Value);
+            long? result = null;
+            foreach (var z in records)
+            {
+                if (z.Value.CanonicalNameId == rec.CanonicalNameId && z.Value.UniqueIdentifier == rec.UniqueIdentifier)
+                {
+                    result = z.Key;
+                    break;
+                }
+            }
+            if (!result.HasValue)
+            {
+                foreach (var z in records)
+                {
+                    if (z.Value.CanonicalNameId == rec.CanonicalNameId && z.Value.DataIdentifier == rec.DataIdentifier)
+                    {
+                        result = z.Key;
+                        break;
+                    }
+                }
+            }
+            if (result.HasValue)
+            {
+                records.Remove(result.Value);
+                x.PriorRecord = result.Value;
+                Update(x);
+            }
+            return result;
         }
 
         internal static bool AcceptDBVersion(int dbVersion)

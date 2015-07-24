@@ -324,7 +324,7 @@ namespace Versionr.Network
                 Branch branch = Workspace.GetBranch(x.Key);
                 VersionInfo result;
                 string error;
-                result = Workspace.MergeRemote(Workspace.GetVersion(x.Value), temporaryHeads[x.Key].Version, sharedInfo, out error);
+                result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(x.Value, sharedInfo), temporaryHeads[x.Key].Version, sharedInfo, out error);
                 if (result == null)
                 {
                     if (x.Value != Workspace.Version.ID && temporaryHeads[x.Key].Branch == Workspace.CurrentBranch.ID)
@@ -375,6 +375,7 @@ namespace Versionr.Network
                                     importList[x.Version.ID] = true;
                                     importCount--;
                                 }
+                                }
                             }
                         }
                     }
@@ -409,6 +410,8 @@ namespace Versionr.Network
 
         private static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
         {
+            if (possibleChild == ancestor)
+                return true;
             Guid nextVersionToCheck = possibleChild;
             while (true)
             {
