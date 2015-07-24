@@ -167,7 +167,7 @@ namespace Versionr
             }
         }
 
-        internal void ReplaceFileTimes(Dictionary<string, DateTime> filetimes)
+        internal void ReplaceFileTimes(Dictionary<string, LocalState.FileTimestamp> filetimes)
         {
             try
             {
@@ -177,7 +177,7 @@ namespace Versionr
 
                 foreach (var x in filetimes)
                 {
-                    LocalState.FileTimestamp fst = new FileTimestamp() { CanonicalName = x.Key, LastSeenTime = x.Value };
+                    LocalState.FileTimestamp fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
                     Insert(fst);
                 }
 
@@ -239,14 +239,14 @@ namespace Versionr
             return result;
         }
 
-        internal Dictionary<string, DateTime> LoadFileTimes()
+        internal Dictionary<string, LocalState.FileTimestamp> LoadFileTimes()
         {
-            Dictionary<string, DateTime> result = new Dictionary<string, DateTime>();
+            Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
             bool refresh = false;
             foreach (var x in Table<LocalState.FileTimestamp>())
             {
                 if (x.CanonicalName != null)
-                    result[x.CanonicalName] = x.LastSeenTime;
+                    result[x.CanonicalName] = x;
                 else
                     refresh = true;
             }
@@ -255,17 +255,18 @@ namespace Versionr
             return result;
         }
 
-        internal void UpdateFileTime(string canonicalName, DateTime lastAccessTimeUtc)
+        internal void UpdateFileTime(string canonicalName, LocalState.FileTimestamp ft)
         {
             var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
             if (timestamp == null)
             {
-                timestamp = new FileTimestamp() { CanonicalName = canonicalName, LastSeenTime = lastAccessTimeUtc };
+                timestamp = new FileTimestamp() { CanonicalName = canonicalName, LastSeenTime = ft.LastSeenTime, DataIdentifier = ft.DataIdentifier };
                 Insert(timestamp);
             }
             else
             {
-                timestamp.LastSeenTime = lastAccessTimeUtc;
+                timestamp.LastSeenTime = ft.LastSeenTime;
+                timestamp.DataIdentifier = ft.DataIdentifier;
                 Update(timestamp);
             }
         }

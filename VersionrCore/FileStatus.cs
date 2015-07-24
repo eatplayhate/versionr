@@ -193,6 +193,8 @@ namespace Versionr
 
 				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
                 result.Add(parentEntry);
+                if (ignoreDirectory)
+                    return result;
             }
 
 			// Don't add children for symlinks.

@@ -13,5 +13,6 @@ namespace Versionr.LocalState
         [SQLite.Indexed]
         public string CanonicalName { get; set; }
         public DateTime LastSeenTime { get; set; }
+        public string DataIdentifier { get; set; }
     }
 }
