@@ -205,13 +205,16 @@ namespace Versionr
             Dictionary<long, Record> records = new Dictionary<long, Record>();
 			foreach (var x in baseList)
 				records[x.Id] = x;
+
+            List<long> pending = new List<long>();
+            Dictionary<long, string> canonicalNames = new Dictionary<long, string>();
             Dictionary<long, Record> associatedRecords = new Dictionary<long, Record>();
+
             foreach (var x in alterations)
             {
                 if (x.NewRecord.HasValue)
                     associatedRecords[x.NewRecord.Value] = null;
             }
-            List<long> pending = new List<long>();
             foreach (var x in associatedRecords.Keys.ToList())
             {
                 pending.Add(x);
@@ -219,7 +222,10 @@ namespace Versionr
                 {
                     var temp = Table<Record>().Where(z => pending.Contains(z.Id)).ToList();
                     foreach (var z in temp)
+                    {
+                        canonicalNames[z.CanonicalNameId] = null;
                         associatedRecords[z.Id] = z;
+                    }
                     pending.Clear();
                 }
             }
@@ -227,10 +233,30 @@ namespace Versionr
             {
                 var temp = Table<Record>().Where(z => pending.Contains(z.Id)).ToList();
                 foreach (var z in temp)
+                {
+                    canonicalNames[z.CanonicalNameId] = null;
                     associatedRecords[z.Id] = z;
+                }
                 pending.Clear();
             }
-            Dictionary<long, string> canonicalNames = new Dictionary<long, string>();
+            foreach (var x in canonicalNames.Keys.ToList())
+            {
+                pending.Add(x);
+                if (pending.Count == 256)
+                {
+                    var temp = Table<ObjectName>().Where(z => pending.Contains(z.Id)).ToList();
+                    foreach (var z in temp)
+                        canonicalNames[z.Id] = z.CanonicalName;
+                    pending.Clear();
+                }
+            }
+            if (pending.Count > 0)
+            {
+                var temp = Table<ObjectName>().Where(z => pending.Contains(z.Id)).ToList();
+                foreach (var z in temp)
+                    canonicalNames[z.Id] = z.CanonicalName;
+                pending.Clear();
+            }
             HashSet<KeyValuePair<long, long>> moveDeletions = new HashSet<KeyValuePair<long, long>>();
 			foreach (var x in alterations.Select(x => x).Reverse())
             {
@@ -241,15 +267,15 @@ namespace Versionr
                     case AlterationType.Copy:
                         {
                             var record = associatedRecords[x.NewRecord.Value];
-                            record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
+                            record.CanonicalName = canonicalNames[record.CanonicalNameId];
 							records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Move:
                         {
                             var record = associatedRecords[x.NewRecord.Value];
-                            record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-							if (deletions != null)
+                            record.CanonicalName = canonicalNames[record.CanonicalNameId];
+                            if (deletions != null)
 							{
 								rec = Get<Objects.Record>(x.PriorRecord);
 								rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
@@ -271,8 +297,8 @@ namespace Versionr
                     case AlterationType.Update:
 						{
                             var record = associatedRecords[x.NewRecord.Value];
-                            record.CanonicalName = Get<Objects.ObjectName>(record.CanonicalNameId).CanonicalName;
-							if (!records.Remove(x.PriorRecord.Value))
+                            record.CanonicalName = canonicalNames[record.CanonicalNameId];
+                            if (!records.Remove(x.PriorRecord.Value))
 							{
 								if (!moveDeletions.Contains(new KeyValuePair<long, long>(x.Owner, x.PriorRecord.Value)))
                                 {
