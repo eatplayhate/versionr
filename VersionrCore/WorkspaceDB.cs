@@ -332,8 +332,7 @@ namespace Versionr
                         throw new Exception();
                 }
             }
-            var result = records.OrderBy(x => x.Value.CanonicalName).Select(x => x.Value).ToList();
-            Printer.PrintDiagnostics("Consolidated record list in {0} ticks", sw.ElapsedTicks);
+            var result = records.Select(x => x.Value).ToList();
             return result;
         }
 
