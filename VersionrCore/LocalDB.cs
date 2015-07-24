@@ -83,7 +83,7 @@ namespace Versionr
         {
             get
             {
-                return Configuration.Version == LocalDBVersion;
+                return Configuration.Version >= LocalDBVersion;
             }
         }
 
