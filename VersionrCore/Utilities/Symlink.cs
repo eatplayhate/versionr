@@ -14,8 +14,6 @@ namespace Versionr.Utilities
 		public static bool Exists(string path)
 		{
 			path = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
-
-			Printer.PrintDiagnostics("Checking for symlink at {0}", path);
 			FileInfo file = new FileInfo(path);
 			if (file.Exists)
 				return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
@@ -27,8 +25,6 @@ namespace Versionr.Utilities
 		{
 			if (!Exists(path))
 				return;
-
-			Printer.PrintDiagnostics("Attempting to delete {0}", path);
 
 			if (MultiArchPInvoke.IsRunningOnMono)
 				SymlinkMono.Delete(path);

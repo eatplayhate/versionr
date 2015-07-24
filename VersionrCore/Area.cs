@@ -2227,14 +2227,11 @@ namespace Versionr
             }
 			foreach (var x in records.Where(x => x.IsSymlink))
 			{
-				Printer.PrintDiagnostics("Delete check for previous symlink {0}", x.CanonicalName);
 				if (!canonicalNames.Contains(x.CanonicalName))
 				{
-					Printer.PrintDiagnostics("  it should be removed");
 					string path = Path.Combine(Root.FullName, x.CanonicalName);
 					if (Utilities.Symlink.Exists(path))
 					{
-						Printer.PrintDiagnostics("  attempting removal");
 						try
 						{
 							Utilities.Symlink.Delete(path);
@@ -2245,8 +2242,6 @@ namespace Versionr
 							Printer.PrintMessage("Couldn't delete symlink `{0}`!\n{1}", x.CanonicalName, e.ToString());
 						}
 					}
-					else
-						Printer.PrintDiagnostics("  not a symlink");
 				}
 			}
 			foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
@@ -2789,7 +2784,6 @@ namespace Versionr
         {
 			if (rec.IsSymlink)
 			{
-				Printer.PrintDiagnostics("Restoring symlink record for {0}", rec.CanonicalName);
 				string path = Path.Combine(Root.FullName, rec.CanonicalName);
 				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
 				{
