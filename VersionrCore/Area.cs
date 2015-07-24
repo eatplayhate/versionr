@@ -1578,7 +1578,7 @@ namespace Versionr
                 if (parent.ID == v1.ID || parent.ID == v2.ID)
                 {
                     Printer.PrintMessage("Merge information is already up to date.");
-                    throw new Exception();
+                    return Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
                 Printer.PrintMessage("Starting recursive merge:");
                 Printer.PrintMessage(" - Left: {0}", v1.ID);
