@@ -118,8 +118,11 @@ namespace Versionr
             ModificationTime = Info.LastWriteTimeUtc;
 
 			if (Utilities.Symlink.Exists(Info.FullName))
+			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
-            if (Info.Attributes.HasFlag(FileAttributes.Hidden))
+				Length = 0;
+			}
+			if (Info.Attributes.HasFlag(FileAttributes.Hidden))
                 Attributes = Attributes | Objects.Attributes.Hidden;
             if (Info.Attributes.HasFlag(FileAttributes.ReadOnly))
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
