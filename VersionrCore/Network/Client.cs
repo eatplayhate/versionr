@@ -375,7 +375,6 @@ namespace Versionr.Network
                                     importList[x.Version.ID] = true;
                                     importCount--;
                                 }
-                                }
                             }
                         }
                     }
