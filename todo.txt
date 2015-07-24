@@ -6,7 +6,6 @@ Versionr features
 - default .vrmeta
 - .vruser
 - blame
-- symlinks
 - remove/rename
 - docs
 - detect binary files for merge
@@ -15,3 +14,4 @@ Versionr features
 - cherry pick revisions?
 - better log
 - switch
+- svn integration

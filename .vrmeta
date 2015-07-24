@@ -23,8 +23,12 @@
 			"^\\.vs/",
 			"^ipch",
 			"^Debug/",
+			"/bin/Debug/",
+			"^Release/",
+			"/bin/Release/",
 			".*\\.tlog",
 			"^x64",
+			"^lib/"
 		]
 	}
 }
