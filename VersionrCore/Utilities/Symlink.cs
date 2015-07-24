@@ -13,11 +13,10 @@ namespace Versionr.Utilities
 	{
 		public static bool Exists(string v)
 		{
-			FileInfo file = new FileInfo(v);
-			if (file.Exists)
-				return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
-			DirectoryInfo dir = new DirectoryInfo(v);
-			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
+			if (MultiArchPInvoke.IsRunningOnMono)
+				return SymlinkMono.Exists(v);
+			else
+				return SymlinkWin32.Exists(v);
 		}
 
 		public static void Delete(string path)
@@ -223,6 +222,16 @@ namespace Versionr.Utilities
 				else if (Directory.Exists(path))
 					Directory.Delete(path);
 			}
+
+			public static bool Exists(string path)
+			{
+
+				FileInfo file = new FileInfo(path);
+				if (file.Exists)
+					return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
+				DirectoryInfo dir = new DirectoryInfo(path);
+				return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
+			}
 		}
 
 		private class SymlinkMono
@@ -279,6 +288,15 @@ namespace Versionr.Utilities
 				// link.Delete();
 				MethodInfo method = MonoType.GetMethod("Delete");
 				method.Invoke(link.MonoObj, null);
+			}
+
+			public static bool Exists(string path)
+			{
+				//var link = new Mono.Unix.UnixSymbolicLinkInfo(path);
+				var link = new SymlinkMono(path);
+
+				//return link.Exists;
+				return (bool)MonoType.GetProperty("Exists").GetValue(link.MonoObj);
 			}
 		}
 
