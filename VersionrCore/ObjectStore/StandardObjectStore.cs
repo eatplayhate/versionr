@@ -786,7 +786,7 @@ namespace Versionr.ObjectStore
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
             if (storeData.BlobID.HasValue)
-                return BlobDatabase.Get<Blobsize>(storeData.BlobID.Value).Length;
+                return BlobDatabase.Get<Blobsize>(x => x.BlobID == storeData.BlobID.Value).Length;
             return GetFileForDataID(storeData.Lookup).Length;
         }
 
