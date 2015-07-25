@@ -14,7 +14,8 @@ namespace Versionr.ObjectStore
         Legacy,
         Flat,
         Packed,
-        Delta
+        Delta,
+        Blob
     }
     class StandardObjectStoreTransaction : ObjectStoreTransaction
     {
@@ -45,6 +46,12 @@ namespace Versionr.ObjectStore
                 return m_PendingCount;
             }
         }
+    }
+    public class Blobject
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public long Id { get; set; }
+        public byte[] Data { get; set; }
     }
     public class PackfileObject
     {
@@ -79,6 +86,7 @@ namespace Versionr.ObjectStore
     {
         Area Owner { get; set; }
         SQLite.SQLiteConnection ObjectDatabase { get; set; }
+        SQLite.SQLiteConnection BlobDatabase { get; set; }
         System.IO.DirectoryInfo DataFolder
         {
             get
@@ -101,12 +109,19 @@ namespace Versionr.ObjectStore
                 return new FileInfo(Path.Combine(DataFolder.FullName, "store.db"));
             }
         }
+        System.IO.FileInfo BlobFile
+        {
+            get
+            {
+                return new FileInfo(Path.Combine(DataFolder.FullName, "blobs.db"));
+            }
+        }
 
         public static Tuple<string, string> ComponentVersionInfo
         {
             get
             {
-                return new Tuple<string, string>("Standard Object DB", string.Format("v{0}, database format v{0}", 1));
+                return new Tuple<string, string>("Standard Object DB", string.Format("v{0}, database format v{0}", 2));
             }
         }
 
@@ -117,10 +132,13 @@ namespace Versionr.ObjectStore
             Owner = owner;
             DataFolder.Create();
             ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
+            ObjectDatabase.EnableWAL = true;
+            BlobDatabase = new SQLite.SQLiteConnection(BlobFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
+            BlobDatabase.EnableWAL = true;
             InitializeDBTypes();
 
             var meta = new StandardObjectStoreMetadata();
-            meta.Version = 1;
+            meta.Version = 2;
             ObjectDatabase.InsertSafe(meta);
         }
 
@@ -139,6 +157,8 @@ namespace Versionr.ObjectStore
             ObjectDatabase.CreateTable<PackfileObject>();
             ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
 
+            BlobDatabase.CreateTable<Blobject>();
+
             TempFiles = new HashSet<string>();
             TempFolder.Create();
         }
@@ -152,7 +172,15 @@ namespace Versionr.ObjectStore
             InitializeDBTypes();
 
             var version = ObjectDatabase.Table<StandardObjectStoreMetadata>().FirstOrDefault();
-            if (version == null)
+            if (version.Version == 1)
+            {
+                ObjectDatabase.BeginExclusive();
+                var meta = new StandardObjectStoreMetadata();
+                meta.Version = 2;
+                ObjectDatabase.InsertSafe(meta);
+                ObjectDatabase.Commit();
+            }
+            else if (version == null)
             {
                 ObjectDatabase.BeginExclusive();
                 Printer.PrintMessage("Upgrading object store database...");
@@ -445,6 +473,7 @@ namespace Versionr.ObjectStore
                     } while (TempFiles.Contains(filename));
                     TempFiles.Add(filename);
                 }
+                trans.m_PendingCount++;
                 Printer.PrintDiagnostics("Importing data for {0}", directName);
                 trans.Cleanup.Add(filename);
                 string fn = Path.Combine(TempFolder.FullName, filename);
@@ -568,6 +597,7 @@ namespace Versionr.ObjectStore
                         fileOutput.Write(buffer, 0, read);
                     }
                 }
+                trans.m_PendingBytes += data.FileSize;
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
@@ -704,7 +734,7 @@ namespace Versionr.ObjectStore
             {
                 if (dataStream == null)
                     return false;
-                
+
                 while (true)
                 {
                     var readCount = dataStream.Read(scratchBuffer, 0, scratchBuffer.Length);
