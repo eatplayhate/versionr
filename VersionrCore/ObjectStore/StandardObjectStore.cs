@@ -46,6 +46,20 @@ namespace Versionr.ObjectStore
             }
         }
     }
+    public class Blobject
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public long Id { get; set; }
+        public byte[] Data { get; set; }
+    }
+    public class Blobsize
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public long Id { get; set; }
+        [SQLite.Indexed]
+        public long BlobID { get; set; }
+        public long Length { get; set; }
+    }
     public class PackfileObject
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
@@ -61,6 +75,7 @@ namespace Versionr.ObjectStore
         public bool HasSignatureData { get; set; }
         public Guid? PackFileID { get; set; }
         public string DeltaBase { get; set; }
+        public long? BlobID { get; set; }
     }
     public class StandardObjectStoreMetadata
     {
@@ -79,6 +94,7 @@ namespace Versionr.ObjectStore
     {
         Area Owner { get; set; }
         SQLite.SQLiteConnection ObjectDatabase { get; set; }
+        SQLite.SQLiteConnection BlobDatabase { get; set; }
         System.IO.DirectoryInfo DataFolder
         {
             get
@@ -101,12 +117,19 @@ namespace Versionr.ObjectStore
                 return new FileInfo(Path.Combine(DataFolder.FullName, "store.db"));
             }
         }
+        System.IO.FileInfo BlobFile
+        {
+            get
+            {
+                return new FileInfo(Path.Combine(DataFolder.FullName, "blobs.db"));
+            }
+        }
 
         public static Tuple<string, string> ComponentVersionInfo
         {
             get
             {
-                return new Tuple<string, string>("Standard Object DB", string.Format("v{0}, database format v{0}", 1));
+                return new Tuple<string, string>("Standard Object DB", string.Format("v{0}, database format v{0}", 2));
             }
         }
 
@@ -117,10 +140,11 @@ namespace Versionr.ObjectStore
             Owner = owner;
             DataFolder.Create();
             ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
+            BlobDatabase = new SQLite.SQLiteConnection(BlobFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
             InitializeDBTypes();
 
             var meta = new StandardObjectStoreMetadata();
-            meta.Version = 1;
+            meta.Version = 3;
             ObjectDatabase.InsertSafe(meta);
         }
 
@@ -139,6 +163,10 @@ namespace Versionr.ObjectStore
             ObjectDatabase.CreateTable<PackfileObject>();
             ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
 
+            BlobDatabase.EnableWAL = true;
+            BlobDatabase.CreateTable<Blobject>();
+            BlobDatabase.CreateTable<Blobsize>();
+
             TempFiles = new HashSet<string>();
             TempFolder.Create();
         }
@@ -147,8 +175,11 @@ namespace Versionr.ObjectStore
         {
             Owner = owner;
             if (!DataFolder.Exists)
-                return false;
+            {
+                DataFolder.Create();
+            }
             ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.ReadWrite);
+            BlobDatabase = new SQLite.SQLiteConnection(BlobFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
             InitializeDBTypes();
 
             var version = ObjectDatabase.Table<StandardObjectStoreMetadata>().FirstOrDefault();
@@ -162,7 +193,23 @@ namespace Versionr.ObjectStore
                     ImportRecordFromFlatStore(x);
                 }
                 var meta = new StandardObjectStoreMetadata();
-                meta.Version = 1;
+                meta.Version = 2;
+                ObjectDatabase.InsertSafe(meta);
+                ObjectDatabase.Commit();
+            }
+            else if (version.Version < 3)
+            {
+                Printer.PrintMessage("Upgrading object store database...");
+                foreach (var x in BlobDatabase.Table<Blobject>())
+                {
+                    Blobsize bs = new Blobsize() { BlobID = x.Id, Length = x.Data.Length };
+                    BlobDatabase.Insert(bs);
+                }
+                ObjectDatabase.BeginExclusive();
+                ObjectDatabase.DropTable<StandardObjectStoreMetadata>();
+                ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
+                var meta = new StandardObjectStoreMetadata();
+                meta.Version = 3;
                 ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
             }
@@ -173,6 +220,8 @@ namespace Versionr.ObjectStore
         {
             if (x.HasData)
             {
+                if (!CheckFileForDataIDExists(x.DataIdentifier))
+                    return;
                 var recordData = new FileObjectStoreData();
                 recordData.FileSize = x.Size;
                 recordData.HasSignatureData = false;
@@ -274,6 +323,8 @@ namespace Versionr.ObjectStore
                                         CompressionMode cmode = DefaultCompression;
                                         if (cmode != CompressionMode.None && deltaSize < 16 * 1024)
                                             cmode = CompressionMode.LZ4;
+                                        if (cmode != CompressionMode.None && deltaSize < 1024)
+                                            cmode = CompressionMode.None;
                                         int sig = (int)cmode;
                                         fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
                                         fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
@@ -342,6 +393,8 @@ namespace Versionr.ObjectStore
                     CompressionMode cmode = DefaultCompression;
                     if (cmode != CompressionMode.None && newRecord.Size < 16 * 1024)
                         cmode = CompressionMode.LZ4;
+                    if (cmode != CompressionMode.None && newRecord.Size < 1024)
+                        cmode = CompressionMode.None;
                     int sig = (int)cmode;
                     if (computeSignature)
                         sig |= 0x8000;
@@ -445,6 +498,7 @@ namespace Versionr.ObjectStore
                     } while (TempFiles.Contains(filename));
                     TempFiles.Add(filename);
                 }
+                trans.m_PendingCount++;
                 Printer.PrintDiagnostics("Importing data for {0}", directName);
                 trans.Cleanup.Add(filename);
                 string fn = Path.Combine(TempFolder.FullName, filename);
@@ -568,6 +622,7 @@ namespace Versionr.ObjectStore
                         fileOutput.Write(buffer, 0, read);
                     }
                 }
+                trans.m_PendingBytes += data.FileSize;
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
@@ -635,18 +690,47 @@ namespace Versionr.ObjectStore
                 {
                     try
                     {
+                        BlobDatabase.BeginTransaction();
                         ObjectDatabase.BeginTransaction();
                         foreach (var x in transaction.PendingTransactions)
                         {
                             string fn = Path.Combine(TempFolder.FullName, x.Filename);
                             try
                             {
-                                ObjectDatabase.InsertSafe(x.Data);
-                                if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                var info = new FileInfo(fn);
+                                if (ObjectDatabase.InsertSafe(x.Data))
                                 {
-                                    if (!System.IO.File.Exists(fn))
-                                        throw new Exception();
-                                    System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                    long? blobID = null;
+                                    if (info.Length < 16 * 1024)
+                                    {
+                                        MemoryStream ms = new MemoryStream();
+                                        using (var fsi = info.OpenRead())
+                                        {
+                                            fsi.CopyTo(ms);
+                                        }
+                                        Blobject obj = new Blobject() { Data = ms.ToArray() };
+                                        if (!BlobDatabase.InsertSafe(obj))
+                                            throw new Exception();
+                                        blobID = obj.Id;
+                                        Blobsize bs = new Blobsize() { BlobID = obj.Id, Length = obj.Data.Length };
+                                        if (!BlobDatabase.InsertSafe(bs))
+                                            throw new Exception();
+                                    }
+                                    if (blobID.HasValue)
+                                    {
+                                        x.Data.BlobID = blobID;
+                                        ObjectDatabase.Update(x.Data);
+                                        transaction.Cleanup.Add(x.Filename);
+                                    }
+                                    else
+                                    {
+                                        if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                        {
+                                            if (!System.IO.File.Exists(fn))
+                                                throw new Exception();
+                                            System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                        }
+                                    }
                                 }
                             }
                             catch (SQLite.SQLiteException ex)
@@ -656,10 +740,14 @@ namespace Versionr.ObjectStore
                             }
                         }
                         transaction.PendingTransactions.Clear();
+                        BlobDatabase.Commit();
                         ObjectDatabase.Commit();
+                        transaction.m_PendingBytes = 0;
+                        transaction.m_PendingCount = 0;
                     }
                     catch
                     {
+                        BlobDatabase.Rollback();
                         ObjectDatabase.Rollback();
                         throw;
                     }
@@ -683,14 +771,23 @@ namespace Versionr.ObjectStore
             return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
         }
 
+        private bool CheckFileForDataIDExists(string id)
+        {
+            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(DataFolder.FullName, id.Substring(0, 2)));
+            if (!subDir.Exists)
+                return false;
+            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2))).Exists;
+        }
+
         public override long GetTransmissionLength(Record record)
         {
             if (!record.HasData)
                 return 0;
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            if (storeData.BlobID.HasValue)
+                return BlobDatabase.Get<Blobsize>(x => x.BlobID == storeData.BlobID.Value).Length;
             return GetFileForDataID(storeData.Lookup).Length;
-            throw new Exception();
         }
 
         public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
@@ -704,7 +801,7 @@ namespace Versionr.ObjectStore
             {
                 if (dataStream == null)
                     return false;
-                
+
                 while (true)
                 {
                     var readCount = dataStream.Read(scratchBuffer, 0, scratchBuffer.Length);
@@ -871,6 +968,8 @@ namespace Versionr.ObjectStore
 
         private Stream OpenLegacyStream(FileObjectStoreData storeData)
         {
+            if (storeData.BlobID.HasValue)
+                return new MemoryStream(BlobDatabase.Get<Blobject>(storeData.BlobID.Value).Data);
             FileInfo info = GetFileForDataID(storeData.Lookup);
             if (info == null)
                 return null;
