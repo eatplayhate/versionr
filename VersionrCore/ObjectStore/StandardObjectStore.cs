@@ -14,8 +14,7 @@ namespace Versionr.ObjectStore
         Legacy,
         Flat,
         Packed,
-        Delta,
-        Blob
+        Delta
     }
     class StandardObjectStoreTransaction : ObjectStoreTransaction
     {
@@ -68,6 +67,7 @@ namespace Versionr.ObjectStore
         public bool HasSignatureData { get; set; }
         public Guid? PackFileID { get; set; }
         public string DeltaBase { get; set; }
+        public long? BlobID { get; set; }
     }
     public class StandardObjectStoreMetadata
     {
@@ -132,9 +132,7 @@ namespace Versionr.ObjectStore
             Owner = owner;
             DataFolder.Create();
             ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
-            ObjectDatabase.EnableWAL = true;
             BlobDatabase = new SQLite.SQLiteConnection(BlobFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
-            BlobDatabase.EnableWAL = true;
             InitializeDBTypes();
 
             var meta = new StandardObjectStoreMetadata();
@@ -157,6 +155,7 @@ namespace Versionr.ObjectStore
             ObjectDatabase.CreateTable<PackfileObject>();
             ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
 
+            BlobDatabase.EnableWAL = true;
             BlobDatabase.CreateTable<Blobject>();
 
             TempFiles = new HashSet<string>();
@@ -167,20 +166,15 @@ namespace Versionr.ObjectStore
         {
             Owner = owner;
             if (!DataFolder.Exists)
-                return false;
+            {
+                DataFolder.Create();
+            }
             ObjectDatabase = new SQLite.SQLiteConnection(DataFile.FullName, SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.ReadWrite);
+            BlobDatabase = new SQLite.SQLiteConnection(BlobFile.FullName, SQLite.SQLiteOpenFlags.FullMutex | SQLite.SQLiteOpenFlags.Create | SQLite.SQLiteOpenFlags.ReadWrite);
             InitializeDBTypes();
 
             var version = ObjectDatabase.Table<StandardObjectStoreMetadata>().FirstOrDefault();
-            if (version.Version == 1)
-            {
-                ObjectDatabase.BeginExclusive();
-                var meta = new StandardObjectStoreMetadata();
-                meta.Version = 2;
-                ObjectDatabase.InsertSafe(meta);
-                ObjectDatabase.Commit();
-            }
-            else if (version == null)
+            if (version == null)
             {
                 ObjectDatabase.BeginExclusive();
                 Printer.PrintMessage("Upgrading object store database...");
@@ -190,7 +184,15 @@ namespace Versionr.ObjectStore
                     ImportRecordFromFlatStore(x);
                 }
                 var meta = new StandardObjectStoreMetadata();
-                meta.Version = 1;
+                meta.Version = 2;
+                ObjectDatabase.InsertSafe(meta);
+                ObjectDatabase.Commit();
+            }
+            else if (version.Version == 1)
+            {
+                ObjectDatabase.BeginExclusive();
+                var meta = new StandardObjectStoreMetadata();
+                meta.Version = 2;
                 ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
             }
@@ -201,6 +203,8 @@ namespace Versionr.ObjectStore
         {
             if (x.HasData)
             {
+                if (!CheckFileForDataIDExists(x.DataIdentifier))
+                    return;
                 var recordData = new FileObjectStoreData();
                 recordData.FileSize = x.Size;
                 recordData.HasSignatureData = false;
@@ -302,6 +306,8 @@ namespace Versionr.ObjectStore
                                         CompressionMode cmode = DefaultCompression;
                                         if (cmode != CompressionMode.None && deltaSize < 16 * 1024)
                                             cmode = CompressionMode.LZ4;
+                                        if (cmode != CompressionMode.None && deltaSize < 1024)
+                                            cmode = CompressionMode.None;
                                         int sig = (int)cmode;
                                         fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
                                         fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
@@ -370,6 +376,8 @@ namespace Versionr.ObjectStore
                     CompressionMode cmode = DefaultCompression;
                     if (cmode != CompressionMode.None && newRecord.Size < 16 * 1024)
                         cmode = CompressionMode.LZ4;
+                    if (cmode != CompressionMode.None && newRecord.Size < 1024)
+                        cmode = CompressionMode.None;
                     int sig = (int)cmode;
                     if (computeSignature)
                         sig |= 0x8000;
@@ -665,18 +673,44 @@ namespace Versionr.ObjectStore
                 {
                     try
                     {
+                        BlobDatabase.BeginTransaction();
                         ObjectDatabase.BeginTransaction();
                         foreach (var x in transaction.PendingTransactions)
                         {
                             string fn = Path.Combine(TempFolder.FullName, x.Filename);
                             try
                             {
-                                ObjectDatabase.InsertSafe(x.Data);
-                                if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                var info = new FileInfo(fn);
+                                if (ObjectDatabase.InsertSafe(x.Data))
                                 {
-                                    if (!System.IO.File.Exists(fn))
-                                        throw new Exception();
-                                    System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                    long? blobID = null;
+                                    if (info.Length < 16 * 1024)
+                                    {
+                                        MemoryStream ms = new MemoryStream();
+                                        using (var fsi = info.OpenRead())
+                                        {
+                                            fsi.CopyTo(ms);
+                                        }
+                                        Blobject obj = new Blobject() { Data = ms.ToArray() };
+                                        if (!BlobDatabase.InsertSafe(obj))
+                                            throw new Exception();
+                                        blobID = obj.Id;
+                                    }
+                                    if (blobID.HasValue)
+                                    {
+                                        x.Data.BlobID = blobID;
+                                        ObjectDatabase.Update(x.Data);
+                                        transaction.Cleanup.Add(x.Filename);
+                                    }
+                                    else
+                                    {
+                                        if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                        {
+                                            if (!System.IO.File.Exists(fn))
+                                                throw new Exception();
+                                            System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                        }
+                                    }
                                 }
                             }
                             catch (SQLite.SQLiteException ex)
@@ -686,10 +720,14 @@ namespace Versionr.ObjectStore
                             }
                         }
                         transaction.PendingTransactions.Clear();
+                        BlobDatabase.Commit();
                         ObjectDatabase.Commit();
+                        transaction.m_PendingBytes = 0;
+                        transaction.m_PendingCount = 0;
                     }
                     catch
                     {
+                        BlobDatabase.Rollback();
                         ObjectDatabase.Rollback();
                         throw;
                     }
@@ -711,6 +749,14 @@ namespace Versionr.ObjectStore
             DirectoryInfo subDir = new DirectoryInfo(Path.Combine(DataFolder.FullName, id.Substring(0, 2)));
             subDir.Create();
             return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
+        }
+
+        private bool CheckFileForDataIDExists(string id)
+        {
+            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(DataFolder.FullName, id.Substring(0, 2)));
+            if (!subDir.Exists)
+                return false;
+            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2))).Exists;
         }
 
         public override long GetTransmissionLength(Record record)
@@ -901,6 +947,8 @@ namespace Versionr.ObjectStore
 
         private Stream OpenLegacyStream(FileObjectStoreData storeData)
         {
+            if (storeData.BlobID.HasValue)
+                return new MemoryStream(BlobDatabase.Get<Blobject>(storeData.BlobID.Value).Data);
             FileInfo info = GetFileForDataID(storeData.Lookup);
             if (info == null)
                 return null;
