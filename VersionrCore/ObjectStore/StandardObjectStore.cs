@@ -52,6 +52,14 @@ namespace Versionr.ObjectStore
         public long Id { get; set; }
         public byte[] Data { get; set; }
     }
+    public class Blobsize
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public long Id { get; set; }
+        [SQLite.Indexed]
+        public long BlobID { get; set; }
+        public long Length { get; set; }
+    }
     public class PackfileObject
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
@@ -136,7 +144,7 @@ namespace Versionr.ObjectStore
             InitializeDBTypes();
 
             var meta = new StandardObjectStoreMetadata();
-            meta.Version = 2;
+            meta.Version = 3;
             ObjectDatabase.InsertSafe(meta);
         }
 
@@ -157,6 +165,7 @@ namespace Versionr.ObjectStore
 
             BlobDatabase.EnableWAL = true;
             BlobDatabase.CreateTable<Blobject>();
+            BlobDatabase.CreateTable<Blobsize>();
 
             TempFiles = new HashSet<string>();
             TempFolder.Create();
@@ -188,11 +197,19 @@ namespace Versionr.ObjectStore
                 ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
             }
-            else if (version.Version == 1)
+            else if (version.Version < 3)
             {
+                Printer.PrintMessage("Upgrading object store database...");
+                foreach (var x in BlobDatabase.Table<Blobject>())
+                {
+                    Blobsize bs = new Blobsize() { BlobID = x.Id, Length = x.Data.Length };
+                    BlobDatabase.Insert(bs);
+                }
                 ObjectDatabase.BeginExclusive();
+                ObjectDatabase.DropTable<StandardObjectStoreMetadata>();
+                ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
                 var meta = new StandardObjectStoreMetadata();
-                meta.Version = 2;
+                meta.Version = 3;
                 ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
             }
@@ -695,6 +712,9 @@ namespace Versionr.ObjectStore
                                         if (!BlobDatabase.InsertSafe(obj))
                                             throw new Exception();
                                         blobID = obj.Id;
+                                        Blobsize bs = new Blobsize() { BlobID = obj.Id, Length = obj.Data.Length };
+                                        if (!BlobDatabase.InsertSafe(bs))
+                                            throw new Exception();
                                     }
                                     if (blobID.HasValue)
                                     {
@@ -765,8 +785,9 @@ namespace Versionr.ObjectStore
                 return 0;
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            if (storeData.BlobID.HasValue)
+                return BlobDatabase.Get<Blobsize>(storeData.BlobID.Value).Length;
             return GetFileForDataID(storeData.Lookup).Length;
-            throw new Exception();
         }
 
         public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
