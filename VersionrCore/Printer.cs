@@ -94,6 +94,11 @@ namespace Versionr
                 IndentLevel--;
         }
 
+        public static string Escape(string s)
+        {
+            return s.Replace("#", "\\#");
+        }
+
         private static void FormatOutput(string v)
         {
             List<Tuple<OutputColour, string>> outputs = new List<Tuple<OutputColour, string>>();
@@ -110,6 +115,16 @@ namespace Versionr
                 }
                 else if (nextFindLocation >= 0)
                 {
+                    // escaping a hash sign
+                    if (nextFindLocation > 0 && v[nextFindLocation - 1] == '\\')
+                    {
+                        int len = nextFindLocation - 1 - pos;
+                        if (len > 0)
+                            outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, len)));
+                        outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(nextFindLocation, 1)));
+                        pos = nextFindLocation + 1;
+                        continue;
+                    }
                     int end = v.IndexOf('#', nextFindLocation + 1);
                     if (end <= nextFindLocation + 2)
                     {

@@ -39,6 +39,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Versionr.Utilities
 {
@@ -51,6 +52,13 @@ namespace Versionr.Utilities
             public int file1index;
             public int file2index;
             public CandidateThing chain;
+        }
+
+        public class CommonRun
+        {
+            public int File1 { get; set; }
+            public int File2 { get; set; }
+            public int Length { get; set; }
         }
 
         public class commonOrDifferentThing
@@ -166,7 +174,228 @@ namespace Versionr.Utilities
 
         #region Methods
 
-        public static CandidateThing longest_common_subsequence(string[] file1, string[] file2)
+        public static void PrintDiff(int[,] c, string[] x, string[] y, int i, int j, int bias, List<CommonRun> crList)
+        {
+            CommonRun last = crList.Count > 0 ? crList[crList.Count - 1] : null;
+            while (true)
+            {
+                if (i > 0 && j > 0 && x[i + bias - 1] == y[j + bias - 1])
+                {
+                    if (last != null && last.File1 == i && last.File2 == j)
+                    {
+                        last.File1--;
+                        last.File2--;
+                        last.Length++;
+                    }
+                    else
+                    {
+                        last = new CommonRun() { File1 = i - 1, File2 = j - 1, Length = 1 };
+                        crList.Add(last);
+                    }
+                    j--;
+                    i--;
+                }
+                else if (j > 0 && (i == 0 || c[i, j - 1] >= c[i - 1, j]))
+                {
+                    j--;
+                }
+                else if (i > 0 && (j == 0 || c[i, j - 1] < c[i - 1, j]))
+                {
+                    i--;
+                }
+                else
+                    break;
+            }
+        }
+
+        public static List<CommonRun> longest_common_subsequence2(string[] file1, string[] file2)
+        {
+            int startTrim = 0;
+            int endTrim = 0;
+            for (int i = 0; i < file1.Length && i < file2.Length; i++)
+            {
+                if (file1[i] == file2[i])
+                    startTrim++;
+                else
+                    break;
+            }
+            for (int i = file1.Length - 1, j = file2.Length - 1; j > startTrim && i > startTrim; i--, j--)
+            {
+                if (file1[i] == file2[j])
+                    endTrim++;
+                else
+                    break;
+            }
+
+            int[,] matchArray = new int[file1.Length - startTrim - endTrim + 1, file2.Length - startTrim - endTrim + 1];
+            for (int i = 1; i < matchArray.GetLength(0); i++)
+            {
+                for (int j = 1; j < matchArray.GetLength(1); j++)
+                {
+                    if (file1[i + startTrim - 1] == file2[j + startTrim - 1])
+                        matchArray[i, j] = matchArray[i - 1, j - 1] + 1;
+                    else
+                        matchArray[i, j] = System.Math.Max(matchArray[i, j - 1], matchArray[i - 1, j]);
+                }
+            }
+            List<CommonRun> lcr = new List<CommonRun>();
+            PrintDiff(matchArray, file1, file2, matchArray.GetLength(0) - 1, matchArray.GetLength(1) - 1, startTrim, lcr);
+            foreach (var x in lcr)
+            {
+                x.File1 += startTrim;
+                x.File2 += startTrim;
+            }
+            if (startTrim > 0)
+            {
+                lcr.Add(new CommonRun() { File1 = 0, File2 = 0, Length = startTrim });
+            }
+            lcr.Reverse();
+            if (endTrim > 0)
+            {
+                lcr.Add(new CommonRun() { File1 = file1.Length - endTrim, File2 = file2.Length - endTrim, Length = endTrim });
+            }
+            int longestSequence = matchArray[matchArray.GetLength(0) - 1, matchArray.GetLength(1) - 1];
+
+            return lcr;
+        }
+
+        class Card
+        {
+            public Tuple<List<Card>, int> Backreference;
+            public int Index;
+        }
+
+        public static List<CommonRun> longest_common_subsequence3(string[] file1, string[] file2)
+        {
+            string[] rf1 = file1;
+            string[] rf2 = file2;
+
+            bool trim = false;
+            Dictionary<string, int> sequencesInF2 = new Dictionary<string, int>();
+            for (int i = 0; i < rf2.Length; i++)
+            {
+                string key = trim ? rf2[i].Trim() : rf2[i];
+                if (sequencesInF2.ContainsKey(key))
+                    sequencesInF2[key] = -1;
+                else
+                    sequencesInF2[key] = i;
+            }
+            Dictionary<string, int> sequencesInF1 = new Dictionary<string, int>();
+            Dictionary<int, int> matchingSequences = new Dictionary<int, int>();
+            for (int i = 0; i < rf1.Length; i++)
+            {
+                string key = trim ? rf1[i].Trim() : rf1[i];
+                int index;
+                if (sequencesInF1.TryGetValue(key, out index))
+                {
+                    if (index != -1)
+                    {
+                        sequencesInF1[key] = -1;
+                        matchingSequences.Remove(index);
+                    }
+                }
+                else
+                {
+                    sequencesInF1[key] = i;
+                    int f2index = 0;
+                    if (sequencesInF2.TryGetValue(key, out f2index))
+                        matchingSequences[i] = f2index;
+                }
+            }
+
+            var seq = matchingSequences.OrderBy(x => x.Value).ToList();
+            List<List<Card>> cardStack = new List<List<Card>>();
+
+            foreach (var x in seq)
+            {
+                Tuple<List<Card>, int> backref = null;
+                bool success = false;
+                for (int i = 0; i < cardStack.Count; i++)
+                {
+                    List<Card> top = cardStack[i];
+                    if (top[top.Count - 1].Index > x.Key)
+                    {
+                        success = true;
+                        top.Add(new Card() { Backreference = backref, Index = x.Key });
+                        break;
+                    }
+                    backref = new Tuple<List<Card>, int>(top, top.Count - 1);
+                }
+                if (!success)
+                {
+                    if (cardStack.Count > 0)
+                        backref = new Tuple<List<Card>, int>(cardStack[cardStack.Count - 1], cardStack[cardStack.Count - 1].Count - 1);
+                    cardStack.Add(new List<Card>(new Card[] { new Card() { Backreference = backref, Index = x.Key } }));
+                }
+            }
+            List<int> longestSequence = new List<int>();
+            Tuple<List<Card>, int> last = null;
+            if (cardStack.Count > 0)
+            {
+                List<Card> lastPile = cardStack[cardStack.Count - 1];
+                last = new Tuple<List<Card>, int>(lastPile, lastPile.Count - 1);
+            }
+            while (last != null)
+            {
+                longestSequence.Add(last.Item1[last.Item2].Index);
+                last = last.Item1[last.Item2].Backreference;
+            }
+
+            longestSequence.Reverse();
+            List<CommonRun> lcr = new List<CommonRun>();
+            int head0 = 0;
+            int head1 = 0;
+            foreach (var x in longestSequence)
+            {
+                int f2Index = matchingSequences[x];
+                int c1 = x - head0 + 1;
+                int c2 = f2Index - head1 + 1;
+                List<CommonRun> subsequence = longest_common_subsequence2(file1.Skip(head0).Take(c1).ToArray(), file2.Skip(head1).Take(c2).ToArray());
+                foreach (var y in subsequence)
+                {
+                    y.File1 += head0;
+                    y.File2 += head1;
+                }
+                if (lcr.Count > 0 && subsequence.Count > 0)
+                {
+                    var lastMatch = lcr[lcr.Count - 1];
+                    int e1 = lastMatch.File1 + lastMatch.Length;
+                    int e2 = lastMatch.File2 + lastMatch.Length;
+                    if (subsequence[0].File1 == e1 && subsequence[0].File2 == e2)
+                    {
+                        lastMatch.Length += subsequence[0].Length;
+                        subsequence.RemoveAt(0);
+                    }
+                }
+                lcr.AddRange(subsequence);
+                head0 += c1;
+                head1 += c2;
+            }
+            if (head0 != file1.Length || head1 != file2.Length)
+            {
+                List<CommonRun> subsequence = longest_common_subsequence2(file1.Skip(head0).ToArray(), file2.Skip(head1).ToArray());
+                foreach (var y in subsequence)
+                {
+                    y.File1 += head0;
+                    y.File2 += head1;
+                }
+                if (lcr.Count > 0 && subsequence.Count > 0)
+                {
+                    var lastMatch = lcr[lcr.Count - 1];
+                    int e1 = lastMatch.File1 + lastMatch.Length;
+                    int e2 = lastMatch.File2 + lastMatch.Length;
+                    if (subsequence[0].File1 == e1 && subsequence[0].File2 == e2)
+                    {
+                        lastMatch.Length += subsequence[0].Length;
+                        subsequence.RemoveAt(0);
+                    }
+                }
+                lcr.AddRange(subsequence);
+            }
+
+            return lcr;
+        }
+        public static CandidateThing longest_common_subsequence(string[] file1, string[] file2, out CommonRun cr)
         {
             /* Text diff algorithm following Hunt and McIlroy 1976.
 			 * J. W. Hunt and M. D. McIlroy, An algorithm for differential file
@@ -247,7 +476,7 @@ namespace Versionr.Utilities
             // At this point, we know the LCS: it's in the reverse of the
             // linked-list through .chain of
             // candidates[candidates.length - 1].
-
+            cr = null;
             return candidates[candidates.Count - 1];
         }
 
@@ -276,7 +505,9 @@ namespace Versionr.Utilities
                 common = new List<string>()
             };
 
-            for (var candidate = Diff.longest_common_subsequence(file1, file2);
+            CommonRun cr;
+            var crList = Diff.longest_common_subsequence2(file1, file2);
+            for (var candidate = Diff.longest_common_subsequence(file1, file2, out cr);
                  candidate != null;
                  candidate = candidate.chain)
             {
@@ -310,6 +541,67 @@ namespace Versionr.Utilities
             return result;
         }
 
+        public static List<commonOrDifferentThing> diff_comm2(string[] file1, string[] file2, bool fancy)
+        {
+            // We apply the LCS to build a "comm"-style picture of the
+            // differences between file1 and file2.
+
+            var result = new List<commonOrDifferentThing>();
+
+            int tail1 = file1.Length;
+            int tail2 = file2.Length;
+
+            commonOrDifferentThing common = new commonOrDifferentThing
+            {
+                common = new List<string>()
+            };
+
+            CommonRun cr;
+            List<CommonRun> crList = null;
+            if (fancy)
+                crList = Diff.longest_common_subsequence3(file1, file2);
+            else
+                crList = Diff.longest_common_subsequence2(file1, file2);
+            int head0 = 0;
+            int head1 = 0;
+            foreach (var x in crList)
+            {
+                if (x.File1 != head0 || x.File2 != head1)
+                {
+                    commonOrDifferentThing difference = new commonOrDifferentThing()
+                    {
+                        file1 = new List<string>(),
+                        file2 = new List<string>()
+                    };
+                    if (x.File1 != head0)
+                    {
+                        for (; head0 < x.File1; head0++)
+                            difference.file1.Add(file1[head0]);
+                    }
+                    if (x.File2 != head1)
+                    {
+                        for (; head1 < x.File2; head1++)
+                            difference.file2.Add(file2[head1]);
+                    }
+                    result.Add(difference);
+                }
+                commonOrDifferentThing cc = new commonOrDifferentThing()
+                {
+                    common = new List<string>()
+                };
+                for (int i = 0; i < x.Length; i++)
+                    cc.common.Add(file1[i + head0]);
+                head0 += x.Length;
+                head1 += x.Length;
+                result.Add(cc);
+            }
+
+            //processCommon(ref common, result);
+
+            //result.Reverse();
+            return result;
+        }
+
         public static List<patchResult> diff_patch(string[] file1, string[] file2)
         {
             // We apply the LCD to build a JSON representation of a
@@ -319,7 +611,8 @@ namespace Versionr.Utilities
             var tail1 = file1.Length;
             var tail2 = file2.Length;
 
-            for (var candidate = Diff.longest_common_subsequence(file1, file2);
+            CommonRun cr;
+            for (var candidate = Diff.longest_common_subsequence(file1, file2, out cr);
                  candidate != null;
                  candidate = candidate.chain)
             {
@@ -466,7 +759,8 @@ namespace Versionr.Utilities
             var tail1 = file1.Length;
             var tail2 = file2.Length;
 
-            for (var candidate = Diff.longest_common_subsequence(file1, file2);
+            CommonRun cr;
+            for (var candidate = Diff.longest_common_subsequence(file1, file2, out cr);
                  candidate != null;
                  candidate = candidate.chain)
             {
