@@ -47,6 +47,7 @@ namespace Versionr.Commands
                     {
                         try
                         {
+                            Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
                             if (localOptions.External)
                                 Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
                             else
@@ -104,8 +105,6 @@ namespace Versionr.Commands
             diff = Versionr.Utilities.Diff.diff_comm2(lines1.ToArray(), lines2.ToArray(), true);
             int line0 = 0;
             int line1 = 0;
-            int minDisplayedLine0 = 0;
-            int minDisplayedLine1 = 0;
             Printer.PrintMessage("--- a/{0}", file1);
             Printer.PrintMessage("+++ b/{0}", file2);
             List<Region> regions = new List<Region>();
