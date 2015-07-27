@@ -53,7 +53,17 @@ namespace Versionr.Commands
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RecordVerbOptions localOptions = options as RecordVerbOptions;
-			return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive);
+			return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive, new Action<Versionr.Status.StatusEntry, StatusCode, bool>(RecordFeedback));
 		}
+
+        private void RecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code, bool auto)
+        {
+            var previous = Status.GetStatusText(entry);
+            var now = Status.GetStatusText(code, true);
+            string output = "(#" + previous.Item1 + "#" + previous.Item2 + "## => #" + now.Item1 + "#" + now.Item2 + "##)#b# ";
+            while (output.Length < 36)
+                output = " " + output;
+            Printer.PrintMessage(output + entry.CanonicalName + (auto ? " #q#(auto)##" : ""));
+        }
 	}
 }

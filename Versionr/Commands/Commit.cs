@@ -8,7 +8,9 @@ using CommandLine;
 namespace Versionr.Commands
 {
     class CommitVerbOptions : FileCommandVerbOptions
-	{
+    {
+        [Option('d', "deleted", DefaultValue = false, HelpText = "Allows recording deletion of files matched with --all, --recursive or --regex.")]
+        public bool Missing { get; set; }
         [Option('f', "force", HelpText = "Forces the commit to happen even if it would create a new branch head.")]
         public bool Force { get; set; }
 
@@ -58,7 +60,7 @@ namespace Versionr.Commands
 
             if (targets != null && targets.Count > 0)
             {
-                ws.RecordChanges(status, targets, false, false);
+                ws.RecordChanges(status, targets, localOptions.Missing, false);
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;

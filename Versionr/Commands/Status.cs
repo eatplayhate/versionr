@@ -126,7 +126,7 @@ namespace Versionr.Commands
         private string GetStatus(Versionr.Status.StatusEntry x)
         {
             var info = GetStatusText(x);
-            string text = info.Item2;
+            string text = "(" + info.Item2 + ")";
             while (text.Length < 14)
                 text = " " + text;
             text = "#" + info.Item1 + "#" + text;
@@ -137,40 +137,45 @@ namespace Versionr.Commands
             return text;
         }
 
-        private Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
+        public static Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
         {
-            switch (x.Code)
+            return GetStatusText(x.Code, x.Staged);
+        }
+
+        public static Tuple<char, string> GetStatusText(Versionr.StatusCode code, bool staged)
+        {
+            switch (code)
             {
                 case StatusCode.Added:
-                    return x.Staged ? new Tuple<char, string>('s', "(added)")
-                        : new Tuple<char, string>('e', "(error)");
+                    return staged ? new Tuple<char, string>('s', "added")
+                        : new Tuple<char, string>('e', "error");
                 case StatusCode.Conflict:
-                    return x.Staged ? new Tuple<char, string>('e', "(conflict)")
-                        : new Tuple<char, string>('e', "(conflict)");
+                    return staged ? new Tuple<char, string>('e', "conflict")
+                        : new Tuple<char, string>('e', "conflict");
                 case StatusCode.Copied:
-                    return x.Staged ? new Tuple<char, string>('s', "(copied)")
-                        : new Tuple<char, string>('w', "(copied)");
+                    return staged ? new Tuple<char, string>('s', "copied")
+                        : new Tuple<char, string>('w', "copied");
                 case StatusCode.Deleted:
-                    return x.Staged ? new Tuple<char, string>('c', "(deleted)")
-                        : new Tuple<char, string>('w', "(missing)");
+                    return staged ? new Tuple<char, string>('c', "deleted")
+                        : new Tuple<char, string>('w', "missing");
                 case StatusCode.Missing:
-                    return x.Staged ? new Tuple<char, string>('e', "(error)")
-                        : new Tuple<char, string>('w', "(missing)");
+                    return staged ? new Tuple<char, string>('e', "error")
+                        : new Tuple<char, string>('w', "missing");
                 case StatusCode.Modified:
-                    return x.Staged ? new Tuple<char, string>('s', "(modified)")
-                        : new Tuple<char, string>('w', "(changed)");
+                    return staged ? new Tuple<char, string>('s', "modified")
+                        : new Tuple<char, string>('w', "changed");
                 case StatusCode.Renamed:
-                    return x.Staged ? new Tuple<char, string>('s', "(renamed)")
-                        : new Tuple<char, string>('w', "(renamed)");
+                    return staged ? new Tuple<char, string>('s', "renamed")
+                        : new Tuple<char, string>('w', "renamed");
                 case StatusCode.Unversioned:
-                    return x.Staged ? new Tuple<char, string>('e', "(error)")
-                        : new Tuple<char, string>('w', "(unversioned)");
+                    return staged ? new Tuple<char, string>('e', "error")
+                        : new Tuple<char, string>('w', "unversioned");
 				case StatusCode.Ignored:
-					return x.Staged ? new Tuple<char, string>('e', "(error)")
-						: new Tuple<char, string>('q', "(ignored)");
+					return staged ? new Tuple<char, string>('e', "error")
+						: new Tuple<char, string>('q', "ignored");
 				case StatusCode.Unchanged:
-					return x.Staged ? new Tuple<char, string>('e', "(unchanged)")
-						: new Tuple<char, string>('q', "(unchanged)");
+					return staged ? new Tuple<char, string>('e', "unchanged")
+						: new Tuple<char, string>('q', "unchanged");
 				default:
                     throw new Exception();
             }

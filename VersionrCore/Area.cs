@@ -747,7 +747,7 @@ namespace Versionr
             }
         }
 
-		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive)
+		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive, Action<Status.StatusEntry, StatusCode, bool> callback = null)
         {
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
 
@@ -756,7 +756,6 @@ namespace Versionr
 			foreach (var x in files)
 			{
 				if (x.Staged == false && (
-					x.Code == StatusCode.Added ||
 					x.Code == StatusCode.Unversioned ||
 					x.Code == StatusCode.Renamed ||
 					x.Code == StatusCode.Modified ||
@@ -789,7 +788,9 @@ namespace Versionr
                                 continue;
                         }
 
-                        Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
+                        if (callback != null)
+                            callback(x, StatusCode.Deleted, false);
+                        //Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
                         removals.Add(x.VersionControlRecord.CanonicalName);
                     }
@@ -817,7 +818,9 @@ namespace Versionr
                                 continue;
                         }
 
-                        Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                        if (callback != null)
+                            callback(x, x.Code == StatusCode.Unversioned ? StatusCode.Added : x.Code, false);
+                        //Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
 						stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
 					}
 				}
@@ -838,7 +841,9 @@ namespace Versionr
                         {
                             if (!stagedPaths.Contains(entry.CanonicalName))
                             {
-                                Printer.PrintMessage("#q#Recorded (auto): #b#{0}##", entry.CanonicalName);
+                                if (callback != null)
+                                    callback(entry, entry.Code == StatusCode.Unversioned ? StatusCode.Added : entry.Code, true);
+                                //Printer.PrintMessage("#q#Recorded (auto): #b#{0}##", entry.CanonicalName);
                                 stageOps.Add(new StageOperation() { Operand1 = entry.CanonicalName, Type = StageOperationType.Add });
                                 stagedPaths.Add(entry.CanonicalName);
                             }
@@ -856,6 +861,8 @@ namespace Versionr
                             {
                                 if (y.Code != StatusCode.Deleted && !removals.Contains(y.CanonicalName))
                                 {
+                                    if (callback != null)
+                                        callback(entry, StatusCode.Deleted, true);
                                     Printer.PrintMessage("#x#Error:##\n  Can't stage removal of \"#b#{0}##\", obstructed by object \"#b#{1}##\". Remove contained objects first.", x.Operand1, y.CanonicalName);
                                     return false;
                                 }
@@ -870,6 +877,7 @@ namespace Versionr
                 Printer.PrintMessage("#w#Warning:##\n  No changes found to record.");
                 return false;
             }
+            Printer.PrintMessage("");
             Printer.PrintMessage("Recorded #b#{0}## objects.", stageOps.Count);
             LocalData.BeginTransaction();
             try
