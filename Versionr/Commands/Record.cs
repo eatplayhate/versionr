@@ -60,10 +60,10 @@ namespace Versionr.Commands
         {
             var previous = Status.GetStatusText(entry);
             var now = Status.GetStatusText(code, true);
-            string output = "(#" + previous.Item1 + "#" + previous.Item2 + "## => #" + now.Item1 + "#" + now.Item2 + "##)#b# ";
-            while (output.Length < 36)
+            string output = "(#" + now.Item1 + "#" + now.Item2 + "##)#b# ";
+            while (output.Length < 20)
                 output = " " + output;
-            Printer.PrintMessage(output + entry.CanonicalName + (auto ? " #q#(auto)##" : ""));
+            Printer.PrintMessage(output + " " + entry.CanonicalName + (auto ? " #q#(auto)##" : ""));
         }
 	}
 }
