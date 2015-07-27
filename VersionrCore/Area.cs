@@ -1447,14 +1447,18 @@ namespace Versionr
                                 if (result != mf)
                                     mf.Delete();
                                 result.MoveTo(ml.FullName);
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-                            }
+								if (!updateMode)
+								{
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								}
+							}
                             else
                             {
                                 mr.Delete();
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								if (!updateMode)
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 							}
 						}
                         else
@@ -1486,13 +1490,17 @@ namespace Versionr
                                 if (result != mb)
                                     mb.Delete();
                                 result.MoveTo(ml.FullName);
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-                            }
+								if (!updateMode)
+								{
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								}
+							}
                             else
                             {
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-								LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								if (!updateMode)
+									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 							}
                         }
                     }
@@ -1544,15 +1552,17 @@ namespace Versionr
                 {
                     Printer.PrintError("#x#Can't remove object \"{0}\"!", x.Item2);
                 }
-                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
-            }
-            foreach (var x in deletionList.Where(x => x.Item3 == true).OrderByDescending(x => x.Item2.Length))
+				if (!updateMode)
+					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+			}
+			foreach (var x in deletionList.Where(x => x.Item3 == true).OrderByDescending(x => x.Item2.Length))
             {
                 try
                 {
                     RemoveFileTimeCache(x.Item2);
                     System.IO.Directory.Delete(x.Item1);
-                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+					if (!updateMode)
+						LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
                 }
                 catch
                 {
