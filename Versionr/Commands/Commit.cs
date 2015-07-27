@@ -7,10 +7,8 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class CommitVerbOptions : FileCommandVerbOptions
+    class CommitVerbOptions : RecordVerbOptions
     {
-        [Option('d', "deleted", DefaultValue = false, HelpText = "Allows recording deletion of files matched with --all, --recursive or --regex.")]
-        public bool Missing { get; set; }
         [Option('f', "force", HelpText = "Forces the commit to happen even if it would create a new branch head.")]
         public bool Force { get; set; }
 
@@ -67,7 +65,7 @@ namespace Versionr.Commands
             return true;
         }
 
-		protected override bool RequiresTargets { get { return false; } }
+        protected override bool RequiresTargets { get { return false; } }
 
 	}
 }

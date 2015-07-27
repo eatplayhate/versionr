@@ -26,6 +26,16 @@ namespace Versionr.Commands
                 targets = status.GetElements(localOptions.Objects, localOptions.Regex, localOptions.Filename, localOptions.Insensitive);
         }
 
+        protected override bool ComputeTargets(FileBaseCommandVerbOptions options)
+        {
+            if (!base.ComputeTargets(options))
+            {
+                FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;
+                return localOptions.All || localOptions.Tracked;
+            }
+            return true;
+        }
+
         protected override void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions options, List<Versionr.Status.StatusEntry> targets)
         {
             FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;

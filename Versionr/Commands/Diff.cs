@@ -167,8 +167,8 @@ namespace Versionr.Commands
                     continue;
                 bool isWhitespace = true;
                 bool isShort = false;
-                if (diff[i + 1].common.Count * 2 < diff[i].file1.Count &&
-                    diff[i + 1].common.Count * 2 < diff[i].file2.Count)
+                if (diff[i + 1].common.Count * 2 <= diff[i].file1.Count &&
+                    diff[i + 1].common.Count * 2 <= diff[i].file2.Count)
                     isShort = true;
                 foreach (var x in diff[i + 1].common)
                 {

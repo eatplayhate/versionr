@@ -54,7 +54,17 @@ namespace Versionr.Commands
 		{
 			RecordVerbOptions localOptions = options as RecordVerbOptions;
 			return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive, new Action<Versionr.Status.StatusEntry, StatusCode, bool>(RecordFeedback));
-		}
+        }
+
+        protected override bool ComputeTargets(FileBaseCommandVerbOptions options)
+        {
+            if (!base.ComputeTargets(options))
+            {
+                RecordVerbOptions localOptions = options as RecordVerbOptions;
+                return localOptions.All || localOptions.Tracked;
+            }
+            return true;
+        }
 
         protected void RecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code, bool auto)
         {
