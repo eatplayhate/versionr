@@ -2412,7 +2412,7 @@ namespace Versionr
             }
         }
 
-        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord, bool interactive)
+        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord, bool interactive, Action<Versionr.Status.StatusEntry, StatusCode> callback = null)
         {
 			foreach (var x in targets)
             {
@@ -2445,7 +2445,7 @@ namespace Versionr
                 }
                 if (x.Staged == true)
                 {
-                    Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
+                    //Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
 					LocalData.BeginTransaction();
 					try
 					{
@@ -2462,11 +2462,18 @@ namespace Versionr
 					{
 						LocalData.Rollback();
 						throw new Exception("Unable to remove stage operations!", e);
-					}
-				}
+                    }
+                    if (callback != null)
+                    {
+                        callback(x,
+                            (x.Code == StatusCode.Deleted ? StatusCode.Missing :
+                            (x.Code == StatusCode.Added ? StatusCode.Unversioned :
+                            x.Code)));
+                    }
+                }
                 else if (x.Code == StatusCode.Conflict)
                 {
-                    Printer.PrintMessage("Marking {0} as resolved.", x.CanonicalName);
+                    //Printer.PrintMessage("Marking {0} as resolved.", x.CanonicalName);
                     LocalData.BeginTransaction();
                     try
                     {
@@ -2484,6 +2491,8 @@ namespace Versionr
                         LocalData.Rollback();
                         throw new Exception("Unable to remove stage operations!", e);
                     }
+                    if (callback != null)
+                        callback(x, StatusCode.Modified);
                 }
 
 				if (revertRecord && x.Code != StatusCode.Unchanged)
@@ -2491,7 +2500,7 @@ namespace Versionr
 					Record rec = Database.Records.Where(z => z.CanonicalName == x.CanonicalName).FirstOrDefault();
 					if (rec != null)
 					{
-						Printer.PrintMessage("Restoring pristine copy of {0}", x.CanonicalName);
+						Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
 						RestoreRecord(rec, DateTime.UtcNow);
 					}
 				}

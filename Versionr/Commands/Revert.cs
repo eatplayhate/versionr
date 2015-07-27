@@ -31,12 +31,12 @@ namespace Versionr.Commands
         public bool Interactive { get; set; }
 
     }
-	class Revert : FileCommand
+	class Revert : Unrecord
 	{
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RevertVerbOptions localOptions = options as RevertVerbOptions;
-			ws.Revert(targets, true, localOptions.Interactive);
+			ws.Revert(targets, true, localOptions.Interactive, UnrecordFeedback);
 			return true;
 		}
 
