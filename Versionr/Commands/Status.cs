@@ -137,6 +137,11 @@ namespace Versionr.Commands
             return text;
         }
 
+        protected override bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
+        {
+            return true;
+        }
+
         public static Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
         {
             return GetStatusText(x.Code, x.Staged);
