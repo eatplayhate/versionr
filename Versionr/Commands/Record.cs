@@ -56,7 +56,7 @@ namespace Versionr.Commands
 			return ws.RecordChanges(status, targets, localOptions.Missing, localOptions.Interactive, new Action<Versionr.Status.StatusEntry, StatusCode, bool>(RecordFeedback));
 		}
 
-        private void RecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code, bool auto)
+        protected void RecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code, bool auto)
         {
             var previous = Status.GetStatusText(entry);
             var now = Status.GetStatusText(code, true);

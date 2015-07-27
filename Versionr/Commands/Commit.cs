@@ -52,7 +52,7 @@ namespace Versionr.Commands
         public string Message { get; set; }
 
     }
-    class Commit : FileCommand
+    class Commit : Record
     {
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
@@ -60,7 +60,7 @@ namespace Versionr.Commands
 
             if (targets != null && targets.Count > 0)
             {
-                ws.RecordChanges(status, targets, localOptions.Missing, false);
+                ws.RecordChanges(status, targets, localOptions.Missing, false, RecordFeedback);
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;
