@@ -56,12 +56,6 @@ namespace Versionr.Commands
 		{
             CommitVerbOptions localOptions = options as CommitVerbOptions;
 
-            for (int i =0; i < 15; i++)
-            {
-                var ss = ws.Status;
-            }
-            //return false;
-
             if (targets != null && targets.Count > 0)
             {
                 ws.RecordChanges(status, targets, localOptions.Missing, false, RecordFeedback);
