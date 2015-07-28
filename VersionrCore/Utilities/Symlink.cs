@@ -89,6 +89,10 @@ namespace Versionr.Utilities
 				return SymlinkWin32.GetTarget(path);
 		}
 
+		public class TargetNotFoundException : Exception
+		{
+		}
+
 		private class SymlinkWin32
 		{
 			[DllImport("kernel32.dll", SetLastError = true)]
@@ -96,7 +100,14 @@ namespace Versionr.Utilities
 
 			public static bool CreateSymlink(string path, string target)
 			{
-				bool asDirectory = path.EndsWith("/");
+				// Work out what the symlink is pointing to. Is it a file or directory?
+				string targetPath = Path.Combine(Path.GetDirectoryName(path), target);
+				bool asDirectory = Directory.Exists(targetPath);
+				if (!asDirectory && !File.Exists(targetPath))
+				{
+					throw new TargetNotFoundException();
+                }
+
 				target = target.Replace('/', '\\');
 
 				if (!CreateSymbolicLink(path, target, asDirectory ? targetIsADirectory : targetIsAFile) || Marshal.GetLastWin32Error() != 0)
