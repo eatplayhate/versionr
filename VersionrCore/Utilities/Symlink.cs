@@ -25,7 +25,10 @@ namespace Versionr.Utilities
         }
         public static bool Exists(FileSystemInfo info)
         {
-            if (info.Exists)
+			if (SvnIntegration.ApliesTo(info.FullName))
+				return SvnIntegration.IsSymlink(info.FullName);
+
+			if (info.Exists)
                 return info.Attributes.HasFlag(FileAttributes.ReparsePoint);
             return false;
         }
