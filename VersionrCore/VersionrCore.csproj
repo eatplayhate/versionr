@@ -104,6 +104,7 @@
     <Compile Include="Utilities\Murmur3.cs" />
     <Compile Include="Utilities\RestrictedStream.cs" />
     <Compile Include="Utilities\SQLiteExtensions.cs" />
+    <Compile Include="Utilities\SvnIntegration.cs" />
     <Compile Include="Utilities\Symlink.cs" />
     <Compile Include="WorkspaceDB.cs" />
   </ItemGroup>

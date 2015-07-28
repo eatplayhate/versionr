@@ -13,6 +13,9 @@ namespace Versionr.Utilities
 	{
 		public static bool Exists(string path)
 		{
+			if (SvnIntegration.ApliesTo(path))
+				return SvnIntegration.IsSymlink(path);
+
 			path = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
 			FileInfo file = new FileInfo(path);
 			if (file.Exists)
@@ -25,6 +28,12 @@ namespace Versionr.Utilities
 		{
 			if (!Exists(path))
 				return;
+
+			if (SvnIntegration.ApliesTo(path))
+			{
+				SvnIntegration.DeleteSymlink(path);
+				return;
+			}
 
 			if (MultiArchPInvoke.IsRunningOnMono)
 				SymlinkMono.Delete(path);
@@ -48,6 +57,9 @@ namespace Versionr.Utilities
 				}
 			}
 
+			if (SvnIntegration.ApliesTo(path))
+				return SvnIntegration.CreateSymlink(path, target);
+
 			if (MultiArchPInvoke.IsRunningOnMono)
 				return SymlinkMono.CreateSymlink(path, target);
 			else
@@ -58,6 +70,9 @@ namespace Versionr.Utilities
 		{
 			if (!Exists(path))
 				return null;
+
+			if (SvnIntegration.ApliesTo(path))
+				return SvnIntegration.GetSymlinkTarget(path);
 
 			if (MultiArchPInvoke.IsRunningOnMono)
 				return SymlinkMono.GetTarget(path);
