@@ -286,7 +286,18 @@ namespace Versionr
                 {
                     foreach (var y in records)
                     {
-                        if (y.Size != 0 && x.Value.Length == y.Size && x.Value.Hash == y.Fingerprint)
+						bool isMatch = true;
+						if (y.IsDirectory || x.Value.Length != y.Size || x.Value.Attributes != y.Attributes)
+							isMatch = false;
+						if (isMatch)
+						{
+							if (y.IsSymlink)
+								isMatch = (y.Fingerprint == x.Value.SymlinkTarget);
+							else
+								isMatch = (y.Fingerprint == x.Value.Hash);
+						}
+
+						if (isMatch)
                         {
                             StageFlags otherFlags;
                             stageInformation.TryGetValue(y.CanonicalName, out otherFlags);
