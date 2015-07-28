@@ -10,8 +10,13 @@ namespace Versionr.Utilities
 {
 	public class SvnIntegration
 	{
+		public static Regex[] SymlinkPatterns { get; internal set; }
+
 		public static bool ApliesTo(string path)
 		{
+			if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
+				return false;
+
 			// Only for windows
 			if (MultiArchPInvoke.IsRunningOnMono)
 				return false;
@@ -19,7 +24,15 @@ namespace Versionr.Utilities
 			if (Directory.Exists(path))
 				return false;
 
-			return true;
+			path = path.Replace('\\', '/');
+			foreach (var x in SymlinkPatterns)
+			{
+				var match = x.Match(path);
+				if (match.Success)
+					return true;
+			}
+
+			return false;
 		}
 		public static bool IsSymlink(string path)
 		{
