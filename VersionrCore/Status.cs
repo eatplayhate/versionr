@@ -298,16 +298,12 @@ namespace Versionr
                                 {
                                     Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = y });
                                 }
-                                else if (!snapshotData.ContainsKey(y.CanonicalName))
-                                {
-                                    Elements.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = y });
-                                }
                                 else
                                 {
                                     Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = y });
                                 }
-                                goto Next;
                             }
+                            goto Next;
                         }
                     }
                     if (objectFlags.HasFlag(StageFlags.Recorded))
