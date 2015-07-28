@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 4;
+        public const int LocalDBVersion = 5;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -121,12 +121,16 @@ namespace Versionr
 
         private bool Upgrade()
         {
-            if (Configuration.Version == 3)
+            if (Configuration.Version != LocalDBVersion)
+                Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
+            if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;
                 config.Version = LocalDBVersion;
                 try
                 {
+                    var fs = LoadFileTimes();
+                    ReplaceFileTimes(fs);
                     BeginTransaction();
                     Update(config);
                     Commit();
