@@ -345,7 +345,7 @@ namespace Versionr.Network
                 Branch branch = ws.GetBranch(x.Key);
                 VersionInfo result;
                 string error;
-                result = ws.MergeRemote(ws.GetVersion(x.Value), temporaryHeads[x.Key].Version, clientInfo.SharedInfo, out error);
+                result = ws.MergeRemote(ws.GetLocalOrRemoteVersion(x.Value, clientInfo.SharedInfo), temporaryHeads[x.Key].Version, clientInfo.SharedInfo, out error);
                 if (result == null)
                 {
                     // safe merge?
@@ -378,6 +378,8 @@ namespace Versionr.Network
         private static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, ClientStateInfo clientInfo, Area ws)
         {
             Guid nextVersionToCheck = possibleChild;
+            if (ancestor == possibleChild)
+                return true;
             while (true)
             {
                 if (checkedVersions.Contains(nextVersionToCheck))

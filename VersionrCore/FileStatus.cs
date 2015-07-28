@@ -71,7 +71,7 @@ namespace Versionr
                 Attributes = Attributes | Objects.Attributes.Hidden;
             if (info.Attributes.HasFlag(FileAttributes.ReadOnly))
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
-			if (Utilities.Symlink.Exists(info.FullName))
+			if (Utilities.Symlink.Exists(info))
 				Attributes = Attributes | Objects.Attributes.Symlink;
         }
 
@@ -117,7 +117,7 @@ namespace Versionr
             Length = Info.Length;
             ModificationTime = Info.LastWriteTimeUtc;
 
-			if (Utilities.Symlink.Exists(Info.FullName))
+			if (Utilities.Symlink.Exists(Info))
 			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
 				Length = 0;

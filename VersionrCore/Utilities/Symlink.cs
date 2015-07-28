@@ -22,9 +22,15 @@ namespace Versionr.Utilities
 				return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
 			DirectoryInfo dir = new DirectoryInfo(path);
 			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
-		}
+        }
+        public static bool Exists(FileSystemInfo info)
+        {
+            if (info.Exists)
+                return info.Attributes.HasFlag(FileAttributes.ReparsePoint);
+            return false;
+        }
 
-		public static void Delete(string path)
+        public static void Delete(string path)
 		{
 			if (!Exists(path))
 				return;
