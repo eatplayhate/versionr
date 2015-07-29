@@ -596,10 +596,29 @@ namespace Versionr.Utilities
                 result.Add(cc);
             }
 
-            //processCommon(ref common, result);
+			if (file1.Length != head0 || file2.Length != head1)
+			{
+				commonOrDifferentThing difference = new commonOrDifferentThing()
+				{
+					file1 = new List<string>(),
+					file2 = new List<string>()
+				};
+				if (file1.Length != head0)
+				{
+					for (; head0 < file1.Length; head0++)
+						difference.file1.Add(file1[head0]);
+				}
+				if (file2.Length != head1)
+				{
+					for (; head1 < file2.Length; head1++)
+						difference.file2.Add(file2[head1]);
+				}
+				result.Add(difference);
+			}
+			//processCommon(ref common, result);
 
-            //result.Reverse();
-            return result;
+			//result.Reverse();
+			return result;
         }
 
         public static List<patchResult> diff_patch(string[] file1, string[] file2)
