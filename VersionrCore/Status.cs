@@ -157,6 +157,8 @@ namespace Versionr
         }
         internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null)
         {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
             RestrictedPath = restrictedPath;
             Workspace = workspace;
             CurrentVersion = db.Version;
@@ -262,12 +264,31 @@ namespace Versionr
                     }));
                 }
                 Task.WaitAll(tasks.ToArray());
+                Printer.PrintDiagnostics("Status record checking: {0}", sw.ElapsedTicks);
+                sw.Restart();
             }
             finally
             {
                 Workspace.ReplaceFileTimes();
             }
+            Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
+            sw.Restart();
             Elements.AddRange(tasks.Where(x => x != null).Select(x => x.Result));
+            Dictionary<long, Dictionary<string, Record>> recordSizeMap = new Dictionary<long, Dictionary<string, Record>>();
+            foreach (var x in records)
+            {
+                if (x.Size == 0 || !x.IsFile)
+                    continue;
+                Dictionary<string, Record> hashes = null;
+                if (!recordSizeMap.TryGetValue(x.Size, out hashes))
+                {
+                    hashes = new Dictionary<string, Record>();
+                    recordSizeMap[x.Size] = hashes;
+                }
+                hashes[x.Fingerprint] = x;
+            }
+            Printer.PrintDiagnostics("Status create size map: {0}", sw.ElapsedTicks);
+            sw.Restart();
             foreach (var x in snapshotData)
             {
                 if (x.Value.IsDirectory)
@@ -284,27 +305,30 @@ namespace Versionr
                 stageInformation.TryGetValue(x.Value.CanonicalName, out objectFlags);
                 if (!foundEntries.Contains(x.Value))
                 {
-                    foreach (var y in records)
+                    Record possibleRename = null;
+                    Dictionary<string, Record> hashes = null;
+                    if (recordSizeMap.TryGetValue(x.Value.Length, out hashes))
                     {
-                        if (y.Size != 0 && x.Value.Length == y.Size && x.Value.Hash == y.Fingerprint)
+                        hashes.TryGetValue(x.Value.Hash, out possibleRename);
+                    }
+                    if (possibleRename != null)
+                    {
+                        StageFlags otherFlags;
+                        stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
+                        if (otherFlags.HasFlag(StageFlags.Removed))
+                            Elements.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
+                        else
                         {
-                            StageFlags otherFlags;
-                            stageInformation.TryGetValue(y.CanonicalName, out otherFlags);
-                            if (otherFlags.HasFlag(StageFlags.Removed))
-                                Elements.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = y });
+                            if (objectFlags.HasFlag(StageFlags.Recorded))
+                            {
+                                Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = possibleRename });
+                            }
                             else
                             {
-                                if (objectFlags.HasFlag(StageFlags.Recorded))
-                                {
-                                    Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = y });
-                                }
-                                else
-                                {
-                                    Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = y });
-                                }
+                                Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = possibleRename });
                             }
-                            goto Next;
                         }
+                        goto Next;
                     }
                     if (objectFlags.HasFlag(StageFlags.Recorded))
                     {
@@ -320,10 +344,13 @@ namespace Versionr
                     Next:;
                 }
             }
+            Printer.PrintDiagnostics("Status new file reconciliation: {0}", sw.ElapsedTicks);
+            sw.Restart();
 
-			Map = new Dictionary<string, StatusEntry>();
+            Map = new Dictionary<string, StatusEntry>();
 			foreach (var x in Elements)
 				Map[x.CanonicalName] = x;
+            Printer.PrintDiagnostics("Status finalization: {0}", sw.ElapsedTicks);
         }
 
 		public List<StatusEntry> GetElements(IList<string> files, bool regex, bool filenames, bool caseInsensitive)
