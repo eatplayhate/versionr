@@ -2759,7 +2759,8 @@ namespace Versionr
                                     break;
                                 }
                             case StatusCode.Unchanged:
-                                finalRecords.Add(x.VersionControlRecord);
+							case StatusCode.Missing:
+								finalRecords.Add(x.VersionControlRecord);
                                 break;
                             case StatusCode.Unversioned:
                             default:
