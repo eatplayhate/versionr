@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 3;
+        public const int LocalDBVersion = 5;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -97,7 +97,7 @@ namespace Versionr
         {
             get
             {
-                return Configuration.Version == LocalDBVersion;
+                return Configuration.Version >= LocalDBVersion;
             }
         }
 
@@ -121,12 +121,35 @@ namespace Versionr
 
         private bool Upgrade()
         {
-            if (Configuration.Version == 2)
+            if (Configuration.Version != LocalDBVersion)
+                Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
+            if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;
                 config.Version = LocalDBVersion;
                 try
                 {
+                    var fs = LoadFileTimes();
+                    ReplaceFileTimes(fs);
+                    BeginTransaction();
+                    Update(config);
+                    Commit();
+                    ExecuteDirect("VACUUM");
+                    return true;
+                }
+                catch
+                {
+                    Rollback();
+                    return false;
+                }
+            }
+            else if (Configuration.Version == 2)
+            {
+                Configuration config = Configuration;
+                config.Version = LocalDBVersion;
+                try
+                {
+                    BeginTransaction();
                     Update(config);
                     RefreshLocalTimes = true;
                     Commit();
@@ -188,19 +211,24 @@ namespace Versionr
                 {
                     BeginTransaction();
 
-                    var oldList = LoadFileTimes();
+                    DropTable<LocalState.FileTimestamp>();
+                    CreateTable<LocalState.FileTimestamp>();
+                    Commit();
+                    BeginTransaction();
+                    //var oldList = LoadFileTimes();
                     foreach (var x in filetimes)
                     {
                         LocalState.FileTimestamp fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
                         Insert(fst);
                     }
-                    foreach (var x in oldList)
-                    {
-                        if (!filetimes.ContainsKey(x.Key))
-                            Delete<LocalState.FileTimestamp>(x.Value.Id);
-                    }
+                    //foreach (var x in oldList)
+                    //{
+                    //    if (!filetimes.ContainsKey(x.Key))
+                    //        Delete<LocalState.FileTimestamp>(x.Value.Id);
+                    //}
 
                     Commit();
+                    var oldList = LoadFileTimes();
                 }
                 catch
                 {
@@ -269,7 +297,7 @@ namespace Versionr
         {
             Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
             bool refresh = false;
-            foreach (var x in Table<LocalState.FileTimestamp>())
+            foreach (var x in Table<LocalState.FileTimestamp>().ToList())
             {
                 if (x.CanonicalName != null)
                     result[x.CanonicalName] = x;

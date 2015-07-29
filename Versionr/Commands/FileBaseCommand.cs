@@ -36,21 +36,30 @@ namespace Versionr.Commands
             FileBaseCommandVerbOptions localOptions = options as FileBaseCommandVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
 
-            var status = Workspace.GetStatus(ActiveDirectory);
-            List<Versionr.Status.StatusEntry> targets;
+            Versionr.Status status = null;
+            List<Versionr.Status.StatusEntry> targets = null;
+            if (ComputeTargets(localOptions))
+            {
+                status = Workspace.GetStatus(ActiveDirectory);
 
-            GetInitialList(status, localOptions, out targets);
+                GetInitialList(status, localOptions, out targets);
 
-            if (localOptions.Recursive)
-                status.AddRecursiveElements(targets);
+                if (localOptions.Recursive)
+                    status.AddRecursiveElements(targets);
 
-            ApplyFilters(status, localOptions, targets);
+                ApplyFilters(status, localOptions, targets);
+            }
 
-            if (targets.Count > 0 || !RequiresTargets)
+            if ((targets != null && targets.Count > 0) || !RequiresTargets)
                 return RunInternal(Workspace, status, targets, localOptions);
 
             Printer.PrintWarning("No files selected for {0}", localOptions.Verb);
             return false;
+        }
+
+        protected virtual bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
+        {
+            return (localOptions.Objects != null && localOptions.Objects.Count > 0);
         }
 
         protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, List<Versionr.Status.StatusEntry> targets)

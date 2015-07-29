@@ -71,9 +71,13 @@ namespace Versionr
                 Attributes = Attributes | Objects.Attributes.Hidden;
             if (info.Attributes.HasFlag(FileAttributes.ReadOnly))
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
-			if (Utilities.Symlink.Exists(info.FullName))
+			if (Utilities.Symlink.Exists(info))
+			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
-        }
+				if (CanonicalName.EndsWith("/"))
+					CanonicalName = canonicalName.Substring(0, canonicalName.Length - 1);
+			}
+		}
 
         internal bool DataEquals(string fingerprint, long size)
         {
@@ -117,7 +121,7 @@ namespace Versionr
             Length = Info.Length;
             ModificationTime = Info.LastWriteTimeUtc;
 
-			if (Utilities.Symlink.Exists(Info.FullName))
+			if (Utilities.Symlink.Exists(Info))
 			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
 				Length = 0;
@@ -130,6 +134,9 @@ namespace Versionr
 
         internal static string CheckHash(FileInfo info)
         {
+#if SHOW_HASHES
+            Printer.PrintDiagnostics("Hashing: {0}", info.FullName);
+#endif
             using (var hasher = System.Security.Cryptography.SHA1.Create())
             using (var fs = info.OpenRead())
             {
@@ -198,7 +205,7 @@ namespace Versionr
             }
 
 			// Don't add children for symlinks.
-			if (Utilities.Symlink.Exists(info.FullName))
+			if (Utilities.Symlink.Exists(info))
 				return result;
 
             foreach (var x in info.GetFiles())

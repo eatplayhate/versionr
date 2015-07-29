@@ -1952,6 +1952,8 @@ namespace SQLite
 
         public Column PK { get; private set; }
 
+        public bool WantsRowID { get; set; }
+
 		public string GetByPrimaryKeySql { get; private set; }
 
 		Column _autoPk;
@@ -2005,6 +2007,8 @@ namespace SQLite
             ColumnMap = new Dictionary<string, Column>();
             foreach (var c in ReadOnlyColumns)
             {
+                if (c.Name == "rowid")
+                    WantsRowID = true;
                 ColumnMap[c.Name] = c;
                 c.CreateReaderFunction();
             }
@@ -2022,11 +2026,17 @@ namespace SQLite
 			HasAutoIncPK = _autoPk != null;
 
 			if (PK != null) {
-				GetByPrimaryKeySql = string.Format ("select rowid, * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
+                if (WantsRowID)
+                    GetByPrimaryKeySql = string.Format("select rowid, * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
+                else
+                    GetByPrimaryKeySql = string.Format ("select * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
 			}
 			else {
 				// People should not be calling Get/Find without a PK
-				GetByPrimaryKeySql = string.Format ("select rowid, * from \"{0}\" limit 1", TableName);
+                if (WantsRowID)
+                    GetByPrimaryKeySql = string.Format("select rowid, * from \"{0}\" limit 1", TableName);
+                else
+                    GetByPrimaryKeySql = string.Format ("select * from \"{0}\" limit 1", TableName);
 			}
 			_insertCommandMap = new ConcurrentStringDictionary ();
 		}
@@ -3029,8 +3039,12 @@ namespace SQLite
 				throw new NotSupportedException ("Joins are not supported.");
 			}
 			else {
-				var cmdText = "select rowid, " + selectionList + " from \"" + Table.TableName + "\"";
-				var args = new List<object> ();
+                string cmdText;
+                if (Table.WantsRowID)
+    				cmdText = "select rowid, " + selectionList + " from \"" + Table.TableName + "\"";
+                else
+                    cmdText = "select " + selectionList + " from \"" + Table.TableName + "\"";
+                var args = new List<object> ();
 				if (_where != null) {
 					var w = CompileExpr (_where, args);
 					cmdText += " where " + w.CommandText;

@@ -7,8 +7,8 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class CommitVerbOptions : FileCommandVerbOptions
-	{
+    class CommitVerbOptions : RecordVerbOptions
+    {
         [Option('f', "force", HelpText = "Forces the commit to happen even if it would create a new branch head.")]
         public bool Force { get; set; }
 
@@ -50,7 +50,7 @@ namespace Versionr.Commands
         public string Message { get; set; }
 
     }
-    class Commit : FileCommand
+    class Commit : Record
     {
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
@@ -58,14 +58,14 @@ namespace Versionr.Commands
 
             if (targets != null && targets.Count > 0)
             {
-                ws.RecordChanges(status, targets, false, false);
+                ws.RecordChanges(status, targets, localOptions.Missing, false, RecordFeedback);
             }
             if (!ws.Commit(localOptions.Message, localOptions.Force))
                 return false;
             return true;
         }
 
-		protected override bool RequiresTargets { get { return false; } }
+        protected override bool RequiresTargets { get { return false; } }
 
 	}
 }
