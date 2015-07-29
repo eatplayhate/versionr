@@ -2877,8 +2877,8 @@ namespace Versionr
 				string path = Path.Combine(Root.FullName, rec.CanonicalName);
 				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
 				{
-					Utilities.Symlink.Create(path, rec.Fingerprint, true);
-					Printer.PrintMessage("Creating symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
+					if (Utilities.Symlink.Create(path, rec.Fingerprint, true))
+						Printer.PrintMessage("Created symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
 				}
 				return;
 			}

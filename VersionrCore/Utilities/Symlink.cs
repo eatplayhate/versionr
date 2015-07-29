@@ -54,15 +54,19 @@ namespace Versionr.Utilities
 		{
 			if (clearExisting)
 			{
-				if (Exists(path))
-					Delete(path);
-				else
+				try
 				{
-					string clearPath = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
-					if (File.Exists(clearPath))
-						File.Delete(clearPath);
-					else if (Directory.Exists(clearPath))
-						Directory.Delete(clearPath);
+					if (Exists(path))
+						Delete(path);
+					else if (File.Exists(path))
+						File.Delete(path);
+					else if (Directory.Exists(path))
+						Directory.Delete(path);
+				}
+				catch
+				{
+					Printer.PrintError("Could not create symlink {0}, it is obstructed!", path);
+					return false;
 				}
 			}
 
