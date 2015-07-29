@@ -1931,7 +1931,17 @@ namespace Versionr
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion);
             Dictionary<Guid, int> localGraph = GetParentGraph(version);
-            var shared = new List<KeyValuePair<Guid, int>>(foreignGraph.Where(x => localGraph.ContainsKey(x.Key)).OrderBy(x => x.Value));
+            List<KeyValuePair<Guid, int>> shared = new List<KeyValuePair<Guid, int>>();
+            foreach (var x in foreignGraph)
+            {
+                int distance;
+                if (localGraph.TryGetValue(x.Key, out distance))
+                {
+                    distance = System.Math.Max(x.Value, distance);
+                    shared.Add(new KeyValuePair<Guid, int>(x.Key, distance));
+                }
+            }
+            shared = shared.OrderBy(x => x.Value).ToList();
             if (shared.Count == 0)
                 return null;
             HashSet<Guid> ignored = new HashSet<Guid>();
@@ -2246,11 +2256,43 @@ namespace Versionr
                 canonicalNames.Add(x.CanonicalName);
             }
             Task.WaitAll(tasks.ToArray());
+			List<Record> pendingSymlinks = new List<Record>();
 			foreach (var x in targetRecords.Where(x => x.IsSymlink))
 			{
-				RestoreRecord(x, newRefTime);
-				canonicalNames.Add(x.CanonicalName);
+				try
+				{
+					RestoreRecord(x, newRefTime);
+				}
+				catch (Utilities.Symlink.TargetNotFoundException e)
+				{
+					Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
+					pendingSymlinks.Add(x);
+				}
+                canonicalNames.Add(x.CanonicalName);
 			}
+			int attempts = 5;
+			while (attempts > 0)
+			{
+				attempts--;
+				List<Record> done = new List<Record>();
+				foreach (var x in pendingSymlinks)
+				{
+					try
+					{
+						RestoreRecord(x, newRefTime);
+						done.Add(x);
+						Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
+					}
+					catch (Utilities.Symlink.TargetNotFoundException e)
+					{
+						// do nothing...
+						if (attempts == 0)
+							Printer.PrintError("Could not create symlink {0}, because {1} could not be resolved", x.CanonicalName, x.Fingerprint);
+					}
+				}
+				foreach (var x in done)
+					pendingSymlinks.Remove(x);
+            }
 			foreach (var x in records.Where(x => !x.IsDirectory && !x.IsSymlink))
             {
                 if (!canonicalNames.Contains(x.CanonicalName))
@@ -2727,7 +2769,8 @@ namespace Versionr
                                     break;
                                 }
                             case StatusCode.Unchanged:
-                                finalRecords.Add(x.VersionControlRecord);
+							case StatusCode.Missing:
+								finalRecords.Add(x.VersionControlRecord);
                                 break;
                             case StatusCode.Unversioned:
                             default:
@@ -2845,8 +2888,8 @@ namespace Versionr
 				string path = Path.Combine(Root.FullName, rec.CanonicalName);
 				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
 				{
-					Printer.PrintMessage("Creating symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
-					Utilities.Symlink.Create(path, rec.Fingerprint, true);
+					if (Utilities.Symlink.Create(path, rec.Fingerprint, true))
+						Printer.PrintMessage("Created symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
 				}
 				return;
 			}

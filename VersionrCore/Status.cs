@@ -182,6 +182,7 @@ namespace Versionr
                 recordCanonicalNames.Add(x.CanonicalName);
             MergeInputs = new List<Objects.Version>();
             Dictionary<string, StageFlags> stageInformation = new Dictionary<string, StageFlags>();
+			Dictionary<Record, StatusEntry> statusMap = new Dictionary<Record, StatusEntry>();
             foreach (var x in stage)
             {
                 if (x.Type == LocalState.StageOperationType.Merge)
@@ -273,7 +274,15 @@ namespace Versionr
             }
             Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
             sw.Restart();
-            Elements.AddRange(tasks.Where(x => x != null).Select(x => x.Result));
+			foreach (var x in tasks)
+			{
+				if (x == null)
+					continue;
+
+				Elements.Add(x.Result);
+				if (x.Result.VersionControlRecord != null)
+					statusMap[x.Result.VersionControlRecord] = x.Result;
+			}
             Dictionary<long, Dictionary<string, Record>> recordSizeMap = new Dictionary<long, Dictionary<string, Record>>();
             foreach (var x in records)
             {
@@ -316,8 +325,11 @@ namespace Versionr
                         StageFlags otherFlags;
                         stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
                         if (otherFlags.HasFlag(StageFlags.Removed))
-                            Elements.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
-                        else
+						{
+							Elements.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
+							statusMap[possibleRename].Code = StatusCode.Ignored;
+						}
+						else
                         {
                             if (objectFlags.HasFlag(StageFlags.Recorded))
                             {

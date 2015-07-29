@@ -13,6 +13,9 @@ namespace Versionr.Utilities
 	{
 		public static bool Exists(string path)
 		{
+			if (SvnIntegration.ApliesTo(path))
+				return SvnIntegration.IsSymlink(path);
+
 			path = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
 			FileInfo file = new FileInfo(path);
 			if (file.Exists)
@@ -22,7 +25,10 @@ namespace Versionr.Utilities
         }
         public static bool Exists(FileSystemInfo info)
         {
-            if (info.Exists)
+			if (SvnIntegration.ApliesTo(info.FullName))
+				return SvnIntegration.IsSymlink(info.FullName);
+
+			if (info.Exists)
                 return info.Attributes.HasFlag(FileAttributes.ReparsePoint);
             return false;
         }
@@ -31,6 +37,12 @@ namespace Versionr.Utilities
 		{
 			if (!Exists(path))
 				return;
+
+			if (SvnIntegration.ApliesTo(path))
+			{
+				SvnIntegration.DeleteSymlink(path);
+				return;
+			}
 
 			if (MultiArchPInvoke.IsRunningOnMono)
 				SymlinkMono.Delete(path);
@@ -42,17 +54,24 @@ namespace Versionr.Utilities
 		{
 			if (clearExisting)
 			{
-				if (Exists(path))
-					Delete(path);
-				else
+				try
 				{
-					string clearPath = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
-					if (File.Exists(clearPath))
-						File.Delete(clearPath);
-					else if (Directory.Exists(clearPath))
-						Directory.Delete(clearPath);
+					if (Exists(path))
+						Delete(path);
+					else if (File.Exists(path))
+						File.Delete(path);
+					else if (Directory.Exists(path))
+						Directory.Delete(path);
+				}
+				catch
+				{
+					Printer.PrintError("Could not create symlink {0}, it is obstructed!", path);
+					return false;
 				}
 			}
+
+			if (SvnIntegration.ApliesTo(path))
+				return SvnIntegration.CreateSymlink(path, target);
 
 			if (MultiArchPInvoke.IsRunningOnMono)
 				return SymlinkMono.CreateSymlink(path, target);
@@ -65,10 +84,17 @@ namespace Versionr.Utilities
 			if (!Exists(path))
 				return null;
 
+			if (SvnIntegration.ApliesTo(path))
+				return SvnIntegration.GetSymlinkTarget(path);
+
 			if (MultiArchPInvoke.IsRunningOnMono)
 				return SymlinkMono.GetTarget(path);
 			else
 				return SymlinkWin32.GetTarget(path);
+		}
+
+		public class TargetNotFoundException : Exception
+		{
 		}
 
 		private class SymlinkWin32
@@ -78,7 +104,14 @@ namespace Versionr.Utilities
 
 			public static bool CreateSymlink(string path, string target)
 			{
-				bool asDirectory = path.EndsWith("/");
+				// Work out what the symlink is pointing to. Is it a file or directory?
+				string targetPath = Path.Combine(Path.GetDirectoryName(path), target);
+				bool asDirectory = Directory.Exists(targetPath);
+				if (!asDirectory && !File.Exists(targetPath))
+				{
+					throw new TargetNotFoundException();
+                }
+
 				target = target.Replace('/', '\\');
 
 				if (!CreateSymbolicLink(path, target, asDirectory ? targetIsADirectory : targetIsAFile) || Marshal.GetLastWin32Error() != 0)

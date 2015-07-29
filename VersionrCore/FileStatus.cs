@@ -72,8 +72,12 @@ namespace Versionr
             if (info.Attributes.HasFlag(FileAttributes.ReadOnly))
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
 			if (Utilities.Symlink.Exists(info))
+			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
-        }
+				if (CanonicalName.EndsWith("/"))
+					CanonicalName = canonicalName.Substring(0, canonicalName.Length - 1);
+			}
+		}
 
         internal bool DataEquals(string fingerprint, long size)
         {
@@ -201,7 +205,7 @@ namespace Versionr
             }
 
 			// Don't add children for symlinks.
-			if (Utilities.Symlink.Exists(info.FullName))
+			if (Utilities.Symlink.Exists(info))
 				return result;
 
             foreach (var x in info.GetFiles())
