@@ -109,6 +109,15 @@ namespace Versionr.Objects
                 return Size > 0;
             }
         }
+
+        [SQLite.Ignore]
+        public bool IsFile
+        {
+            get
+            {
+                return !IsDirectory && !IsSymlink;
+            }
+        }
     }
 
     public class RecordIndex

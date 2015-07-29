@@ -134,6 +134,9 @@ namespace Versionr
 
         internal static string CheckHash(FileInfo info)
         {
+#if SHOW_HASHES
+            Printer.PrintDiagnostics("Hashing: {0}", info.FullName);
+#endif
             using (var hasher = System.Security.Cryptography.SHA1.Create())
             using (var fs = info.OpenRead())
             {
