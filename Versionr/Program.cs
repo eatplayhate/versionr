@@ -169,6 +169,11 @@ namespace Versionr
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
 
+            if (args.Length > 1 && (args[0] == "hht"))
+            {
+                System.Console.WriteLine("{0} is {1}", args[1], Utilities.FileClassifier.Classify(new System.IO.FileInfo(args[1])).ToString());
+                return;
+            }
             if (args.Length > 2 && (args[0] == "hax" || args[0] == "hax2" || args[0] == "hax3"))
             {
                 bool mode = args[0] == "hax";
