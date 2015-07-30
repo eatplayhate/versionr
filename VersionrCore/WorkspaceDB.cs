@@ -11,7 +11,7 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 13;
+        public const int InternalDBVersion = 14;
         public const int MinimumDBVersion = 3;
         public const int MaximumDBVersion = 15;
 
@@ -71,7 +71,11 @@ namespace Versionr
                     fmt.InternalFormat = InternalDBVersion;
                     CreateTable<Objects.FormatInfo>();
                     Insert(fmt);
-                    
+
+                    if (priorFormat < 14)
+                    {
+                        ExecuteDirect("DROP TABLE RecordIndex;");
+                    }
                     if (priorFormat < 11)
                     {
                         Printer.PrintMessage(" - Upgrading database - running full consistency check.");
@@ -133,17 +137,10 @@ namespace Versionr
                             Update(x);
                         }
                     }
-                    else if (priorFormat < 6 && GetTableInfo("RecordIndex") == null)
-                    {
-                        Printer.PrintMessage(" - Upgrading database - adding record index.");
-                        foreach (var x in Table<Objects.Record>().ToList())
-                        {
-                            Objects.RecordIndex index = new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false };
-                            Insert(index);
-                        }
-                    }
 
                     Commit();
+
+                    ExecuteDirect("VACUUM");
                 }
                 catch
                 {
@@ -164,7 +161,6 @@ namespace Versionr
             CreateTable<Objects.MergeInfo>();
             CreateTable<Objects.ObjectName>();
             CreateTable<Objects.Domain>();
-            CreateTable<Objects.RecordIndex>();
         }
 
         public Guid Domain

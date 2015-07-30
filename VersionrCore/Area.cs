@@ -711,10 +711,6 @@ namespace Versionr
             rec.CanonicalNameId = cnId.Value;
 
             Database.InsertSafe(rec);
-
-            RecordIndex recIndex = new RecordIndex() { DataIdentifier = rec.DataIdentifier, Index = rec.Id, Pruned = false };
-
-            Database.InsertSafe(recIndex);
         }
 
         internal void RollbackDatabaseTransaction()
@@ -903,12 +899,10 @@ namespace Versionr
 
         internal Record GetRecordFromIdentifier(string id)
         {
-            var index = Database.Table<Objects.RecordIndex>().Where(x => x.DataIdentifier == id).FirstOrDefault();
-            if (index != null)
-                return Database.Find<Objects.Record>(index.Index);
-            else
-                Printer.PrintDiagnostics("Record not in index");
-            return null;
+            int hyphen = id.LastIndexOf('-');
+            string fingerprint = id.Substring(0, hyphen);
+            long size = long.Parse(id.Substring(hyphen + 1));
+            return Database.Table<Objects.Record>().Where(x => x.Fingerprint == fingerprint && x.Size == size).FirstOrDefault();
         }
 
         public IEnumerable<Objects.MergeInfo> GetMergeInfo(Guid iD)
@@ -2814,7 +2808,6 @@ namespace Versionr
                     foreach (var x in records)
                     {
                         Database.InsertSafe(x);
-                        Database.InsertSafe(new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false });
                     }
                     foreach (var x in alterationLinkages)
                         x.Item2.NewRecord = x.Item1.Id;
