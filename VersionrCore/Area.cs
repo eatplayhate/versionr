@@ -101,7 +101,7 @@ namespace Versionr
         public void UpdateRemoteTimestamp(RemoteConfig config)
         {
             config.LastPull = DateTime.UtcNow;
-            LocalData.Update(config);
+            LocalData.UpdateSafe(config);
         }
 
         public bool FindVersion(string target, out Objects.Version version)
@@ -589,12 +589,24 @@ namespace Versionr
             return ObjectStore.TransmitRecordData(record, sender, scratchBuffer);
         }
 
+        Dictionary<string, long?> KnownCanonicalNames = new Dictionary<string, long?>();
+
         internal Record LocateRecord(Record newRecord)
         {
-            ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == newRecord.CanonicalName);
-            if (canonicalNameId == null)
+            long? present = null;
+            if (!KnownCanonicalNames.TryGetValue(newRecord.CanonicalName, out present))
+            {
+                ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == newRecord.CanonicalName);
+                if (canonicalNameId == null)
+                {
+                    KnownCanonicalNames[newRecord.CanonicalName] = null;
+                    return null;
+                }
+                KnownCanonicalNames[newRecord.CanonicalName] = canonicalNameId.NameId;
+            }
+            if (!present.HasValue)
                 return null;
-            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime && x.CanonicalNameId == canonicalNameId.Id).ToList();
+            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime && x.CanonicalNameId == present.Value).ToList();
             foreach (var x in results)
             {
                 if (newRecord.UniqueIdentifier == x.UniqueIdentifier)
@@ -663,24 +675,6 @@ namespace Versionr
                     Database.InsertSafe(alteration);
                 }
             }
-
-            List<Record> baseList;
-            List<Alteration> alterationList;
-            var records = Database.GetRecords(x.Version, out baseList, out alterationList);
-            if (alterationList.Count > baseList.Count)
-            {
-                Objects.Snapshot snapshot = new Snapshot();
-                Database.InsertSafe(snapshot);
-                foreach (var z in records)
-                {
-                    Objects.RecordRef rref = new RecordRef();
-                    rref.RecordID = z.Id;
-                    rref.SnapshotID = snapshot.Id;
-                    Database.InsertSafe(rref);
-                }
-                x.Version.Snapshot = snapshot.Id;
-                Database.UpdateSafe(x.Version);
-            }
         }
 
         internal bool HasObjectDataDirect(string x)
@@ -695,13 +689,26 @@ namespace Versionr
 
         internal void ImportRecordNoCommit(Record rec)
         {
-            var result = Database.Find<Objects.ObjectName>(x => x.CanonicalName == rec.CanonicalName);
-            if (result == null)
+            Record r1 = LocateRecord(rec);
+            if (r1 != null)
             {
-                result = new ObjectName() { CanonicalName = rec.CanonicalName };
-                Database.InsertSafe(result);
+                rec.Id = r1.Id;
+                return;
             }
-            rec.CanonicalNameId = result.Id;
+            long? cnId = null;
+            KnownCanonicalNames.TryGetValue(rec.CanonicalName, out cnId);
+            if (!cnId.HasValue)
+            {
+                ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == rec.CanonicalName);
+                if (canonicalNameId == null)
+                {
+                    canonicalNameId = new ObjectName() { CanonicalName = rec.CanonicalName };
+                    Database.InsertSafe(canonicalNameId);
+                }
+                KnownCanonicalNames[rec.CanonicalName] = canonicalNameId.NameId;
+                cnId = canonicalNameId.NameId;
+            }
+            rec.CanonicalNameId = cnId.Value;
 
             Database.InsertSafe(rec);
 
@@ -2744,7 +2751,7 @@ namespace Versionr
                                         ObjectName nameRecord = null;
                                         if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
                                         {
-                                            record.CanonicalNameId = nameRecord.Id;
+                                            record.CanonicalNameId = nameRecord.NameId;
                                         }
                                         else
                                         {
@@ -2802,7 +2809,7 @@ namespace Versionr
                     foreach (var x in canonicalNameInsertions)
                     {
                         Database.InsertSafe(x.Item2);
-                        x.Item1.CanonicalNameId = x.Item2.Id;
+                        x.Item1.CanonicalNameId = x.Item2.NameId;
                     }
                     foreach (var x in records)
                     {
@@ -2961,7 +2968,7 @@ namespace Versionr
                     throw new Exception();
                 }
                 if (overridePath == null)
-                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastAccessTimeUtc);
+                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
             }
             catch (System.IO.IOException)
             {

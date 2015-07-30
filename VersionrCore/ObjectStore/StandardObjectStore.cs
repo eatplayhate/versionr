@@ -27,6 +27,7 @@ namespace Versionr.ObjectStore
         public List<PendingTransaction> PendingTransactions = new List<PendingTransaction>();
         public HashSet<string> Cleanup = new HashSet<string>();
         public HashSet<string> Inputs = new HashSet<string>();
+        public byte[] ScratchBuffer = new byte[1024 * 1024 * 16];
 
         internal long m_PendingBytes;
         internal int m_PendingCount;
@@ -486,7 +487,7 @@ namespace Versionr.ObjectStore
             dependency = null;
             lock (trans)
             {
-                byte[] buffer = new byte[2 * 1024 * 1024];
+                byte[] buffer = trans.ScratchBuffer;
                 string filename;
                 lock (this)
                 {

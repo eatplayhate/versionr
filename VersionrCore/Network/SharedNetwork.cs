@@ -501,7 +501,7 @@ namespace Versionr.Network
                             if (dependencies != null)
                                 dependentData.Add(dependencies);
 
-                            if (transaction.PendingRecords > 1024 || transaction.PendingRecordBytes > 256 * 1024 * 1024)
+                            if (transaction.PendingRecords > 8192 || transaction.PendingRecordBytes > 512 * 1024 * 1024)
                                 sharedInfo.Workspace.ObjectStore.FlushStorageTransaction(transaction);
                         }
                         sharedInfo.Workspace.ObjectStore.EndStorageTransaction(transaction);
