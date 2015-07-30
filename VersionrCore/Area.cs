@@ -2786,18 +2786,8 @@ namespace Versionr
                     var ws = LocalData.Workspace;
                     ws.Tip = vs.ID;
                     Objects.Snapshot ss = new Snapshot();
-                    bool saveSnapshot = false;
-                    List<Objects.RecordRef> ssRefs = new List<RecordRef>();
-                    if (st.Alterations.Count + alterations.Count > st.BaseRecords.Count)
-                    {
-                        Printer.PrintDiagnostics("Current list of {0} alterations vs snapshot size of {1} entries is above threshold.", st.Alterations.Count + alterations.Count, st.BaseRecords.Count);
-                        saveSnapshot = true;
-                        Printer.PrintDiagnostics("Creating new snapshot.");
-                    }
                     Database.BeginTransaction();
                     Database.InsertSafe(ss);
-                    if (saveSnapshot)
-                        vs.Snapshot = ss.Id;
                     vs.AlterationList = ss.Id;
                     Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
                     foreach (var x in canonicalNameInsertions)
@@ -2811,17 +2801,7 @@ namespace Versionr
                     }
                     foreach (var x in alterationLinkages)
                         x.Item2.NewRecord = x.Item1.Id;
-
-                    if (saveSnapshot)
-                    {
-                        foreach (var x in finalRecords)
-                        {
-                            Objects.RecordRef rr = new Objects.RecordRef();
-                            rr.RecordID = x.Id;
-                            rr.SnapshotID = ss.Id;
-                            ssRefs.Add(rr);
-                        }
-                    }
+                    
                     Printer.PrintDiagnostics("Adding {0} alteration records.", alterations.Count);
                     foreach (var x in alterations)
                     {
@@ -2830,12 +2810,7 @@ namespace Versionr
                     }
                     foreach (var info in mergeInfos)
                         Database.InsertSafe(info);
-                    if (saveSnapshot)
-                    {
-                        Printer.PrintDiagnostics("Adding {0} snapshot ref records.", ssRefs.Count);
-                        foreach (var x in ssRefs)
-                            Database.InsertSafe(x);
-                    }
+
                     if (newHead)
                         Database.InsertSafe(head);
                     else

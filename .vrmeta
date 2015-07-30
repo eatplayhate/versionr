@@ -23,9 +23,9 @@
 			"^\\.vs/",
 			"^ipch",
 			"^Debug/",
-			"/bin/Debug/",
+			"/Debug/",
 			"^Release/",
-			"/bin/Release/",
+			"/Release/",
 			".*\\.tlog",
 			"^x64",
 			"^lib/"

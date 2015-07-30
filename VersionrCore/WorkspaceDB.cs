@@ -11,9 +11,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 14;
+        public const int InternalDBVersion = 16;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 15;
+        public const int MaximumDBVersion = 18;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -67,18 +67,18 @@ namespace Versionr
                     }
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
-                    DropTable<Objects.FormatInfo>();
-                    fmt.InternalFormat = InternalDBVersion;
-                    CreateTable<Objects.FormatInfo>();
-                    Insert(fmt);
 
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
                     }
-                    if (priorFormat < 11)
+                    if (priorFormat < 16)
                     {
                         Printer.PrintMessage(" - Upgrading database - running full consistency check.");
+                        DropTable<RecordRef>();
+                        Commit();
+                        BeginExclusive();
+                        CreateTable<RecordRef>();
                         Dictionary<Tuple<string, long, DateTime>, Record> records = new Dictionary<Tuple<string, long, DateTime>, Record>();
                         foreach (var x in Table<Objects.Record>().ToList())
                         {
@@ -101,17 +101,40 @@ namespace Versionr
                                     Update(s);
                                     updates++;
                                 }
-                                foreach (var s in Table<RecordRef>().Where(z => z.RecordID == x.Id))
-                                {
-                                    s.RecordID = other.Id;
-                                    Update(s);
-                                    updates++;
-                                }
                                 Delete(x);
                                 Printer.PrintDiagnostics("Deleted record and updated {0} links.", updates);
                             }
                             else
                                 records[key] = x;
+                        }
+                        foreach (var x in Table<Objects.Version>().ToList())
+                        {
+                            x.Snapshot = null;
+                            Update(x);
+                            var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
+                            HashSet<long> moveAdds = new HashSet<long>();
+                            HashSet<long> moveDeletes = new HashSet<long>();
+                            foreach (var s in alterations)
+                            {
+                                if (s.Type == AlterationType.Move)
+                                {
+                                    moveAdds.Add(s.NewRecord.Value);
+                                    moveDeletes.Add(s.PriorRecord.Value);
+                                }
+                            }
+                            foreach (var s in alterations)
+                            {
+                                if (s.Type == AlterationType.Add && moveAdds.Contains(s.NewRecord.Value))
+                                {
+                                    Delete(s);
+                                    Printer.PrintDiagnostics("Cleaned up extra add in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.NewRecord.Value).CanonicalNameId).CanonicalName);
+                                }
+                                if (s.Type == AlterationType.Delete && moveDeletes.Contains(s.PriorRecord.Value))
+                                {
+                                    Delete(s);
+                                    Printer.PrintDiagnostics("Cleaned up extra delete in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.PriorRecord.Value).CanonicalNameId).CanonicalName);
+                                }
+                            }
                         }
                     }
                     else if (priorFormat == 7)
@@ -137,6 +160,10 @@ namespace Versionr
                             Update(x);
                         }
                     }
+                    DropTable<Objects.FormatInfo>();
+                    fmt.InternalFormat = InternalDBVersion;
+                    CreateTable<Objects.FormatInfo>();
+                    Insert(fmt);
 
                     Commit();
 
@@ -203,20 +230,30 @@ namespace Versionr
                     snapshotID = snapshotVersion.Snapshot;
                 else
                 {
+                    if (!snapshotVersion.Parent.HasValue)
+                        break;
                     snapshotVersion = Get<Objects.Version>(snapshotVersion.Parent);
                 }
             }
-            Printer.PrintDiagnostics(" - Last snapshot version: {0}", snapshotVersion.ID);
-            var sslist = Query<RecordRef>("SELECT * FROM RecordRef WHERE RecordRef.SnapshotID = ?", snapshotID.Value).Select(x => x.RecordID).ToList();
-            CacheRecords(sslist);
-            baseList = sslist.Select(x => GetCachedRecord(x)).ToList();
-            //baseList = Query<Record>("SELECT * FROM ObjectName INNER JOIN (SELECT Record.* FROM Record INNER JOIN RecordRef ON RecordRef.RecordID = Record.Id WHERE RecordRef.SnapshotID = ?) AS results ON ObjectName.NameId = results.CanonicalNameId", snapshotID.Value).ToList();
-            Printer.PrintDiagnostics(" - Snapshot {0} has {1} records.", snapshotID, baseList.Count);
+            if (!snapshotID.HasValue)
+            {
+                Printer.PrintDiagnostics(" - No snapshot.");
+                baseList = new List<Record>();
+            }
+            else
+            {
+                Printer.PrintDiagnostics(" - Last snapshot version: {0}", snapshotVersion.ID);
+                var sslist = Query<RecordRef>("SELECT * FROM RecordRef WHERE RecordRef.SnapshotID = ?", snapshotID.Value).Select(x => x.RecordID).ToList();
+                CacheRecords(sslist);
+                baseList = sslist.Select(x => GetCachedRecord(x)).ToList();
+                Printer.PrintDiagnostics(" - Snapshot {0} has {1} records.", snapshotID, baseList.Count);
+            }
             alterations = GetAlterationsInternal(parents);
             Printer.PrintDiagnostics(" - Target has {0} alterations.", alterations.Count);
             var finalList = Consolidate(baseList, alterations, null);
             if (baseList.Count < alterations.Count || (alterations.Count > 4096 && parents.Count > 128))
             {
+                Printer.PrintDiagnostics(" - Attempting to build new snapshot ({0} records in base list, {1} alterations over {2} revisions)", baseList.Count, alterations.Count, parents.Count);
                 try
                 {
                     BeginTransaction();
@@ -330,9 +367,10 @@ namespace Versionr
             List<long> pending = new List<long>();
 
             CacheRecords(alterations.Select(x => x.NewRecord).Where(x => x.HasValue).Select(x => x.Value));
-
+#if DEBUG
             HashSet<Tuple<long, long>> moveDeletions = new HashSet<Tuple<long, long>>();
             HashSet<Tuple<long, string>> moveAdditions = new HashSet<Tuple<long, string>>();
+#endif
             foreach (var x in alterations.Select(x => x).Reverse())
             {
                 Objects.Record rec = null;
@@ -342,16 +380,7 @@ namespace Versionr
                     case AlterationType.Copy:
                         {
                             var record = GetCachedRecord(x.NewRecord.Value);
-                            var key = new Tuple<long, string>(x.Owner, record.CanonicalName);
-                            if (!moveAdditions.Contains(key))
-                            {
-                                moveAdditions.Add(key);
-                                records[record.Id] = record;
-                            }
-                            else
-                            {
-                                int xy = 1;
-                            }
+                            records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Move:
@@ -364,40 +393,16 @@ namespace Versionr
 								deletions.Add(rec);
                             }
 							if (!records.Remove(x.PriorRecord.Value))
-                            {
-                                if (!moveDeletions.Contains(new Tuple<long, long>(x.Owner, x.PriorRecord.Value)))
-                                {
-                                    long? repaired = RelinkMissingDelete(records, x);
-                                    if (!repaired.HasValue)
-                                        throw new Exception("this is bad");
-                                }
-                            }
-                            moveDeletions.Add(new Tuple<long, long>(x.Owner, x.PriorRecord.Value));
-                            var key = new Tuple<long, string>(x.Owner, record.CanonicalName);
-                            if (!moveAdditions.Contains(key))
-                            {
-                                moveAdditions.Add(key);
-                                records[record.Id] = record;
-                            }
-                            else
-                            {
-                                int xy = 1;
-                            }
+                                throw new Exception("Consistency contraint invalid!");
+                            records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Update:
                         {
                             var record = GetCachedRecord(x.NewRecord.Value);
                             if (!records.Remove(x.PriorRecord.Value))
-							{
-								if (!moveDeletions.Contains(new Tuple<long, long>(x.Owner, x.PriorRecord.Value)))
-                                {
-                                    long? repaired = RelinkMissingDelete(records, x);
-                                    if (!repaired.HasValue)
-                                        throw new Exception("this is bad");
-                                }
-							}
-							records[record.Id] = record;
+                                throw new Exception("Consistency contraint invalid!");
+                            records[record.Id] = record;
                             break;
                         }
                     case AlterationType.Delete:
@@ -408,15 +413,7 @@ namespace Versionr
 							deletions.Add(rec);
                         }
 						if (!records.Remove(x.PriorRecord.Value))
-						{
-							if (!moveDeletions.Contains(new Tuple<long, long>(x.Owner, x.PriorRecord.Value)))
-                            {
-                                long? repaired = RelinkMissingDelete(records, x);
-                                if (!repaired.HasValue)
-                                    throw new Exception("this is bad");
-                            }
-                        }
-						moveDeletions.Add(new Tuple<long, long>(x.Owner, x.PriorRecord.Value));
+                            throw new Exception("Consistency contraint invalid!");
 						break;
                     default:
                         throw new Exception();
@@ -428,7 +425,7 @@ namespace Versionr
             foreach (var x in result)
             {
                 if (namecheck.Contains(x.CanonicalName))
-                    throw new Exception();
+                    throw new Exception("Inconsistency in internal state!");
                 namecheck.Add(x.CanonicalName);
             }
 #endif
