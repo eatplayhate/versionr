@@ -155,6 +155,8 @@ namespace Versionr
             Renamed = 4,
             Conflicted = 8,
         }
+        int UpdatedFileTimeCount = 0;
+
         internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
@@ -244,7 +246,10 @@ namespace Versionr
                                     if (snapshotRecord.Hash != x.Fingerprint)
                                         changed = true;
                                     else
+                                    {
+                                        System.Threading.Interlocked.Increment(ref this.UpdatedFileTimeCount);
                                         Workspace.UpdateFileTimeCache(x.CanonicalName, x, snapshotRecord.ModificationTime, false);
+                                    }
                                 }
                             }
                             if (changed == true)
@@ -270,7 +275,8 @@ namespace Versionr
             }
             finally
             {
-                Workspace.ReplaceFileTimes();
+                if (UpdatedFileTimeCount > 0)
+                    Workspace.ReplaceFileTimes();
             }
             Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
             sw.Restart();
