@@ -32,6 +32,16 @@ namespace Versionr.Objects
         [SQLite.LoadOnly, SQLite.Column("rowid")]
         public uint Revision { get; set; }
 
+        [SQLite.Ignore]
+        [ProtoBuf.ProtoIgnore]
+        public string ShortName
+        {
+            get
+            {
+                return ID.ToString().Substring(0, 8);
+            }
+        }
+
         public static Version Create()
         {
             Version vs = new Version();

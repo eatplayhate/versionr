@@ -36,6 +36,8 @@ namespace Versionr.Commands
             FileBaseCommandVerbOptions localOptions = options as FileBaseCommandVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
 
+            Start();
+
             Versionr.Status status = null;
             List<Versionr.Status.StatusEntry> targets = null;
             if (ComputeTargets(localOptions))
@@ -55,6 +57,10 @@ namespace Versionr.Commands
 
             Printer.PrintWarning("No files selected for {0}", localOptions.Verb);
             return false;
+        }
+
+        protected virtual void Start()
+        {
         }
 
         protected virtual bool ComputeTargets(FileBaseCommandVerbOptions localOptions)

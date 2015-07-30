@@ -10,8 +10,15 @@ namespace Versionr.Objects
     public class ObjectName
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
-        public long Id { get; set; }
+        public long NameId { get; set; }
         [ProtoBuf.ProtoMember(1)]
+        [SQLite.Indexed]
+        public string CanonicalName { get; set; }
+    }
+    public class ObjectNameOld
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public long Id { get; set; }
         [SQLite.Indexed]
         public string CanonicalName { get; set; }
     }

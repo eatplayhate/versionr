@@ -184,12 +184,14 @@ namespace Versionr
 
         public static void PrintDiagnostics(string v)
         {
-            Write(MessageType.Diagnostics, "#q#" + v + "\n");
+            if (EnableDiagnostics)
+                Write(MessageType.Diagnostics, "#q#" + v + "\n");
         }
 
         public static void PrintDiagnostics(string v, params object[] obj)
         {
-            Write(MessageType.Diagnostics, "#q#" + string.Format(v, obj) + "\n");
+            if (EnableDiagnostics)
+                Write(MessageType.Diagnostics, "#q#" + string.Format(v, obj) + "\n");
         }
 
         public static void PrintWarning(string v)

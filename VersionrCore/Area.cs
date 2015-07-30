@@ -101,7 +101,7 @@ namespace Versionr
         public void UpdateRemoteTimestamp(RemoteConfig config)
         {
             config.LastPull = DateTime.UtcNow;
-            LocalData.Update(config);
+            LocalData.UpdateSafe(config);
         }
 
         public bool FindVersion(string target, out Objects.Version version)
@@ -589,12 +589,24 @@ namespace Versionr
             return ObjectStore.TransmitRecordData(record, sender, scratchBuffer);
         }
 
+        Dictionary<string, long?> KnownCanonicalNames = new Dictionary<string, long?>();
+
         internal Record LocateRecord(Record newRecord)
         {
-            ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == newRecord.CanonicalName);
-            if (canonicalNameId == null)
+            long? present = null;
+            if (!KnownCanonicalNames.TryGetValue(newRecord.CanonicalName, out present))
+            {
+                ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == newRecord.CanonicalName);
+                if (canonicalNameId == null)
+                {
+                    KnownCanonicalNames[newRecord.CanonicalName] = null;
+                    return null;
+                }
+                KnownCanonicalNames[newRecord.CanonicalName] = canonicalNameId.NameId;
+            }
+            if (!present.HasValue)
                 return null;
-            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime && x.CanonicalNameId == canonicalNameId.Id).ToList();
+            var results = Database.Table<Objects.Record>().Where(x => x.Fingerprint == newRecord.Fingerprint && x.Size == newRecord.Size && x.ModificationTime == newRecord.ModificationTime && x.CanonicalNameId == present.Value).ToList();
             foreach (var x in results)
             {
                 if (newRecord.UniqueIdentifier == x.UniqueIdentifier)
@@ -663,24 +675,6 @@ namespace Versionr
                     Database.InsertSafe(alteration);
                 }
             }
-
-            List<Record> baseList;
-            List<Alteration> alterationList;
-            var records = Database.GetRecords(x.Version, out baseList, out alterationList);
-            if (alterationList.Count > baseList.Count)
-            {
-                Objects.Snapshot snapshot = new Snapshot();
-                Database.InsertSafe(snapshot);
-                foreach (var z in records)
-                {
-                    Objects.RecordRef rref = new RecordRef();
-                    rref.RecordID = z.Id;
-                    rref.SnapshotID = snapshot.Id;
-                    Database.InsertSafe(rref);
-                }
-                x.Version.Snapshot = snapshot.Id;
-                Database.UpdateSafe(x.Version);
-            }
         }
 
         internal bool HasObjectDataDirect(string x)
@@ -695,19 +689,28 @@ namespace Versionr
 
         internal void ImportRecordNoCommit(Record rec)
         {
-            var result = Database.Find<Objects.ObjectName>(x => x.CanonicalName == rec.CanonicalName);
-            if (result == null)
+            Record r1 = LocateRecord(rec);
+            if (r1 != null)
             {
-                result = new ObjectName() { CanonicalName = rec.CanonicalName };
-                Database.InsertSafe(result);
+                rec.Id = r1.Id;
+                return;
             }
-            rec.CanonicalNameId = result.Id;
+            long? cnId = null;
+            KnownCanonicalNames.TryGetValue(rec.CanonicalName, out cnId);
+            if (!cnId.HasValue)
+            {
+                ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == rec.CanonicalName);
+                if (canonicalNameId == null)
+                {
+                    canonicalNameId = new ObjectName() { CanonicalName = rec.CanonicalName };
+                    Database.InsertSafe(canonicalNameId);
+                }
+                KnownCanonicalNames[rec.CanonicalName] = canonicalNameId.NameId;
+                cnId = canonicalNameId.NameId;
+            }
+            rec.CanonicalNameId = cnId.Value;
 
             Database.InsertSafe(rec);
-
-            RecordIndex recIndex = new RecordIndex() { DataIdentifier = rec.DataIdentifier, Index = rec.Id, Pruned = false };
-
-            Database.InsertSafe(recIndex);
         }
 
         internal void RollbackDatabaseTransaction()
@@ -896,12 +899,10 @@ namespace Versionr
 
         internal Record GetRecordFromIdentifier(string id)
         {
-            var index = Database.Table<Objects.RecordIndex>().Where(x => x.DataIdentifier == id).FirstOrDefault();
-            if (index != null)
-                return Database.Find<Objects.Record>(index.Index);
-            else
-                Printer.PrintDiagnostics("Record not in index");
-            return null;
+            int hyphen = id.LastIndexOf('-');
+            string fingerprint = id.Substring(0, hyphen);
+            long size = long.Parse(id.Substring(hyphen + 1));
+            return Database.Table<Objects.Record>().Where(x => x.Fingerprint == fingerprint && x.Size == size).FirstOrDefault();
         }
 
         public IEnumerable<Objects.MergeInfo> GetMergeInfo(Guid iD)
@@ -1569,13 +1570,13 @@ namespace Versionr
                 {
                     RemoveFileTimeCache(x.Item2);
                     System.IO.Directory.Delete(x.Item1);
-					if (!updateMode)
-						LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
                 }
                 catch
                 {
                     
                 }
+				if (!updateMode)
+					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
             }
             foreach (var x in parentData)
             {
@@ -1931,7 +1932,17 @@ namespace Versionr
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion);
             Dictionary<Guid, int> localGraph = GetParentGraph(version);
-            var shared = new List<KeyValuePair<Guid, int>>(foreignGraph.Where(x => localGraph.ContainsKey(x.Key)).OrderBy(x => x.Value));
+            List<KeyValuePair<Guid, int>> shared = new List<KeyValuePair<Guid, int>>();
+            foreach (var x in foreignGraph)
+            {
+                int distance;
+                if (localGraph.TryGetValue(x.Key, out distance))
+                {
+                    distance = System.Math.Max(x.Value, distance);
+                    shared.Add(new KeyValuePair<Guid, int>(x.Key, distance));
+                }
+            }
+            shared = shared.OrderBy(x => x.Value).ToList();
             if (shared.Count == 0)
                 return null;
             HashSet<Guid> ignored = new HashSet<Guid>();
@@ -2734,7 +2745,7 @@ namespace Versionr
                                         ObjectName nameRecord = null;
                                         if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
                                         {
-                                            record.CanonicalNameId = nameRecord.Id;
+                                            record.CanonicalNameId = nameRecord.NameId;
                                         }
                                         else
                                         {
@@ -2775,43 +2786,22 @@ namespace Versionr
                     var ws = LocalData.Workspace;
                     ws.Tip = vs.ID;
                     Objects.Snapshot ss = new Snapshot();
-                    bool saveSnapshot = false;
-                    List<Objects.RecordRef> ssRefs = new List<RecordRef>();
-                    if (st.Alterations.Count + alterations.Count > st.BaseRecords.Count)
-                    {
-                        Printer.PrintDiagnostics("Current list of {0} alterations vs snapshot size of {1} entries is above threshold.", st.Alterations.Count + alterations.Count, st.BaseRecords.Count);
-                        saveSnapshot = true;
-                        Printer.PrintDiagnostics("Creating new snapshot.");
-                    }
                     Database.BeginTransaction();
                     Database.InsertSafe(ss);
-                    if (saveSnapshot)
-                        vs.Snapshot = ss.Id;
                     vs.AlterationList = ss.Id;
                     Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
                     foreach (var x in canonicalNameInsertions)
                     {
                         Database.InsertSafe(x.Item2);
-                        x.Item1.CanonicalNameId = x.Item2.Id;
+                        x.Item1.CanonicalNameId = x.Item2.NameId;
                     }
                     foreach (var x in records)
                     {
                         Database.InsertSafe(x);
-                        Database.InsertSafe(new RecordIndex() { DataIdentifier = x.DataIdentifier, Index = x.Id, Pruned = false });
                     }
                     foreach (var x in alterationLinkages)
                         x.Item2.NewRecord = x.Item1.Id;
-
-                    if (saveSnapshot)
-                    {
-                        foreach (var x in finalRecords)
-                        {
-                            Objects.RecordRef rr = new Objects.RecordRef();
-                            rr.RecordID = x.Id;
-                            rr.SnapshotID = ss.Id;
-                            ssRefs.Add(rr);
-                        }
-                    }
+                    
                     Printer.PrintDiagnostics("Adding {0} alteration records.", alterations.Count);
                     foreach (var x in alterations)
                     {
@@ -2820,12 +2810,7 @@ namespace Versionr
                     }
                     foreach (var info in mergeInfos)
                         Database.InsertSafe(info);
-                    if (saveSnapshot)
-                    {
-                        Printer.PrintDiagnostics("Adding {0} snapshot ref records.", ssRefs.Count);
-                        foreach (var x in ssRefs)
-                            Database.InsertSafe(x);
-                    }
+
                     if (newHead)
                         Database.InsertSafe(head);
                     else
@@ -2951,7 +2936,7 @@ namespace Versionr
                     throw new Exception();
                 }
                 if (overridePath == null)
-                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastAccessTimeUtc);
+                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
             }
             catch (System.IO.IOException)
             {
