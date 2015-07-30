@@ -11,7 +11,7 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 16;
+        public const int InternalDBVersion = 17;
         public const int MinimumDBVersion = 3;
         public const int MaximumDBVersion = 18;
 
@@ -26,6 +26,10 @@ namespace Versionr
             CreateTable<Objects.FormatInfo>();
             if (flags.HasFlag(SQLite.SQLiteOpenFlags.Create))
             {
+                ExecuteDirect("PRAGMA main.page_size = 4096;");
+                ExecuteDirect("PRAGMA main.cache_size = 10240;");
+                ExecuteDirect("PRAGMA temp_store = MEMORY;");
+                EnableWAL = true;
                 PrepareTables();
                 return;
             }
@@ -39,6 +43,15 @@ namespace Versionr
                 {
                     var fmt = Format;
                     int priorFormat = fmt.InternalFormat;
+                    if (priorFormat < 17)
+                    {
+                        ExecuteDirect("PRAGMA main.page_size = 4096;");
+                        ExecuteDirect("PRAGMA main.cache_size = 10240;");
+                        ExecuteDirect("PRAGMA temp_store = MEMORY;");
+                        EnableWAL = false;
+                        ExecuteDirect("VACUUM");
+                        EnableWAL = true;
+                    }
                     BeginExclusive(true);
                     if (priorFormat <= 12)
                     {
@@ -219,6 +232,8 @@ namespace Versionr
 
         public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations)
         {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
             Printer.PrintDiagnostics("Getting records for version {0}.", version.ID);
             long? snapshotID = null;
             List<Objects.Version> parents = new List<Objects.Version>();
@@ -251,6 +266,7 @@ namespace Versionr
             alterations = GetAlterationsInternal(parents);
             Printer.PrintDiagnostics(" - Target has {0} alterations.", alterations.Count);
             var finalList = Consolidate(baseList, alterations, null);
+            Printer.PrintDiagnostics("Record list resolved in {0} ticks.", sw.ElapsedTicks);
             if (baseList.Count < alterations.Count || (alterations.Count > 4096 && parents.Count > 128))
             {
                 Printer.PrintDiagnostics(" - Attempting to build new snapshot ({0} records in base list, {1} alterations over {2} revisions)", baseList.Count, alterations.Count, parents.Count);
