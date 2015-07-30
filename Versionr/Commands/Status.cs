@@ -58,6 +58,10 @@ namespace Versionr.Commands
     }
     class Status : FileBaseCommand
     {
+        protected override void Start()
+        {
+            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
+        }
         protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
         {
             StatusVerbOptions localOptions = (StatusVerbOptions)options;
@@ -72,7 +76,6 @@ namespace Versionr.Commands
                 }
             }
             var ss = status;
-            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", ss.CurrentVersion.ID, ss.Branch.Name, ss.CurrentVersion.Revision);
             if (ss.RestrictedPath != null)
                 Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
             Printer.WriteLineMessage("");
