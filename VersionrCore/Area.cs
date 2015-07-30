@@ -1570,13 +1570,13 @@ namespace Versionr
                 {
                     RemoveFileTimeCache(x.Item2);
                     System.IO.Directory.Delete(x.Item1);
-					if (!updateMode)
-						LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
                 }
                 catch
                 {
                     
                 }
+				if (!updateMode)
+					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
             }
             foreach (var x in parentData)
             {
