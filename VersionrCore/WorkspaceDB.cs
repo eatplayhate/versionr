@@ -13,9 +13,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 18;
+        public const int InternalDBVersion = 20;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 20;
+        public const int MaximumDBVersion = 25;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -62,15 +62,24 @@ namespace Versionr
                         {
                             var objNames = Query<ObjectNameOld>("SELECT * FROM ObjectName").ToList();
                             Dictionary<long, long> nameMapping = new Dictionary<long, long>();
+                            Dictionary<string, long> nameIndexes = new Dictionary<string, long>();
                             DropTable<ObjectName>();
                             Commit();
                             BeginExclusive();
                             CreateTable<ObjectName>();
                             foreach (var x in objNames)
                             {
-                                ObjectName oname = new ObjectName() { CanonicalName = x.CanonicalName };
-                                Insert(oname);
-                                nameMapping[x.Id] = oname.NameId;
+                                if (nameIndexes.ContainsKey(x.CanonicalName))
+                                {
+                                    nameMapping[x.Id] = nameIndexes[x.CanonicalName];
+                                }
+                                else
+                                {
+                                    ObjectName oname = new ObjectName() { CanonicalName = x.CanonicalName };
+                                    Insert(oname);
+                                    nameMapping[x.Id] = oname.NameId;
+                                    nameIndexes[x.CanonicalName] = oname.NameId;
+                                }
                             }
                             foreach (var x in Table<Record>().ToList())
                             {
@@ -90,9 +99,36 @@ namespace Versionr
                     if (priorFormat < 16)
                     {
                         Printer.PrintMessage(" - Upgrading database - running full consistency check.");
+                        var objNames = Table<ObjectName>().ToList();
+                        Dictionary<long, long> nameMapping = new Dictionary<long, long>();
+                        Dictionary<string, long> nameIndexes = new Dictionary<string, long>();
+                        DropTable<ObjectName>();
                         DropTable<RecordRef>();
                         Commit();
                         BeginExclusive();
+                        CreateTable<ObjectName>();
+                        int duplicateObjs = 0;
+                        foreach (var x in objNames)
+                        {
+                            if (nameIndexes.ContainsKey(x.CanonicalName))
+                            {
+                                nameMapping[x.NameId] = nameIndexes[x.CanonicalName];
+                                duplicateObjs++;
+                            }
+                            else
+                            {
+                                ObjectName oname = new ObjectName() { CanonicalName = x.CanonicalName };
+                                Insert(oname);
+                                nameMapping[x.NameId] = oname.NameId;
+                                nameIndexes[x.CanonicalName] = oname.NameId;
+                            }
+                        }
+                        foreach (var x in Table<Record>().ToList())
+                        {
+                            x.CanonicalNameId = nameMapping[x.CanonicalNameId];
+                            Update(x);
+                        }
+                        Printer.PrintMessage(" - Cleaned {0} duplicate canonical names.", duplicateObjs);
                         CreateTable<RecordRef>();
                         Dictionary<Tuple<string, long, DateTime>, Record> records = new Dictionary<Tuple<string, long, DateTime>, Record>();
                         foreach (var x in Table<Objects.Record>().ToList())
@@ -192,6 +228,30 @@ namespace Versionr
                             }
                             if (counter > 0)
                                 Printer.PrintDiagnostics("Version {0} had {1} multiple-moves that have been fixed.", x.ShortName, counter);
+                        }
+                    }
+                    if (priorFormat < 20)
+                    {
+                        foreach (var x in Table<Objects.Version>().ToList())
+                        {
+                            x.Snapshot = null;
+                            Update(x);
+                            var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
+                            HashSet<Tuple<AlterationType, long?, long?>> duplicateAlterations = new HashSet<Tuple<AlterationType, long?, long?>>();
+                            int counter = 0;
+                            foreach (var s in alterations)
+                            {
+                                var key = new Tuple<AlterationType, long?, long?>(s.Type, s.NewRecord, s.PriorRecord);
+                                if (duplicateAlterations.Contains(key))
+                                {
+                                    Delete(s);
+                                    counter++;
+                                }
+                                else
+                                    duplicateAlterations.Add(key);
+                            }
+                            if (counter > 0)
+                                Printer.PrintDiagnostics("Version {0} had {1} duplicated alterations that have been fixed.", x.ShortName, counter);
                         }
                     }
                     else if (priorFormat == 7)

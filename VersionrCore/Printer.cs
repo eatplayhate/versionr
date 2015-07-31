@@ -131,17 +131,29 @@ namespace Versionr
                         // valid formatting tag
                         outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, nextFindLocation - pos)));
                         if (end == nextFindLocation + 1)
+                        {
                             currentColour = OutputColour.Normal;
+                            pos = end + 1;
+                        }
                         else
                         {
                             if (!OutputStyles.TryGetValue(v[nextFindLocation + 1], out currentColour))
                             {
                                 SetOutputColour(OutputColour.Warning);
-                                System.Console.WriteLine("Unrecognized formatting tag: '{0}'!", v[nextFindLocation + 1]);
+                                if (EnableDiagnostics)
+                                    System.Console.WriteLine("Unrecognized formatting tag: '{0}'!", v[nextFindLocation + 1]);
                                 currentColour = OutputColour.Normal;
+                                if (nextFindLocation > pos)
+                                {
+                                    pos = nextFindLocation;
+                                    outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, 1)));
+                                }
+                                else
+                                    pos = pos + 1;
                             }
+                            else
+                                pos = end + 1;
                         }
-                        pos = end + 1;
                     }
                     else
                     {
