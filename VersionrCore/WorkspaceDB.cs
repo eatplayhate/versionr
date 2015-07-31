@@ -83,48 +83,6 @@ namespace Versionr
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
 
-                    if (priorFormat < 18)
-                    {
-                        foreach (var x in Table<Objects.Version>().ToList())
-                        {
-                            x.Snapshot = null;
-                            Update(x);
-                            var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
-                            Dictionary<long, bool> moveDeletes = new Dictionary<long, bool>();
-                            HashSet<long> deletions = new HashSet<long>();
-                            int counter = 0;
-                            foreach (var s in alterations)
-                            {
-                                if (s.Type == AlterationType.Move)
-                                {
-                                    if (moveDeletes.ContainsKey(s.PriorRecord.Value))
-                                        moveDeletes[s.PriorRecord.Value] = false;
-                                    else
-                                        moveDeletes[s.PriorRecord.Value] = true;
-                                }
-                            }
-                            foreach (var s in alterations)
-                            {
-                                if (s.Type == AlterationType.Move)
-                                {
-                                    if (moveDeletes[s.PriorRecord.Value] == false)
-                                    {
-                                        s.Type = AlterationType.Copy;
-                                        Update(s);
-                                        deletions.Add(s.PriorRecord.Value);
-                                        counter++;
-                                    }
-                                }
-                            }
-                            foreach (var s in deletions)
-                            {
-                                Alteration alt = new Alteration() { PriorRecord = s, Type = AlterationType.Delete, Owner = x.AlterationList };
-                                Insert(alt);
-                            }
-                            if (counter > 0)
-                                Printer.PrintDiagnostics("Version {0} had {1} multiple-moves that have been fixed.", x.ShortName, counter);
-                        }
-                    }
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
@@ -192,6 +150,48 @@ namespace Versionr
                                     Printer.PrintDiagnostics("Cleaned up extra delete in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.PriorRecord.Value).CanonicalNameId).CanonicalName);
                                 }
                             }
+                        }
+                    }
+                    if (priorFormat < 18)
+                    {
+                        foreach (var x in Table<Objects.Version>().ToList())
+                        {
+                            x.Snapshot = null;
+                            Update(x);
+                            var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
+                            Dictionary<long, bool> moveDeletes = new Dictionary<long, bool>();
+                            HashSet<long> deletions = new HashSet<long>();
+                            int counter = 0;
+                            foreach (var s in alterations)
+                            {
+                                if (s.Type == AlterationType.Move)
+                                {
+                                    if (moveDeletes.ContainsKey(s.PriorRecord.Value))
+                                        moveDeletes[s.PriorRecord.Value] = false;
+                                    else
+                                        moveDeletes[s.PriorRecord.Value] = true;
+                                }
+                            }
+                            foreach (var s in alterations)
+                            {
+                                if (s.Type == AlterationType.Move)
+                                {
+                                    if (moveDeletes[s.PriorRecord.Value] == false)
+                                    {
+                                        s.Type = AlterationType.Copy;
+                                        Update(s);
+                                        deletions.Add(s.PriorRecord.Value);
+                                        counter++;
+                                    }
+                                }
+                            }
+                            foreach (var s in deletions)
+                            {
+                                Alteration alt = new Alteration() { PriorRecord = s, Type = AlterationType.Delete, Owner = x.AlterationList };
+                                Insert(alt);
+                            }
+                            if (counter > 0)
+                                Printer.PrintDiagnostics("Version {0} had {1} multiple-moves that have been fixed.", x.ShortName, counter);
                         }
                     }
                     else if (priorFormat == 7)
