@@ -70,7 +70,7 @@ namespace Versionr.Commands
 			{
 				Printer.PrintMessage("({3}): {0} - {1}, {2}", x.ID, x.Timestamp.ToLocalTime(), x.Author, x.Revision);
 				if (!string.IsNullOrEmpty(x.Message))
-					Printer.PrintMessage("{0}", x.Message);
+					Printer.PrintMessage("{0}", Printer.Escape(x.Message));
 				Printer.PrintMessage(" on branch {0}", ws.GetBranch(x.Branch).Name);
 				foreach (var y in ws.GetMergeInfo(x.ID))
 				{

@@ -1573,7 +1573,7 @@ namespace Versionr
                 }
                 catch
                 {
-                    
+                    Printer.PrintError("#x#Can't remove directory \"{0}\"!", x.Item2);
                 }
 				if (!updateMode)
 					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });

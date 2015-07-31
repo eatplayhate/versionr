@@ -60,7 +60,11 @@ namespace Versionr.Commands
             {
                 ws.RecordChanges(status, targets, localOptions.Missing, false, RecordFeedback);
             }
-            if (!ws.Commit(localOptions.Message, localOptions.Force))
+            string message = localOptions.Message;
+            message = message.Replace("\\\"", "\"");
+            message = message.Replace("\\n", "\n");
+            message = message.Replace("\\t", "\t");
+            if (!ws.Commit(message, localOptions.Force))
                 return false;
             return true;
         }
