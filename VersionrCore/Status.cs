@@ -304,6 +304,7 @@ namespace Versionr
             }
             Printer.PrintDiagnostics("Status create size map: {0}", sw.ElapsedTicks);
             sw.Restart();
+            List<StatusEntry> pendingRenames = new List<StatusEntry>();
             foreach (var x in snapshotData)
             {
                 if (x.Value.IsDirectory)
@@ -332,8 +333,7 @@ namespace Versionr
                         stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
                         if (otherFlags.HasFlag(StageFlags.Removed))
 						{
-							Elements.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
-							statusMap[possibleRename].Code = StatusCode.Ignored;
+                            pendingRenames.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
 						}
 						else
                         {
@@ -360,6 +360,27 @@ namespace Versionr
                     }
                     Elements.Add(new StatusEntry() { Code = StatusCode.Unversioned, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null });
                     Next:;
+                }
+            }
+            Dictionary<Record, bool> allowedRenames = new Dictionary<Record, bool>();
+            foreach (var x in pendingRenames)
+            {
+                if (allowedRenames.ContainsKey(x.VersionControlRecord))
+                    allowedRenames[x.VersionControlRecord] = false;
+                else
+                    allowedRenames[x.VersionControlRecord] = true;
+            }
+            foreach (var x in pendingRenames)
+            {
+                if (allowedRenames[x.VersionControlRecord])
+                {
+                    Elements.Add(x);
+                    statusMap[x.VersionControlRecord].Code = StatusCode.Ignored;
+                }
+                else
+                {
+                    x.Code = StatusCode.Copied;
+                    Elements.Add(x);
                 }
             }
             Printer.PrintDiagnostics("Status new file reconciliation: {0}", sw.ElapsedTicks);

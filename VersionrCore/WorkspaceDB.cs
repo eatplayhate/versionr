@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define FULL_CONSOLIDATE_DEBUG
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,9 +13,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 17;
+        public const int InternalDBVersion = 18;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 18;
+        public const int MaximumDBVersion = 20;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -81,6 +83,48 @@ namespace Versionr
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
 
+                    if (priorFormat < 18)
+                    {
+                        foreach (var x in Table<Objects.Version>().ToList())
+                        {
+                            x.Snapshot = null;
+                            Update(x);
+                            var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
+                            Dictionary<long, bool> moveDeletes = new Dictionary<long, bool>();
+                            HashSet<long> deletions = new HashSet<long>();
+                            int counter = 0;
+                            foreach (var s in alterations)
+                            {
+                                if (s.Type == AlterationType.Move)
+                                {
+                                    if (moveDeletes.ContainsKey(s.PriorRecord.Value))
+                                        moveDeletes[s.PriorRecord.Value] = false;
+                                    else
+                                        moveDeletes[s.PriorRecord.Value] = true;
+                                }
+                            }
+                            foreach (var s in alterations)
+                            {
+                                if (s.Type == AlterationType.Move)
+                                {
+                                    if (moveDeletes[s.PriorRecord.Value] == false)
+                                    {
+                                        s.Type = AlterationType.Copy;
+                                        Update(s);
+                                        deletions.Add(s.PriorRecord.Value);
+                                        counter++;
+                                    }
+                                }
+                            }
+                            foreach (var s in deletions)
+                            {
+                                Alteration alt = new Alteration() { PriorRecord = s, Type = AlterationType.Delete, Owner = x.AlterationList };
+                                Insert(alt);
+                            }
+                            if (counter > 0)
+                                Printer.PrintDiagnostics("Version {0} had {1} multiple-moves that have been fixed.", x.ShortName, counter);
+                        }
+                    }
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
@@ -380,13 +424,17 @@ namespace Versionr
 			foreach (var x in baseList)
 				records[x.Id] = x;
 
-            List<long> pending = new List<long>();
+#if FULL_CONSOLIDATE_DEBUG
+            Printer.PrintMessage("Initial Snapshot Contains: ");
+            foreach (var x in baseList)
+            {
+                Printer.PrintMessage("Initial: ({2}) {0} - {1}", x.CanonicalName, x.UniqueIdentifier, x.Id);
+            }
+#endif
+
+                List<long> pending = new List<long>();
 
             CacheRecords(alterations.Select(x => x.NewRecord).Where(x => x.HasValue).Select(x => x.Value));
-#if DEBUG
-            HashSet<Tuple<long, long>> moveDeletions = new HashSet<Tuple<long, long>>();
-            HashSet<Tuple<long, string>> moveAdditions = new HashSet<Tuple<long, string>>();
-#endif
             foreach (var x in alterations.Select(x => x).Reverse())
             {
                 Objects.Record rec = null;
@@ -396,6 +444,11 @@ namespace Versionr
                     case AlterationType.Copy:
                         {
                             var record = GetCachedRecord(x.NewRecord.Value);
+#if FULL_CONSOLIDATE_DEBUG
+                            Printer.PrintMessage("Add: ({2}) {0} - {1}", record.CanonicalName, record.UniqueIdentifier, record.Id);
+                            if (records.ContainsKey(record.Id))
+                                Printer.PrintMessage(" (error, already present)");
+#endif
                             records[record.Id] = record;
                             break;
                         }
@@ -408,7 +461,17 @@ namespace Versionr
 								rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
 								deletions.Add(rec);
                             }
-							if (!records.Remove(x.PriorRecord.Value))
+#if FULL_CONSOLIDATE_DEBUG
+                            rec = Get<Objects.Record>(x.PriorRecord);
+                            rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+                            Printer.PrintMessage("Move (from): ({2}) {0} - {1}", rec.CanonicalName, rec.UniqueIdentifier, rec.Id);
+                            if (!records.ContainsKey(rec.Id))
+                                Printer.PrintMessage(" (error, not present)");
+                            Printer.PrintMessage("Move (to): ({2}) {0} - {1}", record.CanonicalName, record.UniqueIdentifier, record.Id);
+                            if (records.ContainsKey(record.Id))
+                                Printer.PrintMessage(" (error, already present)");
+#endif
+                            if (!records.Remove(x.PriorRecord.Value))
                                 throw new Exception("Consistency contraint invalid!");
                             records[record.Id] = record;
                             break;
@@ -416,6 +479,16 @@ namespace Versionr
                     case AlterationType.Update:
                         {
                             var record = GetCachedRecord(x.NewRecord.Value);
+#if FULL_CONSOLIDATE_DEBUG
+                            rec = Get<Objects.Record>(x.PriorRecord);
+                            rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+                            Printer.PrintMessage("Update (from): ({2}) {0} - {1}", rec.CanonicalName, rec.UniqueIdentifier, rec.Id);
+                            if (!records.ContainsKey(rec.Id))
+                                Printer.PrintMessage(" (error, not present)");
+                            Printer.PrintMessage("Update (to): ({2}) {0} - {1}", record.CanonicalName, record.UniqueIdentifier, record.Id);
+                            if (records.ContainsKey(record.Id))
+                                Printer.PrintMessage(" (error, already present)");
+#endif
                             if (!records.Remove(x.PriorRecord.Value))
                                 throw new Exception("Consistency contraint invalid!");
                             records[record.Id] = record;
@@ -428,7 +501,14 @@ namespace Versionr
 							rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
 							deletions.Add(rec);
                         }
-						if (!records.Remove(x.PriorRecord.Value))
+#if FULL_CONSOLIDATE_DEBUG
+                        rec = Get<Objects.Record>(x.PriorRecord);
+                        rec.CanonicalName = Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+                        Printer.PrintMessage("Delete: ({2}) {0} - {1}", rec.CanonicalName, rec.UniqueIdentifier, rec.Id);
+                        if (!records.ContainsKey(rec.Id))
+                            Printer.PrintMessage(" (error, not present)");
+#endif
+                        if (!records.Remove(x.PriorRecord.Value))
                             throw new Exception("Consistency contraint invalid!");
 						break;
                     default:
