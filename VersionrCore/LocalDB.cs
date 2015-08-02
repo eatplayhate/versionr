@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 5;
+        public const int LocalDBVersion = 6;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -20,6 +20,7 @@ namespace Versionr
             CreateTable<LocalState.StageOperation>();
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
+            CreateTable<LocalState.LockingObject>();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -161,24 +162,21 @@ namespace Versionr
                     return false;
                 }
             }
-            else if (Configuration.Version == 1)
+
+            Configuration cconfig = Configuration;
+            cconfig.Version = LocalDBVersion;
+            try
             {
-                Configuration config = Configuration;
-                config.Version = LocalDBVersion;
-                try
-                {
-                    BeginTransaction();
-                    Update(config);
-                    Commit();
-                    return true;
-                }
-                catch
-                {
-                    Rollback();
-                    return false;
-                }
+                BeginTransaction();
+                Update(cconfig);
+                Commit();
+                return true;
             }
-            return true;
+            catch
+            {
+                Rollback();
+                return false;
+            }
         }
 
         public static LocalDB Create(string fullPath)
@@ -336,6 +334,21 @@ namespace Versionr
                 if (timestamp != null)
                     Delete(timestamp);
             }
+        }
+
+        internal void AcquireLock()
+        {
+            var lockingObject = Table<LockingObject>().FirstOrDefault();
+            if (lockingObject == null)
+            {
+                lockingObject = new LockingObject() { Id = 0, LockTime = DateTime.UtcNow };
+                if (!this.InsertSafe(lockingObject))
+                    throw new Exception("Couldn't acquire locking object.");
+                return;
+            }
+            lockingObject.LockTime = DateTime.UtcNow;
+            if (!this.UpdateSafe(lockingObject))
+                throw new Exception("Couldn't acquire locking object.");
         }
     }
 }

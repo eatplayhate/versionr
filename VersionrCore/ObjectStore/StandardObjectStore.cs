@@ -23,6 +23,7 @@ namespace Versionr.ObjectStore
             public FileObjectStoreData Data;
             public string Filename;
             public Record Record;
+            public byte[] Payload;
         }
         public List<PendingTransaction> PendingTransactions = new List<PendingTransaction>();
         public HashSet<string> Cleanup = new HashSet<string>();
@@ -335,7 +336,7 @@ namespace Versionr.ObjectStore
                                         fileOutput.Write(lookupBytes, 0, lookupBytes.Length);
                                         if (deltaSize > 16 * 1024 * 1024)
                                         {
-                                            printer = Printer.CreateProgressBarPrinter(string.Empty, " Compressing ", (obj) =>
+                                            printer = Printer.CreateProgressBarPrinter(string.Empty, string.Format(" Writing {0} ", cmode), (obj) =>
                                             {
                                                 return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(deltaSize));
                                             },
@@ -343,7 +344,7 @@ namespace Versionr.ObjectStore
                                             {
                                                 return (float)((long)obj / (double)deltaSize) * 100.0f;
                                             },
-                                            (obj, lol) => { return string.Empty; }, 60);
+                                            (obj, lol) => { return string.Empty; }, 40);
                                         }
                                         if (cmode == CompressionMode.LZHAM)
                                             LZHAMWriter.CompressToStream(deltaSize, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
@@ -415,7 +416,7 @@ namespace Versionr.ObjectStore
                     if (printer != null)
                     {
                         printer.End(newRecord.Size);
-                        printer = Printer.CreateProgressBarPrinter(string.Empty, string.Format(" Compressing ({0}) ", cmode), (obj) =>
+                        printer = Printer.CreateProgressBarPrinter(string.Empty, string.Format(" Writing {0} ", cmode), (obj) =>
                         {
                             return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(newRecord.Size));
                         },
@@ -423,7 +424,7 @@ namespace Versionr.ObjectStore
                         {
                             return (float)((long)obj / (double)newRecord.Size) * 100.0f;
                         },
-                        (obj, lol) => { return string.Empty; }, 60);
+                        (obj, lol) => { return string.Empty; }, 40);
                     }
                     if (cmode == CompressionMode.LZHAM)
                         LZHAMWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
@@ -487,27 +488,38 @@ namespace Versionr.ObjectStore
             dependency = null;
             lock (trans)
             {
-                byte[] buffer = trans.ScratchBuffer;
-                string filename;
-                lock (this)
-                {
-                    if (HasDataDirect(directName))
-                        throw new Exception();
-                    do
-                    {
-                        filename = Path.GetRandomFileName();
-                    } while (TempFiles.Contains(filename));
-                    TempFiles.Add(filename);
-                }
                 trans.m_PendingCount++;
                 Printer.PrintDiagnostics("Importing data for {0}", directName);
-                trans.Cleanup.Add(filename);
-                string fn = Path.Combine(TempFolder.FullName, filename);
                 FileObjectStoreData data = new FileObjectStoreData()
                 {
                     Lookup = directName,
                 };
-                using (var fileOutput = new FileInfo(fn).OpenWrite())
+                byte[] buffer = trans.ScratchBuffer;
+                string filename = null;
+                Stream outputStream;
+                MemoryStream backingStore = null;
+                if (dataStream.Length > 16 * 1024)
+                {
+                    lock (this)
+                    {
+                        if (HasDataDirect(directName))
+                            throw new Exception();
+                        do
+                        {
+                            filename = Path.GetRandomFileName();
+                        } while (TempFiles.Contains(filename));
+                        TempFiles.Add(filename);
+                    }
+                    trans.Cleanup.Add(filename);
+                    string fn = Path.Combine(TempFolder.FullName, filename);
+                    outputStream = new FileInfo(fn).OpenWrite();
+                }
+                else
+                {
+                    backingStore = new MemoryStream();
+                    outputStream = backingStore;
+                }
+                using (var fileOutput = outputStream)
                 {
                     bool readData = true;
                     byte[] sig = new byte[8];
@@ -624,11 +636,15 @@ namespace Versionr.ObjectStore
                     }
                 }
                 trans.m_PendingBytes += data.FileSize;
+                byte[] payload = null;
+                if (backingStore != null)
+                    payload = backingStore.ToArray();
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
                         Data = data,
-                        Filename = filename
+                        Filename = filename,
+                        Payload = payload
                     }
                 );
                 return true;
@@ -695,41 +711,71 @@ namespace Versionr.ObjectStore
                         ObjectDatabase.BeginTransaction();
                         foreach (var x in transaction.PendingTransactions)
                         {
-                            string fn = Path.Combine(TempFolder.FullName, x.Filename);
                             try
                             {
-                                var info = new FileInfo(fn);
                                 if (ObjectDatabase.InsertSafe(x.Data))
                                 {
                                     long? blobID = null;
-                                    if (info.Length < 16 * 1024)
+                                    if (x.Filename != null)
                                     {
-                                        MemoryStream ms = new MemoryStream();
-                                        using (var fsi = info.OpenRead())
+                                        string fn = Path.Combine(TempFolder.FullName, x.Filename);
+                                        var info = new FileInfo(fn);
+                                        if (info.Length < 16 * 1024)
                                         {
-                                            fsi.CopyTo(ms);
+                                            MemoryStream ms = new MemoryStream();
+                                            using (var fsi = info.OpenRead())
+                                            {
+                                                fsi.CopyTo(ms);
+                                            }
+                                            Blobject obj = new Blobject() { Data = ms.ToArray() };
+                                            if (!BlobDatabase.InsertSafe(obj))
+                                                throw new Exception();
+                                            blobID = obj.Id;
+                                            Blobsize bs = new Blobsize() { BlobID = obj.Id, Length = obj.Data.Length };
+                                            if (!BlobDatabase.InsertSafe(bs))
+                                                throw new Exception();
                                         }
-                                        Blobject obj = new Blobject() { Data = ms.ToArray() };
-                                        if (!BlobDatabase.InsertSafe(obj))
-                                            throw new Exception();
-                                        blobID = obj.Id;
-                                        Blobsize bs = new Blobsize() { BlobID = obj.Id, Length = obj.Data.Length };
-                                        if (!BlobDatabase.InsertSafe(bs))
-                                            throw new Exception();
-                                    }
-                                    if (blobID.HasValue)
-                                    {
-                                        x.Data.BlobID = blobID;
-                                        ObjectDatabase.Update(x.Data);
-                                        transaction.Cleanup.Add(x.Filename);
+                                        if (blobID.HasValue)
+                                        {
+                                            x.Data.BlobID = blobID;
+                                            ObjectDatabase.Update(x.Data);
+                                            transaction.Cleanup.Add(x.Filename);
+                                        }
+                                        else
+                                        {
+                                            if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                            {
+                                                if (!System.IO.File.Exists(fn))
+                                                    throw new Exception();
+                                                System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                            }
+                                        }
                                     }
                                     else
                                     {
-                                        if (!GetFileForDataID(x.Data.Lookup).Exists)
+                                        if (x.Payload.Length < 16 * 1024)
                                         {
-                                            if (!System.IO.File.Exists(fn))
+                                            Blobject obj = new Blobject() { Data = x.Payload };
+                                            if (!BlobDatabase.InsertSafe(obj))
                                                 throw new Exception();
-                                            System.IO.File.Move(fn, GetFileForDataID(x.Data.Lookup).FullName);
+                                            blobID = obj.Id;
+                                            Blobsize bs = new Blobsize() { BlobID = obj.Id, Length = obj.Data.Length };
+                                            if (!BlobDatabase.InsertSafe(bs))
+                                                throw new Exception();
+                                        }
+                                        if (blobID.HasValue)
+                                        {
+                                            x.Data.BlobID = blobID;
+                                            ObjectDatabase.Update(x.Data);
+                                        }
+                                        else
+                                        {
+                                            var info = GetFileForDataID(x.Data.Lookup);
+                                            if (!info.Exists)
+                                            {
+                                                using (var stream = info.OpenWrite())
+                                                    stream.Write(x.Payload, 0, x.Payload.Length);
+                                            }
                                         }
                                     }
                                 }

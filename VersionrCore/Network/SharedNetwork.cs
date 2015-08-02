@@ -379,12 +379,21 @@ namespace Versionr.Network
             };
         }
 
-        internal static bool ImportRecords(SharedNetworkInfo sharedInfo)
+        internal static bool ImportRecords(SharedNetworkInfo sharedInfo, bool enablePrinter = false)
         {
             lock (sharedInfo.Workspace)
             {
                 try
                 {
+                    Printer.InteractivePrinter printer = null;
+                    System.Diagnostics.Stopwatch sw = null;
+                    long nextUpdate = 400;
+                    if (enablePrinter)
+                    {
+                        sw = new System.Diagnostics.Stopwatch();
+                        sw.Start();
+                        printer = Printer.CreateSpinnerBarPrinter("Importing object metadata", string.Empty, (object obj) => { return string.Empty; }, 60);
+                    }
                     sharedInfo.Workspace.BeginDatabaseTransaction();
                     foreach (var x in sharedInfo.UnknownRecords.Select(x => x).Reverse())
                     {
@@ -395,8 +404,18 @@ namespace Versionr.Network
                         }
                         sharedInfo.Workspace.ImportRecordNoCommit(rec);
                         sharedInfo.LocalRecordMap[x] = rec;
+                        if (printer != null)
+                        {
+                            if (sw.ElapsedMilliseconds > nextUpdate)
+                            {
+                                nextUpdate = sw.ElapsedMilliseconds + 400;
+                                printer.Update(null);
+                            }
+                        }
                     }
                     sharedInfo.Workspace.CommitDatabaseTransaction();
+                    if (printer != null)
+                        printer.End(null);
                     return true;
                 }
                 catch

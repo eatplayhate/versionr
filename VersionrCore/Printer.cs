@@ -42,6 +42,17 @@ namespace Versionr
             OutputStyles['i'] = OutputColour.Invert;
             OutputStyles['s'] = OutputColour.Success;
             OutputStyles['z'] = OutputColour.WarningHeader;
+
+            try
+            {
+                System.Console.CursorLeft += 1;
+                System.Console.CursorLeft -= 1;
+                AllowInteractivePrinting = true;
+            }
+            catch
+            {
+                AllowInteractivePrinting = false;
+            }
         }
         public enum MessageType
         {
@@ -70,6 +81,7 @@ namespace Versionr
         static Dictionary<char, OutputColour> OutputStyles { get; set; }
         
         private static bool SuppressIndent = false;
+        private static bool AllowInteractivePrinting = true;
 
         private static int IndentLevel { get; set; }
 
@@ -309,6 +321,8 @@ namespace Versionr
         {
             lock (SyncObject)
             {
+                if (type == MessageType.Interactive && !AllowInteractivePrinting)
+                    return;
                 if (type == MessageType.Diagnostics && !EnableDiagnostics)
                     return;
                 if (Quiet && type != MessageType.Warning && type != MessageType.Error)
@@ -389,6 +403,62 @@ namespace Versionr
             }
         }
 
+        internal class NullPrinter : InteractivePrinter
+        {
+            public override void Update(object obj)
+            {
+            }
+
+            internal override void Start(string s)
+            {
+            }
+        }
+
+        internal class SpinnerPrinter : InteractivePrinter
+        {
+            static char[] Spinners = new char[] { '/', '-', '\\', '|', '/', '-', '\\', '|' };
+            int SpinnerIndex = 0;
+            internal override void Start(string title)
+            {
+                Header = title + " ";
+                lock (Printer.SyncObject)
+                {
+                    Printer.ClearInteractive();
+                    Printer.Write(MessageType.Interactive, Header);
+                    Printer.LastPrinter = this;
+                    ConsoleLeft = System.Console.CursorLeft;
+                }
+                Last = string.Empty;
+            }
+            public override void Update(object amount)
+            {
+                lock (Printer.SyncObject)
+                {
+                    if (Printer.LastPrinter != this)
+                    {
+                        Printer.ClearInteractive();
+                        Printer.Write(MessageType.Interactive, Header);
+                        Printer.LastPrinter = this;
+                        ConsoleLeft = System.Console.CursorLeft;
+                    }
+                    string last = Last;
+                    Last = Formatter(amount) + " " + Next();
+                    System.Console.CursorLeft = ConsoleLeft;
+                    string output = Last;
+                    while (output.Length < last.Length)
+                        output += ' ';
+                    System.Console.CursorLeft = ConsoleLeft;
+                    Write(MessageType.Interactive, output);
+                }
+            }
+
+            private string Next()
+            {
+                SpinnerIndex = (SpinnerIndex + 1) % Spinners.Length;
+                return new string(Spinners[SpinnerIndex], 1);
+            }
+        }
+
         internal class SimplePrinter : InteractivePrinter
         {
             internal override void Start(string title)
@@ -426,12 +496,89 @@ namespace Versionr
             }
         }
 
+        internal class SpinnerBarPrinter : InteractivePrinter
+        {
+            internal Func<object, string> Formatter { get; set; }
+            internal int Width { get; set; }
+            internal string Before { get; set; }
+            internal string Final { get; set; }
+            int Index = 0;
+            internal override void Start(string title)
+            {
+                if (string.IsNullOrEmpty(title))
+                    Header = null;
+                else
+                    Header = title + ":\n";
+                lock (Printer.SyncObject)
+                {
+                    if (!string.IsNullOrEmpty(Header))
+                        Printer.Write(MessageType.Interactive, Header);
+                    Printer.LastPrinter = this;
+                    ConsoleLeft = System.Console.CursorLeft;
+                }
+                Last = string.Empty;
+            }
+            public override void Update(object amount)
+            {
+                string fmt = Formatter(amount);
+                lock (Printer.SyncObject)
+                {
+                    if (Printer.LastPrinter != this)
+                    {
+                        Printer.LastPrinter = this;
+                        ConsoleLeft = 0;
+                    }
+                    string bar;
+                    int extra = 0;
+                    if (!string.IsNullOrEmpty(Before))
+                    {
+                        extra += Before.Length + 2;
+                        bar = Before + " [";
+                    }
+                    else
+                        bar = "[";
+                    StringBuilder sb = new StringBuilder();
+                    int x = Index;
+                    for (int i = 0; i < Width - 2; i++)
+                    {
+                        switch (x)
+                        {
+                            case 0:
+                                sb.Append("#q#=");
+                                break;
+                            case 1:
+                                sb.Append("##=");
+                                break;
+                            case 2:
+                                sb.Append("#b#=");
+                                break;
+                            case 3:
+                                sb.Append("##=");
+                                break;
+                        }
+                        x++;
+                        if (x == 4)
+                            x = 0;
+                    }
+                    Index = (Index + 1) % 4;
+                    System.Console.CursorLeft = 0;
+                    bar += sb.ToString() + "] " + fmt;
+                    string lastValue = Final == null ? string.Empty : Final;
+                    Final = bar;
+                    while (lastValue.Length > bar.Length)
+                        bar += " ";
+                    Write(MessageType.Interactive, bar);
+                }
+            }
+        }
+
         internal class BarPrinter : InteractivePrinter
         {
             internal Func<object, float> PercentCalculator { get; set; }
             internal Func<float, object, string> PercentFormatter { get; set; }
             internal int Width { get; set; }
             internal string Before { get; set; }
+            internal string Final { get; set; }
             internal override void Start(string title)
             {
                 if (string.IsNullOrEmpty(title))
@@ -487,13 +634,33 @@ namespace Versionr
                     }
                     System.Console.CursorLeft = 0;
                     bar += "] " + fmt;
+                    string lastValue = Final == null ? string.Empty : Final;
+                    Final = bar;
+                    while (lastValue.Length > bar.Length)
+                        bar += " ";
                     Write(MessageType.Interactive, bar);
                 }
             }
         }
         static InteractivePrinter LastPrinter = null;
+        public static InteractivePrinter CreateSpinnerPrinter(string title, Func<object, string> formatter)
+        {
+            if (!AllowInteractivePrinting)
+                return new NullPrinter();
+            InteractivePrinter printer = new SpinnerPrinter()
+            {
+                Header = title,
+                Formatter = formatter
+            };
+
+            printer.Start(title);
+
+            return printer;
+        }
         public static InteractivePrinter CreateSimplePrinter(string title, Func<object, string> formatter)
         {
+            if (!AllowInteractivePrinting)
+                return new NullPrinter();
             InteractivePrinter printer = new SimplePrinter()
             {
                 Header = title,
@@ -506,12 +673,29 @@ namespace Versionr
         }
         public static InteractivePrinter CreateProgressBarPrinter(string initialLine, string title, Func<object, string> formatter, Func<object, float> percentCalculator, Func<float, object, string> percentFormatter, int barWidth)
         {
+            if (!AllowInteractivePrinting)
+                return new NullPrinter();
             InteractivePrinter printer = new BarPrinter()
             {
                 Before = title,
                 Formatter = formatter,
                 PercentCalculator = percentCalculator,
                 PercentFormatter = percentFormatter,
+                Width = barWidth
+            };
+
+            printer.Start(initialLine);
+
+            return printer;
+        }
+        public static InteractivePrinter CreateSpinnerBarPrinter(string initialLine, string title, Func<object, string> formatter, int barWidth)
+        {
+            if (!AllowInteractivePrinting)
+                return new NullPrinter();
+            InteractivePrinter printer = new SpinnerBarPrinter()
+            {
+                Before = title,
+                Formatter = formatter,
                 Width = barWidth
             };
 

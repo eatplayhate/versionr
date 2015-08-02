@@ -239,10 +239,26 @@ namespace Versionr.Network
                 var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                 if (command.Type == NetCommandType.Error)
                     throw new Exception("Remote error: " + command.AdditionalPayload);
+                
+                Printer.InteractivePrinter printer = Printer.CreateSpinnerPrinter(string.Empty, (object obj) =>
+                {
+                    NetCommandType type = (NetCommandType)obj;
+                    if (type == NetCommandType.PushObjectQuery)
+                        return "Determining Missing Versions";
+                    else if (type == NetCommandType.PushVersions)
+                        return "Receiving Version Data";
+                    else if (type == NetCommandType.PushBranch)
+                        return "Receiving Branch Data";
+                    else if (type == NetCommandType.SynchronizeRecords)
+                        return "Processing";
+                    return "Communicating";
+                });
 
                 while (true)
                 {
                     command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    if (printer != null)
+                        printer.Update(command.Type);
                     if (command.Type == NetCommandType.PushObjectQuery)
                         SharedNetwork.ProcesPushObjectQuery(SharedInfo);
                     else if (command.Type == NetCommandType.PushBranch)
@@ -251,6 +267,11 @@ namespace Versionr.Network
                         SharedNetwork.ReceiveVersions(SharedInfo);
                     else if (command.Type == NetCommandType.SynchronizeRecords)
                     {
+                        if (printer != null)
+                        {
+                            printer.End(command.Type);
+                            printer = null;
+                        }
                         Printer.PrintMessage("Received {0} versions from remote vault.", SharedInfo.PushedVersions.Count);
                         SharedNetwork.RequestRecordMetadata(SharedInfo);
                         if (pullRemoteObjects)
@@ -263,7 +284,6 @@ namespace Versionr.Network
                         return result;
                     }
                 }
-                return true;
             }
             catch (Exception e)
             {
@@ -275,7 +295,7 @@ namespace Versionr.Network
 
         private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo)
         {
-            SharedNetwork.ImportRecords(sharedInfo);
+            SharedNetwork.ImportRecords(sharedInfo, true);
 
             Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
             Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
