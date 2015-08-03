@@ -118,5 +118,14 @@ namespace Versionr.Objects
                 return !IsDirectory && !IsSymlink;
             }
         }
+
+		[SQLite.Ignore]
+		public bool IsDirective
+		{
+			get
+			{
+				return IsFile && CanonicalName == ".vrmeta";
+			}
+		}
     }
 }

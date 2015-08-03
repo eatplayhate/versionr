@@ -910,6 +910,22 @@ namespace Versionr
             return Database.GetMergeInfo(iD);
         }
 
+		private void LoadDirectives()
+		{
+			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
+			if (info.Exists)
+			{
+				string data = string.Empty;
+				using (var sr = info.OpenText())
+				{
+					data = sr.ReadToEnd();
+				}
+				Directives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(data);
+			}
+			else
+				Directives = Directives.Default();
+		}
+
         private bool Load()
         {
             try
@@ -933,18 +949,7 @@ namespace Versionr
 
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
-                FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-                if (info.Exists)
-                {
-                    string data = string.Empty;
-                    using (var sr = info.OpenText())
-                    {
-                        data = sr.ReadToEnd();
-                    }
-                    Directives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(data);
-                }
-                else
-                    Directives = Directives.Default();
+				LoadDirectives();
 
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
@@ -1378,7 +1383,7 @@ namespace Versionr
             foreach (var x in foreignRecords)
                 foreignLookup[x.CanonicalName] = x;
 
-            foreach (var x in foreignRecords)
+            foreach (var x in CheckoutOrder(foreignRecords))
             {
                 TransientMergeObject parentObject = null;
                 parentDataLookup.TryGetValue(x.CanonicalName, out parentObject);
@@ -1514,9 +1519,12 @@ namespace Versionr
                         }
                     }
                 }
+
+				if (x.IsDirective)
+					LoadDirectives();
             }
-            List<Tuple<string, string, bool>> deletionList = new List<Tuple<string, string, bool>>();
-            foreach (var x in parentData)
+            List<Record> deletionList = new List<Record>();
+            foreach (var x in DeletionOrder(parentData))
             {
                 Objects.Record foreignRecord = null;
                 foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
@@ -1531,7 +1539,7 @@ namespace Versionr
 						if (x.DataEquals(localObject))
                         {
 							Printer.PrintMessage("Removing {0}", x.CanonicalName);
-                            deletionList.Add(new Tuple<string, string, bool>(path, x.CanonicalName, x.CanonicalName.EndsWith("/")));
+                            deletionList.Add(x.Record);
                         }
                         else
                         {
@@ -1542,7 +1550,7 @@ namespace Versionr
                                 continue;
                             if (resolution.StartsWith("r"))
 							{
-                                deletionList.Add(new Tuple<string, string, bool>(path, x.CanonicalName, false));
+                                deletionList.Add(x.Record);
 							}
 							if (resolution.StartsWith("c"))
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
@@ -1550,34 +1558,48 @@ namespace Versionr
                     }
                 }
             }
-            foreach (var x in deletionList.Where(x => x.Item3 == false))
+            foreach (var x in deletionList)
             {
-                RemoveFileTimeCache(x.Item2);
-                try
-                {
-                    System.IO.File.Delete(x.Item1);
-                }
-                catch
-                {
-                    Printer.PrintError("#x#Can't remove object \"{0}\"!", x.Item2);
-                }
+				if (x.IsFile)
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName);
+					try
+					{
+						System.IO.File.Delete(x.CanonicalName);
+					}
+					catch
+					{
+						Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
+					}
+				}
+				else if (x.IsSymlink)
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName);
+					try
+					{
+						Utilities.Symlink.Delete(path);
+					}
+					catch (Exception e)
+					{
+						Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
+					}
+				}
+				else if (x.IsDirectory)
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName.Substring(0, x.CanonicalName.Length - 1));
+					try
+					{
+						System.IO.Directory.Delete(path);
+					}
+					catch
+					{
+						Printer.PrintError("#x#Can't remove directory \"{0}\"!", x.CanonicalName);
+					}
+				}
+				RemoveFileTimeCache(x.CanonicalName);
 				if (!updateMode)
-					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
+					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
 			}
-			foreach (var x in deletionList.Where(x => x.Item3 == true).OrderByDescending(x => x.Item2.Length))
-            {
-                try
-                {
-                    RemoveFileTimeCache(x.Item2);
-                    System.IO.Directory.Delete(x.Item1);
-                }
-                catch
-                {
-                    Printer.PrintError("#x#Can't remove directory \"{0}\"!", x.Item2);
-                }
-				if (!updateMode)
-					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.Item2 });
-            }
             foreach (var x in parentData)
             {
                 if (x.TemporaryFile != null)
@@ -2229,6 +2251,50 @@ namespace Versionr
             LocalData.Commit();
         }
 
+		private static IEnumerable<Record> CheckoutOrder(List<Record> targetRecords)
+		{
+			// TODO: .vrmeta first.
+			foreach (var x in targetRecords.Where(x => x.IsDirective))
+			{
+				yield return x;
+			}
+			foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
+			{
+				yield return x;
+			}
+			foreach (var x in targetRecords.Where(x => x.IsFile && !x.IsDirective))
+			{
+				yield return x;
+			}
+			foreach (var x in targetRecords.Where(x => x.IsSymlink))
+			{
+				yield return x;
+			}
+		}
+
+		private static IEnumerable<Record> DeletionOrder(List<Record> records)
+		{
+			foreach (var x in records.Where(x => !x.IsDirectory))
+			{
+				yield return x;
+			}
+			foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
+			{
+				yield return x;
+			}
+		}
+		private static IEnumerable<TransientMergeObject> DeletionOrder(List<TransientMergeObject> records)
+		{
+			foreach (var x in records.Where(x => !x.Record.IsDirectory))
+			{
+				yield return x;
+			}
+			foreach (var x in records.Where(x => x.Record.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
+			{
+				yield return x;
+			}
+		}
+
 		private void CheckoutInternal(Objects.Version tipVersion)
         {
             List<Record> records = Database.Records;
@@ -2244,33 +2310,42 @@ namespace Versionr
             }
 
             HashSet<string> canonicalNames = new HashSet<string>();
-            foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
-            {
-                RestoreRecord(x, newRefTime);
-                canonicalNames.Add(x.CanonicalName);
-            }
-            List<Task> tasks = new List<Task>();
-            foreach (var x in targetRecords.Where(x => !x.IsDirectory && !x.IsSymlink))
-            {
-                //RestoreRecord(x, newRefTime);
-                tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
-                canonicalNames.Add(x.CanonicalName);
-            }
-            Task.WaitAll(tasks.ToArray());
+			List<Task> tasks = new List<Task>();
 			List<Record> pendingSymlinks = new List<Record>();
-			foreach (var x in targetRecords.Where(x => x.IsSymlink))
+
+			foreach (var x in CheckoutOrder(targetRecords))
 			{
-				try
-				{
+				canonicalNames.Add(x.CanonicalName);
+				if (x.IsDirectory)
 					RestoreRecord(x, newRefTime);
-				}
-				catch (Utilities.Symlink.TargetNotFoundException e)
+				else if (x.IsFile)
 				{
-					Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
-					pendingSymlinks.Add(x);
+					if (x.IsDirective)
+					{
+						RestoreRecord(x, newRefTime);
+						LoadDirectives();
+					}
+					else
+					{
+						RestoreRecord(x, newRefTime);
+						//tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
+					}
+
 				}
-                canonicalNames.Add(x.CanonicalName);
+				else if (x.IsSymlink)
+				{
+					try
+					{
+						RestoreRecord(x, newRefTime);
+					}
+					catch (Utilities.Symlink.TargetNotFoundException e)
+					{
+						Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
+						pendingSymlinks.Add(x);
+					}
+				}
 			}
+			Task.WaitAll(tasks.ToArray());
 			int attempts = 5;
 			while (attempts > 0)
 			{
@@ -2293,30 +2368,31 @@ namespace Versionr
 				}
 				foreach (var x in done)
 					pendingSymlinks.Remove(x);
-            }
-			foreach (var x in records.Where(x => !x.IsDirectory && !x.IsSymlink))
-            {
-                if (!canonicalNames.Contains(x.CanonicalName))
-                {
-                    string path = Path.Combine(Root.FullName, x.CanonicalName);
-                    if (System.IO.File.Exists(path))
-                    {
-                        try
+			}
+
+			foreach (var x in DeletionOrder(records))
+			{
+				if (canonicalNames.Contains(x.CanonicalName))
+					continue;
+
+				if (x.IsFile)
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName);
+					if (System.IO.File.Exists(path))
+					{
+						try
 						{
 							RemoveFileTimeCache(x.CanonicalName);
 							System.IO.File.Delete(path);
 							Printer.PrintMessage("Deleted {0}", x.CanonicalName);
 						}
 						catch
-                        {
-                            Printer.PrintMessage("Couldn't delete `{0}`!", x.CanonicalName);
-                        }
-                    }
-                }
-            }
-			foreach (var x in records.Where(x => x.IsSymlink))
-			{
-				if (!canonicalNames.Contains(x.CanonicalName))
+						{
+							Printer.PrintMessage("Couldn't delete `{0}`!", x.CanonicalName);
+						}
+					}
+				}
+				else if (x.IsSymlink)
 				{
 					string path = Path.Combine(Root.FullName, x.CanonicalName);
 					if (Utilities.Symlink.Exists(path))
@@ -2332,26 +2408,24 @@ namespace Versionr
 						}
 					}
 				}
+				else if (x.IsDirectory)
+				{
+					string path = Path.Combine(Root.FullName, x.CanonicalName.Substring(0, x.CanonicalName.Length - 1));
+					if (System.IO.Directory.Exists(path))
+					{
+						try
+						{
+							RemoveFileTimeCache(x.CanonicalName);
+							System.IO.Directory.Delete(path);
+						}
+						catch
+						{
+							Printer.PrintMessage("Couldn't delete `{0}`, files still present!", x.CanonicalName);
+						}
+					}
+				}
 			}
-			foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
-            {
-                if (!canonicalNames.Contains(x.CanonicalName))
-                {
-                    string path = Path.Combine(Root.FullName, x.CanonicalName.Substring(0, x.CanonicalName.Length - 1));
-                    if (System.IO.Directory.Exists(path))
-                    {
-                        try
-                        {
-                            RemoveFileTimeCache(x.CanonicalName);
-                            System.IO.Directory.Delete(path);
-                        }
-                        catch
-                        {
-                            Printer.PrintMessage("Couldn't delete `{0}`, files still present!", x.CanonicalName);
-                        }
-                    }
-                }
-            }
+
             ReferenceTime = newRefTime;
             LocalData.BeginTransaction();
             try
