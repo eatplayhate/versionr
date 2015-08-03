@@ -559,12 +559,12 @@ namespace Versionr
             });
         }
 
-        internal List<Objects.Alteration> GetAlterations(Objects.Version x)
+        public List<Objects.Alteration> GetAlterations(Objects.Version x)
         {
             return Database.GetAlterationsForVersion(x);
         }
 
-        internal Objects.Record GetRecord(long id)
+        public Objects.Record GetRecord(long id)
         {
             Objects.Record rec = Database.Find<Objects.Record>(id);
             if (rec != null)
@@ -2229,7 +2229,7 @@ namespace Versionr
             LocalData.Commit();
         }
 
-        private void CheckoutInternal(Objects.Version tipVersion)
+		private void CheckoutInternal(Objects.Version tipVersion)
         {
             List<Record> records = Database.Records;
             
@@ -2302,12 +2302,12 @@ namespace Versionr
                     if (System.IO.File.Exists(path))
                     {
                         try
-                        {
-                            RemoveFileTimeCache(x.CanonicalName);
-                            System.IO.File.Delete(path);
-                            Printer.PrintMessage("Deleted {0}", x.CanonicalName);
-                        }
-                        catch
+						{
+							RemoveFileTimeCache(x.CanonicalName);
+							System.IO.File.Delete(path);
+							Printer.PrintMessage("Deleted {0}", x.CanonicalName);
+						}
+						catch
                         {
                             Printer.PrintMessage("Couldn't delete `{0}`!", x.CanonicalName);
                         }
