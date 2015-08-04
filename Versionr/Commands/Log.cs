@@ -62,7 +62,7 @@ namespace Versionr.Commands
                     string message = x.Message;
                     if (message == null)
                         message = string.Empty;
-                    Printer.PrintMessage("#c#{0}:## {1} #q#({2} {3})##", x.ShortName, message.Replace('\n', ' '), x.Author, new DateTime(x.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString());
+                    Printer.PrintMessage("({4}) #c#{0}:## {1} #q#({2} {3})##", x.ShortName, message.Replace('\n', ' '), x.Author, new DateTime(x.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), x.Revision);
                 }
                 else
                 {
