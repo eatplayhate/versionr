@@ -59,7 +59,12 @@ namespace Versionr.Commands
                 return false;
             }
 
-            return Workspace.RenameBranch(branch, localOptions.Name);
+            bool result = Workspace.RenameBranch(branch, localOptions.Name);
+            if (result == true)
+                Printer.PrintMessage("Renamed branch #c#{0}## from \"#b#{1}##\" to \"#b#{2}##\".", branch.ID, branch.Name, localOptions.Name);
+            else
+                Printer.PrintError("#x#Error:##\n Can't rename branch.");
+            return result;
         }
     }
 }

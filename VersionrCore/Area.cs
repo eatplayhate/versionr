@@ -2625,7 +2625,7 @@ namespace Versionr
 
         private bool Switch(string v)
         {
-            var branch = Database.Find<Branch>(x => x.Name == v && !x.Terminus.HasValue);
+            var branch = Database.Find<Branch>(x => x.Name == v && x.Terminus == null);
             if (branch == null)
                 return false;
             return SwitchBranch(branch);
