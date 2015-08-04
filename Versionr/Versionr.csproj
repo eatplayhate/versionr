@@ -50,6 +50,7 @@
     <Compile Include="Commands\Diff.cs" />
     <Compile Include="Commands\FileBaseCommand.cs" />
     <Compile Include="Commands\FileCommand.cs" />
+    <Compile Include="Commands\ListBranch.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\Pull.cs" />

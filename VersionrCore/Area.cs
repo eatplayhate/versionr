@@ -45,6 +45,26 @@ namespace Versionr
             }
         }
 
+        public List<Objects.Branch> GetBranches(string name, bool deleted, bool partialNames)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                if (deleted)
+                    return Database.Table<Branch>().ToList();
+                else
+                    return Database.Table<Branch>().Where(x => x.Terminus == null).ToList();
+            }
+            string query = "SELECT rowid, * FROM Branch";
+            if (partialNames)
+                query += string.Format(" WHERE Name LIKE '%{0}%'", name);
+            else
+                query += string.Format(" WHERE Name IS '{0}'", name);
+            if (deleted)
+                return Database.Query<Branch>(query);
+            else
+                return Database.Query<Branch>(query).Where(x => x.Terminus == null).ToList();
+        }
+
         internal List<Record> GetAllMissingRecords()
         {
             return FindMissingRecords(Database.GetAllRecords());

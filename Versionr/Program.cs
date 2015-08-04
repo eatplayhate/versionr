@@ -77,6 +77,8 @@ namespace Versionr
 		public Commands.UpdateVerbOptions UpdateVerb { get; set; }
 		[VerbOption("renamebranch", HelpText = "Rename a branch in the vault.")]
 		public Commands.RenameBranchVerbOptions RenameBranchVerb { get; set; }
+		[VerbOption("listbranch", HelpText = "Lists branches in the vault.")]
+		public Commands.ListBranchVerbOptions ListBranchVerb { get; set; }
 
 		[HelpOption]
         public string GetUsage()
@@ -157,6 +159,8 @@ namespace Versionr
 				return UpdateVerb.GetUsage();
             else if (verb == "renamebranch")
                 return RenameBranchVerb.GetUsage();
+            else if (verb == "listbranch")
+                return ListBranchVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -226,6 +230,7 @@ namespace Versionr
 			commands["unrecord"] = new Commands.Unrecord();
             commands["update"] = new Commands.Update();
             commands["renamebranch"] = new Commands.RenameBranch();
+            commands["listbranch"] = new Commands.ListBranch();
 
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
