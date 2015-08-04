@@ -13,7 +13,7 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 20;
+        public const int InternalDBVersion = 25;
         public const int MinimumDBVersion = 3;
         public const int MaximumDBVersion = 25;
 
@@ -44,7 +44,7 @@ namespace Versionr
                 try
                 {
                     var fmt = Format;
-                    int priorFormat = fmt.InternalFormat;
+                    int priorFormat = 15;// fmt.InternalFormat;
                     if (priorFormat < 17)
                     {
                         ExecuteDirect("PRAGMA main.page_size = 4096;");
@@ -96,7 +96,7 @@ namespace Versionr
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
                     }
-                    if (priorFormat < 16)
+                    if (priorFormat < 21)
                     {
                         Printer.PrintMessage(" - Upgrading database - running full consistency check.");
                         var objNames = Table<ObjectName>().ToList();
@@ -104,8 +104,6 @@ namespace Versionr
                         Dictionary<string, long> nameIndexes = new Dictionary<string, long>();
                         DropTable<ObjectName>();
                         DropTable<RecordRef>();
-                        Commit();
-                        BeginExclusive();
                         CreateTable<ObjectName>();
                         int duplicateObjs = 0;
                         foreach (var x in objNames)

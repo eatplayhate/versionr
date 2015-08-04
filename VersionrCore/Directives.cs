@@ -46,10 +46,9 @@ namespace Versionr
         public Ignores Include { get; set; }
         public string DefaultCompression { get; set; }
 		public SvnCompatibility Svn { get; set; }
-        public static Directives Default()
+        public Directives()
         {
-            return new Directives() { Ignore = new Ignores() };
-            return new Directives() { Include = null };
+            Ignore = new Ignores();
         }
     }
 }

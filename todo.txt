@@ -12,8 +12,8 @@ Versionr features
 - internal diff and merge engine
 - configurable merge/diff tools
 - cherry pick revisions?
-- better log
 - switch
 - plugin architecture (and convert svn integration)
 - fix order of record creation for merge/update (probably others)
 - file attributes (executable for *nixes, hidden, ... ?)
+- configuration for plugins/modules

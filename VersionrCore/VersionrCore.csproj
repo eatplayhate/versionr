@@ -57,6 +57,7 @@
     <Compile Include="LocalDB.cs" />
     <Compile Include="LocalState\Configuration.cs" />
     <Compile Include="LocalState\FileTimestamp.cs" />
+    <Compile Include="LocalState\LockingObject.cs" />
     <Compile Include="LocalState\RemoteConfig.cs" />
     <Compile Include="LocalState\StageOperation.cs" />
     <Compile Include="LocalState\Workspace.cs" />

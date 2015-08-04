@@ -20,6 +20,7 @@ namespace Versionr
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
+        public Newtonsoft.Json.Linq.JObject Configuration { get; set; }
 
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
         public Guid Domain
@@ -699,11 +700,13 @@ namespace Versionr
             KnownCanonicalNames.TryGetValue(rec.CanonicalName, out cnId);
             if (!cnId.HasValue)
             {
+                Retry:
                 ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == rec.CanonicalName);
                 if (canonicalNameId == null)
                 {
                     canonicalNameId = new ObjectName() { CanonicalName = rec.CanonicalName };
-                    Database.InsertSafe(canonicalNameId);
+                    if (!Database.InsertSafe(canonicalNameId))
+                        goto Retry;
                 }
                 KnownCanonicalNames[rec.CanonicalName] = canonicalNameId.NameId;
                 cnId = canonicalNameId.NameId;
@@ -913,18 +916,28 @@ namespace Versionr
 		private void LoadDirectives()
 		{
 			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-			if (info.Exists)
-			{
-				string data = string.Empty;
-				using (var sr = info.OpenText())
-				{
-					data = sr.ReadToEnd();
-				}
-				Directives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(data);
-			}
-			else
-				Directives = Directives.Default();
+            if (info.Exists)
+            {
+                string data = string.Empty;
+                using (var sr = info.OpenText())
+                {
+                    data = sr.ReadToEnd();
+                }
+                Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
+                Directives = LoadConfigurationElement<Directives>("Versionr");
+            }
+            else
+                Directives = new Directives();
 		}
+
+        public T LoadConfigurationElement<T>(string v)
+            where T : new()
+        {
+            var element = Configuration[v];
+            if (element == null)
+                return new T();
+            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
+        }
 
         private bool Load()
         {
@@ -2243,12 +2256,23 @@ namespace Versionr
             return null;
         }
 
-        private void CleanStage()
+        private void CleanStage(bool createTransaction = true)
         {
             Printer.PrintDiagnostics("Clearing stage.");
-            LocalData.BeginTransaction();
-            LocalData.DeleteAll<LocalState.StageOperation>();
-            LocalData.Commit();
+            try
+            {
+                if (createTransaction)
+                    LocalData.BeginTransaction();
+                LocalData.DeleteAll<LocalState.StageOperation>();
+                if (createTransaction)
+                    LocalData.Commit();
+            }
+            catch
+            {
+                if (createTransaction)
+                    LocalData.Rollback();
+                throw;
+            }
         }
 
 		private static IEnumerable<Record> CheckoutOrder(List<Record> targetRecords)
@@ -2327,8 +2351,8 @@ namespace Versionr
 					}
 					else
 					{
-						RestoreRecord(x, newRefTime);
-						//tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
+						//RestoreRecord(x, newRefTime);
+						tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
 					}
 
 				}
@@ -2638,298 +2662,335 @@ namespace Versionr
                 if (x.Type == StageOperationType.Merge)
                     mergeIDs.Add(new Guid(x.Operand1));
             }
-            Objects.Version parentVersion = Database.Version;
-            Printer.PrintDiagnostics("Getting status for commit.");
-            Status st = Status;
-            if (st.HasModifications(true) || mergeIDs.Count > 0)
+            try
             {
-                Printer.PrintMessage("Committing changes..");
-                Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
-                try
+                return RunLocked(() =>
                 {
-                    Objects.Version vs = null;
-                    vs = Objects.Version.Create();
-                    vs.Author = Environment.UserName;
-                    vs.Parent = Database.Version.ID;
-                    vs.Branch = Database.Branch.ID;
-                    Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);
-                    List<Objects.MergeInfo> mergeInfos = new List<MergeInfo>();
-                    List<Objects.Head> mergeHeads = new List<Head>();
-                    foreach (var guid in mergeIDs)
+                    Objects.Version parentVersion = Database.Version;
+                    Printer.PrintDiagnostics("Getting status for commit.");
+                    Status st = Status;
+                    if (st.HasModifications(true) || mergeIDs.Count > 0)
                     {
-                        Objects.MergeInfo mergeInfo = new MergeInfo();
-                        mergeInfo.SourceVersion = guid;
-                        mergeInfo.DestinationVersion = vs.ID;
-                        var mergeVersion = GetVersion(guid);
-
-                        Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}##\" (rev {2})", guid, GetBranch(mergeVersion.Branch).Name, mergeVersion.Revision);
-                        Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
-                        if (mergeHead != null)
+                        Printer.PrintMessage("Committing changes..");
+                        Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
+                        try
                         {
-                            Printer.PrintMessage("#q# - Deleting head reference.");
-                            mergeHeads.Add(mergeHead);
-                        }
-                        mergeInfos.Add(mergeInfo);
-                    }
-                    vs.Message = message;
-                    vs.Timestamp = DateTime.UtcNow;
+                            Objects.Version vs = null;
+                            vs = Objects.Version.Create();
+                            vs.Author = Environment.UserName;
+                            vs.Parent = Database.Version.ID;
+                            vs.Branch = Database.Branch.ID;
+                            Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);
+                            List<Objects.MergeInfo> mergeInfos = new List<MergeInfo>();
+                            List<Objects.Head> mergeHeads = new List<Head>();
+                            foreach (var guid in mergeIDs)
+                            {
+                                Objects.MergeInfo mergeInfo = new MergeInfo();
+                                mergeInfo.SourceVersion = guid;
+                                mergeInfo.DestinationVersion = vs.ID;
+                                var mergeVersion = GetVersion(guid);
 
-                    Objects.Branch branch = Database.Branch;
-                    Objects.Head head = null;
-                    bool newHead = false;
-                    head = Database.Find<Objects.Head>(x => x.Version == vs.Parent && x.Branch == branch.ID);
-                    if (head == null)
-                    {
-                        Printer.PrintDiagnostics("No branch head with prior version present. Inserting new head.");
-                        head = Database.Find<Objects.Head>(x => x.Branch == branch.ID);
-                        if (head != null && !force)
-                        {
-                            Printer.PrintError("#x#Error:##\n   Branch already has head but current version is not a direct child.\nA new head has to be inserted, but this requires that the #b#`--force`## option is used.");
-                            return false;
-                        }
-                        else
-                            Printer.PrintWarning("#w#This branch has a previously recorded head, but a new head has to be inserted.");
-                        head = new Head();
-                        head.Branch = branch.ID;
-                        newHead = true;
-                    }
-                    else
-                        Printer.PrintDiagnostics("Existing head for current version found. Updating branch head.");
-                    head.Version = vs.ID;
-
-                    List<Objects.Alteration> alterations = new List<Alteration>();
-                    List<Objects.Record> records = new List<Record>();
-                    HashSet<Objects.Record> finalRecords = new HashSet<Record>();
-                    List<Tuple<Objects.Record, Objects.Alteration>> alterationLinkages = new List<Tuple<Record, Alteration>>();
-                    HashSet<string> stagedChanges = new HashSet<string>(LocalData.StageOperations.Where(x => x.Type == StageOperationType.Add).Select(x => x.Operand1));
-
-                    Dictionary<string, List<StageOperation>> fullStageInfo = LocalData.GetMappedStage();
-
-                    Dictionary<string, ObjectName> canonicalNames = new Dictionary<string, ObjectName>();
-                    foreach (var x in Database.Table<ObjectName>().ToList())
-                        canonicalNames[x.CanonicalName] = x;
-                    List<Tuple<Record, ObjectName>> canonicalNameInsertions = new List<Tuple<Record, ObjectName>>();
-
-                    transaction = ObjectStore.BeginStorageTransaction();
-
-                    foreach (var x in st.Elements)
-                    {
-                        List<StageOperation> stagedOps;
-                        fullStageInfo.TryGetValue(x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName, out stagedOps);
-                        switch (x.Code)
-                        {
-                            case StatusCode.Deleted:
+                                Printer.PrintMessage("Input merge: #b#{0}## on branch \"#b#{1}##\" (rev {2})", guid, GetBranch(mergeVersion.Branch).Name, mergeVersion.Revision);
+                                Objects.Head mergeHead = Database.Table<Objects.Head>().Where(x => x.Version == guid).ToList().Where(x => x.Branch == Database.Branch.ID).FirstOrDefault();
+                                if (mergeHead != null)
                                 {
-                                    Printer.PrintMessage("Deleted: #b#{0}##", x.VersionControlRecord.CanonicalName);
-                                    Printer.PrintDiagnostics("Recorded deletion: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
-                                    Objects.Alteration alteration = new Alteration();
-                                    alteration.PriorRecord = x.VersionControlRecord.Id;
-                                    alteration.Type = AlterationType.Delete;
-                                    alterations.Add(alteration);
+                                    Printer.PrintMessage("#q# - Deleting head reference.");
+                                    mergeHeads.Add(mergeHead);
                                 }
-                                break;
-                            case StatusCode.Added:
-                            case StatusCode.Modified:
-                            case StatusCode.Renamed:
-                            case StatusCode.Copied:
+                                mergeInfos.Add(mergeInfo);
+                            }
+                            vs.Message = message;
+                            vs.Timestamp = DateTime.UtcNow;
+
+                            Objects.Branch branch = Database.Branch;
+                            Objects.Head head = null;
+                            bool newHead = false;
+                            head = Database.Find<Objects.Head>(x => x.Version == vs.Parent && x.Branch == branch.ID);
+                            if (head == null)
+                            {
+                                Printer.PrintDiagnostics("No branch head with prior version present. Inserting new head.");
+                                head = Database.Find<Objects.Head>(x => x.Branch == branch.ID);
+                                if (head != null && !force)
                                 {
-                                    try
-                                    {
-										if ((x.Code == StatusCode.Renamed || x.Code == StatusCode.Modified)
-											&& !stagedChanges.Contains(x.FilesystemEntry.CanonicalName))
-										{
-											finalRecords.Add(x.VersionControlRecord);
-											break;
-										}
-										if (x.Code == StatusCode.Copied)
+                                    Printer.PrintError("#x#Error:##\n   Branch already has head but current version is not a direct child.\nA new head has to be inserted, but this requires that the #b#`--force`## option is used.");
+                                    return false;
+                                }
+                                else
+                                    Printer.PrintWarning("#w#This branch has a previously recorded head, but a new head has to be inserted.");
+                                head = new Head();
+                                head.Branch = branch.ID;
+                                newHead = true;
+                            }
+                            else
+                                Printer.PrintDiagnostics("Existing head for current version found. Updating branch head.");
+                            head.Version = vs.ID;
+
+                            List<Objects.Alteration> alterations = new List<Alteration>();
+                            List<Objects.Record> records = new List<Record>();
+                            HashSet<Objects.Record> finalRecords = new HashSet<Record>();
+                            List<Tuple<Objects.Record, Objects.Alteration>> alterationLinkages = new List<Tuple<Record, Alteration>>();
+                            HashSet<string> stagedChanges = new HashSet<string>(LocalData.StageOperations.Where(x => x.Type == StageOperationType.Add).Select(x => x.Operand1));
+
+                            Dictionary<string, List<StageOperation>> fullStageInfo = LocalData.GetMappedStage();
+
+                            Dictionary<string, ObjectName> canonicalNames = new Dictionary<string, ObjectName>();
+                            foreach (var x in Database.Table<ObjectName>().ToList())
+                                canonicalNames[x.CanonicalName] = x;
+                            List<Tuple<Record, ObjectName>> canonicalNameInsertions = new List<Tuple<Record, ObjectName>>();
+
+                            transaction = ObjectStore.BeginStorageTransaction();
+
+                            foreach (var x in st.Elements)
+                            {
+                                List<StageOperation> stagedOps;
+                                fullStageInfo.TryGetValue(x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName, out stagedOps);
+                                switch (x.Code)
+                                {
+                                    case StatusCode.Deleted:
                                         {
-                                            if (!stagedChanges.Contains(x.FilesystemEntry.CanonicalName))
-                                                break;
+                                            Printer.PrintMessage("Deleted: #b#{0}##", x.VersionControlRecord.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded deletion: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
+                                            Objects.Alteration alteration = new Alteration();
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Delete;
+                                            alterations.Add(alteration);
                                         }
-                                        Objects.Record record = null;
-                                        bool recordIsMerged = false;
-                                        if (stagedOps != null)
+                                        break;
+                                    case StatusCode.Added:
+                                    case StatusCode.Modified:
+                                    case StatusCode.Renamed:
+                                    case StatusCode.Copied:
                                         {
-                                            foreach (var op in stagedOps)
+                                            try
                                             {
-                                                if (op.Type == StageOperationType.MergeRecord)
+                                                if ((x.Code == StatusCode.Renamed || x.Code == StatusCode.Modified)
+                                                    && !stagedChanges.Contains(x.FilesystemEntry.CanonicalName))
                                                 {
-                                                    Objects.Record mergedRecord = GetRecord(op.ReferenceObject);
-                                                    if (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash)
-                                                    {
-                                                        record = mergedRecord;
-                                                        recordIsMerged = true;
+                                                    finalRecords.Add(x.VersionControlRecord);
+                                                    break;
+                                                }
+                                                if (x.Code == StatusCode.Copied)
+                                                {
+                                                    if (!stagedChanges.Contains(x.FilesystemEntry.CanonicalName))
                                                         break;
+                                                }
+                                                Objects.Record record = null;
+                                                bool recordIsMerged = false;
+                                                if (stagedOps != null)
+                                                {
+                                                    foreach (var op in stagedOps)
+                                                    {
+                                                        if (op.Type == StageOperationType.MergeRecord)
+                                                        {
+                                                            Objects.Record mergedRecord = GetRecord(op.ReferenceObject);
+                                                            if (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash)
+                                                            {
+                                                                record = mergedRecord;
+                                                                recordIsMerged = true;
+                                                                break;
+                                                            }
+                                                        }
                                                     }
                                                 }
+                                                if (record == null)
+                                                {
+                                                    record = new Objects.Record();
+                                                    record.CanonicalName = x.FilesystemEntry.CanonicalName;
+                                                    record.Attributes = x.FilesystemEntry.Attributes;
+                                                    if (record.IsSymlink)
+                                                        record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
+                                                    else if (record.IsDirectory)
+                                                        record.Fingerprint = x.FilesystemEntry.CanonicalName;
+                                                    else
+                                                        record.Fingerprint = x.FilesystemEntry.Hash;
+                                                    record.Size = x.FilesystemEntry.Length;
+                                                    record.ModificationTime = x.FilesystemEntry.ModificationTime;
+                                                    if (x.VersionControlRecord != null)
+                                                        record.Parent = x.VersionControlRecord.Id;
+                                                }
+                                                Objects.Record possibleRecord = LocateRecord(record);
+                                                if (possibleRecord != null)
+                                                    record = possibleRecord;
+
+                                                Objects.Alteration alteration = new Alteration();
+                                                alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
+                                                if (x.Code == StatusCode.Added)
+                                                {
+                                                    Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                    Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
+                                                    alteration.Type = AlterationType.Add;
+                                                }
+                                                else if (x.Code == StatusCode.Modified)
+                                                {
+                                                    Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                    Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
+                                                    alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                    alteration.Type = AlterationType.Update;
+                                                }
+                                                else if (x.Code == StatusCode.Copied)
+                                                {
+                                                    Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                    Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                                    alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                    alteration.Type = AlterationType.Copy;
+                                                }
+                                                else if (x.Code == StatusCode.Renamed)
+                                                {
+                                                    Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                    Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                                    alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                    alteration.Type = AlterationType.Move;
+                                                }
+                                                if (!ObjectStore.HasData(record))
+                                                    ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+
+                                                ObjectName nameRecord = null;
+                                                if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
+                                                {
+                                                    record.CanonicalNameId = nameRecord.NameId;
+                                                }
+                                                else
+                                                {
+                                                    canonicalNameInsertions.Add(new Tuple<Record, ObjectName>(record, new ObjectName() { CanonicalName = x.FilesystemEntry.CanonicalName }));
+                                                }
+
+                                                Printer.PrintDiagnostics("Created new object record: {0}", x.FilesystemEntry.CanonicalName);
+                                                Printer.PrintDiagnostics("Record fingerprint: {0}", record.Fingerprint);
+                                                if (record.Parent != null)
+                                                    Printer.PrintDiagnostics("Record parent ID: {0}", record.Parent);
+
+                                                finalRecords.Add(record);
+                                                alterations.Add(alteration);
+                                                if (!recordIsMerged)
+                                                    records.Add(record);
                                             }
+                                            catch (Exception e)
+                                            {
+                                                Printer.PrintError("Failed to add {0}!", x.FilesystemEntry.CanonicalName);
+                                                throw e;
+                                            }
+                                            break;
                                         }
-                                        if (record == null)
-                                        {
-                                            record = new Objects.Record();
-                                            record.CanonicalName = x.FilesystemEntry.CanonicalName;
-                                            record.Attributes = x.FilesystemEntry.Attributes;
-											if (record.IsSymlink)
-												record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
-											else if (record.IsDirectory)
-												record.Fingerprint = x.FilesystemEntry.CanonicalName;
-											else
-												record.Fingerprint = x.FilesystemEntry.Hash;
-                                            record.Size = x.FilesystemEntry.Length;
-                                            record.ModificationTime = x.FilesystemEntry.ModificationTime;
-                                            if (x.VersionControlRecord != null)
-                                                record.Parent = x.VersionControlRecord.Id;
-                                        }
-                                        Objects.Record possibleRecord = LocateRecord(record);
-                                        if (possibleRecord != null)
-                                            record = possibleRecord;
-
-                                        Objects.Alteration alteration = new Alteration();
-                                        alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
-                                        if (x.Code == StatusCode.Added)
-                                        {
-                                            Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                            Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
-                                            alteration.Type = AlterationType.Add;
-                                        }
-                                        else if (x.Code == StatusCode.Modified)
-                                        {
-                                            Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                            Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Update;
-                                        }
-                                        else if (x.Code == StatusCode.Copied)
-                                        {
-                                            Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                            Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Copy;
-                                        }
-                                        else if (x.Code == StatusCode.Renamed)
-                                        {
-                                            Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                            Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Move;
-                                        }
-                                        if (!ObjectStore.HasData(record))
-                                            ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
-
-                                        ObjectName nameRecord = null;
-                                        if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
-                                        {
-                                            record.CanonicalNameId = nameRecord.NameId;
-                                        }
-                                        else
-                                        {
-                                            canonicalNameInsertions.Add(new Tuple<Record, ObjectName>(record, new ObjectName() { CanonicalName = x.FilesystemEntry.CanonicalName }));
-                                        }
-
-                                        Printer.PrintDiagnostics("Created new object record: {0}", x.FilesystemEntry.CanonicalName);
-                                        Printer.PrintDiagnostics("Record fingerprint: {0}", record.Fingerprint);
-                                        if (record.Parent != null)
-                                            Printer.PrintDiagnostics("Record parent ID: {0}", record.Parent);
-
-                                        finalRecords.Add(record);
-                                        alterations.Add(alteration);
-                                        if (!recordIsMerged)
-                                            records.Add(record);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        Printer.PrintError("Failed to add {0}!", x.FilesystemEntry.CanonicalName);
-                                        throw e;
-                                    }
-                                    break;
+                                    case StatusCode.Unchanged:
+                                    case StatusCode.Missing:
+                                        finalRecords.Add(x.VersionControlRecord);
+                                        break;
+                                    case StatusCode.Unversioned:
+                                    default:
+                                        break;
                                 }
-                            case StatusCode.Unchanged:
-							case StatusCode.Missing:
-								finalRecords.Add(x.VersionControlRecord);
-                                break;
-                            case StatusCode.Unversioned:
-                            default:
-                                break;
+                            }
+
+                            ObjectStore.EndStorageTransaction(transaction);
+                            transaction = null;
+
+                            Printer.PrintMessage("Updating internal state.");
+                            var ws = LocalData.Workspace;
+                            ws.Tip = vs.ID;
+                            Objects.Snapshot ss = new Snapshot();
+                            Database.BeginTransaction();
+                            Database.InsertSafe(ss);
+                            vs.AlterationList = ss.Id;
+                            Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
+                            foreach (var x in canonicalNameInsertions)
+                            {
+                                if (!Database.InsertSafe(x.Item2))
+                                {
+                                    var name = Database.Get<ObjectName>(z => z.CanonicalName == x.Item2.CanonicalName);
+                                    x.Item2.NameId = name.NameId;
+                                }
+                                x.Item1.CanonicalNameId = x.Item2.NameId;
+                            }
+                            foreach (var x in records)
+                            {
+                                Database.InsertSafe(x);
+                            }
+                            foreach (var x in alterationLinkages)
+                                x.Item2.NewRecord = x.Item1.Id;
+
+                            Printer.PrintDiagnostics("Adding {0} alteration records.", alterations.Count);
+                            foreach (var x in alterations)
+                            {
+                                x.Owner = ss.Id;
+                                Database.InsertSafe(x);
+                            }
+                            foreach (var info in mergeInfos)
+                                Database.InsertSafe(info);
+
+                            if (newHead)
+                                Database.InsertSafe(head);
+                            else
+                                Database.UpdateSafe(head);
+
+                            foreach (var mergeHead in mergeHeads)
+                            {
+                                if (mergeHead != null)
+                                    Database.DeleteSafe(mergeHead);
+                            }
+                            Database.InsertSafe(vs);
+
+                            Database.Commit();
+                            Printer.PrintDiagnostics("Finished.");
+                            CleanStage(false);
+                            LocalData.UpdateSafe(ws);
+                            Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
+                        }
+                        catch (Exception e)
+                        {
+                            if (transaction != null)
+                                ObjectStore.AbortStorageTransaction(transaction);
+                            Database.Rollback();
+                            Printer.PrintError("Exception during commit: {0}", e.ToString());
+                            return false;
+                        }
+                        finally
+                        {
+                            if (transaction != null)
+                                ObjectStore.AbortStorageTransaction(transaction);
                         }
                     }
-
-                    ObjectStore.EndStorageTransaction(transaction);
-                    transaction = null;
-
-                    Printer.PrintMessage("Updating internal state.");
-                    var ws = LocalData.Workspace;
-                    ws.Tip = vs.ID;
-                    Objects.Snapshot ss = new Snapshot();
-                    Database.BeginTransaction();
-                    Database.InsertSafe(ss);
-                    vs.AlterationList = ss.Id;
-                    Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
-                    foreach (var x in canonicalNameInsertions)
-                    {
-                        Database.InsertSafe(x.Item2);
-                        x.Item1.CanonicalNameId = x.Item2.NameId;
-                    }
-                    foreach (var x in records)
-                    {
-                        Database.InsertSafe(x);
-                    }
-                    foreach (var x in alterationLinkages)
-                        x.Item2.NewRecord = x.Item1.Id;
-                    
-                    Printer.PrintDiagnostics("Adding {0} alteration records.", alterations.Count);
-                    foreach (var x in alterations)
-                    {
-                        x.Owner = ss.Id;
-                        Database.InsertSafe(x);
-                    }
-                    foreach (var info in mergeInfos)
-                        Database.InsertSafe(info);
-
-                    if (newHead)
-                        Database.InsertSafe(head);
                     else
-                        Database.UpdateSafe(head);
-
-                    foreach (var mergeHead in mergeHeads)
                     {
-                        if (mergeHead != null)
-                            Database.DeleteSafe(mergeHead);
+                        Printer.PrintWarning("#w#Warning:##\n  Nothing to do.");
+                        return false;
                     }
-                    Database.InsertSafe(vs);
-                    
-                    Database.Commit();
-                    Printer.PrintDiagnostics("Finished.");
-                    CleanStage();
-                    LocalData.BeginTransaction();
-                    try
-                    {
-                        LocalData.UpdateSafe(ws);
-                        LocalData.Commit();
-                    }
-                    catch
-                    {
-                        LocalData.Rollback();
-                        throw;
-                    }
-
-                    Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
-                }
-                catch (Exception e)
-                {
-                    if (transaction != null)
-                        ObjectStore.AbortStorageTransaction(transaction);
-                    Database.Rollback();
-                    Printer.PrintError("Exception during commit: {0}", e.ToString());
-                    return false;
-                }
+                    return true;
+                }, true);
             }
-            else
+            catch
             {
-                Printer.PrintWarning("#w#Warning:##\n  Nothing to do.");
+                Printer.PrintWarning("#w#Warning:##\n  Error during commit.");
                 return false;
             }
-            return true;
         }
+
+        public bool RunLocked(Func<bool> lockedFunction, bool inform)
+        {
+            try
+            {
+                if (!LocalData.BeginImmediate(false))
+                {
+                    if (inform)
+                        Printer.PrintWarning("Couldn't acquire lock. Waiting.");
+                    LocalData.BeginImmediate(true);
+                }
+                while (!LocalData.AcquireLock())
+                {
+                    System.Threading.Thread.Yield();
+                }
+                return lockedFunction();
+            }
+            catch
+            {
+                LocalData.Rollback();
+                throw;
+            }
+            finally
+            {
+                LocalData.Commit();
+            }
+        }
+
         private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null)
         {
 			if (rec.IsSymlink)

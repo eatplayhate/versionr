@@ -10,7 +10,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 5;
+        public const int LocalDBVersion = 6;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -20,6 +20,7 @@ namespace Versionr
             CreateTable<LocalState.StageOperation>();
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
+            CreateTable<LocalState.LockingObject>();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -123,6 +124,8 @@ namespace Versionr
         {
             if (Configuration.Version != LocalDBVersion)
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
+            else
+                return true;
             if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;
@@ -161,24 +164,21 @@ namespace Versionr
                     return false;
                 }
             }
-            else if (Configuration.Version == 1)
+
+            Configuration cconfig = Configuration;
+            cconfig.Version = LocalDBVersion;
+            try
             {
-                Configuration config = Configuration;
-                config.Version = LocalDBVersion;
-                try
-                {
-                    BeginTransaction();
-                    Update(config);
-                    Commit();
-                    return true;
-                }
-                catch
-                {
-                    Rollback();
-                    return false;
-                }
+                BeginTransaction();
+                Update(cconfig);
+                Commit();
+                return true;
             }
-            return true;
+            catch
+            {
+                Rollback();
+                return false;
+            }
         }
 
         public static LocalDB Create(string fullPath)
@@ -335,6 +335,35 @@ namespace Versionr
                 var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
                 if (timestamp != null)
                     Delete(timestamp);
+            }
+        }
+
+        internal bool AcquireLock()
+        {
+            Retry:
+            var lockingObject = Table<LockingObject>().FirstOrDefault();
+            if (lockingObject == null)
+            {
+                lockingObject = new LockingObject() { Id = 0, LockTime = DateTime.UtcNow };
+                try
+                {
+                    Insert(lockingObject);
+                    return true;
+                }
+                catch
+                {
+                    goto Retry;
+                }
+            }
+            lockingObject.LockTime = DateTime.UtcNow;
+            try
+            {
+                Update(lockingObject);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

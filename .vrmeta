@@ -1,34 +1,37 @@
 {
-	"Ignore" :
+	"Versionr" :
 	{
-		"Extensions" :
-		[
-			".sdf",
-			".obj",
-			".tlog",
-			".pdb",
-			".idb",
-			".ilk",
-			".log",
-			".opensdf",
-			".ipch",
-			".suo",
-			".user",
-			".cache",
-			".DS_Store"
-		],
-		"Patterns" :
-		[
-			".*/obj/",
-			"^\\.vs/",
-			"^ipch",
-			"^Debug/",
-			"/Debug/",
-			"^Release/",
-			"/Release/",
-			".*\\.tlog",
-			"^x64",
-			"^lib/"
-		]
+		"Ignore" :
+		{
+			"Extensions" :
+			[
+				".sdf",
+				".obj",
+				".tlog",
+				".pdb",
+				".idb",
+				".ilk",
+				".log",
+				".opensdf",
+				".ipch",
+				".suo",
+				".user",
+				".cache",
+				".DS_Store"
+			],
+			"Patterns" :
+			[
+				".*/obj/",
+				"^\\.vs/",
+				"^ipch",
+				"^Debug/",
+				"/Debug/",
+				"^Release/",
+				"/Release/",
+				".*\\.tlog",
+				"^x64",
+				"^lib/"
+			]
+		}
 	}
 }
