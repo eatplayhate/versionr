@@ -43,6 +43,7 @@ namespace Versionr.Network
             public Area Workspace { get; set; }
             public HashSet<Guid> RemoteCheckedVersions { get; set; }
             public HashSet<Guid> RemoteCheckedBranches { get; set; }
+            public HashSet<Guid> RemoteCheckedBranchJournal { get; set; }
             public List<Objects.Branch> ReceivedBranches { get; set; }
             public List<VersionInfo> PushedVersions { get; set; }
             public HashSet<Guid> ReceivedVersionSet { get; set; }
@@ -59,6 +60,7 @@ namespace Versionr.Network
                 RemoteCheckedVersions = new HashSet<Guid>();
                 RemoteCheckedBranches = new HashSet<Guid>();
                 ReceivedBranches = new List<Branch>();
+                RemoteCheckedBranchJournal = new HashSet<Guid>();
                 PushedVersions = new List<VersionInfo>();
                 UnknownRecords = new List<long>();
                 UnknownRecordSet = new HashSet<long>();
@@ -176,6 +178,37 @@ namespace Versionr.Network
                     }
                     else if (testedVersion == currentVersion)
                         break;
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                return false;
+            }
+        }
+
+        internal static bool SendBranchJournal(SharedNetworkInfo info)
+        {
+            Objects.BranchJournal journal = info.Workspace.GetBranchJournalTip();
+            return SendBranchJournalInternal(info, journal);
+        }
+
+        internal static bool SendBranchJournalInternal(SharedNetworkInfo info, Objects.BranchJournal entry)
+        {
+            try
+            {
+                Stack<Objects.BranchJournal> openList = new Stack<Objects.BranchJournal>();
+                openList.Push(entry);
+                while (openList.Count > 0)
+                {
+                    Objects.BranchJournal journal = openList.Pop();
+                    if (info.RemoteCheckedBranchJournal.Contains(journal.ID))
+                        continue;
+
+                    List<Objects.BranchJournal> parents = info.Workspace.GetBranchJournalParents(journal);
+                    foreach (var x in parents)
+                        openList.Push(x);
                 }
                 return true;
             }

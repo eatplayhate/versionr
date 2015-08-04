@@ -102,10 +102,7 @@ namespace Versionr
         {
             return RunLocked(() =>
             {
-                Guid? branchJournalTip = LocalData.Workspace.JournalTip;
-                BranchJournal journal = null;
-                if (branchJournalTip.HasValue)
-                    journal = Database.Get<BranchJournal>(branchJournalTip);
+                BranchJournal journal = GetBranchJournalTip();
 
                 BranchJournal change = new BranchJournal();
                 change.Branch = branch.ID;
@@ -270,6 +267,20 @@ namespace Versionr
             }
             printer.End(null);
             LocalData.ReplaceFileTimes(filetimes);
+        }
+
+        internal List<BranchJournal> GetBranchJournalParents(BranchJournal journal)
+        {
+            return Database.Table<BranchJournalLink>().Where(x => x.Link == journal.ID).Select(x => Database.Get<BranchJournal>(x.Parent)).ToList();
+        }
+
+        internal BranchJournal GetBranchJournalTip()
+        {
+            Guid? branchJournalTip = LocalData.Workspace.JournalTip;
+            BranchJournal journal = null;
+            if (branchJournalTip.HasValue)
+                journal = Database.Get<BranchJournal>(branchJournalTip);
+            return journal;
         }
 
         public void ReplaceFileTimes()
