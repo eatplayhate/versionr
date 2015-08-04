@@ -50,6 +50,102 @@ namespace Versionr
             return FindMissingRecords(Database.GetAllRecords());
         }
 
+        public Branch GetBranchByPartialName(string v)
+        {
+            var branches = GetBranchByName(v);
+            if (branches.Count == 0)
+            {
+                Objects.Branch branch = Database.Find<Objects.Branch>(v);
+                if (branch != null)
+                    return branch;
+                bool postfix = false;
+                if (v.StartsWith("..."))
+                {
+                    postfix = true;
+                    branches = Database.Query<Objects.Branch>(string.Format("SELECT rowid, * FROM Branch WHERE Branch.ID LIKE '%{0}'", v.Substring(3)));
+                }
+                else
+                    branches = Database.Query<Objects.Branch>(string.Format("SELECT rowid, * FROM Branch WHERE Branch.ID LIKE '{0}%'", v));
+            }
+            if (branches.Count == 1)
+                return branches[0];
+            if (branches.Count > 1)
+            {
+                Printer.PrintError("Can't find a unique branch with pattern: {0}\nCould be:", v);
+                foreach (var x in branches)
+                    Printer.PrintMessage("\t{0} - name: \"#b#{1}##\"", x.ID, x.Name);
+            }
+            return null;
+        }
+
+        public bool RenameBranch(Branch branch, string name)
+        {
+            return RunLocked(() =>
+            {
+                Guid? branchJournalTip = LocalData.Workspace.JournalTip;
+                BranchJournal journal = null;
+                if (branchJournalTip.HasValue)
+                    journal = Database.Get<BranchJournal>(branchJournalTip);
+
+                BranchJournal change = new BranchJournal();
+                change.Branch = branch.ID;
+                change.ID = Guid.NewGuid();
+                change.Operand = name;
+                change.Type = BranchAlterationType.Rename;
+                string oldName = branch.Name;
+                try
+                {
+                    Database.BeginTransaction();
+                    Database.InsertSafe(change);
+                    if (journal != null)
+                    {
+                        BranchJournalLink link = new BranchJournalLink()
+                        {
+                            Link = change.ID,
+                            Parent = journal.ID
+                        };
+                        Database.InsertSafe(link);
+                    }
+
+                    ReplayBranchJournal(change);
+
+                    var ws = LocalData.Workspace;
+                    ws.JournalTip = change.ID;
+                    LocalData.InsertSafe(ws);
+                    Database.Commit();
+                    return true;
+                }
+                catch
+                {
+                    Database.Rollback();
+                    branch.Name = oldName;
+                    Database.UpdateSafe(branch);
+                    return false;
+                }
+
+            }, true);
+        }
+
+        public void ReplayBranchJournal(BranchJournal change)
+        {
+            Objects.Branch branch = Database.Get<Objects.Branch>(change.Branch);
+            if (change.Type == BranchAlterationType.Rename)
+            {
+                branch.Name = change.Operand;
+                Database.UpdateSafe(branch);
+            }
+            else if (change.Type == BranchAlterationType.Terminate)
+            {
+                branch.Terminus = new Guid(change.Operand);
+                Database.UpdateSafe(branch);
+                var heads = Database.GetHeads(branch);
+                foreach (var x in heads)
+                {
+                    Database.DeleteSafe(x);
+                }
+            }
+        }
+
         public DirectoryInfo Root
         {
             get
@@ -2964,7 +3060,7 @@ namespace Versionr
             }
         }
 
-        public bool RunLocked(Func<bool> lockedFunction, bool inform)
+        public bool RunLocked(Func<bool> lockedFunction, bool inform = false)
         {
             try
             {
