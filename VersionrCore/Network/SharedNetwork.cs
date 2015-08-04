@@ -392,7 +392,7 @@ namespace Versionr.Network
                     {
                         sw = new System.Diagnostics.Stopwatch();
                         sw.Start();
-                        printer = Printer.CreateSpinnerBarPrinter("Importing object metadata", string.Empty, (object obj) => { return string.Empty; }, 60);
+                        printer = Printer.CreateSpinnerBarPrinter(string.Format("Importing metadata for {0} objects", sharedInfo.UnknownRecords.Count), string.Empty, (object obj) => { return string.Empty; }, 60);
                     }
                     sharedInfo.Workspace.BeginDatabaseTransaction();
                     foreach (var x in sharedInfo.UnknownRecords.Select(x => x).Reverse())

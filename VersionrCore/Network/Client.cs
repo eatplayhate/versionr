@@ -272,7 +272,7 @@ namespace Versionr.Network
                             printer.End(command.Type);
                             printer = null;
                         }
-                        Printer.PrintMessage("Received {0} versions from remote vault.", SharedInfo.PushedVersions.Count);
+                        Printer.PrintMessage("Received #b#{0}## versions from remote vault.", SharedInfo.PushedVersions.Count);
                         SharedNetwork.RequestRecordMetadata(SharedInfo);
                         if (pullRemoteObjects)
                         {

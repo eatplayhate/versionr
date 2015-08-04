@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define SLOW_DATA_CHECK
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -669,9 +671,13 @@ namespace Versionr.ObjectStore
                 var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
                 if (storeData == null)
                     return false;
+#if SLOW_DATA_CHECK
                 if (storeData.BlobID == null)
                     return GetFileForDataID(x).Exists;
                 return BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
+#else
+                return true;
+#endif
             }
         }
 

@@ -457,6 +457,24 @@ namespace Versionr
                 SpinnerIndex = (SpinnerIndex + 1) % Spinners.Length;
                 return new string(Spinners[SpinnerIndex], 1);
             }
+            public override void End(object obj)
+            {
+                lock (Printer.SyncObject)
+                {
+                    if (Printer.LastPrinter != this)
+                    {
+                        Printer.ClearInteractive();
+                        Printer.Write(MessageType.Interactive, Header);
+                        Printer.LastPrinter = this;
+                        ConsoleLeft = System.Console.CursorLeft;
+                    }
+                    string lastValue = Last == null ? string.Empty : Last;
+                    string bar = new string(' ', lastValue.Length);
+                    Printer.Write(MessageType.Interactive, bar);
+                    System.Console.CursorLeft = 0;
+                    Printer.LastPrinter = null;
+                }
+            }
         }
 
         internal class SimplePrinter : InteractivePrinter
@@ -525,6 +543,7 @@ namespace Versionr
                 {
                     if (Printer.LastPrinter != this)
                     {
+                        Printer.ClearInteractive();
                         Printer.LastPrinter = this;
                         ConsoleLeft = 0;
                     }
@@ -562,12 +581,30 @@ namespace Versionr
                     }
                     Index = (Index + 1) % 4;
                     System.Console.CursorLeft = 0;
-                    bar += sb.ToString() + "] " + fmt;
+                    bar += sb.ToString() + "##] " + fmt;
                     string lastValue = Final == null ? string.Empty : Final;
                     Final = bar;
                     while (lastValue.Length > bar.Length)
                         bar += " ";
                     Write(MessageType.Interactive, bar);
+                }
+            }
+            public override void End(object obj)
+            {
+                lock (Printer.SyncObject)
+                {
+                    if (Printer.LastPrinter != this)
+                    {
+                        Printer.ClearInteractive();
+                        Printer.LastPrinter = this;
+                        ConsoleLeft = 0;
+                    }
+                    string lastValue = Final == null ? string.Empty : Final;
+                    string bar = new string(' ', lastValue.Length);
+                    System.Console.CursorLeft = 0;
+                    Printer.Write(MessageType.Interactive, bar);
+                    System.Console.CursorLeft = 0;
+                    Printer.LastPrinter = null;
                 }
             }
         }
