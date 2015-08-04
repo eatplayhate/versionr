@@ -20,6 +20,7 @@ namespace Versionr
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
+        public Newtonsoft.Json.Linq.JObject Configuration { get; set; }
 
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
         public Guid Domain
@@ -915,18 +916,28 @@ namespace Versionr
 		private void LoadDirectives()
 		{
 			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-			if (info.Exists)
-			{
-				string data = string.Empty;
-				using (var sr = info.OpenText())
-				{
-					data = sr.ReadToEnd();
-				}
-				Directives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(data);
-			}
-			else
-				Directives = Directives.Default();
+            if (info.Exists)
+            {
+                string data = string.Empty;
+                using (var sr = info.OpenText())
+                {
+                    data = sr.ReadToEnd();
+                }
+                Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
+                Directives = LoadConfigurationElement<Directives>("Versionr");
+            }
+            else
+                Directives = new Directives();
 		}
+
+        public T LoadConfigurationElement<T>(string v)
+            where T : new()
+        {
+            var element = Configuration[v];
+            if (element == null)
+                return new T();
+            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
+        }
 
         private bool Load()
         {
