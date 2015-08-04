@@ -2340,8 +2340,8 @@ namespace Versionr
 					}
 					else
 					{
-						RestoreRecord(x, newRefTime);
-						//tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
+						//RestoreRecord(x, newRefTime);
+						tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
 					}
 
 				}

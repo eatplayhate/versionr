@@ -669,7 +669,9 @@ namespace Versionr.ObjectStore
                 var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
                 if (storeData == null)
                     return false;
-                return true;
+                if (storeData.BlobID == null)
+                    return GetFileForDataID(x).Exists;
+                return BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
             }
         }
 
