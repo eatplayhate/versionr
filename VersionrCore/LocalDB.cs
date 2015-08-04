@@ -124,6 +124,8 @@ namespace Versionr
         {
             if (Configuration.Version != LocalDBVersion)
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
+            else
+                return true;
             if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;
@@ -336,19 +338,33 @@ namespace Versionr
             }
         }
 
-        internal void AcquireLock()
+        internal bool AcquireLock()
         {
+            Retry:
             var lockingObject = Table<LockingObject>().FirstOrDefault();
             if (lockingObject == null)
             {
                 lockingObject = new LockingObject() { Id = 0, LockTime = DateTime.UtcNow };
-                if (!this.InsertSafe(lockingObject))
-                    throw new Exception("Couldn't acquire locking object.");
-                return;
+                try
+                {
+                    Insert(lockingObject);
+                    return true;
+                }
+                catch
+                {
+                    goto Retry;
+                }
             }
             lockingObject.LockTime = DateTime.UtcNow;
-            if (!this.UpdateSafe(lockingObject))
-                throw new Exception("Couldn't acquire locking object.");
+            try
+            {
+                Update(lockingObject);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

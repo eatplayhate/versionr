@@ -167,6 +167,7 @@ namespace Versionr.Commands
                     continue;
                 bool isWhitespace = true;
                 bool isShort = false;
+                bool isBrace = false;
                 if (diff[i + 1].common.Count * 2 <= diff[i].file1.Count &&
                     diff[i + 1].common.Count * 2 <= diff[i].file2.Count)
                     isShort = true;
@@ -178,7 +179,12 @@ namespace Versionr.Commands
                         break;
                     }
                 }
-                if (isWhitespace && isShort)
+                if (isShort)
+                {
+                    if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
+                        isBrace = true;
+                }
+                if ((isWhitespace || isBrace) && isShort)
                 {
                     var next = diff[i + 1];
                     diff.RemoveAt(i + 1);

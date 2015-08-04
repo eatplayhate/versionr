@@ -189,13 +189,18 @@ namespace Versionr.Network
                                 string errorData;
                                 lock (ws)
                                 {
-                                    if (AcceptHeads(clientInfo, ws, out errorData))
+                                    clientInfo.SharedInfo.Workspace.RunLocked(() =>
                                     {
-                                        ImportVersions(ws, clientInfo);
-                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
-                                    }
-                                    else
-                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
+                                        if (AcceptHeads(clientInfo, ws, out errorData))
+                                        {
+                                            ImportVersions(ws, clientInfo);
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                            return true;
+                                        }
+                                        else
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
+                                        return false;
+                                    }, false);
                                 }
                             }
                             else if (command.Type == NetCommandType.SynchronizeRecords)

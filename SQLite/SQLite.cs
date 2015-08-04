@@ -1032,6 +1032,74 @@ namespace SQLite
             }
             return false;
         }
+        public bool BeginImmediate(bool wait = true)
+        {
+            // The BEGIN command only works if the transaction stack is empty, 
+            //    or in other words if there are no pending transactions. 
+            // If the transaction stack is not empty when the BEGIN command is invoked, 
+            //    then the command fails with an error.
+            // Rather than crash with an error, we will just ignore calls to BeginTransaction
+            //    that would result in an error.
+            if (Interlocked.CompareExchange(ref _transactionDepth, 1, 0) == 0)
+            {
+                bool success = false;
+                while (success == false)
+                {
+                    try
+                    {
+                        Execute("begin immediate transaction");
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        bool busy = false;
+                        var sqlExp = ex as SQLiteException;
+                        if (sqlExp != null)
+                        {
+                            // It is recommended that applications respond to the errors listed below 
+                            //    by explicitly issuing a ROLLBACK command.
+                            // TODO: This rollback failsafe should be localized to all throw sites.
+                            switch (sqlExp.Result)
+                            {
+                                case SQLite3.Result.IOError:
+                                case SQLite3.Result.Full:
+                                case SQLite3.Result.NoMem:
+                                case SQLite3.Result.Interrupt:
+                                    RollbackTo(null, true);
+                                    break;
+                                case SQLite3.Result.Busy:
+                                    busy = true;
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            // Call decrement and not VolatileWrite in case we've already 
+                            //    created a transaction point in SaveTransactionPoint since the catch.
+                            Interlocked.Decrement(ref _transactionDepth);
+                        }
+                        if (busy)
+                        {
+                            if (!wait)
+                            {
+                                Interlocked.Decrement(ref _transactionDepth);
+                                return false;
+                            }
+                            else
+                                System.Threading.Thread.Sleep(0);
+                        }
+                        else
+                            throw;
+                    }
+                }
+            }
+            else
+            {
+                // Calling BeginTransaction on an already open transaction is invalid
+                throw new InvalidOperationException("Cannot begin a transaction while already in a transaction.");
+            }
+            return false;
+        }
 
         /// <summary>
         /// Begins a new transaction. Call <see cref="Commit"/> to end the transaction.
