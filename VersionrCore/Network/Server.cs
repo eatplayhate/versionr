@@ -125,7 +125,7 @@ namespace Versionr.Network
                             else if (command.Type == NetCommandType.QueryBranchID)
                             {
                                 Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
-                                var branches = ws.GetBranchByName(command.AdditionalPayload).Where(x => x.Deleted == false).ToList();
+                                var branches = ws.GetBranchByName(command.AdditionalPayload).Where(x => !x.Terminus.HasValue).ToList();
                                 if (branches.Count == 1)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branches[0].ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
