@@ -82,9 +82,11 @@ namespace Versionr.Commands
                         Printer.PrintMessage("#b#Alterations:##");
                         foreach (var y in ws.GetAlterations(x).OrderBy(z => z.Type))
                         {
-                            Printer.PrintMessage("({0}) {1}", y.Type.ToString().ToLower(), y.NewRecord.HasValue ? ws.GetRecord(y.NewRecord.Value).CanonicalName : y.PriorRecord.HasValue ? ws.GetRecord(y.PriorRecord.Value).CanonicalName : "#e#???##");
-                        }
-                    }
+							Objects.Record rec = y.NewRecord.HasValue ? ws.GetRecord(y.NewRecord.Value) : y.PriorRecord.HasValue ? ws.GetRecord(y.PriorRecord.Value) : null;
+							if (rec != null && IsTarget(rec, targets))
+								Printer.PrintMessage("#{2}#({0})## {1}", y.Type.ToString().ToLower(), rec.CanonicalName, GetAlterationFormat(y.Type));
+						}
+					}
                 }
 			}
 
@@ -98,12 +100,47 @@ namespace Versionr.Commands
 
 			foreach (var x in Workspace.GetAlterations(v))
 			{
-				if (x.NewRecord.HasValue && targets.Where(y => y.CanonicalName == Workspace.GetRecord(x.NewRecord.Value).CanonicalName).FirstOrDefault() != null)
-					return true;
-				if (x.PriorRecord.HasValue && targets.Where(y => y.CanonicalName == Workspace.GetRecord(x.PriorRecord.Value).CanonicalName).FirstOrDefault() != null)
-					return true;
+				if (x.NewRecord.HasValue)
+				{
+					if (IsTarget(Workspace.GetRecord(x.NewRecord.Value), targets))
+						return true;
+				}
+				else if (x.PriorRecord.HasValue)
+				{
+					if (IsTarget(Workspace.GetRecord(x.PriorRecord.Value), targets))
+						return true;
+				}
 			}
 			return false;
+		}
+
+		private bool IsTarget(Objects.Record rec, IList<Versionr.Status.StatusEntry> targets)
+		{
+			if (targets == null || targets.Count == 0)
+				return true;
+
+			if (rec == null)
+				return false;
+
+			return targets.Where(x => x.CanonicalName == rec.CanonicalName).FirstOrDefault() != null;
+        }
+
+		private string GetAlterationFormat(Objects.AlterationType code)
+		{
+			switch (code)
+			{
+				case Objects.AlterationType.Add:
+				case Objects.AlterationType.Copy:
+					return "s";
+				case Objects.AlterationType.Update:
+					return "w";
+				case Objects.AlterationType.Move:
+					return "c";
+				case Objects.AlterationType.Delete:
+					return "e";
+				default:
+					throw new Exception("Unknown alteration type");
+			}
 		}
 	}
 }
