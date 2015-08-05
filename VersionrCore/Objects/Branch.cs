@@ -19,7 +19,7 @@ namespace Versionr.Objects
         [ProtoBuf.ProtoMember(4)]
         public Guid? RootVersion { get; set; }
         [ProtoBuf.ProtoMember(5)]
-        public bool Deleted { get; set; }
+        public Guid? Terminus { get; set; }
         public static Branch Create(string name, Guid? rootVersion, Guid? parent)
         {
             Branch b = new Branch();
@@ -27,7 +27,6 @@ namespace Versionr.Objects
             b.Parent = parent;
             b.RootVersion = rootVersion;
             b.Name = name;
-            b.Deleted = false;
             return b;
         }
     }

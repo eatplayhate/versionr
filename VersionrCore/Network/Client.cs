@@ -181,6 +181,8 @@ namespace Versionr.Network
                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
+                if (!SharedNetwork.SendBranchJournal(SharedInfo))
+                    return false;
                 if (!SharedNetwork.GetVersionList(SharedInfo, Workspace.Version, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
@@ -218,7 +220,7 @@ namespace Versionr.Network
                 return false;
             try
             {
-                string branchID;
+                string branchID = null;
                 if (branchName == null)
                 {
                     Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
@@ -227,7 +229,7 @@ namespace Versionr.Network
                 else
                 {
                     Printer.PrintMessage("Querying remote branch ID for \"{0}\"", branchName);
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = branchName }, ProtoBuf.PrefixStyle.Fixed32);
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = string.IsNullOrEmpty(branchID) ? branchName : branchID }, ProtoBuf.PrefixStyle.Fixed32);
                     var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     if (queryResult.Type == NetCommandType.Error)
                         Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
@@ -261,6 +263,8 @@ namespace Versionr.Network
                         printer.Update(command.Type);
                     if (command.Type == NetCommandType.PushObjectQuery)
                         SharedNetwork.ProcesPushObjectQuery(SharedInfo);
+                    else if (command.Type == NetCommandType.PushBranchJournal)
+                        SharedNetwork.ReceiveBranchJournal(SharedInfo);
                     else if (command.Type == NetCommandType.PushBranch)
                         SharedNetwork.ReceiveBranches(SharedInfo);
                     else if (command.Type == NetCommandType.PushVersions)
@@ -376,6 +380,7 @@ namespace Versionr.Network
                     try
                     {
                         sharedInfo.Workspace.BeginDatabaseTransaction();
+                        SharedNetwork.ImportBranchJournal(sharedInfo, true);
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
                         Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
                         foreach (var x in versionsToImport)
@@ -489,6 +494,13 @@ namespace Versionr.Network
 
         public bool Connect(string host, int port)
         {
+            IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
+            Retry:
+            if (!protocols.MoveNext())
+            {
+                Printer.PrintMessage("#e#No valid protocols available.##");
+                return false;
+            }
             Host = host;
             Port = port;
             Connected = false;
@@ -498,7 +510,7 @@ namespace Versionr.Network
                 try
                 {
                     Printer.PrintDiagnostics("Connected to server at {0}:{1}", host, port);
-                    Handshake hs = Handshake.Create();
+                    Handshake hs = Handshake.Create(protocols.Current);
                     Printer.PrintDiagnostics("Sending handshake...");
                     Connection.NoDelay = true;
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<Handshake>(Connection.GetStream(), hs, ProtoBuf.PrefixStyle.Fixed32);
@@ -506,8 +518,8 @@ namespace Versionr.Network
                     var startTransaction = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Network.StartTransaction>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     if (!startTransaction.Accepted)
                     {
-                        Printer.PrintDiagnostics("Server rejected connection. Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
-                        return false;
+                        Printer.PrintMessage("#b#Server rejected connection.##\n Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        goto Retry;
                     }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
                     if (Workspace != null && startTransaction.Domain != Workspace.Domain.ToString())
@@ -549,6 +561,7 @@ namespace Versionr.Network
                             Stream = Connection.GetStream(),
                             Workspace = Workspace,
                             Client = true,
+                            CommunicationProtocol = protocols.Current
                         };
 
                         SharedInfo = sharedInfo;
@@ -567,6 +580,7 @@ namespace Versionr.Network
                             Stream = Connection.GetStream(),
                             Workspace = Workspace,
                             Client = true,
+                            CommunicationProtocol = protocols.Current
                         };
                         SharedInfo = sharedInfo;
                     }

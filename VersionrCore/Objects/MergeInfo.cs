@@ -6,6 +6,11 @@ using System.Threading.Tasks;
 
 namespace Versionr.Objects
 {
+    public enum MergeType
+    {
+        Normal = 0,
+    }
+
     [ProtoBuf.ProtoContract]
     public class MergeInfo
     {
@@ -19,5 +24,8 @@ namespace Versionr.Objects
 
         [ProtoBuf.ProtoMember(2)]
         public Guid SourceVersion { get; set; }
+
+        [ProtoBuf.ProtoMember(3)]
+        public MergeType Type { get; set; }
     }
 }

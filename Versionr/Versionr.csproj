@@ -47,9 +47,11 @@
     <Compile Include="Commands\BaseWorkspaceCommand.cs" />
     <Compile Include="Commands\Behead.cs" />
     <Compile Include="Commands\Clone.cs" />
+    <Compile Include="Commands\DeleteBranch.cs" />
     <Compile Include="Commands\Diff.cs" />
     <Compile Include="Commands\FileBaseCommand.cs" />
     <Compile Include="Commands\FileCommand.cs" />
+    <Compile Include="Commands\ListBranch.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\Pull.cs" />
@@ -62,6 +64,7 @@
     <Compile Include="Commands\Init.cs" />
     <Compile Include="Commands\Remote.cs" />
     <Compile Include="Commands\RemoteCommand.cs" />
+    <Compile Include="Commands\RenameBranch.cs" />
     <Compile Include="Commands\Revert.cs" />
     <Compile Include="Commands\Server.cs" />
     <Compile Include="Commands\Status.cs" />

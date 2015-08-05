@@ -28,6 +28,7 @@ namespace Versionr.Network
         PullVersions,
         FullClone,
         QueryBranchID,
+        PushBranchJournal
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

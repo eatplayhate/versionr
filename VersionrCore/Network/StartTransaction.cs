@@ -37,19 +37,19 @@ namespace Versionr.Network
             }
         }
 
-        public static StartTransaction Create(string domain, System.Security.Cryptography.RSAParameters publicKey)
+        public static StartTransaction Create(string domain, System.Security.Cryptography.RSAParameters publicKey, SharedNetwork.Protocol protocol)
         {
-            return new StartTransaction() { ServerHandshake = Handshake.Create(), Domain = domain, RSAKey = publicKey, Accepted = true, Encrypted = true };
+            return new StartTransaction() { ServerHandshake = Handshake.Create(protocol), Domain = domain, RSAKey = publicKey, Accepted = true, Encrypted = true };
         }
 
-        public static StartTransaction Create(string domain)
+        public static StartTransaction Create(string domain, SharedNetwork.Protocol protocol)
         {
-            return new StartTransaction() { ServerHandshake = Handshake.Create(), Domain = domain, Encrypted = false, Accepted = true };
+            return new StartTransaction() { ServerHandshake = Handshake.Create(protocol), Domain = domain, Encrypted = false, Accepted = true };
         }
 
         public static StartTransaction CreateRejection()
         {
-            return new StartTransaction() { ServerHandshake = Handshake.Create(), Domain = string.Empty, PublicKeyJSON = string.Empty, Accepted = false, Encrypted = false };
+            return new StartTransaction() { ServerHandshake = Handshake.Create(SharedNetwork.DefaultProtocol), Domain = string.Empty, PublicKeyJSON = string.Empty, Accepted = false, Encrypted = false };
         }
     }
 }

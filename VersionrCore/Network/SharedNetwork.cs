@@ -11,17 +11,31 @@ namespace Versionr.Network
 {
     static class SharedNetwork
     {
+        public enum Protocol
+        {
+            Versionr281,
+            Versionr29,
+        }
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr29, Protocol.Versionr281 };
+        public static Protocol DefaultProtocol
+        {
+            get
+            {
+                return AllowedProtocols[0];
+            }
+        }
 
         public static Tuple<string, string> ComponentVersionInfo
         {
             get
             {
-                return new Tuple<string, string>("Network Library", Handshake.InternalProtocol);
+                return new Tuple<string, string>("Network Library", Network.Handshake.GetProtocolString(SharedNetwork.DefaultProtocol));
             }
         }
 
         internal class SharedNetworkInfo : IDisposable
         {
+            public Protocol CommunicationProtocol { get; set; }
             public bool Client { get; set; }
             public Func<ICryptoTransform> EncryptorFunction { get; set; }
             public ICryptoTransform Encryptor
@@ -43,6 +57,7 @@ namespace Versionr.Network
             public Area Workspace { get; set; }
             public HashSet<Guid> RemoteCheckedVersions { get; set; }
             public HashSet<Guid> RemoteCheckedBranches { get; set; }
+            public HashSet<Guid> RemoteCheckedBranchJournal { get; set; }
             public List<Objects.Branch> ReceivedBranches { get; set; }
             public List<VersionInfo> PushedVersions { get; set; }
             public HashSet<Guid> ReceivedVersionSet { get; set; }
@@ -50,6 +65,7 @@ namespace Versionr.Network
             public Dictionary<long, Objects.Record> LocalRecordMap { get; set; }
             public List<long> UnknownRecords { get; set; }
             public HashSet<long> UnknownRecordSet { get; set; }
+            public List<BranchJournalPack> ReceivedBranchJournals { get; set; }
 
             public IntPtr LZHLCompressor { get; set; }
             public IntPtr LZHLDecompressor { get; set; }
@@ -59,11 +75,13 @@ namespace Versionr.Network
                 RemoteCheckedVersions = new HashSet<Guid>();
                 RemoteCheckedBranches = new HashSet<Guid>();
                 ReceivedBranches = new List<Branch>();
+                RemoteCheckedBranchJournal = new HashSet<Guid>();
                 PushedVersions = new List<VersionInfo>();
                 UnknownRecords = new List<long>();
                 UnknownRecordSet = new HashSet<long>();
                 RemoteRecordMap = new Dictionary<long, Record>();
                 LocalRecordMap = new Dictionary<long, Record>();
+                ReceivedBranchJournals = new List<BranchJournalPack>();
                 LZHLCompressor = Versionr.Utilities.LZHL.CreateCompressor();
                 LZHLDecompressor = Versionr.Utilities.LZHL.CreateDecompressor();
             }
@@ -176,6 +194,63 @@ namespace Versionr.Network
                     }
                     else if (testedVersion == currentVersion)
                         break;
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                return false;
+            }
+        }
+
+        internal static void ReceiveBranchJournal(SharedNetworkInfo sharedInfo)
+        {
+            var pack = Utilities.ReceiveEncrypted<BranchJournalPack>(sharedInfo);
+            if (sharedInfo.Workspace.HasBranchJournal(pack.Payload.ID))
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+            }
+            else
+            {
+                sharedInfo.ReceivedBranchJournals.Add(pack);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+            }
+        }
+
+        internal static bool SendBranchJournal(SharedNetworkInfo info)
+        {
+            if (info.CommunicationProtocol < Protocol.Versionr29)
+                return true;
+            Objects.BranchJournal tip = info.Workspace.GetBranchJournalTip();
+            if (tip == null)
+                return true;
+            try
+            {
+                Stack<Objects.BranchJournal> openList = new Stack<Objects.BranchJournal>();
+                openList.Push(tip);
+                while (openList.Count > 0)
+                {
+                    Objects.BranchJournal journal = openList.Pop();
+                    if (info.RemoteCheckedBranchJournal.Contains(journal.ID))
+                        continue;
+
+                    List<Objects.BranchJournal> parents = info.Workspace.GetBranchJournalParents(journal);
+
+                    BranchJournalPack pack = new BranchJournalPack()
+                    {
+                        Payload = journal,
+                        Parents = parents.Select(x => x.ID).ToList()
+                    };
+
+                    Utilities.SendEncryptedPrefixed(new NetCommand() { Type = NetCommandType.PushBranchJournal }, info, pack);
+
+                    NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (response.Type == NetCommandType.Acknowledge)
+                        continue;
+
+                    foreach (var x in parents)
+                        openList.Push(x);
                 }
                 return true;
             }
@@ -325,6 +400,11 @@ namespace Versionr.Network
                 Printer.PrintError("Error: {0}", e);
                 return false;
             }
+        }
+
+        internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive)
+        {
+            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo.ReceivedBranchJournals, interactive);
         }
 
         private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo, SendStats stats = null)

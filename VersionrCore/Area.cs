@@ -45,9 +45,193 @@ namespace Versionr
             }
         }
 
+        public List<Objects.Branch> GetBranches(string name, bool deleted, bool partialNames)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                if (deleted)
+                    return Database.Table<Branch>().ToList();
+                else
+                    return Database.Table<Branch>().Where(x => x.Terminus == null).ToList();
+            }
+            string query = "SELECT rowid, * FROM Branch";
+            if (partialNames)
+                query += string.Format(" WHERE Name LIKE '%{0}%'", name);
+            else
+                query += string.Format(" WHERE Name IS '{0}'", name);
+            if (deleted)
+                return Database.Query<Branch>(query);
+            else
+                return Database.Query<Branch>(query).Where(x => x.Terminus == null).ToList();
+        }
+
+        public bool DeleteBranch(Branch branch)
+        {
+            return RunLocked(() =>
+            {
+                BranchJournal journal = GetBranchJournalTip();
+
+                BranchJournal change = new BranchJournal();
+                change.Branch = branch.ID;
+                change.ID = Guid.NewGuid();
+                change.Operand = GetBranchHead(branch).Version.ToString();
+                change.Type = BranchAlterationType.Terminate;
+                return InsertBranchJournalChange(journal, change);
+            }, true);
+        }
+
+        public void DeleteBranchNoTransaction(Branch branch)
+        {
+            BranchJournal journal = GetBranchJournalTip();
+
+            BranchJournal change = new BranchJournal();
+            change.Branch = branch.ID;
+            change.ID = Guid.NewGuid();
+            change.Operand = GetBranchHead(branch).Version.ToString();
+            change.Type = BranchAlterationType.Terminate;
+            InsertBranchJournalChangeNoTransaction(journal, change);
+        }
+
+        private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
+        {
+            try
+            {
+                Database.BeginTransaction();
+                InsertBranchJournalChangeNoTransaction(journal, change);
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                return false;
+            }
+        }
+
+        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change)
+        {
+            Database.InsertSafe(change);
+            if (journal != null)
+            {
+                BranchJournalLink link = new BranchJournalLink()
+                {
+                    Link = change.ID,
+                    Parent = journal.ID
+                };
+                Database.InsertSafe(link);
+            }
+
+            ReplayBranchJournal(change, false);
+
+            var ws = LocalData.Workspace;
+            ws.JournalTip = change.ID;
+            LocalData.UpdateSafe(ws);
+        }
+
         internal List<Record> GetAllMissingRecords()
         {
             return FindMissingRecords(Database.GetAllRecords());
+        }
+
+        public Branch GetBranchByPartialName(string v, out bool multipleBranches)
+        {
+            var branches = GetBranchByName(v);
+            multipleBranches = false;
+            if (branches.Count == 0)
+            {
+                Objects.Branch branch = Database.Find<Objects.Branch>(v);
+                if (branch != null)
+                    return branch;
+                bool postfix = false;
+                if (v.StartsWith("..."))
+                {
+                    postfix = true;
+                    branches = Database.Query<Objects.Branch>(string.Format("SELECT rowid, * FROM Branch WHERE Branch.ID LIKE '%{0}'", v.Substring(3)));
+                }
+                else
+                    branches = Database.Query<Objects.Branch>(string.Format("SELECT rowid, * FROM Branch WHERE Branch.ID LIKE '{0}%'", v));
+            }
+            if (branches.Count == 1)
+                return branches[0];
+            if (branches.Count > 1)
+            {
+                multipleBranches = true;
+                Printer.PrintError("Can't find a unique branch with pattern: {0}\nCould be:", v);
+                foreach (var x in branches)
+                    Printer.PrintMessage("\t{0} - name: \"#b#{1}##\"", x.ID, x.Name);
+            }
+            return null;
+        }
+
+        public bool RenameBranch(Branch branch, string name)
+        {
+            return RunLocked(() =>
+            {
+                BranchJournal journal = GetBranchJournalTip();
+
+                BranchJournal change = new BranchJournal();
+                change.Branch = branch.ID;
+                change.ID = Guid.NewGuid();
+                change.Operand = name;
+                change.Type = BranchAlterationType.Rename;
+                return InsertBranchJournalChange(journal, change);
+            }, true);
+        }
+
+        public bool ReplayBranchJournal(BranchJournal change, bool interactive)
+        {
+            Objects.Branch branch = Database.Find<Objects.Branch>(change.Branch);
+            if (branch == null)
+                return true;
+            if (change.Type == BranchAlterationType.Rename)
+            {
+                if (interactive)
+                    Printer.PrintMessage("Renamed branch \"#b#{0}##\" to \"#b#{1}##\".", branch.Name, change.Operand);
+
+                branch.Name = change.Operand;
+                Database.UpdateSafe(branch);
+                return true;
+            }
+            else if (change.Type == BranchAlterationType.Terminate)
+            {
+                if (string.IsNullOrEmpty(change.Operand) && branch.Terminus.HasValue)
+                {
+                    if (interactive)
+                        Printer.PrintMessage("Undeleted branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
+                    Guid id = branch.Terminus.Value;
+                    Objects.Version v = GetVersion(id);
+                    if (v == null)
+                    {
+                        Printer.PrintMessage("Can't undeleted branch - version #b#{0}## not found.", v.ID);
+                        return false;
+                    }
+                    branch.Terminus = null;
+                    Head head = new Head()
+                    {
+                        Branch = branch.ID,
+                        Version = id
+                    };
+                    Database.InsertSafe(head);
+                    Database.UpdateSafe(branch);
+                }
+                else
+                {
+                    if (interactive)
+                        Printer.PrintMessage("Deleted branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
+                    branch.Terminus = new Guid(change.Operand);
+                    Database.UpdateSafe(branch);
+                    var heads = Database.GetHeads(branch);
+                    foreach (var x in heads)
+                    {
+                        Database.DeleteSafe(x);
+                    }
+                }
+                return true;
+            }
+            else if (change.Type == BranchAlterationType.Merge)
+                return true;
+            else
+                throw new Exception();
         }
 
         public DirectoryInfo Root
@@ -154,6 +338,29 @@ namespace Versionr
             }
             printer.End(null);
             LocalData.ReplaceFileTimes(filetimes);
+        }
+
+        internal bool HasBranchJournal(Guid id)
+        {
+            return Database.Find<BranchJournal>(id) != null;
+        }
+
+        internal List<BranchJournal> GetBranchJournalParents(BranchJournal journal)
+        {
+            var links = Database.Table<BranchJournalLink>().Where(x => x.Link == journal.ID).ToList();
+            var parents = new List<BranchJournal>();
+            foreach (var x in links)
+                parents.Add(Database.Get<BranchJournal>(x.Parent));
+            return parents;
+        }
+
+        internal BranchJournal GetBranchJournalTip()
+        {
+            Guid? branchJournalTip = LocalData.Workspace.JournalTip;
+            BranchJournal journal = null;
+            if (branchJournalTip.HasValue)
+                journal = Database.Get<BranchJournal>(branchJournalTip);
+            return journal;
         }
 
         public void ReplaceFileTimes()
@@ -482,6 +689,123 @@ namespace Versionr
                 LocalData.Rollback();
                 throw new Exception("Couldn't initialize repository!", e);
             }
+        }
+
+        internal bool ImportBranchJournal(List<BranchJournalPack> receivedBranchJournals, bool interactive)
+        {
+            if (receivedBranchJournals.Count == 0)
+                return true;
+            BranchJournal localTip = GetBranchJournalTip();
+            int count = receivedBranchJournals.Count;
+            HashSet<Guid> allParents = new HashSet<Guid>();
+            foreach (var x in receivedBranchJournals)
+            {
+                if (x.Parents == null)
+                    x.Parents = new List<Guid>();
+                foreach (var y in x.Parents)
+                    allParents.Add(y);
+            }
+            List<BranchJournal> localChanges = new List<BranchJournal>();
+            Stack<BranchJournal> openList = new Stack<BranchJournal>();
+            bool needsMerge = !allParents.Contains(localTip.ID);
+            if (localTip != null)
+            {
+                openList.Push(localTip);
+                while (openList.Count > 0)
+                {
+                    BranchJournal journal = openList.Pop();
+                    if (allParents.Contains(journal.ID))
+                        continue;
+                    else
+                    {
+                        localChanges.Add(journal);
+                        foreach (var y in GetBranchJournalParents(journal))
+                            openList.Push(y);
+                    }
+                }
+            }
+            HashSet<Guid> processedList = new HashSet<Guid>();
+            HashSet<Guid> missingList = new HashSet<Guid>();
+            BranchJournal end = null;
+            while (count > 0)
+            {
+                foreach (var x in receivedBranchJournals)
+                {
+                    if (processedList.Contains(x.Payload.ID))
+                        continue;
+                    bool accept = true;
+                    foreach (var y in x.Parents)
+                    {
+                        if (!processedList.Contains(y))
+                        {
+                            if (missingList.Contains(y))
+                            {
+                                accept = false;
+                                break;
+                            }
+                            else
+                            {
+                                if (HasBranchJournal(y))
+                                {
+                                    processedList.Add(y);
+                                }
+                                else
+                                {
+                                    missingList.Add(y);
+                                    accept = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (accept)
+                    {
+                        count--;
+                        missingList.Remove(x.Payload.ID);
+                        processedList.Add(x.Payload.ID);
+                        if (!ReplayBranchJournal(x.Payload, interactive))
+                            return false;
+                        Database.Insert(x.Payload);
+
+                        foreach (var y in x.Parents)
+                        {
+                            BranchJournalLink link = new BranchJournalLink();
+                            link.Link = x.Payload.ID;
+                            link.Parent = y;
+                            Database.Insert(link);
+                        }
+
+                        end = x.Payload;
+                    }
+                }
+            }
+            if (needsMerge && end != null)
+            {
+                BranchJournal merge = new BranchJournal();
+                merge.Branch = Guid.Empty;
+                merge.Type = BranchAlterationType.Merge;
+                merge.ID = Guid.NewGuid();
+
+                Database.InsertSafe(merge);
+
+                BranchJournalLink link = new BranchJournalLink();
+                link.Link = merge.ID;
+                link.Parent = end.ID;
+                Database.InsertSafe(link);
+
+                link = new BranchJournalLink();
+                link.Link = merge.ID;
+                link.Parent = localTip.ID;
+                Database.InsertSafe(link);
+
+                end = merge;
+            }
+            
+            var ws = LocalData.Workspace;
+            ws.JournalTip = end.ID;
+            LocalData.UpdateSafe(ws);
+
+            return true;
         }
 
         private void PopulateDefaults(string branchName)
@@ -1295,12 +1619,13 @@ namespace Versionr
             }
         }
 
-        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false)
+        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false, bool reintegrate = false)
         {
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
             Versionr.Status status = Status;
             List<TransientMergeObject> parentData;
+            Objects.Branch possibleBranch = null;
             if (!updateMode)
             {
                 foreach (var x in LocalData.StageOperations)
@@ -1321,16 +1646,20 @@ namespace Versionr
                     }
                 }
 
-                var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
+                possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
                 if (possibleBranch != null)
                 {
                     Head head = GetBranchHead(possibleBranch);
                     mergeVersion = Database.Find<Objects.Version>(head.Version);
                 }
                 else
+                {
                     mergeVersion = GetPartialVersion(v);
+                }
                 if (mergeVersion == null)
                     throw new Exception("Couldn't find version to merge from!");
+                if (possibleBranch == null && reintegrate)
+                    throw new Exception("Can't reintegrate when merging a version and not a branch.");
 
                 var parents = GetCommonParents(Database.Version, mergeVersion);
                 if (parents == null || parents.Count == 0)
@@ -1620,6 +1949,8 @@ namespace Versionr
             }
             if (!updateMode)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
+            if (reintegrate)
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
             else
             {
                 LocalData.BeginTransaction();
@@ -2030,6 +2361,14 @@ namespace Versionr
             sw.Stop();
             Printer.PrintDiagnostics("Determined node hierarchy in {0} ms.", sw.ElapsedMilliseconds);
             return result;
+        }
+
+        public Objects.Version GetBranchHeadVersion(Branch branch)
+        {
+            if (branch.Terminus.HasValue)
+                return Database.Get<Objects.Version>(branch.Terminus.Value);
+            Head head = GetBranchHead(branch);
+            return Database.Get<Objects.Version>(head.Version);
         }
 
         public Head GetBranchHead(Branch branch)
@@ -2529,7 +2868,7 @@ namespace Versionr
 
         private bool Switch(string v)
         {
-            var branch = Database.Find<Branch>(x => x.Name == v && x.Deleted == false);
+            var branch = Database.Find<Branch>(x => x.Name == v && x.Terminus == null);
             if (branch == null)
                 return false;
             return SwitchBranch(branch);
@@ -2651,6 +2990,7 @@ namespace Versionr
         public bool Commit(string message = "", bool force = false)
         {
             List<Guid> mergeIDs = new List<Guid>();
+            List<Guid> reintegrates = new List<Guid>();
             Printer.PrintDiagnostics("Checking stage info for pending conflicts...");
             foreach (var x in LocalData.StageOperations)
             {
@@ -2661,6 +3001,8 @@ namespace Versionr
                 }
                 if (x.Type == StageOperationType.Merge)
                     mergeIDs.Add(new Guid(x.Operand1));
+                if (x.Type == StageOperationType.Reintegrate)
+                    reintegrates.Add(new Guid(x.Operand1));
             }
             try
             {
@@ -2716,7 +3058,7 @@ namespace Versionr
                                     return false;
                                 }
                                 else
-                                    Printer.PrintWarning("#w#This branch has a previously recorded head, but a new head has to be inserted.");
+                                    Printer.PrintWarning("#w#This branch has no previously recorded head, but a new head has to be inserted.");
                                 head = new Head();
                                 head.Branch = branch.ID;
                                 newHead = true;
@@ -2889,6 +3231,24 @@ namespace Versionr
                             ws.Tip = vs.ID;
                             Objects.Snapshot ss = new Snapshot();
                             Database.BeginTransaction();
+
+                            foreach (var z in reintegrates)
+                            {
+                                Objects.Branch deletedBranch = Database.Get<Objects.Branch>(z);
+                                DeleteBranchNoTransaction(deletedBranch);
+                            }
+                            
+                            if (branch.Terminus.HasValue)
+                            {
+                                Printer.PrintWarning("#w#Undeleting branch...");
+                                BranchJournal journal = GetBranchJournalTip();
+                                BranchJournal change = new BranchJournal();
+                                change.Branch = branch.ID;
+                                change.ID = Guid.NewGuid();
+                                change.Operand = null;
+                                change.Type = BranchAlterationType.Terminate;
+                                InsertBranchJournalChangeNoTransaction(journal, change);
+                            }
                             Database.InsertSafe(ss);
                             vs.AlterationList = ss.Id;
                             Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
@@ -2964,7 +3324,7 @@ namespace Versionr
             }
         }
 
-        public bool RunLocked(Func<bool> lockedFunction, bool inform)
+        public bool RunLocked(Func<bool> lockedFunction, bool inform = false)
         {
             try
             {

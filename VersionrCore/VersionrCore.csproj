@@ -84,6 +84,7 @@
     <Compile Include="ObjectStore\StandardObjectStore.cs" />
     <Compile Include="Objects\Alteration.cs" />
     <Compile Include="Objects\Branch.cs" />
+    <Compile Include="Objects\BranchJournal.cs" />
     <Compile Include="Objects\Domain.cs" />
     <Compile Include="Objects\FormatInfo.cs" />
     <Compile Include="Objects\Head.cs" />

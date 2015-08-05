@@ -40,10 +40,6 @@ namespace Versionr.Commands
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PullVerbOptions localOptions = options as PullVerbOptions;
-            if (localOptions.RemoteBranch == null)
-            {
-                localOptions.RemoteBranch = client.Workspace.CurrentBranch.Name;
-            }
             if (!client.Pull(localOptions.PullObjects, localOptions.RemoteBranch))
                 return false;
             if (localOptions.Update)
