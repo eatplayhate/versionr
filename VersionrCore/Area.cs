@@ -89,7 +89,7 @@ namespace Versionr
             change.ID = Guid.NewGuid();
             change.Operand = GetBranchHead(branch).Version.ToString();
             change.Type = BranchAlterationType.Terminate;
-            InsertBranchJournalChangeNoTransaction(journal, change);
+            InsertBranchJournalChangeNoTransaction(journal, change, true);
         }
 
         private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
@@ -97,7 +97,7 @@ namespace Versionr
             try
             {
                 Database.BeginTransaction();
-                InsertBranchJournalChangeNoTransaction(journal, change);
+                InsertBranchJournalChangeNoTransaction(journal, change, false);
                 Database.Commit();
                 return true;
             }
@@ -108,7 +108,7 @@ namespace Versionr
             }
         }
 
-        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change)
+        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change, bool interactive)
         {
             Database.InsertSafe(change);
             if (journal != null)
@@ -3247,7 +3247,7 @@ namespace Versionr
                                 change.ID = Guid.NewGuid();
                                 change.Operand = null;
                                 change.Type = BranchAlterationType.Terminate;
-                                InsertBranchJournalChangeNoTransaction(journal, change);
+                                InsertBranchJournalChangeNoTransaction(journal, change, false);
                             }
                             Database.InsertSafe(ss);
                             vs.AlterationList = ss.Id;
