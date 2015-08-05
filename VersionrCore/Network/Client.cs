@@ -494,6 +494,13 @@ namespace Versionr.Network
 
         public bool Connect(string host, int port)
         {
+            IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
+            Retry:
+            if (!protocols.MoveNext())
+            {
+                Printer.PrintMessage("#e#No valid protocols available.##");
+                return false;
+            }
             Host = host;
             Port = port;
             Connected = false;
@@ -503,7 +510,7 @@ namespace Versionr.Network
                 try
                 {
                     Printer.PrintDiagnostics("Connected to server at {0}:{1}", host, port);
-                    Handshake hs = Handshake.Create();
+                    Handshake hs = Handshake.Create(protocols.Current);
                     Printer.PrintDiagnostics("Sending handshake...");
                     Connection.NoDelay = true;
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<Handshake>(Connection.GetStream(), hs, ProtoBuf.PrefixStyle.Fixed32);
@@ -511,8 +518,8 @@ namespace Versionr.Network
                     var startTransaction = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Network.StartTransaction>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     if (!startTransaction.Accepted)
                     {
-                        Printer.PrintDiagnostics("Server rejected connection. Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
-                        return false;
+                        Printer.PrintMessage("#b#Server rejected connection.##\n Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        goto Retry;
                     }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
                     if (Workspace != null && startTransaction.Domain != Workspace.Domain.ToString())
@@ -554,6 +561,7 @@ namespace Versionr.Network
                             Stream = Connection.GetStream(),
                             Workspace = Workspace,
                             Client = true,
+                            CommunicationProtocol = protocols.Current
                         };
 
                         SharedInfo = sharedInfo;
@@ -572,6 +580,7 @@ namespace Versionr.Network
                             Stream = Connection.GetStream(),
                             Workspace = Workspace,
                             Client = true,
+                            CommunicationProtocol = protocols.Current
                         };
                         SharedInfo = sharedInfo;
                     }

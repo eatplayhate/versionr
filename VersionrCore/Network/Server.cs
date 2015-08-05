@@ -84,12 +84,19 @@ namespace Versionr.Network
                     var stream = client.GetStream();
                     Handshake hs = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Handshake>(stream, ProtoBuf.PrefixStyle.Fixed32);
                     Printer.PrintDiagnostics("Received handshake - protocol: {0}", hs.VersionrProtocol);
-                    if (hs.Valid)
+                    SharedNetwork.Protocol? clientProtocol = hs.CheckProtocol();
+                    bool valid = true;
+                    if (clientProtocol == null)
+                        valid = false;
+                    else
+                        valid = SharedNetwork.AllowedProtocols.Contains(clientProtocol.Value);
+                    if (valid)
                     {
+                        sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
                         if (PrivateKey != null)
                         {
-                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), PublicKey);
+                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), PublicKey, clientProtocol.Value);
                             Printer.PrintDiagnostics("Sending RSA key...");
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
@@ -105,7 +112,7 @@ namespace Versionr.Network
                         }
                         else
                         {
-                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString());
+                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), clientProtocol.Value);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
                         }

@@ -11,17 +11,31 @@ namespace Versionr.Network
 {
     static class SharedNetwork
     {
+        public enum Protocol
+        {
+            Versionr281,
+            Versionr29,
+        }
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr29, Protocol.Versionr281 };
+        public static Protocol DefaultProtocol
+        {
+            get
+            {
+                return AllowedProtocols[0];
+            }
+        }
 
         public static Tuple<string, string> ComponentVersionInfo
         {
             get
             {
-                return new Tuple<string, string>("Network Library", Handshake.InternalProtocol);
+                return new Tuple<string, string>("Network Library", Network.Handshake.GetProtocolString(SharedNetwork.DefaultProtocol));
             }
         }
 
         internal class SharedNetworkInfo : IDisposable
         {
+            public Protocol CommunicationProtocol { get; set; }
             public bool Client { get; set; }
             public Func<ICryptoTransform> EncryptorFunction { get; set; }
             public ICryptoTransform Encryptor
@@ -206,6 +220,8 @@ namespace Versionr.Network
 
         internal static bool SendBranchJournal(SharedNetworkInfo info)
         {
+            if (info.CommunicationProtocol < Protocol.Versionr29)
+                return true;
             Objects.BranchJournal tip = info.Workspace.GetBranchJournalTip();
             if (tip == null)
                 return true;

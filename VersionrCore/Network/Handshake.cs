@@ -16,24 +16,32 @@ namespace Versionr.Network
         [ProtoMember(2)]
         public string RequestedModule { get; set; }
 
-        public static string InternalProtocol
+        public static Dictionary<SharedNetwork.Protocol, string> Protocols;
+        
+        static Handshake()
         {
-            get
-            {
-                return "Versionr/Protocol:2.9";
-            }
+            Protocols = new Dictionary<SharedNetwork.Protocol, string>();
+            Protocols[SharedNetwork.Protocol.Versionr281] = "Versionr/Protocol:2.8.1";
+            Protocols[SharedNetwork.Protocol.Versionr29] = "Versionr/Protocol:2.9";
         }
 
-        public bool Valid
+        public static string GetProtocolString(SharedNetwork.Protocol protocol)
         {
-            get
-            {
-                return VersionrProtocol == InternalProtocol;
-            }
+            return Protocols[protocol];
         }
-        public static Handshake Create()
+
+        public SharedNetwork.Protocol? CheckProtocol()
         {
-            return new Handshake() { VersionrProtocol = InternalProtocol };
+            foreach (var x in Protocols)
+            {
+                if (VersionrProtocol == x.Value)
+                    return x.Key;
+            }
+            return null;
+        }
+        public static Handshake Create(SharedNetwork.Protocol protocol)
+        {
+            return new Handshake() { VersionrProtocol = GetProtocolString(protocol) };
         }
     }
 }
