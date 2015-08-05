@@ -65,6 +65,52 @@ namespace Versionr
                 return Database.Query<Branch>(query).Where(x => x.Terminus == null).ToList();
         }
 
+        public bool DeleteBranch(Branch branch)
+        {
+            return RunLocked(() =>
+            {
+                BranchJournal journal = GetBranchJournalTip();
+
+                BranchJournal change = new BranchJournal();
+                change.Branch = branch.ID;
+                change.ID = Guid.NewGuid();
+                change.Operand = GetBranchHead(branch).Version.ToString();
+                change.Type = BranchAlterationType.Terminate;
+                return InsertBranchJournalChange(journal, change);
+            }, true);
+        }
+
+        private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
+        {
+            try
+            {
+                Database.BeginTransaction();
+                Database.InsertSafe(change);
+                if (journal != null)
+                {
+                    BranchJournalLink link = new BranchJournalLink()
+                    {
+                        Link = change.ID,
+                        Parent = journal.ID
+                    };
+                    Database.InsertSafe(link);
+                }
+
+                ReplayBranchJournal(change, false);
+
+                var ws = LocalData.Workspace;
+                ws.JournalTip = change.ID;
+                LocalData.UpdateSafe(ws);
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                return false;
+            }
+        }
+
         internal List<Record> GetAllMissingRecords()
         {
             return FindMissingRecords(Database.GetAllRecords());
@@ -111,37 +157,7 @@ namespace Versionr
                 change.ID = Guid.NewGuid();
                 change.Operand = name;
                 change.Type = BranchAlterationType.Rename;
-                string oldName = branch.Name;
-                try
-                {
-                    Database.BeginTransaction();
-                    Database.InsertSafe(change);
-                    if (journal != null)
-                    {
-                        BranchJournalLink link = new BranchJournalLink()
-                        {
-                            Link = change.ID,
-                            Parent = journal.ID
-                        };
-                        Database.InsertSafe(link);
-                    }
-
-                    ReplayBranchJournal(change, false);
-
-                    var ws = LocalData.Workspace;
-                    ws.JournalTip = change.ID;
-                    LocalData.UpdateSafe(ws);
-                    Database.Commit();
-                    return true;
-                }
-                catch
-                {
-                    Database.Rollback();
-                    branch.Name = oldName;
-                    Database.UpdateSafe(branch);
-                    return false;
-                }
-
+                return InsertBranchJournalChange(journal, change);
             }, true);
         }
 

@@ -47,6 +47,7 @@
     <Compile Include="Commands\BaseWorkspaceCommand.cs" />
     <Compile Include="Commands\Behead.cs" />
     <Compile Include="Commands\Clone.cs" />
+    <Compile Include="Commands\DeleteBranch.cs" />
     <Compile Include="Commands\Diff.cs" />
     <Compile Include="Commands\FileBaseCommand.cs" />
     <Compile Include="Commands\FileCommand.cs" />
