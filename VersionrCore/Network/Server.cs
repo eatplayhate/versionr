@@ -122,15 +122,20 @@ namespace Versionr.Network
                                 Printer.PrintDiagnostics("Client closing connection.");
                                 break;
                             }
+                            else if (command.Type == NetCommandType.PushBranchJournal)
+                            {
+                                SharedNetwork.ReceiveBranchJournal(sharedInfo);
+                            }
                             else if (command.Type == NetCommandType.QueryBranchID)
                             {
                                 Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
-                                var branches = ws.GetBranchByName(command.AdditionalPayload).Where(x => x.Terminus == null).ToList();
-                                if (branches.Count == 1)
+                                bool multiple;
+                                var branch = ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
+                                if (branch != null)
                                 {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branches[0].ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
                                 }
-                                else if (branches.Count == 0)
+                                else if (!multiple)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "branch not recognized" }, ProtoBuf.PrefixStyle.Fixed32);
                                 }
@@ -161,6 +166,8 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
                                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
+                                if (!SharedNetwork.SendBranchJournal(sharedInfo))
+                                    throw new Exception();
                                 if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetVersion(sharedInfo.Workspace.GetBranchHead(branch).Version), out branchesToSend, out versionsToSend))
                                     throw new Exception();
                                 if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
@@ -425,6 +432,11 @@ namespace Versionr.Network
                 try
                 {
                     ws.BeginDatabaseTransaction();
+                    if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
+                    {
+                        ws.RollbackDatabaseTransaction();
+                        return false;
+                    }
                     var versionsToImport = clientInfo.SharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
                     Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
                     foreach (var x in versionsToImport)

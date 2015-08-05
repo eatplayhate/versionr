@@ -51,6 +51,7 @@ namespace Versionr.Network
             public Dictionary<long, Objects.Record> LocalRecordMap { get; set; }
             public List<long> UnknownRecords { get; set; }
             public HashSet<long> UnknownRecordSet { get; set; }
+            public List<BranchJournalPack> ReceivedBranchJournals { get; set; }
 
             public IntPtr LZHLCompressor { get; set; }
             public IntPtr LZHLDecompressor { get; set; }
@@ -66,6 +67,7 @@ namespace Versionr.Network
                 UnknownRecordSet = new HashSet<long>();
                 RemoteRecordMap = new Dictionary<long, Record>();
                 LocalRecordMap = new Dictionary<long, Record>();
+                ReceivedBranchJournals = new List<BranchJournalPack>();
                 LZHLCompressor = Versionr.Utilities.LZHL.CreateCompressor();
                 LZHLDecompressor = Versionr.Utilities.LZHL.CreateDecompressor();
             }
@@ -188,18 +190,29 @@ namespace Versionr.Network
             }
         }
 
-        internal static bool SendBranchJournal(SharedNetworkInfo info)
+        internal static void ReceiveBranchJournal(SharedNetworkInfo sharedInfo)
         {
-            Objects.BranchJournal journal = info.Workspace.GetBranchJournalTip();
-            return SendBranchJournalInternal(info, journal);
+            var pack = Utilities.ReceiveEncrypted<BranchJournalPack>(sharedInfo);
+            if (sharedInfo.Workspace.HasBranchJournal(pack.Payload.ID))
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+            }
+            else
+            {
+                sharedInfo.ReceivedBranchJournals.Add(pack);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+            }
         }
 
-        internal static bool SendBranchJournalInternal(SharedNetworkInfo info, Objects.BranchJournal entry)
+        internal static bool SendBranchJournal(SharedNetworkInfo info)
         {
+            Objects.BranchJournal tip = info.Workspace.GetBranchJournalTip();
+            if (tip == null)
+                return true;
             try
             {
                 Stack<Objects.BranchJournal> openList = new Stack<Objects.BranchJournal>();
-                openList.Push(entry);
+                openList.Push(tip);
                 while (openList.Count > 0)
                 {
                     Objects.BranchJournal journal = openList.Pop();
@@ -207,6 +220,19 @@ namespace Versionr.Network
                         continue;
 
                     List<Objects.BranchJournal> parents = info.Workspace.GetBranchJournalParents(journal);
+
+                    BranchJournalPack pack = new BranchJournalPack()
+                    {
+                        Payload = journal,
+                        Parents = parents.Select(x => x.ID).ToList()
+                    };
+
+                    Utilities.SendEncryptedPrefixed(new NetCommand() { Type = NetCommandType.PushBranchJournal }, info, pack);
+
+                    NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (response.Type == NetCommandType.Acknowledge)
+                        continue;
+
                     foreach (var x in parents)
                         openList.Push(x);
                 }
@@ -358,6 +384,11 @@ namespace Versionr.Network
                 Printer.PrintError("Error: {0}", e);
                 return false;
             }
+        }
+
+        internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive)
+        {
+            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo.ReceivedBranchJournals, interactive);
         }
 
         private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo, SendStats stats = null)

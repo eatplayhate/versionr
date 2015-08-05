@@ -48,10 +48,11 @@ namespace Versionr.Commands
             RenameBranchVerbOptions localOptions = options as RenameBranchVerbOptions;
 
             Objects.Branch branch;
+            bool multiple;
             if (string.IsNullOrEmpty(localOptions.Branch))
                 branch = Workspace.CurrentBranch;
             else
-                branch = Workspace.GetBranchByPartialName(localOptions.Branch);
+                branch = Workspace.GetBranchByPartialName(localOptions.Branch, out multiple);
 
             if (branch == null)
             {

@@ -70,9 +70,10 @@ namespace Versionr
             return FindMissingRecords(Database.GetAllRecords());
         }
 
-        public Branch GetBranchByPartialName(string v)
+        public Branch GetBranchByPartialName(string v, out bool multipleBranches)
         {
             var branches = GetBranchByName(v);
+            multipleBranches = false;
             if (branches.Count == 0)
             {
                 Objects.Branch branch = Database.Find<Objects.Branch>(v);
@@ -91,6 +92,7 @@ namespace Versionr
                 return branches[0];
             if (branches.Count > 1)
             {
+                multipleBranches = true;
                 Printer.PrintError("Can't find a unique branch with pattern: {0}\nCould be:", v);
                 foreach (var x in branches)
                     Printer.PrintMessage("\t{0} - name: \"#b#{1}##\"", x.ID, x.Name);
@@ -124,11 +126,11 @@ namespace Versionr
                         Database.InsertSafe(link);
                     }
 
-                    ReplayBranchJournal(change);
+                    ReplayBranchJournal(change, false);
 
                     var ws = LocalData.Workspace;
                     ws.JournalTip = change.ID;
-                    LocalData.InsertSafe(ws);
+                    LocalData.UpdateSafe(ws);
                     Database.Commit();
                     return true;
                 }
@@ -143,13 +145,19 @@ namespace Versionr
             }, true);
         }
 
-        public void ReplayBranchJournal(BranchJournal change)
+        public bool ReplayBranchJournal(BranchJournal change, bool interactive)
         {
-            Objects.Branch branch = Database.Get<Objects.Branch>(change.Branch);
+            Objects.Branch branch = Database.Find<Objects.Branch>(change.Branch);
+            if (branch == null)
+                return true;
             if (change.Type == BranchAlterationType.Rename)
             {
+                if (interactive)
+                    Printer.PrintMessage("Renamed branch \"#b#{0}##\" to \"#b#{1}##\".", branch.Name, change.Operand);
+
                 branch.Name = change.Operand;
                 Database.UpdateSafe(branch);
+                return true;
             }
             else if (change.Type == BranchAlterationType.Terminate)
             {
@@ -160,7 +168,12 @@ namespace Versionr
                 {
                     Database.DeleteSafe(x);
                 }
+                return true;
             }
+            else if (change.Type == BranchAlterationType.Merge)
+                return true;
+            else
+                throw new Exception();
         }
 
         public DirectoryInfo Root
@@ -269,9 +282,18 @@ namespace Versionr
             LocalData.ReplaceFileTimes(filetimes);
         }
 
+        internal bool HasBranchJournal(Guid id)
+        {
+            return Database.Find<BranchJournal>(id) != null;
+        }
+
         internal List<BranchJournal> GetBranchJournalParents(BranchJournal journal)
         {
-            return Database.Table<BranchJournalLink>().Where(x => x.Link == journal.ID).Select(x => Database.Get<BranchJournal>(x.Parent)).ToList();
+            var links = Database.Table<BranchJournalLink>().Where(x => x.Link == journal.ID).ToList();
+            var parents = new List<BranchJournal>();
+            foreach (var x in links)
+                parents.Add(Database.Get<BranchJournal>(x.Parent));
+            return parents;
         }
 
         internal BranchJournal GetBranchJournalTip()
@@ -609,6 +631,58 @@ namespace Versionr
                 LocalData.Rollback();
                 throw new Exception("Couldn't initialize repository!", e);
             }
+        }
+
+        internal bool ImportBranchJournal(List<BranchJournalPack> receivedBranchJournals, bool interactive)
+        {
+            int count = receivedBranchJournals.Count;
+            HashSet<Guid> processedList = new HashSet<Guid>();
+            HashSet<Guid> missingList = new HashSet<Guid>();
+            while (count > 0)
+            {
+                foreach (var x in receivedBranchJournals)
+                {
+                    if (processedList.Contains(x.Payload.ID))
+                        continue;
+                    bool accept = true;
+                    if (x.Parents == null)
+                        x.Parents = new List<Guid>();
+                    foreach (var y in x.Parents)
+                    {
+                        if (!processedList.Contains(y))
+                        {
+                            if (missingList.Contains(y))
+                            {
+                                accept = false;
+                                break;
+                            }
+                            else
+                            {
+                                if (HasBranchJournal(y))
+                                {
+                                    processedList.Add(y);
+                                }
+                                else
+                                {
+                                    missingList.Add(y);
+                                    accept = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (accept)
+                    {
+                        count--;
+                        missingList.Remove(x.Payload.ID);
+                        processedList.Add(x.Payload.ID);
+                        if (!ReplayBranchJournal(x.Payload, interactive))
+                            return false;
+                        Database.Insert(x.Payload);
+                    }
+                }
+            }
+            return true;
         }
 
         private void PopulateDefaults(string branchName)

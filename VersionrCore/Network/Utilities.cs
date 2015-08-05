@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Versionr.Objects;
 
 namespace Versionr.Network
 {
@@ -86,7 +87,7 @@ namespace Versionr.Network
                 return result;
             }
         }
-        public static void SendEncrypted<T>(SharedNetwork.SharedNetworkInfo info, T argument)
+        public static void SendEncrypted<T>(SharedNetwork.SharedNetworkInfo info, T argument, System.IO.Stream target = null)
         {
             byte[] result;
             using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
@@ -152,7 +153,10 @@ namespace Versionr.Network
                 Checksum = ccode
             };
 
-            ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(info.Stream, packet, ProtoBuf.PrefixStyle.Fixed32);
+            if (target == null)
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(info.Stream, packet, ProtoBuf.PrefixStyle.Fixed32);
+            else
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(target, packet, ProtoBuf.PrefixStyle.Fixed32);
         }
         public static T ReceiveEncrypted<T>(SharedNetwork.SharedNetworkInfo info)
         {
@@ -212,6 +216,15 @@ namespace Versionr.Network
             {
                 return ProtoBuf.Serializer.Deserialize<T>(memoryStream);
             }
+        }
+
+        internal static void SendEncryptedPrefixed<T>(NetCommand netCommand, SharedNetwork.SharedNetworkInfo info, T pack)
+        {
+            System.IO.MemoryStream ms = new System.IO.MemoryStream();
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(ms, netCommand, ProtoBuf.PrefixStyle.Fixed32);
+            SendEncrypted<T>(info, pack, ms);
+            var data = ms.ToArray();
+            info.Stream.Write(data, 0, data.Length);
         }
     }
 }

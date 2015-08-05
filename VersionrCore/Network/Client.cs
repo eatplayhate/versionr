@@ -181,8 +181,8 @@ namespace Versionr.Network
                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
-               // if (!SharedNetwork.SendBranchJournal(SharedInfo))
-                //    return false;
+                if (!SharedNetwork.SendBranchJournal(SharedInfo))
+                    return false;
                 if (!SharedNetwork.GetVersionList(SharedInfo, Workspace.Version, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
@@ -220,7 +220,7 @@ namespace Versionr.Network
                 return false;
             try
             {
-                string branchID;
+                string branchID = null;
                 if (branchName == null)
                 {
                     Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
@@ -229,7 +229,7 @@ namespace Versionr.Network
                 else
                 {
                     Printer.PrintMessage("Querying remote branch ID for \"{0}\"", branchName);
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = branchName }, ProtoBuf.PrefixStyle.Fixed32);
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = string.IsNullOrEmpty(branchID) ? branchName : branchID }, ProtoBuf.PrefixStyle.Fixed32);
                     var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     if (queryResult.Type == NetCommandType.Error)
                         Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
@@ -263,6 +263,8 @@ namespace Versionr.Network
                         printer.Update(command.Type);
                     if (command.Type == NetCommandType.PushObjectQuery)
                         SharedNetwork.ProcesPushObjectQuery(SharedInfo);
+                    else if (command.Type == NetCommandType.PushBranchJournal)
+                        SharedNetwork.ReceiveBranchJournal(SharedInfo);
                     else if (command.Type == NetCommandType.PushBranch)
                         SharedNetwork.ReceiveBranches(SharedInfo);
                     else if (command.Type == NetCommandType.PushVersions)
@@ -378,6 +380,7 @@ namespace Versionr.Network
                     try
                     {
                         sharedInfo.Workspace.BeginDatabaseTransaction();
+                        SharedNetwork.ImportBranchJournal(sharedInfo, true);
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
                         Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
                         foreach (var x in versionsToImport)

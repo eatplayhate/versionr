@@ -9,7 +9,8 @@ namespace Versionr.Objects
     public enum BranchAlterationType
     {
         Rename,
-        Terminate
+        Terminate,
+        Merge
     }
 
     [ProtoBuf.ProtoContract]
@@ -38,5 +39,14 @@ namespace Versionr.Objects
 
         [ProtoBuf.ProtoMember(2)]
         public Guid Parent { get; set; }
+    }
+
+    [ProtoBuf.ProtoContract]
+    public class BranchJournalPack
+    {
+        [ProtoBuf.ProtoMember(1)]
+        public BranchJournal Payload { get; set; }
+        [ProtoBuf.ProtoMember(2)]
+        public List<Guid> Parents { get; set; }
     }
 }
