@@ -85,22 +85,7 @@ namespace Versionr
             try
             {
                 Database.BeginTransaction();
-                Database.InsertSafe(change);
-                if (journal != null)
-                {
-                    BranchJournalLink link = new BranchJournalLink()
-                    {
-                        Link = change.ID,
-                        Parent = journal.ID
-                    };
-                    Database.InsertSafe(link);
-                }
-
-                ReplayBranchJournal(change, false);
-
-                var ws = LocalData.Workspace;
-                ws.JournalTip = change.ID;
-                LocalData.UpdateSafe(ws);
+                InsertBranchJournalChangeNoTransaction(journal, change);
                 Database.Commit();
                 return true;
             }
@@ -109,6 +94,26 @@ namespace Versionr
                 Database.Rollback();
                 return false;
             }
+        }
+
+        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change)
+        {
+            Database.InsertSafe(change);
+            if (journal != null)
+            {
+                BranchJournalLink link = new BranchJournalLink()
+                {
+                    Link = change.ID,
+                    Parent = journal.ID
+                };
+                Database.InsertSafe(link);
+            }
+
+            ReplayBranchJournal(change, false);
+
+            var ws = LocalData.Workspace;
+            ws.JournalTip = change.ID;
+            LocalData.UpdateSafe(ws);
         }
 
         internal List<Record> GetAllMissingRecords()
@@ -3023,7 +3028,7 @@ namespace Versionr
                                     return false;
                                 }
                                 else
-                                    Printer.PrintWarning("#w#This branch has a previously recorded head, but a new head has to be inserted.");
+                                    Printer.PrintWarning("#w#This branch has no previously recorded head, but a new head has to be inserted.");
                                 head = new Head();
                                 head.Branch = branch.ID;
                                 newHead = true;
@@ -3196,6 +3201,18 @@ namespace Versionr
                             ws.Tip = vs.ID;
                             Objects.Snapshot ss = new Snapshot();
                             Database.BeginTransaction();
+                            
+                            if (branch.Terminus.HasValue)
+                            {
+                                Printer.PrintWarning("#w#Undeleting branch...");
+                                BranchJournal journal = GetBranchJournalTip();
+                                BranchJournal change = new BranchJournal();
+                                change.Branch = branch.ID;
+                                change.ID = Guid.Empty;
+                                change.Operand = GetBranchHead(branch).Version.ToString();
+                                change.Type = BranchAlterationType.Terminate;
+                                InsertBranchJournalChangeNoTransaction(journal, change);
+                            }
                             Database.InsertSafe(ss);
                             vs.AlterationList = ss.Id;
                             Printer.PrintDiagnostics("Adding {0} object records.", records.Count);
