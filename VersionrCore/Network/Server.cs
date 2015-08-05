@@ -175,7 +175,7 @@ namespace Versionr.Network
                                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                                 if (!SharedNetwork.SendBranchJournal(sharedInfo))
                                     throw new Exception();
-                                if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetVersion(sharedInfo.Workspace.GetBranchHead(branch).Version), out branchesToSend, out versionsToSend))
+                                if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetBranchHeadVersion(branch), out branchesToSend, out versionsToSend))
                                     throw new Exception();
                                 if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
                                     throw new Exception();

@@ -2344,6 +2344,14 @@ namespace Versionr
             return result;
         }
 
+        public Objects.Version GetBranchHeadVersion(Branch branch)
+        {
+            if (branch.Terminus.HasValue)
+                return Database.Get<Objects.Version>(branch.Terminus.Value);
+            Head head = GetBranchHead(branch);
+            return Database.Get<Objects.Version>(head.Version);
+        }
+
         public Head GetBranchHead(Branch branch)
         {
             var heads = Database.GetHeads(branch);
