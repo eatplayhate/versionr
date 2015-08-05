@@ -3208,8 +3208,8 @@ namespace Versionr
                                 BranchJournal journal = GetBranchJournalTip();
                                 BranchJournal change = new BranchJournal();
                                 change.Branch = branch.ID;
-                                change.ID = Guid.Empty;
-                                change.Operand = GetBranchHead(branch).Version.ToString();
+                                change.ID = Guid.NewGuid();
+                                change.Operand = null;
                                 change.Type = BranchAlterationType.Terminate;
                                 InsertBranchJournalChangeNoTransaction(journal, change);
                             }
