@@ -34,6 +34,9 @@ namespace Versionr.Commands
         [Option('s', "simple", HelpText = "Disable recursive merge engine")]
         public bool Simple { get; set; }
 
+        [Option("reintegrate", HelpText = "Deletes the branch once the merge finishes.")]
+        public bool Reintegrate { get; set; }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
     }
@@ -47,7 +50,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             foreach (var x in localOptions.Target)
-                ws.Merge(x, false, localOptions.Force, !localOptions.Simple);
+                ws.Merge(x, false, localOptions.Force, !localOptions.Simple, localOptions.Reintegrate);
             return true;
         }
     }

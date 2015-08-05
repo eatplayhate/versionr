@@ -14,6 +14,7 @@ namespace Versionr.LocalState
         Conflict,
         Merge,
         MergeRecord,
+        Reintegrate,
     }
     public class StageOperation
     {

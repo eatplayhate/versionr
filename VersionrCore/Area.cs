@@ -80,6 +80,18 @@ namespace Versionr
             }, true);
         }
 
+        public void DeleteBranchNoTransaction(Branch branch)
+        {
+            BranchJournal journal = GetBranchJournalTip();
+
+            BranchJournal change = new BranchJournal();
+            change.Branch = branch.ID;
+            change.ID = Guid.NewGuid();
+            change.Operand = GetBranchHead(branch).Version.ToString();
+            change.Type = BranchAlterationType.Terminate;
+            InsertBranchJournalChangeNoTransaction(journal, change);
+        }
+
         private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
         {
             try
@@ -1607,12 +1619,13 @@ namespace Versionr
             }
         }
 
-        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false)
+        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false, bool reintegrate = false)
         {
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
             Versionr.Status status = Status;
             List<TransientMergeObject> parentData;
+            Objects.Branch possibleBranch = null;
             if (!updateMode)
             {
                 foreach (var x in LocalData.StageOperations)
@@ -1633,16 +1646,20 @@ namespace Versionr
                     }
                 }
 
-                var possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
+                possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
                 if (possibleBranch != null)
                 {
                     Head head = GetBranchHead(possibleBranch);
                     mergeVersion = Database.Find<Objects.Version>(head.Version);
                 }
                 else
+                {
                     mergeVersion = GetPartialVersion(v);
+                }
                 if (mergeVersion == null)
                     throw new Exception("Couldn't find version to merge from!");
+                if (possibleBranch == null && reintegrate)
+                    throw new Exception("Can't reintegrate when merging a version and not a branch.");
 
                 var parents = GetCommonParents(Database.Version, mergeVersion);
                 if (parents == null || parents.Count == 0)
@@ -1932,6 +1949,8 @@ namespace Versionr
             }
             if (!updateMode)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
+            if (reintegrate)
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
             else
             {
                 LocalData.BeginTransaction();
@@ -2971,6 +2990,7 @@ namespace Versionr
         public bool Commit(string message = "", bool force = false)
         {
             List<Guid> mergeIDs = new List<Guid>();
+            List<Guid> reintegrates = new List<Guid>();
             Printer.PrintDiagnostics("Checking stage info for pending conflicts...");
             foreach (var x in LocalData.StageOperations)
             {
@@ -2981,6 +3001,8 @@ namespace Versionr
                 }
                 if (x.Type == StageOperationType.Merge)
                     mergeIDs.Add(new Guid(x.Operand1));
+                if (x.Type == StageOperationType.Reintegrate)
+                    reintegrates.Add(new Guid(x.Operand1));
             }
             try
             {
@@ -3209,6 +3231,12 @@ namespace Versionr
                             ws.Tip = vs.ID;
                             Objects.Snapshot ss = new Snapshot();
                             Database.BeginTransaction();
+
+                            foreach (var z in reintegrates)
+                            {
+                                Objects.Branch deletedBranch = Database.Get<Objects.Branch>(z);
+                                DeleteBranchNoTransaction(deletedBranch);
+                            }
                             
                             if (branch.Terminus.HasValue)
                             {
