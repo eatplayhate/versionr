@@ -30,7 +30,7 @@ namespace Versionr.Objects
     [ProtoBuf.ProtoContract]
     public class BranchJournalLink
     {
-        [SQLite.PrimaryKey]
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
         public long Id { get; set; }
 
         [ProtoBuf.ProtoMember(1)]

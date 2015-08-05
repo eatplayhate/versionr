@@ -161,12 +161,37 @@ namespace Versionr
             }
             else if (change.Type == BranchAlterationType.Terminate)
             {
-                branch.Terminus = new Guid(change.Operand);
-                Database.UpdateSafe(branch);
-                var heads = Database.GetHeads(branch);
-                foreach (var x in heads)
+                if (string.IsNullOrEmpty(change.Operand) && branch.Terminus.HasValue)
                 {
-                    Database.DeleteSafe(x);
+                    if (interactive)
+                        Printer.PrintMessage("Undeleted branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
+                    Guid id = branch.Terminus.Value;
+                    Objects.Version v = GetVersion(id);
+                    if (v == null)
+                    {
+                        Printer.PrintMessage("Can't undeleted branch - version #b#{0}## not found.", v.ID);
+                        return false;
+                    }
+                    branch.Terminus = null;
+                    Head head = new Head()
+                    {
+                        Branch = branch.ID,
+                        Version = id
+                    };
+                    Database.InsertSafe(head);
+                    Database.UpdateSafe(branch);
+                }
+                else
+                {
+                    if (interactive)
+                        Printer.PrintMessage("Deleted branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
+                    branch.Terminus = new Guid(change.Operand);
+                    Database.UpdateSafe(branch);
+                    var heads = Database.GetHeads(branch);
+                    foreach (var x in heads)
+                    {
+                        Database.DeleteSafe(x);
+                    }
                 }
                 return true;
             }
@@ -635,9 +660,40 @@ namespace Versionr
 
         internal bool ImportBranchJournal(List<BranchJournalPack> receivedBranchJournals, bool interactive)
         {
+            if (receivedBranchJournals.Count == 0)
+                return true;
+            BranchJournal localTip = GetBranchJournalTip();
             int count = receivedBranchJournals.Count;
+            HashSet<Guid> allParents = new HashSet<Guid>();
+            foreach (var x in receivedBranchJournals)
+            {
+                if (x.Parents == null)
+                    x.Parents = new List<Guid>();
+                foreach (var y in x.Parents)
+                    allParents.Add(y);
+            }
+            List<BranchJournal> localChanges = new List<BranchJournal>();
+            Stack<BranchJournal> openList = new Stack<BranchJournal>();
+            bool needsMerge = !allParents.Contains(localTip.ID);
+            if (localTip != null)
+            {
+                openList.Push(localTip);
+                while (openList.Count > 0)
+                {
+                    BranchJournal journal = openList.Pop();
+                    if (allParents.Contains(journal.ID))
+                        continue;
+                    else
+                    {
+                        localChanges.Add(journal);
+                        foreach (var y in GetBranchJournalParents(journal))
+                            openList.Push(y);
+                    }
+                }
+            }
             HashSet<Guid> processedList = new HashSet<Guid>();
             HashSet<Guid> missingList = new HashSet<Guid>();
+            BranchJournal end = null;
             while (count > 0)
             {
                 foreach (var x in receivedBranchJournals)
@@ -645,8 +701,6 @@ namespace Versionr
                     if (processedList.Contains(x.Payload.ID))
                         continue;
                     bool accept = true;
-                    if (x.Parents == null)
-                        x.Parents = new List<Guid>();
                     foreach (var y in x.Parents)
                     {
                         if (!processedList.Contains(y))
@@ -679,9 +733,45 @@ namespace Versionr
                         if (!ReplayBranchJournal(x.Payload, interactive))
                             return false;
                         Database.Insert(x.Payload);
+
+                        foreach (var y in x.Parents)
+                        {
+                            BranchJournalLink link = new BranchJournalLink();
+                            link.Link = x.Payload.ID;
+                            link.Parent = y;
+                            Database.Insert(link);
+                        }
+
+                        end = x.Payload;
                     }
                 }
             }
+            if (needsMerge && end != null)
+            {
+                BranchJournal merge = new BranchJournal();
+                merge.Branch = Guid.Empty;
+                merge.Type = BranchAlterationType.Merge;
+                merge.ID = Guid.NewGuid();
+
+                Database.InsertSafe(merge);
+
+                BranchJournalLink link = new BranchJournalLink();
+                link.Link = merge.ID;
+                link.Parent = end.ID;
+                Database.InsertSafe(link);
+
+                link = new BranchJournalLink();
+                link.Link = merge.ID;
+                link.Parent = localTip.ID;
+                Database.InsertSafe(link);
+
+                end = merge;
+            }
+            
+            var ws = LocalData.Workspace;
+            ws.JournalTip = end.ID;
+            LocalData.UpdateSafe(ws);
+
             return true;
         }
 
