@@ -978,7 +978,7 @@ namespace Versionr.Network
             foreach (var x in sharedInfo.ReceivedBranches)
             {
                 Printer.PrintDiagnostics(" - {0}: \"{1}\"", x.ID, x.Name);
-                sharedInfo.Workspace.ImportBranch(x);
+                sharedInfo.Workspace.ImportBranchNoCommit(x);
             }
             Printer.PrintDiagnostics("Branches imported.");
         }

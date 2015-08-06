@@ -975,7 +975,7 @@ namespace Versionr
                 {
                     try
                     {
-                        Database.InsertSafe(x);
+                        ImportBranchNoCommit(x);
                         Database.Commit();
                         return true;
                     }
@@ -994,6 +994,11 @@ namespace Versionr
                     throw;
                 }
             }
+        }
+
+        public void ImportBranchNoCommit(Branch x)
+        {
+            Database.InsertSafe(x);
         }
 
         internal void ImportVersionNoCommit(SharedNetwork.SharedNetworkInfo clientInfo, VersionInfo x, bool mapRecords)
