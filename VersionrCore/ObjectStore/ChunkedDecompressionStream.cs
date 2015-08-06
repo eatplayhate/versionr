@@ -55,7 +55,7 @@ namespace Versionr.ObjectStore
             }
             m_UnderlyingStreamOffset = m_UnderlyingStream.Position;
 
-            m_ChunkBuffer = new byte[m_ChunkSize];
+            m_ChunkBuffer = new byte[offsets.Count == 1 ? m_LastChunkSize : m_ChunkSize];
             m_ChunkOffsets = offsets.ToArray();
             m_ChunkSizes = sizes.ToArray();
             m_ChunkIndex = -1;
