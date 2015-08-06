@@ -43,6 +43,7 @@ namespace Versionr.Commands
             bool result = client.Clone(localOptions.Full);
             if (result)
             {
+                Printer.PrintMessage("Successfully cloned from remote vault. Initializing default remote.");
                 string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
                 client.Workspace.SetRemote(client.Host, client.Port, remoteName);
 

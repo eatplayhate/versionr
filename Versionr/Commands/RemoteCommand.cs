@@ -12,8 +12,10 @@ namespace Versionr.Commands
     {
         [Option('h', "host", Required = false, HelpText = "Specifies the hostname to push to.")]
         public string Host { get; set; }
-        [Option('p', "port", DefaultValue = -1, Required = false, HelpText = "Specifies the port to push to.")]
+        [Option('p', "port", DefaultValue = 5122, Required = false, HelpText = "Specifies the port to connect to.")]
         public int Port { get; set; }
+        [Option('v', "vault", Required = false, HelpText = "The server vault to connect to (used if a single server is hosting multiple vaults).")]
+        public string Vault { get; set; }
 
         [ValueOption(0)]
         public string Name { get; set; }
@@ -57,6 +59,7 @@ namespace Versionr.Commands
             if (string.IsNullOrEmpty(localOptions.Host) || localOptions.Port == -1)
                 requireRemoteName = true;
 
+            Tuple<bool, string, int, string> parsedRemoteName = null;
             LocalState.RemoteConfig config = null;
             if (ws != null)
             {
@@ -67,15 +70,28 @@ namespace Versionr.Commands
             }
             else if (!string.IsNullOrEmpty(localOptions.Name))
             {
-                Printer.PrintError("Remote names cannot be used outside of a Versionr vault.");
-                return false;
+                if (parsedRemoteName == null)
+                    parsedRemoteName = TryParseRemoteName(localOptions.Name);
+                if (parsedRemoteName.Item1 == false)
+                {
+                    Printer.PrintError("Remote names cannot be used outside of a Versionr vault.");
+                    return false;
+                }
             }
             if (config == null && requireRemoteName)
             {
-                Printer.PrintError("You must specify either a host and port or a remote name.");
-                return false;
+                if (parsedRemoteName == null)
+                    parsedRemoteName = TryParseRemoteName(localOptions.Name);
+                if (parsedRemoteName.Item1 == false)
+                {
+                    Printer.PrintError("You must specify either a host and port or a remote name.");
+                    return false;
+                }
+                localOptions.Host = parsedRemoteName.Item2;
+                if (parsedRemoteName.Item3 != -1)
+                    localOptions.Port = parsedRemoteName.Item3;
             }
-            else if (config == null)
+            if (config == null)
                 config = new LocalState.RemoteConfig() { Host = localOptions.Host, Port = localOptions.Port };
             if (!client.Connect(config.Host, config.Port))
             {
@@ -85,6 +101,44 @@ namespace Versionr.Commands
             bool result = RunInternal(client, localOptions);
             client.Close();
             return result;
+        }
+
+        private Tuple<bool, string, int, string> TryParseRemoteName(string name)
+        {
+            if (!string.IsNullOrEmpty(name))
+            {
+                System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(
+                    "((vsr|versionr)\\://)?" +
+                    "(?<host>" +
+                        "(?:(?:\\w|\\.|-|_|~|\\d)+)|" +
+                        "(?:(?:(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|" +
+                        "(?:(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])))" +
+                    ")" +
+                    "(?:\\:(?<port>[0-9]+))?" +
+                    "(?:/(?<vault>[A-Za-z_0-9]+))?$");
+                var match = regex.Match(name);
+                if (match.Success)
+                {
+                    string host = match.Groups["host"].Value;
+                    int port = -1;
+                    var portGroup = match.Groups["port"];
+                    if (portGroup.Success)
+                    {
+                        bool fail = false;
+                        if (!int.TryParse(portGroup.Value, out port))
+                            fail = true;
+                        if (port < 1 || port > ushort.MaxValue)
+                            fail = true;
+                        if (fail)
+                        {
+                            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
+                        }
+                    }
+                    string domain = match.Groups["vault"].Success ? match.Groups["vault"].Value : null;
+                    return new Tuple<bool, string, int, string>(true, host, port, domain);
+                }
+            }
+            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
         }
 
         protected virtual bool NeedsWorkspace

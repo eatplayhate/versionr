@@ -51,11 +51,15 @@ namespace Versionr.Network
             System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
+            Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
             while (true)
             {
                 Printer.PrintDiagnostics("Waiting for connection.");
                 var client = listener.AcceptTcpClient();
-                Task.Run(() => { HandleConnection(Area.Load(info), client); });
+                Task.Run(() => {
+                    Printer.PrintMessage("Received connection from {0}.", client.Client.RemoteEndPoint);
+                    HandleConnection(Area.Load(info), client);
+                });
             }
             listener.Stop();
 
