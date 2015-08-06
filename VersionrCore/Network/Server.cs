@@ -333,6 +333,7 @@ namespace Versionr.Network
 
         private static bool AcceptHeads(ClientStateInfo clientInfo, Area ws, out string errorData)
         {
+            SharedNetwork.ImportBranches(clientInfo.SharedInfo);
             Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
             Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
             foreach (var x in clientInfo.SharedInfo.PushedVersions)

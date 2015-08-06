@@ -968,15 +968,14 @@ namespace Versionr.Network
         internal static void ReceiveBranches(SharedNetworkInfo sharedInfo)
         {
             PushBranches branches = Utilities.ReceiveEncrypted<PushBranches>(sharedInfo);
-            ReceiveBranchesInternal(sharedInfo, branches);
+            sharedInfo.ReceivedBranches.AddRange(branches.Branches);
             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
         }
 
-        private static void ReceiveBranchesInternal(SharedNetworkInfo sharedInfo, PushBranches branches)
+        internal static void ImportBranches(SharedNetwork.SharedNetworkInfo sharedInfo)
         {
-            sharedInfo.ReceivedBranches.AddRange(branches.Branches);
             Printer.PrintDiagnostics("Received branches:");
-            foreach (var x in branches.Branches)
+            foreach (var x in sharedInfo.ReceivedBranches)
             {
                 Printer.PrintDiagnostics(" - {0}: \"{1}\"", x.ID, x.Name);
                 sharedInfo.Workspace.ImportBranch(x);
