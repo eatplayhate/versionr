@@ -30,6 +30,9 @@ namespace Versionr.Commands
 
         [Option('x', "external", HelpText = "Use external diffing tool")]
         public bool External { get; set; }
+
+		[Option('v', "version", HelpText = "Show changes made at a particular version")]
+		public string Version { get; set; }
 	}
 
 	class Diff : FileCommand
@@ -38,28 +41,78 @@ namespace Versionr.Commands
 		{
             DiffVerbOptions localOptions = options as DiffVerbOptions;
 
+			Objects.Version version = null;
+			Objects.Version parent = null;
+			if (!string.IsNullOrEmpty(localOptions.Version))
+			{
+				version = Workspace.GetPartialVersion(localOptions.Version);
+				if (version == null)
+				{
+					Printer.PrintError("No version found matching {0}", localOptions.Version);
+					return false;
+				}
+				if (version.Parent.HasValue)
+					parent = Workspace.GetVersion(version.Parent.Value);
+
+				if (parent == null)
+				{
+					Printer.PrintMessage("Version {0} has no parent", version.ID);
+					return true;
+				}
+				Printer.PrintMessage("Showing changes for version #c#{0}", version.ID);
+			}
+
 			foreach (var x in targets)
 			{
                 if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
                 {
-                    string tmp = Utilities.DiffTool.GetTempFilename();
-                    if (ws.ExportRecord(x.CanonicalName, null, tmp))
-                    {
-                        try
-                        {
-                            Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-                            if (localOptions.External)
-                                Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
-                            else
-                            {
-                                RunInternalDiff(tmp, x.CanonicalName);
-                            }
-                        }
-                        finally
-                        {
-                            System.IO.File.Delete(tmp);
-                        }
-                    }
+					// Displaying local modifications
+					if (version == null)
+					{
+						string tmp = Utilities.DiffTool.GetTempFilename();
+						if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
+						{
+							try
+							{
+								Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
+								if (localOptions.External)
+									Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
+								else
+									RunInternalDiff(tmp, x.CanonicalName);
+							}
+							finally
+							{
+								System.IO.File.Delete(tmp);
+							}
+						}
+					}
+					else
+					{
+						string tmpVersion = Utilities.DiffTool.GetTempFilename();
+						bool exportedVersion = Workspace.ExportRecord(x.CanonicalName, version, tmpVersion);
+
+						string tmpParent = Utilities.DiffTool.GetTempFilename();
+						bool exportedParent = Workspace.ExportRecord(x.CanonicalName, parent, tmpParent);
+
+						try
+						{
+							if (exportedParent && exportedVersion)
+							{
+								Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
+								if (localOptions.External)
+									Utilities.DiffTool.Diff(tmpParent, x.Name + "-" + parent.ShortName, tmpVersion, x.Name + "-" + version.ShortName);
+								else
+									RunInternalDiff(tmpParent, tmpVersion);
+							}
+						}
+						finally
+						{
+							if (exportedVersion)
+								System.IO.File.Delete(tmpVersion);
+							if (exportedParent)
+								System.IO.File.Delete(tmpParent);
+						}
+					}
                 }
 			}
 			return true;

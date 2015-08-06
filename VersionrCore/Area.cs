@@ -2535,14 +2535,8 @@ namespace Versionr
             }
 		}
 
-		public bool ExportRecord(string cannonicalPath, Guid? versionId, string outputPath)
+		public bool ExportRecord(string cannonicalPath, Objects.Version version, string outputPath)
 		{
-			Objects.Version version = null;
-			if (versionId != null)
-				version = Database.Get<Objects.Version>(versionId);
-            if (version == null)
-                version = Version;
-
 			List<Record> records = Database.GetRecords(version);
 			foreach (var x in records)
 			{
