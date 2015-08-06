@@ -3263,6 +3263,7 @@ namespace Versionr
                             Printer.PrintMessage("Updating internal state.");
                             var ws = LocalData.Workspace;
                             ws.Tip = vs.ID;
+                            LocalData.UpdateSafe(ws);
                             Objects.Snapshot ss = new Snapshot();
                             Database.BeginTransaction();
 
@@ -3330,7 +3331,6 @@ namespace Versionr
                             Database.Commit();
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
-                            LocalData.UpdateSafe(ws);
                             Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
                         }
                         catch (Exception e)
