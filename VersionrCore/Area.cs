@@ -202,6 +202,14 @@ namespace Versionr
                         Printer.PrintDiagnostics("Undeleting branch");
                     Guid id = branch.Terminus.Value;
                     Printer.PrintDiagnostics("Prior terminus: {0}", id);
+                    branch.Terminus = null;
+                    Database.UpdateSafe(branch);
+                    Head head = new Head()
+                    {
+                        Branch = branch.ID,
+                        Version = id
+                    };
+                    Database.InsertSafe(head);
                     Objects.Version v = GetVersion(id);
                     if (v == null)
                     {
@@ -211,14 +219,6 @@ namespace Versionr
                         // Version may not yet be inserted into the database
                         return true;
                     }
-                    branch.Terminus = null;
-                    Head head = new Head()
-                    {
-                        Branch = branch.ID,
-                        Version = id
-                    };
-                    Database.InsertSafe(head);
-                    Database.UpdateSafe(branch);
                 }
                 else
                 {
@@ -1973,10 +1973,10 @@ namespace Versionr
                 if (x.TemporaryFile != null)
                     x.TemporaryFile.Delete();
             }
-            if (!updateMode)
-                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
             if (reintegrate)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
+            if (!updateMode)
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
             else
             {
                 LocalData.BeginTransaction();
@@ -3091,6 +3091,14 @@ namespace Versionr
                             }
                             else
                                 Printer.PrintDiagnostics("Existing head for current version found. Updating branch head.");
+                            if (branch.Terminus.HasValue)
+                            {
+                                if (GetHistory(GetVersion(vs.Parent.Value)).Where(z => z.ID == branch.Terminus.Value).FirstOrDefault() == null)
+                                {
+                                    Printer.PrintError("#x#Error:##\n   Branch was deleted and parent revision is not a child of the branch terminus. Aborting commit.");
+                                    return false;
+                                }
+                            }
                             head.Version = vs.ID;
 
                             List<Objects.Alteration> alterations = new List<Alteration>();
@@ -3255,6 +3263,7 @@ namespace Versionr
                             Printer.PrintMessage("Updating internal state.");
                             var ws = LocalData.Workspace;
                             ws.Tip = vs.ID;
+                            LocalData.UpdateSafe(ws);
                             Objects.Snapshot ss = new Snapshot();
                             Database.BeginTransaction();
 
@@ -3274,6 +3283,10 @@ namespace Versionr
                                 change.Operand = null;
                                 change.Type = BranchAlterationType.Terminate;
                                 InsertBranchJournalChangeNoTransaction(journal, change, false);
+
+                                head = Database.Find<Objects.Head>(x => x.Version == branch.Terminus.Value && x.Branch == branch.ID);
+                                head.Version = vs.ID;
+                                newHead = false;
                             }
                             Database.InsertSafe(ss);
                             vs.AlterationList = ss.Id;
@@ -3318,7 +3331,6 @@ namespace Versionr
                             Database.Commit();
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
-                            LocalData.UpdateSafe(ws);
                             Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
                         }
                         catch (Exception e)

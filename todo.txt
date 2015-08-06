@@ -16,4 +16,3 @@ Versionr features
 - plugin architecture (and convert svn integration)
 - fix order of record creation for merge/update (probably others)
 - file attributes (executable for *nixes, hidden, ... ?)
-- configuration for plugins/modules

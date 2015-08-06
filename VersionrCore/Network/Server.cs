@@ -205,15 +205,31 @@ namespace Versionr.Network
                                 {
                                     clientInfo.SharedInfo.Workspace.RunLocked(() =>
                                     {
-                                        if (AcceptHeads(clientInfo, ws, out errorData))
+                                        try
                                         {
-                                            ImportVersions(ws, clientInfo);
-                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
-                                            return true;
+                                            clientInfo.SharedInfo.Workspace.BeginDatabaseTransaction();
+                                            if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
+                                            {
+                                                clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
+                                                return false;
+                                            }
+                                            if (AcceptHeads(clientInfo, ws, out errorData))
+                                            {
+                                                ImportVersions(ws, clientInfo);
+                                                clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
+                                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                                return true;
+                                            }
+                                            else
+                                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
+                                            clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
+                                            return false;
                                         }
-                                        else
-                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
-                                        return false;
+                                        catch
+                                        {
+                                            clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
+                                            return false;
+                                        }
                                     }, false);
                                 }
                             }
@@ -436,50 +452,35 @@ namespace Versionr.Network
         {
             lock (ws)
             {
-                try
+                var versionsToImport = clientInfo.SharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
+                Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
+                foreach (var x in versionsToImport)
+                    importList[x.Version.ID] = false;
+                int importCount = versionsToImport.Length;
+                var orderedImports = versionsToImport.OrderBy(x => x.Version.Revision).ToList();
+                while (importCount > 0)
                 {
-                    ws.BeginDatabaseTransaction();
-                    var versionsToImport = clientInfo.SharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
-                    Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
-                    foreach (var x in versionsToImport)
-                        importList[x.Version.ID] = false;
-                    int importCount = versionsToImport.Length;
-                    var orderedImports = versionsToImport.OrderBy(x => x.Version.Revision).ToList();
-                    while (importCount > 0)
+                    foreach (var x in orderedImports)
                     {
-                        foreach (var x in orderedImports)
+                        if (importList[x.Version.ID] != true)
                         {
-                            if (importList[x.Version.ID] != true)
+                            bool accept;
+                            if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
+                                accept = true;
+                            if (accept)
                             {
-                                bool accept;
-                                if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
-                                    accept = true;
-                                if (accept)
-                                {
-                                    ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, true);
-                                    importList[x.Version.ID] = true;
-                                    importCount--;
-                                }
+                                ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, true);
+                                importList[x.Version.ID] = true;
+                                importCount--;
                             }
                         }
                     }
-                    if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
-                    {
-                        ws.RollbackDatabaseTransaction();
-                        return false;
-                    }
-                    foreach (var x in clientInfo.MergeVersions)
-                        ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, false);
-                    foreach (var x in clientInfo.UpdatedHeads)
-                        ws.ImportHeadNoCommit(x);
-                    ws.CommitDatabaseTransaction();
-                    return true;
                 }
-                catch
-                {
-                    ws.RollbackDatabaseTransaction();
-                    throw;
-                }
+                foreach (var x in clientInfo.MergeVersions)
+                    ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, false);
+                foreach (var x in clientInfo.UpdatedHeads)
+                    ws.ImportHeadNoCommit(x);
+                return true;
             }
         }
         

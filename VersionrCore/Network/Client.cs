@@ -380,6 +380,8 @@ namespace Versionr.Network
                     try
                     {
                         sharedInfo.Workspace.BeginDatabaseTransaction();
+                        if (!SharedNetwork.ImportBranchJournal(sharedInfo, true))
+                            return false;
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
                         Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
                         foreach (var x in versionsToImport)
@@ -423,7 +425,6 @@ namespace Versionr.Network
                         }
                         printer.End(importCount);
                         Printer.PrintMessage("Updating internal state...");
-                        SharedNetwork.ImportBranchJournal(sharedInfo, true);
                         foreach (var x in autoMerged)
                             Workspace.ImportVersionNoCommit(sharedInfo, x, false);
                         foreach (var x in temporaryHeads)
