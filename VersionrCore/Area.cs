@@ -3065,6 +3065,14 @@ namespace Versionr
                             }
                             else
                                 Printer.PrintDiagnostics("Existing head for current version found. Updating branch head.");
+                            if (branch.Terminus.HasValue)
+                            {
+                                if (!GetHistory(GetVersion(vs.Parent.Value)).Contains(GetVersion(branch.Terminus.Value)))
+                                {
+                                    Printer.PrintError("#x#Error:##\n   Branch was deleted and parent revision a child of the branch terminus. Aborting commit.");
+                                    return false;
+                                }
+                            }
                             head.Version = vs.ID;
 
                             List<Objects.Alteration> alterations = new List<Alteration>();
@@ -3248,6 +3256,10 @@ namespace Versionr
                                 change.Operand = null;
                                 change.Type = BranchAlterationType.Terminate;
                                 InsertBranchJournalChangeNoTransaction(journal, change);
+
+                                head = Database.Find<Objects.Head>(x => x.Version == branch.Terminus.Value && x.Branch == branch.ID);
+                                head.Version = vs.ID;
+                                newHead = false;
                             }
                             Database.InsertSafe(ss);
                             vs.AlterationList = ss.Id;
