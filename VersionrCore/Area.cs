@@ -202,7 +202,6 @@ namespace Versionr
                         Printer.PrintDiagnostics("Undeleting branch");
                     Guid id = branch.Terminus.Value;
                     Printer.PrintDiagnostics("Prior terminus: {0}", id);
-                    Objects.Version v = GetVersion(id);
                     branch.Terminus = null;
                     Database.UpdateSafe(branch);
                     Head head = new Head()
@@ -211,6 +210,7 @@ namespace Versionr
                         Version = id
                     };
                     Database.InsertSafe(head);
+                    Objects.Version v = GetVersion(id);
                     if (v == null)
                     {
                         if (interactive)
