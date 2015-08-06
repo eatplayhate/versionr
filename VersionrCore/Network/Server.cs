@@ -439,6 +439,11 @@ namespace Versionr.Network
                 try
                 {
                     ws.BeginDatabaseTransaction();
+                    if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
+                    {
+                        ws.RollbackDatabaseTransaction();
+                        return false;
+                    }
                     var versionsToImport = clientInfo.SharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
                     Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
                     foreach (var x in versionsToImport)
@@ -462,11 +467,6 @@ namespace Versionr.Network
                                 }
                             }
                         }
-                    }
-                    if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
-                    {
-                        ws.RollbackDatabaseTransaction();
-                        return false;
                     }
                     foreach (var x in clientInfo.MergeVersions)
                         ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, false);
