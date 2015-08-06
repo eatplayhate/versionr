@@ -89,7 +89,7 @@ namespace Versionr
             change.ID = Guid.NewGuid();
             change.Operand = GetBranchHead(branch).Version.ToString();
             change.Type = BranchAlterationType.Terminate;
-            InsertBranchJournalChangeNoTransaction(journal, change);
+            InsertBranchJournalChangeNoTransaction(journal, change, true);
         }
 
         private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
@@ -97,7 +97,7 @@ namespace Versionr
             try
             {
                 Database.BeginTransaction();
-                InsertBranchJournalChangeNoTransaction(journal, change);
+                InsertBranchJournalChangeNoTransaction(journal, change, false);
                 Database.Commit();
                 return true;
             }
@@ -108,7 +108,7 @@ namespace Versionr
             }
         }
 
-        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change)
+        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change, bool interactive)
         {
             Database.InsertSafe(change);
             if (journal != null)
@@ -198,12 +198,18 @@ namespace Versionr
                 {
                     if (interactive)
                         Printer.PrintMessage("Undeleted branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
+                    else
+                        Printer.PrintDiagnostics("Undeleting branch");
                     Guid id = branch.Terminus.Value;
+                    Printer.PrintDiagnostics("Prior terminus: {0}", id);
                     Objects.Version v = GetVersion(id);
                     if (v == null)
                     {
-                        Printer.PrintMessage("Can't undeleted branch - version #b#{0}## not found.", v.ID);
-                        return false;
+                        if (interactive)
+                            Printer.PrintMessage("Can't undelete branch - version #b#{0}## not found.", id);
+
+                        // Version may not yet be inserted into the database
+                        return true;
                     }
                     branch.Terminus = null;
                     Head head = new Head()
@@ -474,7 +480,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.0.1";
+                return "v1.1";
             }
         }
 
@@ -707,9 +713,10 @@ namespace Versionr
             }
             List<BranchJournal> localChanges = new List<BranchJournal>();
             Stack<BranchJournal> openList = new Stack<BranchJournal>();
-            bool needsMerge = !allParents.Contains(localTip.ID);
+            bool needsMerge = false;
             if (localTip != null)
             {
+                needsMerge = !allParents.Contains(localTip.ID);
                 openList.Push(localTip);
                 while (openList.Count > 0)
                 {
@@ -727,12 +734,21 @@ namespace Versionr
             HashSet<Guid> processedList = new HashSet<Guid>();
             HashSet<Guid> missingList = new HashSet<Guid>();
             BranchJournal end = null;
+            if (interactive)
+                Printer.PrintMessage("Received #b#{0}## branch journal updates.", count);
+            else
+                Printer.PrintDiagnostics("Received {0} branch journal updates.", count);
+            bool passed = false;
+            bool debug = false;
             while (count > 0)
             {
+                passed = true;
                 foreach (var x in receivedBranchJournals)
                 {
                     if (processedList.Contains(x.Payload.ID))
                         continue;
+                    if (debug)
+                        Printer.PrintDiagnostics("Processing {0}, {1} parents", x.Payload.ID.ToString().Substring(0, 8), x.Parents.Count);
                     bool accept = true;
                     foreach (var y in x.Parents)
                     {
@@ -740,6 +756,8 @@ namespace Versionr
                         {
                             if (missingList.Contains(y))
                             {
+                                if (debug)
+                                    Printer.PrintDiagnostics("Parent {0} in missing entry list.", y.ToString().Substring(0, 8));
                                 accept = false;
                                 break;
                             }
@@ -747,10 +765,14 @@ namespace Versionr
                             {
                                 if (HasBranchJournal(y))
                                 {
+                                    if (debug)
+                                        Printer.PrintDiagnostics("Parent {0} found!", y.ToString().Substring(0, 8));
                                     processedList.Add(y);
                                 }
                                 else
                                 {
+                                    if (debug)
+                                        Printer.PrintDiagnostics("Parent {0} not found.", y.ToString().Substring(0, 8));
                                     missingList.Add(y);
                                     accept = false;
                                     break;
@@ -760,6 +782,7 @@ namespace Versionr
                     }
                     if (accept)
                     {
+                        Printer.PrintDiagnostics("Accepted [{3}] {0}: {1}, {2}", x.Payload.Type, x.Payload.Branch.ToString().Substring(0, 8), x.Payload.Operand, x.Payload.ID.ToString().Substring(0, 8));
                         count--;
                         missingList.Remove(x.Payload.ID);
                         processedList.Add(x.Payload.ID);
@@ -776,8 +799,11 @@ namespace Versionr
                         }
 
                         end = x.Payload;
+                        passed = false;
                     }
                 }
+                if (passed)
+                    debug = true;
             }
             if (needsMerge && end != null)
             {
@@ -1947,10 +1973,10 @@ namespace Versionr
                 if (x.TemporaryFile != null)
                     x.TemporaryFile.Delete();
             }
-            if (!updateMode)
-                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
             if (reintegrate)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
+            if (!updateMode)
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
             else
             {
                 LocalData.BeginTransaction();
@@ -3255,7 +3281,7 @@ namespace Versionr
                                 change.ID = Guid.NewGuid();
                                 change.Operand = null;
                                 change.Type = BranchAlterationType.Terminate;
-                                InsertBranchJournalChangeNoTransaction(journal, change);
+                                InsertBranchJournalChangeNoTransaction(journal, change, false);
 
                                 head = Database.Find<Objects.Head>(x => x.Version == branch.Terminus.Value && x.Branch == branch.ID);
                                 head.Version = vs.ID;

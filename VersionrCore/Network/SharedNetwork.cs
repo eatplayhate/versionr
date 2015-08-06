@@ -243,6 +243,8 @@ namespace Versionr.Network
                         Parents = parents.Select(x => x.ID).ToList()
                     };
 
+                    info.RemoteCheckedBranchJournal.Add(journal.ID);
+
                     Utilities.SendEncryptedPrefixed(new NetCommand() { Type = NetCommandType.PushBranchJournal }, info, pack);
 
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
