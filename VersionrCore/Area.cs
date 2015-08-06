@@ -203,6 +203,14 @@ namespace Versionr
                     Guid id = branch.Terminus.Value;
                     Printer.PrintDiagnostics("Prior terminus: {0}", id);
                     Objects.Version v = GetVersion(id);
+                    branch.Terminus = null;
+                    Database.UpdateSafe(branch);
+                    Head head = new Head()
+                    {
+                        Branch = branch.ID,
+                        Version = id
+                    };
+                    Database.InsertSafe(head);
                     if (v == null)
                     {
                         if (interactive)
@@ -211,14 +219,6 @@ namespace Versionr
                         // Version may not yet be inserted into the database
                         return true;
                     }
-                    branch.Terminus = null;
-                    Head head = new Head()
-                    {
-                        Branch = branch.ID,
-                        Version = id
-                    };
-                    Database.InsertSafe(head);
-                    Database.UpdateSafe(branch);
                 }
                 else
                 {
@@ -3093,9 +3093,9 @@ namespace Versionr
                                 Printer.PrintDiagnostics("Existing head for current version found. Updating branch head.");
                             if (branch.Terminus.HasValue)
                             {
-                                if (!GetHistory(GetVersion(vs.Parent.Value)).Contains(GetVersion(branch.Terminus.Value)))
+                                if (GetHistory(GetVersion(vs.Parent.Value)).Where(z => z.ID == branch.Terminus.Value).FirstOrDefault() == null)
                                 {
-                                    Printer.PrintError("#x#Error:##\n   Branch was deleted and parent revision a child of the branch terminus. Aborting commit.");
+                                    Printer.PrintError("#x#Error:##\n   Branch was deleted and parent revision is not a child of the branch terminus. Aborting commit.");
                                     return false;
                                 }
                             }
