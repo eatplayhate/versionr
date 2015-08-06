@@ -16,6 +16,10 @@ namespace Versionr.Commands
 		public int Limit { get; set; }
         [Option('c', "concise", HelpText = "Uses a short log formatting style.", MutuallyExclusiveSet = "alterations")]
         public bool Concise { get; set; }
+		[Option('b', "branch", HelpText = "Name of the branch to view", MutuallyExclusiveSet = "version")]
+		public string Branch { get; set; }
+		[Option('v', "version", HelpText = "Specific version to view", MutuallyExclusiveSet = "branch")]
+		public string Version { get; set; }
 
         public override string[] Description
 		{
@@ -39,11 +43,6 @@ namespace Versionr.Commands
 	}
 	class Log : FileBaseCommand
 	{
-		protected override void Start()
-		{
-			Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
-		}
-
 		protected override bool RequiresTargets { get { return false; } }
 
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
@@ -51,8 +50,36 @@ namespace Versionr.Commands
 			LogVerbOptions localOptions = options as LogVerbOptions;
 			Printer.EnableDiagnostics = localOptions.Verbose;
 
-            var enumeration = ws.History.Where(y => HasAlterationForTarget(y, targets));
-            if (localOptions.Limit != 0)
+			Objects.Version version = null;
+			if (!string.IsNullOrEmpty(localOptions.Branch))
+			{
+				bool multipleBranches = false;
+				var branch = ws.GetBranchByPartialName(localOptions.Branch, out multipleBranches);
+				if (branch == null || multipleBranches)
+				{
+					Printer.PrintError("No unique branch found for {0}", localOptions.Branch);
+					return false;
+				}
+				version = ws.GetBranchHeadVersion(branch);
+			}
+			else if (!string.IsNullOrEmpty(localOptions.Version))
+			{
+				version = ws.GetPartialVersion(localOptions.Version);
+				if (version == null)
+				{
+					Printer.PrintError("Couldn't find matching version for {0}", localOptions.Version);
+					return false;
+				}
+			}
+
+			List<Objects.Version> history = null;
+			if (version == null)
+				history = ws.History;
+			else
+				history = ws.GetHistory(version);
+
+			var enumeration = history.Where(y => HasAlterationForTarget(y, targets));
+			if (localOptions.Limit != 0)
                 enumeration = enumeration.Take(localOptions.Limit);
 
             foreach (var x in enumeration.Reverse())

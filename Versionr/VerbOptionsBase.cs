@@ -49,7 +49,7 @@ namespace Versionr
             e.Option.HelpText = "##" + e.Option.HelpText + "#b#";
         }
 
-        [Option('v', "verbose", HelpText = "Display verbose diagnostics information.")]
+        [Option("verbose", HelpText = "Display verbose diagnostics information.")]
         public bool Verbose { get; set; }
 
         [Option('q', "quiet", HelpText = "Disable output of all messages except errors and warnings.")]

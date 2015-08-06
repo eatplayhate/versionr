@@ -380,13 +380,17 @@ namespace CommandLine
                         arguments.MoveNext();
                     }
                 }
-                else if (valueMapper.CanReceiveValues)
+				else if (valueMapper.CanReceiveValues)
                 {
                     if (!valueMapper.MapValueItem(argument))
                     {
                         hadError = true;
                     }
                 }
+				else if (_settings.IgnoreUnknownArguments == false)
+				{
+					hadError = true;
+				}
             }
 
             hadError |= !optionMap.EnforceRules();

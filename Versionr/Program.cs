@@ -185,8 +185,7 @@ namespace Versionr
             VersionOptions initalOpts = new VersionOptions();
             CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
                 (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
-            parser.ParseArguments(args, initalOpts);
-            if (initalOpts.Version)
+            if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
             {
                 Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
                 Printer.WriteLineMessage("#q#  - A less hateful version control system.");

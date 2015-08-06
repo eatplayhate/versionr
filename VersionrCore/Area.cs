@@ -2601,7 +2601,7 @@ namespace Versionr
             return result;
         }
 
-        private Objects.Version GetPartialVersion(string v)
+        public Objects.Version GetPartialVersion(string v)
         {
             Objects.Version version = Database.Find<Objects.Version>(v);
             if (version != null)
