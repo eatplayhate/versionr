@@ -44,7 +44,7 @@ namespace Versionr
                 try
                 {
                     var fmt = Format;
-                    int priorFormat = 15;// fmt.InternalFormat;
+					int priorFormat = fmt.InternalFormat;
                     if (priorFormat < 17)
                     {
                         ExecuteDirect("PRAGMA main.page_size = 4096;");
