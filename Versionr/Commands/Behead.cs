@@ -109,6 +109,7 @@ namespace Versionr.Commands
                         {
                             Printer.PrintError("Can't behead version - this would leave branch \"{0}\" with no head!", b.Name);
                             Printer.PrintError("Use --force if this is what you want.");
+							return false;
                         }
                         return ws.RemoveHead(x);
                     }
