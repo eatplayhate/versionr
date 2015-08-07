@@ -2513,6 +2513,7 @@ namespace Versionr
                     try
                     {
                         System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        RemoveFileTimeCache(x.CanonicalName);
                         Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
                     }
                     catch
@@ -2525,6 +2526,7 @@ namespace Versionr
                     try
                     {
                         System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        RemoveFileTimeCache(x.CanonicalName);
                         Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
                     }
                     catch
@@ -2532,7 +2534,6 @@ namespace Versionr
                         Printer.PrintMessage("#x#Couldn't delete {0}", x.CanonicalName);
                     }
                 }
-                RemoveFileTimeCache(x.CanonicalName);
             }
 		}
 
@@ -2764,17 +2765,16 @@ namespace Versionr
                 }
             }
             FileTimestamp fst = null;
-            LocalData.BeginTransaction();
             try
             {
                 while (!Task.WaitAll(tasks.ToArray(), 10000))
                 {
                     while (updatedTimestamps.TryDequeue(out fst))
-                        UpdateFileTimeCache(fst);
+                        UpdateFileTimeCache(fst, false);
                 }
                 while (updatedTimestamps.TryDequeue(out fst))
-                    UpdateFileTimeCache(fst);
-                LocalData.Commit();
+                    UpdateFileTimeCache(fst, false);
+                LocalData.ReplaceFileTimes(FileTimeCache);
             }
             catch (Exception e)
             {
