@@ -39,6 +39,15 @@ namespace Versionr.Network
                 return AESProvider.CreateDecryptor(AESKey, AESIV);
             }
         }
+
+        public string VersionrURL
+        {
+            get
+            {
+                return "vsr://" + Host + ":" + Port;
+            }
+        }
+
         public Client(Area area)
         {
             Workspace = area;
@@ -333,12 +342,12 @@ namespace Versionr.Network
                             }
                             if (head.Version != x.Version.ID)
                             {
-                                if (IsAncestor(head.Version, x.Version.ID, sharedInfo))
+                                if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, sharedInfo))
                                 {
                                     pendingMerges[branch.ID] = Guid.Empty;
                                     head.Version = x.Version.ID;
                                 }
-                                else if (!IsAncestor(x.Version.ID, head.Version, sharedInfo))
+                                else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, sharedInfo))
                                 {
                                     pendingMerges[branch.ID] = head.Version;
                                     head.Version = x.Version.ID;
@@ -450,50 +459,6 @@ namespace Versionr.Network
                     }
                 }
             }, false);
-        }
-
-        private static bool IsAncestor(Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
-        {
-            HashSet<Guid> checkedVersions = new HashSet<Guid>();
-            return IsAncestorInternal(checkedVersions, ancestor, possibleChild, clientInfo);
-        }
-
-        private static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
-        {
-            if (possibleChild == ancestor)
-                return true;
-            Guid nextVersionToCheck = possibleChild;
-            while (true)
-            {
-                if (checkedVersions.Contains(nextVersionToCheck))
-                    return false;
-                checkedVersions.Add(nextVersionToCheck);
-                List<MergeInfo> mergeInfo;
-                Objects.Version v = FindLocalOrRemoteVersionInfo(nextVersionToCheck, clientInfo, out mergeInfo);
-                if (!v.Parent.HasValue)
-                    return false;
-                else if (v.Parent.Value == ancestor)
-                    return true;
-                foreach (var x in mergeInfo)
-                {
-                    if (IsAncestorInternal(checkedVersions, ancestor, x.SourceVersion, clientInfo))
-                        return true;
-                }
-                nextVersionToCheck = v.Parent.Value;
-            }
-        }
-
-        private static Objects.Version FindLocalOrRemoteVersionInfo(Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo, out List<MergeInfo> mergeInfo)
-        {
-            VersionInfo info = clientInfo.PushedVersions.Where(x => x.Version.ID == possibleChild).FirstOrDefault();
-            if (info != null)
-            {
-                mergeInfo = info.MergeInfos != null ? info.MergeInfos.ToList() : new List<MergeInfo>();
-                return info.Version;
-            }
-            Objects.Version localVersion = clientInfo.Workspace.GetVersion(possibleChild);
-            mergeInfo = clientInfo.Workspace.GetMergeInfo(localVersion.ID).ToList();
-            return localVersion;
         }
 
         public bool Connect(string host, int port)

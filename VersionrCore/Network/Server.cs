@@ -362,12 +362,12 @@ namespace Versionr.Network
                 }
                 if (head.Version != x.Version.ID)
                 {
-                    if (IsAncestor(head.Version, x.Version.ID, clientInfo, ws))
+                    if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
                     {
                         pendingMerges[branch.ID] = Guid.Empty;
                         head.Version = x.Version.ID;
                     }
-                    else if (!IsAncestor(x.Version.ID, head.Version, clientInfo, ws))
+                    else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, clientInfo.SharedInfo))
                     {
                         pendingMerges[branch.ID] = head.Version;
                         head.Version = x.Version.ID;
@@ -407,50 +407,6 @@ namespace Versionr.Network
             clientInfo.UpdatedHeads = temporaryHeads;
             errorData = string.Empty;
             return true;
-        }
-
-        private static bool IsAncestor(Guid ancestor, Guid possibleChild, ClientStateInfo clientInfo, Area ws)
-        {
-            HashSet<Guid> checkedVersions = new HashSet<Guid>();
-            return IsAncestorInternal(checkedVersions, ancestor, possibleChild, clientInfo, ws);
-        }
-
-        private static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, ClientStateInfo clientInfo, Area ws)
-        {
-            Guid nextVersionToCheck = possibleChild;
-            if (ancestor == possibleChild)
-                return true;
-            while (true)
-            {
-                if (checkedVersions.Contains(nextVersionToCheck))
-                    return false;
-                checkedVersions.Add(nextVersionToCheck);
-                List<MergeInfo> mergeInfo;
-                Objects.Version v = FindLocalOrRemoteVersionInfo(nextVersionToCheck, clientInfo, ws, out mergeInfo);
-                if (!v.Parent.HasValue)
-                    return false;
-                else if (v.Parent.Value == ancestor)
-                    return true;
-                foreach (var x in mergeInfo)
-                {
-                    if (IsAncestorInternal(checkedVersions, ancestor, x.SourceVersion, clientInfo, ws))
-                        return true;
-                }
-                nextVersionToCheck = v.Parent.Value;
-            }
-        }
-
-        private static Objects.Version FindLocalOrRemoteVersionInfo(Guid possibleChild, ClientStateInfo clientInfo, Area ws, out List<MergeInfo> mergeInfo)
-        {
-            VersionInfo info = clientInfo.SharedInfo.PushedVersions.Where(x => x.Version.ID == possibleChild).FirstOrDefault();
-            if (info != null)
-            {
-                mergeInfo = info.MergeInfos != null ? info.MergeInfos.ToList() : new List<MergeInfo>();
-                return info.Version;
-            }
-            Objects.Version localVersion = ws.GetVersion(possibleChild);
-            mergeInfo = ws.GetMergeInfo(localVersion.ID).ToList();
-            return localVersion;
         }
 
         private static bool ImportVersions(Area ws, ClientStateInfo clientInfo)

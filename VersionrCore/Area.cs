@@ -121,8 +121,8 @@ namespace Versionr
                 };
                 Database.InsertSafe(link);
             }
-
-            ReplayBranchJournal(change, false);
+            
+            ReplayBranchJournal(change, false, null);
 
             var ws = LocalData.Workspace;
             ws.JournalTip = change.ID;
@@ -179,7 +179,7 @@ namespace Versionr
             }, true);
         }
 
-        public bool ReplayBranchJournal(BranchJournal change, bool interactive)
+        internal bool ReplayBranchJournal(BranchJournal change, bool interactive, List<BranchJournal> conflicts, SharedNetwork.SharedNetworkInfo sharedInfo = null)
         {
             Objects.Branch branch = Database.Find<Objects.Branch>(change.Branch);
             if (branch == null)
@@ -211,27 +211,111 @@ namespace Versionr
                         Version = id
                     };
                     Database.InsertSafe(head);
-                    Objects.Version v = GetVersion(id);
+                    Objects.Version v = sharedInfo == null ? GetVersion(id) : GetLocalOrRemoteVersion(id, sharedInfo);
                     if (v == null)
                     {
                         if (interactive)
                             Printer.PrintMessage("Can't undelete branch - version #b#{0}## not found.", id);
-
-                        // Version may not yet be inserted into the database
-                        return true;
+                        return false;
                     }
                 }
                 else
                 {
                     if (interactive)
-                        Printer.PrintMessage("Deleted branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
-                    branch.Terminus = new Guid(change.Operand);
-                    Database.UpdateSafe(branch);
+                        Printer.PrintMessage("Deleting branch \"#b#{0}##\" (#c#{1}##)", branch.Name, branch.ID);
+                    var targetID = new Guid(change.Operand);
+                    Objects.Version v = sharedInfo == null ? GetVersion(targetID) : GetLocalOrRemoteVersion(targetID, sharedInfo);
+                    if (v == null)
+                    {
+                        if (interactive)
+                            Printer.PrintMessage("Can't delete branch - terminus #b#{0}## not found.", targetID);
+                        return false;
+                    }
+                    if (branch.Terminus.HasValue)
+                    {
+                        // we only care about receiving exciting terminuses
+                        if (sharedInfo != null)
+                        {
+                            if (!SharedNetwork.IsAncestor(branch.Terminus.Value, targetID, sharedInfo))
+                            {
+                                // we received an older ancestor, just return
+                                if (interactive)
+                                    Printer.PrintMessage("#w#Received an outdated branch deletion.##");
+                                conflicts.Add(new BranchJournal()
+                                {
+                                    Branch = change.Branch,
+                                    Operand = branch.Terminus.Value.ToString(),
+                                    Type = BranchAlterationType.Terminate
+                                });
+                                return true;
+                            }
+                        }
+                    }
                     var heads = Database.GetHeads(branch);
                     foreach (var x in heads)
                     {
+                        if (sharedInfo != null)
+                        {
+                            if (SharedNetwork.IsAncestor(targetID, x.Version, sharedInfo))
+                            {
+                                if (interactive)
+                                {
+                                    Printer.PrintMessage("#w#Received a branch deletion to a version older than the current head.##\n  Branch: #c#{0}## \"#b#{1}##\"\n  Head: #b#{2}##\n  Incoming terminus: #b#{3}##.", branch.ID, branch.Name, x.Version, targetID);
+                                    bool resolved = false;
+                                    while (!resolved)
+                                    {
+                                        Printer.PrintMessage("(U)ndelete branch, (m)ove terminus, or (a)ccept incoming delete? ");
+                                        string resolution = System.Console.ReadLine();
+                                        if (resolution.StartsWith("u", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            conflicts.Add(new BranchJournal()
+                                            {
+                                                Branch = change.Branch,
+                                                Operand = x.Version.ToString(),
+                                                Type = BranchAlterationType.Terminate
+                                            });
+                                            conflicts.Add(new BranchJournal()
+                                            {
+                                                Branch = change.Branch,
+                                                Operand = null,
+                                                Type = BranchAlterationType.Terminate
+                                            });
+                                            resolved = true;
+                                        }
+                                        if (resolution.StartsWith("m", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            targetID = x.Version;
+                                            conflicts.Add(new BranchJournal()
+                                            {
+                                                Branch = change.Branch,
+                                                Operand = targetID.ToString(),
+                                                Type = BranchAlterationType.Terminate
+                                            });
+                                            resolved = true;
+                                        }
+                                        if (resolution.StartsWith("a", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            resolved = true;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    Printer.PrintDiagnostics("Branch terminus set before head - manually updating.");
+                                    targetID = x.Version;
+                                    conflicts.Add(new BranchJournal()
+                                    {
+                                        Branch = change.Branch,
+                                        Operand = x.Version.ToString(),
+                                        Type = BranchAlterationType.Terminate
+                                    });
+                                }
+                            }
+                        }
                         Database.DeleteSafe(x);
                     }
+                    branch.Terminus = targetID;
+                    Database.UpdateSafe(branch);
                 }
                 return true;
             }
@@ -395,6 +479,12 @@ namespace Versionr
 
         public bool SetRemote(string host, int port, string name)
         {
+            Regex validNames = new Regex("^[A-Za-z0-9-_]+$");
+            if (!validNames.IsMatch(name))
+            {
+                Printer.PrintError("#e#Name \"{0}\" invalid for remote. Only alphanumeric characters, underscores and dashes are allowed.", name);
+                return false;
+            }
             LocalData.BeginTransaction();
             try
             {
@@ -698,8 +788,9 @@ namespace Versionr
             }
         }
 
-        internal bool ImportBranchJournal(List<BranchJournalPack> receivedBranchJournals, bool interactive)
+        internal bool ImportBranchJournal(SharedNetwork.SharedNetworkInfo info, bool interactive)
         {
+            List<BranchJournalPack> receivedBranchJournals = info.ReceivedBranchJournals;
             if (receivedBranchJournals.Count == 0)
                 return true;
             BranchJournal localTip = GetBranchJournalTip();
@@ -739,6 +830,7 @@ namespace Versionr
                 Printer.PrintMessage("Received #b#{0}## branch journal updates.", count);
             else
                 Printer.PrintDiagnostics("Received {0} branch journal updates.", count);
+            List<BranchJournal> conflicts = new List<BranchJournal>();
             bool passed = false;
             bool debug = false;
             while (count > 0)
@@ -787,7 +879,7 @@ namespace Versionr
                         count--;
                         missingList.Remove(x.Payload.ID);
                         processedList.Add(x.Payload.ID);
-                        if (!ReplayBranchJournal(x.Payload, interactive))
+                        if (!ReplayBranchJournal(x.Payload, interactive, conflicts, info))
                             return false;
                         Database.Insert(x.Payload);
 
@@ -804,28 +896,41 @@ namespace Versionr
                     }
                 }
                 if (passed)
-                    debug = true;
+                {
+                    throw new Exception("Error while importing branch journal!");
+                }
             }
+            if (conflicts.Count > 0)
+                needsMerge = true;
+            else if (needsMerge)
+                conflicts.Add(new BranchJournal() { Type = BranchAlterationType.Merge, Branch = Guid.Empty });
             if (needsMerge && end != null)
             {
-                BranchJournal merge = new BranchJournal();
-                merge.Branch = Guid.Empty;
-                merge.Type = BranchAlterationType.Merge;
-                merge.ID = Guid.NewGuid();
+                foreach (var x in conflicts)
+                {
+                    BranchJournal merge = x;
+                    merge.ID = Guid.NewGuid();
+                    
+                    ReplayBranchJournal(merge, false, null, info);
 
-                Database.InsertSafe(merge);
+                    Database.InsertSafe(merge);
 
-                BranchJournalLink link = new BranchJournalLink();
-                link.Link = merge.ID;
-                link.Parent = end.ID;
-                Database.InsertSafe(link);
+                    BranchJournalLink link = new BranchJournalLink();
+                    link.Link = merge.ID;
+                    link.Parent = end.ID;
+                    Database.InsertSafe(link);
 
-                link = new BranchJournalLink();
-                link.Link = merge.ID;
-                link.Parent = localTip.ID;
-                Database.InsertSafe(link);
+                    if (localTip != null)
+                    {
+                        link = new BranchJournalLink();
+                        link.Link = merge.ID;
+                        link.Parent = localTip.ID;
+                        Database.InsertSafe(link);
+                        localTip = null;
+                    }
 
-                end = merge;
+                    end = merge;
+                }
             }
             
             var ws = LocalData.Workspace;
@@ -2028,7 +2133,7 @@ namespace Versionr
                 if (parent.ID == v1.ID || parent.ID == v2.ID)
                 {
                     Printer.PrintMessage("Merge information is already up to date.");
-                    return Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
+                    return Database.GetRecords(parent.ID == v1.ID ? v2 : v1).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
                 Printer.PrintMessage("Starting recursive merge:");
                 Printer.PrintMessage(" - Left: {0}", v1.ID);

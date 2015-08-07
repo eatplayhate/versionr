@@ -406,7 +406,51 @@ namespace Versionr.Network
 
         internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive)
         {
-            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo.ReceivedBranchJournals, interactive);
+            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo, interactive);
+        }
+
+        internal static bool IsAncestor(Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
+        {
+            HashSet<Guid> checkedVersions = new HashSet<Guid>();
+            return IsAncestorInternal(checkedVersions, ancestor, possibleChild, clientInfo);
+        }
+
+        internal static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
+        {
+            Guid nextVersionToCheck = possibleChild;
+            if (ancestor == possibleChild)
+                return true;
+            while (true)
+            {
+                if (checkedVersions.Contains(nextVersionToCheck))
+                    return false;
+                checkedVersions.Add(nextVersionToCheck);
+                List<MergeInfo> mergeInfo;
+                Objects.Version v = FindLocalOrRemoteVersionInfo(nextVersionToCheck, clientInfo, out mergeInfo);
+                if (!v.Parent.HasValue)
+                    return false;
+                else if (v.Parent.Value == ancestor)
+                    return true;
+                foreach (var x in mergeInfo)
+                {
+                    if (IsAncestorInternal(checkedVersions, ancestor, x.SourceVersion, clientInfo))
+                        return true;
+                }
+                nextVersionToCheck = v.Parent.Value;
+            }
+        }
+
+        internal static Objects.Version FindLocalOrRemoteVersionInfo(Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo, out List<MergeInfo> mergeInfo)
+        {
+            VersionInfo info = clientInfo.PushedVersions.Where(x => x.Version.ID == possibleChild).FirstOrDefault();
+            if (info != null)
+            {
+                mergeInfo = info.MergeInfos != null ? info.MergeInfos.ToList() : new List<MergeInfo>();
+                return info.Version;
+            }
+            Objects.Version localVersion = clientInfo.Workspace.GetVersion(possibleChild);
+            mergeInfo = clientInfo.Workspace.GetMergeInfo(localVersion.ID).ToList();
+            return localVersion;
         }
 
         private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo, SendStats stats = null)
