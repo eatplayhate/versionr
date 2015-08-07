@@ -16,6 +16,7 @@ namespace Versionr.Network
         byte[] AESIV { get; set; }
         public bool Connected { get; set; }
         public string Host { get; set; }
+        public string RemoteDomain { get; set; }
         public int Port { get; set; }
 
         System.IO.DirectoryInfo BaseDirectory { get; set; }
@@ -187,6 +188,14 @@ namespace Versionr.Network
                 return false;
             try
             {
+                if (string.IsNullOrEmpty(RemoteDomain))
+                {
+                    Printer.PrintError("#b#Initializing bare remote...##");
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushInitialVersion }, ProtoBuf.PrefixStyle.Fixed32);
+                    Objects.Version initialRevision = Workspace.GetVersion(Workspace.Domain);
+                    Objects.Branch initialBranch = Workspace.GetBranch(initialRevision.Branch);
+                    Utilities.SendEncrypted<ClonePayload>(SharedInfo, new ClonePayload() { InitialBranch = initialBranch, RootVersion = initialRevision });
+                }
                 Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
@@ -227,6 +236,11 @@ namespace Versionr.Network
         {
             if (Workspace == null)
                 return false;
+            if (string.IsNullOrEmpty(RemoteDomain))
+            {
+                Printer.PrintError("#x#Error:##\n  Remote vault is not yet initialized. Can't pull.");
+                return false;
+            }
             try
             {
                 string branchID = null;
@@ -325,6 +339,8 @@ namespace Versionr.Network
                         foreach (var x in sharedInfo.PushedVersions)
                         {
                             Branch branch = sharedInfo.Workspace.GetBranch(x.Version.Branch);
+                            if (branch.Terminus.HasValue)
+                                continue;
                             Head head;
                             if (!temporaryHeads.TryGetValue(branch.ID, out head))
                             {
@@ -491,12 +507,13 @@ namespace Versionr.Network
                         goto Retry;
                     }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
-                    if (Workspace != null && startTransaction.Domain != Workspace.Domain.ToString())
+                    if (Workspace != null && !string.IsNullOrEmpty(startTransaction.Domain) && startTransaction.Domain != Workspace.Domain.ToString())
                     {
                         Printer.PrintError("Server domain doesn't match client domain. Disconnecting.");
                         return false;
                     }
 
+                    RemoteDomain = startTransaction.Domain;
                     if (startTransaction.Encrypted)
                     {
                         var key = startTransaction.RSAKey;

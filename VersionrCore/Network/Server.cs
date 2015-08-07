@@ -30,13 +30,16 @@ namespace Versionr.Network
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
+        public static bool Bare { get; set; }
+        public static object SyncObject = new object();
         public static bool Run(System.IO.DirectoryInfo info, int port, bool encryptData = true)
         {
             Area ws = Area.Load(info);
+            Bare = false;
             if (ws == null)
             {
-                Printer.PrintError("Can't run server without an active vault.");
-                return false;
+                Versionr.Utilities.MultiArchPInvoke.BindDLLs();
+                Bare = true;
             }
             if (encryptData)
             {
@@ -58,7 +61,15 @@ namespace Versionr.Network
                 var client = listener.AcceptTcpClient();
                 Task.Run(() => {
                     Printer.PrintMessage("Received connection from {0}.", client.Client.RemoteEndPoint);
-                    HandleConnection(Area.Load(info), client);
+                    if (Bare)
+                    {
+                        lock (SyncObject)
+                        {
+                            HandleConnection(info, client);
+                        }
+                    }
+                    else
+                        HandleConnection(info, client);
                 });
             }
             listener.Stop();
@@ -77,8 +88,11 @@ namespace Versionr.Network
             }
         }
 
-        static void HandleConnection(Area ws, TcpClient client)
+        static void HandleConnection(System.IO.DirectoryInfo info, TcpClient client)
         {
+            Area ws = null;
+            if (!Bare)
+                ws = Area.Load(info);
             ClientStateInfo clientInfo = new ClientStateInfo();
             using (client)
             using (SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo())
@@ -100,7 +114,7 @@ namespace Versionr.Network
                         Network.StartTransaction startSequence = null;
                         if (PrivateKey != null)
                         {
-                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), PublicKey, clientProtocol.Value);
+                            startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
                             Printer.PrintDiagnostics("Sending RSA key...");
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
@@ -116,7 +130,7 @@ namespace Versionr.Network
                         }
                         else
                         {
-                            startSequence = Network.StartTransaction.Create(ws.Domain.ToString(), clientProtocol.Value);
+                            startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), clientProtocol.Value);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
                         }
@@ -132,6 +146,12 @@ namespace Versionr.Network
                             {
                                 Printer.PrintDiagnostics("Client closing connection.");
                                 break;
+                            }
+                            else if (command.Type == NetCommandType.PushInitialVersion)
+                            {
+                                ws = Area.InitRemote(info, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
+                                clientInfo.SharedInfo.Workspace = ws;
+                                Bare = false;
                             }
                             else if (command.Type == NetCommandType.PushBranchJournal)
                             {
