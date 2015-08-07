@@ -463,6 +463,8 @@ namespace Versionr.Network
 
         internal static bool ImportRecords(SharedNetworkInfo sharedInfo, bool enablePrinter = false)
         {
+            if (sharedInfo.UnknownRecords.Count == 0)
+                return true;
             lock (sharedInfo.Workspace)
             {
                 try

@@ -383,47 +383,50 @@ namespace Versionr.Network
                             }
                         }
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
-                        Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
-                        foreach (var x in versionsToImport)
-                            importList[x.Version.ID] = false;
-                        int importCount = versionsToImport.Length;
-                        var orderedImports = versionsToImport.OrderBy(x => x.Version.Revision).ToList();
-                        Printer.InteractivePrinter printer = null;
-                        Printer.PrintMessage("Importing #b#{0}## versions...", orderedImports.Count);
-                        printer = Printer.CreateProgressBarPrinter("Importing", string.Empty,
-                                (obj) =>
-                                {
-                                    return string.Empty;
-                                },
-                                (obj) =>
-                                {
-                                    return (100.0f * (int)(orderedImports.Count - importCount)) / (float)orderedImports.Count;
-                                },
-                                (pct, obj) =>
-                                {
-                                    return string.Format("{0}/{1}", (int)(orderedImports.Count - importCount), orderedImports.Count);
-                                },
-                                60);
-                        while (importCount > 0)
+                        if (versionsToImport.Length != 0)
                         {
-                            foreach (var x in orderedImports)
-                            {
-                                if (importList[x.Version.ID] != true)
-                                {
-                                    bool accept;
-                                    if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
-                                        accept = true;
-                                    if (accept)
+                            Dictionary<Guid, bool> importList = new Dictionary<Guid, bool>();
+                            foreach (var x in versionsToImport)
+                                importList[x.Version.ID] = false;
+                            int importCount = versionsToImport.Length;
+                            var orderedImports = versionsToImport.OrderBy(x => x.Version.Revision).ToList();
+                            Printer.InteractivePrinter printer = null;
+                            Printer.PrintMessage("Importing #b#{0}## versions...", orderedImports.Count);
+                            printer = Printer.CreateProgressBarPrinter("Importing", string.Empty,
+                                    (obj) =>
                                     {
-                                        sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
-                                        importList[x.Version.ID] = true;
-                                        importCount--;
-                                        printer.Update(importCount);
+                                        return string.Empty;
+                                    },
+                                    (obj) =>
+                                    {
+                                        return (100.0f * (int)(orderedImports.Count - importCount)) / (float)orderedImports.Count;
+                                    },
+                                    (pct, obj) =>
+                                    {
+                                        return string.Format("{0}/{1}", (int)(orderedImports.Count - importCount), orderedImports.Count);
+                                    },
+                                    60);
+                            while (importCount > 0)
+                            {
+                                foreach (var x in orderedImports)
+                                {
+                                    if (importList[x.Version.ID] != true)
+                                    {
+                                        bool accept;
+                                        if (!x.Version.Parent.HasValue || !importList.TryGetValue(x.Version.Parent.Value, out accept))
+                                            accept = true;
+                                        if (accept)
+                                        {
+                                            sharedInfo.Workspace.ImportVersionNoCommit(sharedInfo, x, true);
+                                            importList[x.Version.ID] = true;
+                                            importCount--;
+                                            printer.Update(importCount);
+                                        }
                                     }
                                 }
                             }
+                            printer.End(importCount);
                         }
-                        printer.End(importCount);
                         Printer.PrintMessage("Updating internal state...");
                         foreach (var x in autoMerged)
                             Workspace.ImportVersionNoCommit(sharedInfo, x, false);
