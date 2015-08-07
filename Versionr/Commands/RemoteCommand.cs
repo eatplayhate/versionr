@@ -77,6 +77,7 @@ namespace Versionr.Commands
                     Printer.PrintError("Remote names cannot be used outside of a Versionr vault.");
                     return false;
                 }
+                localOptions.Name = null;
             }
             if (config == null && requireRemoteName)
             {
@@ -87,6 +88,7 @@ namespace Versionr.Commands
                     Printer.PrintError("You must specify either a host and port or a remote name.");
                     return false;
                 }
+                localOptions.Name = null;
                 localOptions.Host = parsedRemoteName.Item2;
                 if (parsedRemoteName.Item3 != -1)
                     localOptions.Port = parsedRemoteName.Item3;

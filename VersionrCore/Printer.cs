@@ -267,8 +267,13 @@ namespace Versionr
             }
         }
 
+        static OutputColour PreviousColour = (OutputColour)(-1);
+
         private static void SetOutputColour(OutputColour style)
         {
+            if (style == PreviousColour)
+                return;
+            PreviousColour = style;
             switch (style)
             {
                 case OutputColour.Normal:

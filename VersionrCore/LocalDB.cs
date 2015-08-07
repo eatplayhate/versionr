@@ -309,21 +309,23 @@ namespace Versionr
             return result;
         }
 
-        internal void UpdateFileTime(string canonicalName, LocalState.FileTimestamp ft)
+        internal void UpdateFileTime(string canonicalName, LocalState.FileTimestamp ft, bool? present)
         {
             lock (this)
             {
-                var timestamp = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
-                if (timestamp == null)
+                LocalState.FileTimestamp prior = null;
+                if (!present.HasValue || present.Value == true)
+                    prior = Find<LocalState.FileTimestamp>(x => x.CanonicalName == canonicalName);
+                if (prior == null)
                 {
-                    timestamp = new FileTimestamp() { CanonicalName = canonicalName, LastSeenTime = ft.LastSeenTime, DataIdentifier = ft.DataIdentifier };
-                    Insert(timestamp);
+                    prior = new FileTimestamp() { CanonicalName = canonicalName, LastSeenTime = ft.LastSeenTime, DataIdentifier = ft.DataIdentifier };
+                    Insert(prior);
                 }
                 else
                 {
-                    timestamp.LastSeenTime = ft.LastSeenTime;
-                    timestamp.DataIdentifier = ft.DataIdentifier;
-                    Update(timestamp);
+                    prior.LastSeenTime = ft.LastSeenTime;
+                    prior.DataIdentifier = ft.DataIdentifier;
+                    Update(prior);
                 }
             }
         }

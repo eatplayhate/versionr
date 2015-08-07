@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -2512,6 +2513,7 @@ namespace Versionr
                     try
                     {
                         System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        RemoveFileTimeCache(x.CanonicalName);
                         Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
                     }
                     catch
@@ -2524,6 +2526,7 @@ namespace Versionr
                     try
                     {
                         System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        RemoveFileTimeCache(x.CanonicalName);
                         Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
                     }
                     catch
@@ -2531,7 +2534,6 @@ namespace Versionr
                         Printer.PrintMessage("#x#Couldn't delete {0}", x.CanonicalName);
                     }
                 }
-                RemoveFileTimeCache(x.CanonicalName);
             }
 		}
 
@@ -2701,40 +2703,84 @@ namespace Versionr
 			List<Task> tasks = new List<Task>();
 			List<Record> pendingSymlinks = new List<Record>();
 
+            Printer.InteractivePrinter printer = Printer.CreateProgressBarPrinter(
+                string.Empty,
+                "Progress",
+                (obj) =>
+                {
+                    return string.Empty;
+                },
+                (obj) =>
+                {
+                    return 100.0f * (int)obj / targetRecords.Count;
+                },
+                (pct, obj) =>
+                {
+                    return string.Format("{0:N2}%", pct);
+                },
+                65);
+            int count = 0;
+            ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
 			foreach (var x in CheckoutOrder(targetRecords))
 			{
 				canonicalNames.Add(x.CanonicalName);
-				if (x.IsDirectory)
-					RestoreRecord(x, newRefTime);
-				else if (x.IsFile)
-				{
-					if (x.IsDirective)
-					{
-						RestoreRecord(x, newRefTime);
-						LoadDirectives();
-					}
-					else
-					{
-						//RestoreRecord(x, newRefTime);
-						tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => { RestoreRecord(x, newRefTime); }));
-					}
+                if (x.IsDirectory)
+                {
+                    System.Threading.Interlocked.Increment(ref count);
+                    RestoreRecord(x, newRefTime);
+                }
+                else if (x.IsFile)
+                {
+                    if (x.IsDirective)
+                    {
+                        System.Threading.Interlocked.Increment(ref count);
+                        RestoreRecord(x, newRefTime);
+                        LoadDirectives();
+                    }
+                    else
+                    {
+                        //RestoreRecord(x, newRefTime);
+                        tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => {
+                            RestoreRecord(x, newRefTime, null, updatedTimestamps, (created, name) =>
+                            {
+                                Printer.PrintMessage("#b#{0}##: {1}", created ? "Created" : "Updated", name);
+                                printer.Update(System.Threading.Interlocked.Increment(ref count));
+                            });
+                        }));
+                    }
 
-				}
-				else if (x.IsSymlink)
-				{
-					try
-					{
-						RestoreRecord(x, newRefTime);
-					}
-					catch (Utilities.Symlink.TargetNotFoundException e)
-					{
-						Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
-						pendingSymlinks.Add(x);
-					}
-				}
-			}
-			Task.WaitAll(tasks.ToArray());
-			int attempts = 5;
+                }
+                else if (x.IsSymlink)
+                {
+                    try
+                    {
+                        RestoreRecord(x, newRefTime);
+                        System.Threading.Interlocked.Increment(ref count);
+                    }
+                    catch (Utilities.Symlink.TargetNotFoundException e)
+                    {
+                        Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
+                        pendingSymlinks.Add(x);
+                    }
+                }
+            }
+            FileTimestamp fst = null;
+            try
+            {
+                while (!Task.WaitAll(tasks.ToArray(), 10000))
+                {
+                    while (updatedTimestamps.TryDequeue(out fst))
+                        UpdateFileTimeCache(fst, false);
+                }
+                while (updatedTimestamps.TryDequeue(out fst))
+                    UpdateFileTimeCache(fst, false);
+                LocalData.ReplaceFileTimes(FileTimeCache);
+            }
+            catch (Exception e)
+            {
+                throw new Exception("Checkout failed!", e);
+            }
+            int attempts = 5;
 			while (attempts > 0)
 			{
 				attempts--;
@@ -2813,6 +2859,7 @@ namespace Versionr
 					}
 				}
 			}
+            printer.End(targetRecords.Count);
 
             ReferenceTime = newRefTime;
             LocalData.BeginTransaction();
@@ -3388,7 +3435,7 @@ namespace Versionr
             }
         }
 
-        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null)
+        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<bool, string> feedback = null)
         {
 			if (rec.IsSymlink)
 			{
@@ -3427,15 +3474,28 @@ namespace Versionr
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
                     {
-                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
+                        if (updatedTimestamps == null)
+                            UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
+                        else
+                            updatedTimestamps.Enqueue(new FileTimestamp() { CanonicalName = rec.CanonicalName, DataIdentifier = rec.DataIdentifier, LastSeenTime = dest.LastWriteTimeUtc });
                         return;
                     }
                 }
                 if (overridePath == null)
-                    Printer.PrintMessage("Updating {0}", rec.CanonicalName);
+                {
+                    if (feedback == null)
+                        Printer.PrintMessage("Updating {0}", rec.CanonicalName);
+                    else
+                        feedback(false, rec.CanonicalName);
+                }
             }
             else if (overridePath == null)
-                Printer.PrintMessage("Creating {0}", rec.CanonicalName);
+            {
+                if (feedback == null)
+                    Printer.PrintMessage("Creating {0}", rec.CanonicalName);
+                else
+                    feedback(true, rec.CanonicalName);
+            }
             int retries = 0;
         Retry:
             try
@@ -3468,7 +3528,12 @@ namespace Versionr
                     throw new Exception();
                 }
                 if (overridePath == null)
-                    UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
+                {
+                    if (updatedTimestamps == null)
+                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
+                    else
+                        updatedTimestamps.Enqueue(new FileTimestamp() { CanonicalName = rec.CanonicalName, DataIdentifier = rec.DataIdentifier, LastSeenTime = dest.LastWriteTimeUtc });
+                }
             }
             catch (System.IO.IOException)
             {
@@ -3492,15 +3557,22 @@ namespace Versionr
             }
         }
 
-        public void UpdateFileTimeCache(string canonicalName, Record rec, DateTime lastAccessTimeUtc, bool commit = true)
+        public void UpdateFileTimeCache(FileTimestamp fst, bool commit = true)
         {
             lock (FileTimeCache)
             {
-                var fst = new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName };
-                FileTimeCache[canonicalName] = fst;
+                bool present = false;
+                if (FileTimeCache.ContainsKey(fst.CanonicalName))
+                    present = true;
+                FileTimeCache[fst.CanonicalName] = fst;
                 if (commit)
-                    LocalData.UpdateFileTime(canonicalName, fst);
+                    LocalData.UpdateFileTime(fst.CanonicalName, fst, present);
             }
+        }
+
+        public void UpdateFileTimeCache(string canonicalName, Record rec, DateTime lastAccessTimeUtc, bool commit = true)
+        {
+            UpdateFileTimeCache(new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName }, commit);
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
