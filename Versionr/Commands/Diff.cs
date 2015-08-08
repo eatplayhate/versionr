@@ -59,62 +59,69 @@ namespace Versionr.Commands
 					Printer.PrintMessage("Version {0} has no parent", version.ID);
 					return true;
 				}
-				Printer.PrintMessage("Showing changes for version #c#{0}", version.ID);
+                Printer.PrintMessage("Showing changes for version #c#{0}", version.ID);
 			}
 
-			foreach (var x in targets)
-			{
-                if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
+            if (version == null)
+            {
+                foreach (var x in targets)
                 {
-					// Displaying local modifications
-					if (version == null)
-					{
-						string tmp = Utilities.DiffTool.GetTempFilename();
-						if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
-						{
-							try
-							{
-								Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-								if (localOptions.External)
-									Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
-								else
-									RunInternalDiff(tmp, x.CanonicalName);
-							}
-							finally
-							{
-								System.IO.File.Delete(tmp);
-							}
-						}
-					}
-					else
-					{
-						string tmpVersion = Utilities.DiffTool.GetTempFilename();
-						bool exportedVersion = Workspace.ExportRecord(x.CanonicalName, version, tmpVersion);
-
-						string tmpParent = Utilities.DiffTool.GetTempFilename();
-						bool exportedParent = Workspace.ExportRecord(x.CanonicalName, parent, tmpParent);
-
-						try
-						{
-							if (exportedParent && exportedVersion)
-							{
-								Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-								if (localOptions.External)
-									Utilities.DiffTool.Diff(tmpParent, x.Name + "-" + parent.ShortName, tmpVersion, x.Name + "-" + version.ShortName);
-								else
-									RunInternalDiff(tmpParent, tmpVersion);
-							}
-						}
-						finally
-						{
-							if (exportedVersion)
-								System.IO.File.Delete(tmpVersion);
-							if (exportedParent)
-								System.IO.File.Delete(tmpParent);
-						}
-					}
+                    if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
+                    {
+                        // Displaying local modifications
+                        string tmp = Utilities.DiffTool.GetTempFilename();
+                        if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
+                        {
+                            try
+                            {
+                                Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
+                                if (localOptions.External)
+                                    Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
+                                else
+                                    RunInternalDiff(tmp, x.CanonicalName);
+                            }
+                            finally
+                            {
+                                System.IO.File.Delete(tmp);
+                            }
+                        }
+                    }
                 }
-			}
+            }
+            else
+            {
+                List<KeyValuePair<string, Objects.Record>> updates = ws.GetAlterations(version)
+                    .Where(x => x.Type == Objects.AlterationType.Update)
+                    .Select(x => ws.GetRecord(x.NewRecord.Value))
+                    .Select(x => new KeyValuePair<string, Objects.Record>(x.CanonicalName, x)).ToList();
+                foreach (var rec in Filter(updates))
+                {
+                    string tmpVersion = Utilities.DiffTool.GetTempFilename();
+                    bool exportedVersion = Workspace.ExportRecord(rec.CanonicalName, version, tmpVersion);
+
+                    string tmpParent = Utilities.DiffTool.GetTempFilename();
+                    bool exportedParent = Workspace.ExportRecord(rec.CanonicalName, parent, tmpParent);
+
+                    try
+                    {
+                        if (exportedParent && exportedVersion)
+                        {
+                            Printer.PrintMessage("Displaying changes for file: #b#{0}", rec.CanonicalName);
+                            if (localOptions.External)
+                                Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName);
+                            else
+                                RunInternalDiff(tmpParent, tmpVersion);
+                        }
+                    }
+                    finally
+                    {
+                        if (exportedVersion)
+                            System.IO.File.Delete(tmpVersion);
+                        if (exportedParent)
+                            System.IO.File.Delete(tmpParent);
+                    }
+                }
+            }
 			return true;
 		}
 
@@ -285,7 +292,7 @@ namespace Versionr.Commands
                         line1++;
                     }
                 }
-                if (openRegion != null && openRegion != last && (openRegion.End1 < line0 && openRegion.End2 < line1))
+                if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
                     regions.Add(openRegion);
                     openRegion = null;

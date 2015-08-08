@@ -12,7 +12,7 @@ namespace Versionr.Commands
 	{
 		[Option('l', "alterations", HelpText = "Display a listing of alterations.", MutuallyExclusiveSet = "concise")]
 		public bool Alterations { get; set; }
-		[Option('t', "limit", DefaultValue = 10, HelpText = "Limit number of versions to show (0 for all).")]
+		[Option('t', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
         [Option('c', "concise", HelpText = "Uses a short log formatting style.", MutuallyExclusiveSet = "alterations")]
         public bool Concise { get; set; }
@@ -79,7 +79,10 @@ namespace Versionr.Commands
 				history = ws.GetHistory(version);
 
 			var enumeration = history.Where(y => HasAlterationForTarget(y, targets));
-			if (localOptions.Limit != 0)
+            if (localOptions.Limit == -1)
+                localOptions.Limit = version == null ? 10 : 1;
+
+            if (localOptions.Limit != 0)
                 enumeration = enumeration.Take(localOptions.Limit);
 
             foreach (var x in enumeration.Reverse())
