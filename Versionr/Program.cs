@@ -181,6 +181,16 @@ namespace Versionr
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
 
+            if (args.Length > 0)
+            {
+                if (args[0] == "hax")
+                {
+                    Area ws = Area.Load(new System.IO.DirectoryInfo(workingDirectoryPath));
+                    ws.SetPartialPath(args.Length > 1 ? args[1] : string.Empty);
+                    return;
+                }
+            }
+
             var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
             CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(

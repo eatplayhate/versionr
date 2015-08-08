@@ -16,6 +16,7 @@ namespace Versionr.LocalState
         public Guid Domain { get; set; }
         public string Name { get; set; }
         public DateTime LocalCheckoutTime { get; set; }
+        public string PartialPath { get; set; }
 
         public static Workspace Create()
         {

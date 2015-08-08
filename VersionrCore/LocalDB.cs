@@ -60,6 +60,17 @@ namespace Versionr
             }
         }
 
+        public string PartialPath
+        {
+            get
+            {
+                var path = Workspace.PartialPath;
+                if (path == null)
+                    return string.Empty;
+                return path;
+            }
+        }
+
         public Guid Domain
         {
             get

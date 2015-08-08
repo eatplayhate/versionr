@@ -129,6 +129,26 @@ namespace Versionr
             LocalData.UpdateSafe(ws);
         }
 
+        public bool SetPartialPath(string path)
+        {
+            if (!string.IsNullOrEmpty(path) && !path.EndsWith("/"))
+                path += "/";
+            try
+            {
+                LocalData.BeginTransaction();
+                var ws = LocalData.Workspace;
+                ws.PartialPath = path;
+                LocalData.UpdateSafe(ws);
+                LocalData.Commit();
+                return true;
+            }
+            catch
+            {
+                LocalData.Rollback();
+                return false;
+            }
+        }
+
         internal List<Record> GetAllMissingRecords()
         {
             return FindMissingRecords(Database.GetAllRecords());
@@ -1869,14 +1889,21 @@ namespace Versionr
                 Status.StatusEntry localObject = null;
                 status.Map.TryGetValue(x.CanonicalName, out localObject);
 
+                bool included = Included(x.CanonicalName);
                 if (localObject == null || localObject.Removed)
                 {
                     if (parentObject == null)
                     {
                         // Added
-                        RestoreRecord(x, newRefTime);
+                        if (included)
+                            RestoreRecord(x, newRefTime);
                         if (!updateMode)
                         {
+                            if (!included)
+                            {
+                                Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
+                                return;
+                            }
                             LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
                             LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
@@ -1890,12 +1917,20 @@ namespace Versionr
                         }
                         else
                         {
+                            if (!included && !updateMode)
+                            {
+                                Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
+                                return;
+                            }
                             // less fine
                             Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
-                            RestoreRecord(x, newRefTime);
-                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-                            if (!updateMode)
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            if (included)
+                            {
+                                RestoreRecord(x, newRefTime);
+                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                if (!updateMode)
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            }
                         }
                     }
                 }
@@ -1910,11 +1945,19 @@ namespace Versionr
                         if (parentObject != null && parentObject.DataEquals(localObject))
                         {
                             // modified in foreign branch
-                            RestoreRecord(x, newRefTime);
-                            if (!updateMode)
+                            if (included)
                             {
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                RestoreRecord(x, newRefTime);
+                                if (!updateMode)
+                                {
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                }
+                            }
+                            else if (!updateMode)
+                            {
+                                Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
+                                return;
                             }
                         }
                         else if (parentObject != null && parentObject.DataEquals(x))
@@ -1923,78 +1966,94 @@ namespace Versionr
                         }
                         else if (parentObject == null)
                         {
-                            // added in both places
-                            var mf = GetTemporaryFile(x);
-                            var ml = localObject.FilesystemEntry.Info;
-                            var mr = GetTemporaryFile(x);
+                            if (included)
+                            {
+                                // added in both places
+                                var mf = GetTemporaryFile(x);
+                                var ml = localObject.FilesystemEntry.Info;
+                                var mr = GetTemporaryFile(x);
                             
-                            RestoreRecord(x, newRefTime, mf.FullName);
+                                RestoreRecord(x, newRefTime, mf.FullName);
 
-                            FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true);
-                            if (result != null)
-                            {
-                                if (result != ml)
-                                    ml.Delete();
-                                if (result != mr)
+                                FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true);
+                                if (result != null)
+                                {
+                                    if (result != ml)
+                                        ml.Delete();
+                                    if (result != mr)
+                                        mr.Delete();
+                                    if (result != mf)
+                                        mf.Delete();
+                                    result.MoveTo(ml.FullName);
+								    if (!updateMode)
+								    {
+									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								    }
+							    }
+                                else
+                                {
                                     mr.Delete();
-                                if (result != mf)
-                                    mf.Delete();
-                                result.MoveTo(ml.FullName);
-								if (!updateMode)
-								{
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-								}
-							}
-                            else
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+								    if (!updateMode)
+									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                }
+                            }
+                            else if (!updateMode)
                             {
-                                mr.Delete();
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-								if (!updateMode)
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-							}
-						}
+                                Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
+                                return;
+                            }
+                        }
                         else
                         {
-                            var mf = GetTemporaryFile(x);
-                            FileInfo mb;
-                            var ml = localObject.FilesystemEntry.Info;
-                            var mr = GetTemporaryFile(x);
-
-                            if (parentObject.TemporaryFile == null)
+                            if (included)
                             {
-                                mb = GetTemporaryFile(parentObject.Record);
-                                RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
-                            }
-                            else
-                                mb = parentObject.TemporaryFile;
+                                var mf = GetTemporaryFile(x);
+                                FileInfo mb;
+                                var ml = localObject.FilesystemEntry.Info;
+                                var mr = GetTemporaryFile(x);
+
+                                if (parentObject.TemporaryFile == null)
+                                {
+                                    mb = GetTemporaryFile(parentObject.Record);
+                                    RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
+                                }
+                                else
+                                    mb = parentObject.TemporaryFile;
                             
-                            RestoreRecord(x, newRefTime, mf.FullName);
+                                RestoreRecord(x, newRefTime, mf.FullName);
 
-                            FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true);
-                            if (result != null)
+                                FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true);
+                                if (result != null)
+                                {
+                                    if (result != ml)
+                                        ml.Delete();
+                                    if (result != mr)
+                                        mr.Delete();
+                                    if (result != mf)
+                                        mf.Delete();
+                                    if (result != mb)
+                                        mb.Delete();
+                                    result.MoveTo(ml.FullName);
+								    if (!updateMode)
+								    {
+									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+								    }
+							    }
+                                else
+                                {
+                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+								    if (!updateMode)
+									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+							    }
+                            }
+                            else if (!updateMode)
                             {
-                                if (result != ml)
-                                    ml.Delete();
-                                if (result != mr)
-                                    mr.Delete();
-                                if (result != mf)
-                                    mf.Delete();
-                                if (result != mb)
-                                    mb.Delete();
-                                result.MoveTo(ml.FullName);
-								if (!updateMode)
-								{
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-								}
-							}
-                            else
-                            {
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-								if (!updateMode)
-									LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-							}
+                                Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
+                                return;
+                            }
                         }
                     }
                 }
@@ -2039,22 +2098,29 @@ namespace Versionr
             }
             foreach (var x in deletionList)
             {
-				if (x.IsFile)
+                if (!Included(x.CanonicalName))
+                {
+                    if (!updateMode)
+                    {
+                        Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
+                        return;
+                    }
+                }
+                string path = GetRecordPath(x);
+                if (x.IsFile)
 				{
-					string path = Path.Combine(Root.FullName, x.CanonicalName);
 					try
 					{
-						System.IO.File.Delete(x.CanonicalName);
+						System.IO.File.Delete(path);
 					}
 					catch
 					{
-						Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
+						Printer.PrintError("#x#Can't remove object \"{0}\"!", path);
 					}
 				}
 				else if (x.IsSymlink)
-				{
-					string path = Path.Combine(Root.FullName, x.CanonicalName);
-					try
+                {
+                    try
 					{
 						Utilities.Symlink.Delete(path);
 					}
@@ -2065,10 +2131,9 @@ namespace Versionr
 				}
 				else if (x.IsDirectory)
 				{
-					string path = Path.Combine(Root.FullName, x.CanonicalName.Substring(0, x.CanonicalName.Length - 1));
 					try
 					{
-						System.IO.Directory.Delete(path);
+						System.IO.Directory.Delete(path.Substring(0, path.Length - 1));
 					}
 					catch
 					{
@@ -2611,15 +2676,21 @@ namespace Versionr
 		private void Purge()
 		{
 			var status = Status;
+            HashSet<Entry> deletionList = new HashSet<Entry>();
 			foreach (var x in status.Elements)
 			{
 				if (x.Code == StatusCode.Unversioned)
                 {
                     try
                     {
-                        System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
-                        RemoveFileTimeCache(x.CanonicalName);
-                        Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
+                        if (x.FilesystemEntry.IsDirectory)
+                            deletionList.Add(x.FilesystemEntry);
+                        else
+                        {
+                            x.FilesystemEntry.Info.Delete();
+                            RemoveFileTimeCache(x.CanonicalName);
+                            Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
+                        }
                     }
                     catch
                     {
@@ -2630,7 +2701,7 @@ namespace Versionr
                 {
                     try
                     {
-                        System.IO.File.Delete(System.IO.Path.Combine(Root.FullName, x.CanonicalName));
+                        x.FilesystemEntry.Info.Delete();
                         RemoveFileTimeCache(x.CanonicalName);
                         Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
                     }
@@ -2638,6 +2709,17 @@ namespace Versionr
                     {
                         Printer.PrintMessage("#x#Couldn't delete {0}", x.CanonicalName);
                     }
+                }
+            }
+            foreach (var x in deletionList.OrderByDescending(x => x.CanonicalName.Length))
+            {
+                try
+                {
+                    x.DirectoryInfo.Delete();
+                }
+                catch
+                {
+                    Printer.PrintMessage("#x#Couldn't delete directory {0}", x.CanonicalName);
                 }
             }
 		}
@@ -2829,6 +2911,8 @@ namespace Versionr
 			foreach (var x in CheckoutOrder(targetRecords))
 			{
 				canonicalNames.Add(x.CanonicalName);
+                if (!Included(x.CanonicalName))
+                    continue;
                 if (x.IsDirectory)
                 {
                     System.Threading.Interlocked.Increment(ref count);
@@ -2982,9 +3066,18 @@ namespace Versionr
             }
         }
 
+        public bool Included(string canonicalName)
+        {
+            if (canonicalName.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (canonicalName.StartsWith(LocalData.PartialPath))
+                return true;
+            return false;
+        }
+
         private bool GetMissingRecords(List<Record> targetRecords)
         {
-            List<Record> missingRecords = FindMissingRecords(targetRecords);
+            List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
             if (missingRecords.Count > 0)
             {
                 Printer.PrintMessage("Checking out this version requires {0} remote objects.", missingRecords.Count);
@@ -3544,30 +3637,30 @@ namespace Versionr
         {
 			if (rec.IsSymlink)
 			{
-				string path = Path.Combine(Root.FullName, rec.CanonicalName);
+                string path = GetRecordPath(rec);
 				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
 				{
 					if (Utilities.Symlink.Create(path, rec.Fingerprint, true))
-						Printer.PrintMessage("Created symlink {0} -> {1}", rec.CanonicalName, rec.Fingerprint);
+						Printer.PrintMessage("Created symlink {0} -> {1}", GetLocalCanonicalName(rec), rec.Fingerprint);
 				}
 				return;
 			}
 			// Otherwise, have to make sure we first get rid of the symlink to replace with the real file/dir
 			else
-				Utilities.Symlink.Delete(Path.Combine(Root.FullName, rec.CanonicalName));
+				Utilities.Symlink.Delete(GetRecordPath(rec));
 
 			if (rec.IsDirectory)
             {
-                DirectoryInfo directory = new DirectoryInfo(Path.Combine(Root.FullName, rec.CanonicalName));
+                DirectoryInfo directory = new DirectoryInfo(GetRecordPath(rec));
                 if (!directory.Exists)
                 {
-                    Printer.PrintMessage("Creating directory {0}", rec.CanonicalName);
+                    Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
                     directory.Create();
                     ApplyAttributes(directory, referenceTime, rec);
                 }
                 return;
             }
-            FileInfo dest = overridePath == null ? new FileInfo(Path.Combine(Root.FullName, rec.CanonicalName)) : new FileInfo(overridePath);
+            FileInfo dest = overridePath == null ? new FileInfo(GetRecordPath(rec)) : new FileInfo(overridePath);
             if (overridePath == null && dest.Exists)
             {
                 FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
@@ -3589,17 +3682,17 @@ namespace Versionr
                 if (overridePath == null)
                 {
                     if (feedback == null)
-                        Printer.PrintMessage("Updating {0}", rec.CanonicalName);
+                        Printer.PrintMessage("Updating {0}", GetLocalCanonicalName(rec));
                     else
-                        feedback(false, rec.CanonicalName);
+                        feedback(false, GetLocalCanonicalName(rec));
                 }
             }
             else if (overridePath == null)
             {
                 if (feedback == null)
-                    Printer.PrintMessage("Creating {0}", rec.CanonicalName);
+                    Printer.PrintMessage("Creating {0}", GetLocalCanonicalName(rec));
                 else
-                    feedback(true, rec.CanonicalName);
+                    feedback(true, GetLocalCanonicalName(rec));
             }
             int retries = 0;
         Retry:
@@ -3660,6 +3753,31 @@ namespace Versionr
                 System.Threading.Thread.Sleep(100);
                 goto Retry;
             }
+        }
+
+        public string PartialPath
+        {
+            get
+            {
+                return LocalData.PartialPath;
+            }
+        }
+
+        private string GetLocalCanonicalName(Record rec)
+        {
+            string canonicalPath = rec.CanonicalName;
+            if (canonicalPath.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
+                return canonicalPath;
+#if DEBUG
+            if (!rec.CanonicalName.StartsWith(LocalData.PartialPath))
+                throw new Exception();
+#endif
+            return canonicalPath.Substring(LocalData.PartialPath.Length);
+        }
+
+        private string GetRecordPath(Record rec)
+        {
+            return Path.Combine(Root.FullName, GetLocalCanonicalName(rec));
         }
 
         public void UpdateFileTimeCache(FileTimestamp fst, bool commit = true)
@@ -3749,7 +3867,10 @@ namespace Versionr
             {
                 if (localFolder == rootFolder)
                     return "";
-                return localFolder.Substring(rootFolder.Length + 1);
+                string local = localFolder.Substring(rootFolder.Length + 1);
+                if (local.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
+                    return local;
+                return PartialPath + local;
             }
         }
 

@@ -570,7 +570,7 @@ namespace Versionr.Network
                     var rec = sharedInfo.RemoteRecordMap[recordIndex];
                     if (rec.IsDirectory)
                         continue;
-                    if (sharedInfo.Workspace.HasObjectData(rec))
+                    if (sharedInfo.Workspace.HasObjectData(rec) || !sharedInfo.Workspace.Included(rec.CanonicalName))
                         continue;
                     if (recordDataIdentifiers.Contains(rec.DataIdentifier))
                         continue;

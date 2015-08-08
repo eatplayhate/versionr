@@ -162,6 +162,8 @@ namespace Versionr
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
             RestrictedPath = restrictedPath;
+            if (!string.IsNullOrEmpty(workspace.PartialPath))
+                RestrictedPath = workspace.PartialPath + restrictedPath;
             Workspace = workspace;
             CurrentVersion = db.Version;
             Branch = db.Branch;
@@ -213,8 +215,21 @@ namespace Versionr
                         StageFlags objectFlags;
                         stageInformation.TryGetValue(x.CanonicalName, out objectFlags);
                         Entry snapshotRecord = null;
-                        if (restrictedPath != null && !x.CanonicalName.StartsWith(restrictedPath))
-                            return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                        if (RestrictedPath != null)
+                        {
+                            if (!x.CanonicalName.StartsWith(RestrictedPath) || x.CanonicalName == RestrictedPath)
+                            {
+                                if (x.CanonicalName == ".vrmeta" && !string.IsNullOrEmpty(Workspace.PartialPath))
+                                {
+                                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord))
+                                    {
+                                        lock (foundEntries)
+                                            foundEntries.Add(snapshotRecord);
+                                    }
+                                }
+                                return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                            }
+                        }
 
                         if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
                         {

@@ -61,7 +61,7 @@ namespace Versionr
 		{
             Parent = parent;
             Area = area;
-            CanonicalName = canonicalName;
+            CanonicalName = area.PartialPath + canonicalName;
             DirectoryInfo = info;
             ModificationTime = DirectoryInfo.LastWriteTimeUtc;
 			Ignored = ignored;
@@ -88,7 +88,7 @@ namespace Versionr
         {
             Parent = parent;
             Area = area;
-            CanonicalName = canonicalName;
+            CanonicalName = canonicalName == ".vrmeta" ? canonicalName : area.PartialPath + canonicalName;
             Info = info;
 			Ignored = ignored;
             GetInfo();
