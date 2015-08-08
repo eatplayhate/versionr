@@ -34,6 +34,9 @@ namespace Versionr.Commands
 
         [Option('s', "sync", DefaultValue = false, HelpText = "Synchronizes all objects in metadata after cloning. Requires #b#--fullmeta## to be useful.")]
         public bool Synchronize { get; set; }
+
+        [Option("partial", HelpText = "Sets a partial path within the vault.")]
+        public string Partial { get; set; }
     }
     class Clone : RemoteCommand
     {
@@ -48,6 +51,9 @@ namespace Versionr.Commands
                 
                 if (client.Workspace.SetRemote(client.Host, client.Port, remoteName))
                     Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, client.VersionrURL);
+
+                if (localOptions.Partial != null)
+                    client.Workspace.SetPartialPath(localOptions.Partial);
 
                 if (localOptions.Synchronize)
                     return client.SyncRecords();

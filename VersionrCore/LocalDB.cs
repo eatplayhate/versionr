@@ -21,6 +21,8 @@ namespace Versionr
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
             CreateTable<LocalState.LockingObject>();
+
+            m_PartialPath = GetPartialPath();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -60,14 +62,21 @@ namespace Versionr
             }
         }
 
+        private string GetPartialPath()
+        {
+            var path = Workspace.PartialPath;
+            if (path == null)
+                return string.Empty;
+            return path;
+        }
+
+        string m_PartialPath;
+
         public string PartialPath
         {
             get
             {
-                var path = Workspace.PartialPath;
-                if (path == null)
-                    return string.Empty;
-                return path;
+                return m_PartialPath;
             }
         }
 

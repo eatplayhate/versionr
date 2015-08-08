@@ -97,7 +97,7 @@ namespace Versionr.Commands
                     continue;
                 if (!localOptions.NoList)
                 {
-                    string name = x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName;
+                    string name = ws.GetLocalCanonicalName(x.CanonicalName);
                     int index = name.LastIndexOf('/');
                     if (index != name.Length - 1)
                         name = name.Insert(index + 1, "#b#");

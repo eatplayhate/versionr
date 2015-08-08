@@ -73,7 +73,7 @@ namespace Versionr.Commands
             string output = "(#" + now.Item1 + "#" + now.Item2 + "##)#b# ";
             while (output.Length < 20)
                 output = " " + output;
-            Printer.PrintMessage(output + " " + entry.CanonicalName + (auto ? " #q#(auto)##" : ""));
+            Printer.PrintMessage(output + " " + Workspace.GetLocalCanonicalName(entry.CanonicalName) + (auto ? " #q#(auto)##" : ""));
         }
 	}
 }

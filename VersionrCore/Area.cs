@@ -135,6 +135,7 @@ namespace Versionr
                 path += "/";
             try
             {
+                Printer.PrintMessage("Workspace internal path set to: #b#{0}##.", path);
                 LocalData.BeginTransaction();
                 var ws = LocalData.Workspace;
                 ws.PartialPath = path;
@@ -3124,7 +3125,7 @@ namespace Versionr
                     continue;
                 if (x.IsDirectory)
                     continue;
-                if (!HasObjectData(x))
+                if (!HasObjectData(x) && Included(x.CanonicalName))
                 {
                     if (!requestedData.Contains(x.DataIdentifier))
                     {
@@ -3763,13 +3764,18 @@ namespace Versionr
             }
         }
 
-        private string GetLocalCanonicalName(Record rec)
+        public string GetLocalCanonicalName(Record rec)
         {
-            string canonicalPath = rec.CanonicalName;
+            return GetLocalCanonicalName(rec.CanonicalName);
+        }
+
+        public string GetLocalCanonicalName(string name)
+        {
+            string canonicalPath = name;
             if (canonicalPath.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
                 return canonicalPath;
 #if DEBUG
-            if (!rec.CanonicalName.StartsWith(LocalData.PartialPath))
+            if (!name.StartsWith(LocalData.PartialPath))
                 throw new Exception();
 #endif
             return canonicalPath.Substring(LocalData.PartialPath.Length);
@@ -3777,7 +3783,7 @@ namespace Versionr
 
         private string GetRecordPath(Record rec)
         {
-            return Path.Combine(Root.FullName, GetLocalCanonicalName(rec));
+            return Path.Combine(Root.FullName, GetLocalCanonicalName(rec.CanonicalName));
         }
 
         public void UpdateFileTimeCache(FileTimestamp fst, bool commit = true)

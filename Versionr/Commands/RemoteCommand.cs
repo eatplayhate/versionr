@@ -107,7 +107,7 @@ namespace Versionr.Commands
 
         private Tuple<bool, string, int, string> TryParseRemoteName(string name)
         {
-            if (!string.IsNullOrEmpty(name))
+            if (CanParseRemoteName && !string.IsNullOrEmpty(name))
             {
                 System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(
                     "((vsr|versionr)\\://)?" +
@@ -144,6 +144,14 @@ namespace Versionr.Commands
         }
 
         protected virtual bool NeedsWorkspace
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        protected virtual bool CanParseRemoteName
         {
             get
             {

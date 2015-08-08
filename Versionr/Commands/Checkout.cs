@@ -40,6 +40,9 @@ namespace Versionr.Commands
         [Option('p', "purge", HelpText = "Remove all unversioned files from the repository")]
 		public bool Purge { get; set; }
 
+        [Option("partial", HelpText = "Sets a partial path within the vault.")]
+        public string Partial { get; set; }
+
         [ValueOption(0)]
         public string Target { get; set; }
     }
@@ -62,6 +65,8 @@ namespace Versionr.Commands
                     return false;
                 }
             }
+            if (localOptions.Partial != null)
+                Workspace.SetPartialPath(localOptions.Partial);
             Workspace.Checkout(target, localOptions.Purge);
 			return true;
         }
