@@ -198,6 +198,20 @@ namespace Versionr
 					}
 				}
 
+                if (area?.Directives?.Externals != null)
+                {
+                    foreach (var x in area.Directives.Externals)
+                    {
+                        string extdir = x.Value.Location.Replace('\\', '/');
+                        if (!extdir.EndsWith("/"))
+                            extdir += "/";
+                        if (string.Equals(slashedSubdirectory, extdir, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return result;
+                        }
+                    }
+                }
+
 				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
                 result.Add(parentEntry);
                 if (ignoreDirectory)

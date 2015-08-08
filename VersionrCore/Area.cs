@@ -38,6 +38,12 @@ namespace Versionr
                 return new FileInfo(Path.Combine(AdministrationFolder.FullName, "metadata.db"));
             }
         }
+
+        public void Update()
+        {
+            Merge(CurrentBranch.ID.ToString(), true, false);
+        }
+
         public FileInfo LocalMetadataFile
         {
             get
@@ -141,6 +147,7 @@ namespace Versionr
                 ws.PartialPath = path;
                 LocalData.UpdateSafe(ws);
                 LocalData.Commit();
+                LocalData.RefreshPartialPath();
                 return true;
             }
             catch
@@ -537,9 +544,9 @@ namespace Versionr
             }
         }
 
-        internal static Area InitRemote(DirectoryInfo workingDir, ClonePayload clonePack)
+        internal static Area InitRemote(DirectoryInfo workingDir, ClonePayload clonePack, bool skipContainmentCheck = false)
         {
-            Area ws = CreateWorkspace(workingDir);
+            Area ws = CreateWorkspace(workingDir, skipContainmentCheck);
             if (!ws.Init(null, clonePack))
                 throw new Exception("Couldn't initialize versionr.");
             return ws;
@@ -2877,7 +2884,7 @@ namespace Versionr
         {
             List<Record> records = Database.Records;
             
-            List<Record> targetRecords = Database.GetRecords(tipVersion);
+            List<Record> targetRecords = Database.GetRecords(tipVersion).Where(x => Included(x.CanonicalName)).ToList();
 
             DateTime newRefTime = DateTime.UtcNow;
 
@@ -2912,8 +2919,6 @@ namespace Versionr
 			foreach (var x in CheckoutOrder(targetRecords))
 			{
 				canonicalNames.Add(x.CanonicalName);
-                if (!Included(x.CanonicalName))
-                    continue;
                 if (x.IsDirectory)
                 {
                     System.Threading.Interlocked.Increment(ref count);
@@ -3065,6 +3070,64 @@ namespace Versionr
             {
                 throw new Exception("Couldn't update local information!", e);
             }
+
+            ProcessExterns();
+        }
+
+        private void ProcessExterns()
+        {
+            foreach (var x in Directives.Externals)
+            {
+                string cleanLocation = x.Value.Location.Replace('\\', '/');
+                if (Included(cleanLocation))
+                {
+                    Printer.PrintMessage("Processing extern #c#{0}## at location #b#{1}##", x.Key, cleanLocation);
+                    System.IO.DirectoryInfo directory = new System.IO.DirectoryInfo(GetRecordPath(cleanLocation));
+                    if (!directory.Exists)
+                        directory.Create();
+                    var result = Client.ParseRemoteName(x.Value.Host);
+                    if (result.Item1 == false)
+                    {
+                        Printer.PrintError("#x#Error:##\n  Couldn't parse remote hostname \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
+                        continue;
+                    }
+                    Client client = null;
+                    Area external = LoadWorkspace(directory, true);
+                    if (external == null)
+                        client = new Client(directory, true);
+                    else
+                        client = new Client(external);
+                    if (!client.Connect(result.Item2, result.Item3))
+                    {
+                        Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
+                        continue;
+                    }
+                    if (external == null)
+                    {
+                        if (!client.Clone(false))
+                        {
+                            Printer.PrintError("#x#Error:##\n  Couldn't clone remote repository while processing extern \"#b#{1}##\"!", x.Key);
+                            continue;
+                        }
+                    }
+                    client.Workspace.SetPartialPath(x.Value.PartialPath);
+                    client.Workspace.SetRemote(result.Item2, result.Item3, "default");
+                    if (!client.Pull(false, x.Value.Branch))
+                    {
+                        Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
+                        continue;
+                    }
+                    if (external == null)
+                    {
+                        external = LoadWorkspace(directory, true);
+                        external.Checkout(client.Workspace.CurrentBranch.ID.ToString(), false);
+                    }
+                    else
+                    {
+                        client.Workspace.Update();
+                    }
+                }
+            }
         }
 
         public bool Included(string canonicalName)
@@ -3139,7 +3202,8 @@ namespace Versionr
 
         private bool Switch(string v)
         {
-            var branch = Database.Find<Branch>(x => x.Name == v && x.Terminus == null);
+            bool multiplebranches;
+            var branch = GetBranchByPartialName(v, out multiplebranches);
             if (branch == null)
                 return false;
             return SwitchBranch(branch);
@@ -3781,6 +3845,11 @@ namespace Versionr
             return canonicalPath.Substring(LocalData.PartialPath.Length);
         }
 
+        private string GetRecordPath(string name)
+        {
+            return Path.Combine(Root.FullName, GetLocalCanonicalName(name));
+        }
+
         private string GetRecordPath(Record rec)
         {
             return Path.Combine(Root.FullName, GetLocalCanonicalName(rec.CanonicalName));
@@ -3890,9 +3959,9 @@ namespace Versionr
             return ws;
         }
 
-        private static Area CreateWorkspace(DirectoryInfo workingDir)
+        private static Area CreateWorkspace(DirectoryInfo workingDir, bool skipContainmentCheck = false)
         {
-            Area ws = LoadWorkspace(workingDir);
+            Area ws = LoadWorkspace(workingDir, skipContainmentCheck);
             if (ws != null)
             {
                 Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:#e# Vault Initialization Failed##\n  The current directory #b#`{0}`## is already part of a versionr vault located in #b#`{1}`##.\n", workingDir.FullName, ws.Root.FullName));
@@ -3910,9 +3979,9 @@ namespace Versionr
             return ws;
         }
 
-        private static Area LoadWorkspace(DirectoryInfo workingDir)
+        private static Area LoadWorkspace(DirectoryInfo workingDir, bool skipContainmentCheck = false)
         {
-            DirectoryInfo adminFolder = FindAdministrationFolder(workingDir);
+            DirectoryInfo adminFolder = FindAdministrationFolder(workingDir, skipContainmentCheck);
             if (adminFolder == null)
                 return null;
             Area ws = new Area(adminFolder);
@@ -3921,7 +3990,7 @@ namespace Versionr
             return ws;
         }
 
-        private static DirectoryInfo FindAdministrationFolder(DirectoryInfo workingDir)
+        private static DirectoryInfo FindAdministrationFolder(DirectoryInfo workingDir, bool skipContainmentCheck = false)
         {
             while (true)
             {
@@ -3929,6 +3998,8 @@ namespace Versionr
                 if (adminFolder.Exists)
                     return adminFolder;
                 if (workingDir.Root.FullName == workingDir.FullName)
+                    return null;
+                if (skipContainmentCheck)
                     return null;
                 if (workingDir.Parent != null)
                     workingDir = workingDir.Parent;

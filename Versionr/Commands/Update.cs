@@ -45,7 +45,7 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            ws.Merge(ws.CurrentBranch.ID.ToString(), true, false);
+            ws.Update();
             return true;
         }
     }

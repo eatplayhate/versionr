@@ -55,8 +55,11 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
-        public Client(System.IO.DirectoryInfo baseDirectory)
+
+        bool SkipContainmentCheck { get; set; }
+        public Client(System.IO.DirectoryInfo baseDirectory, bool skipChecks = false)
         {
+            SkipContainmentCheck = skipChecks;
             Versionr.Utilities.MultiArchPInvoke.BindDLLs();
             Workspace = null;
             BaseDirectory = baseDirectory;
@@ -107,7 +110,7 @@ namespace Versionr.Network
                 {
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Clone }, ProtoBuf.PrefixStyle.Fixed32);
                     var clonePack = Utilities.ReceiveEncrypted<ClonePayload>(SharedInfo);
-                    Workspace = Area.InitRemote(BaseDirectory, clonePack);
+                    Workspace = Area.InitRemote(BaseDirectory, clonePack, SkipContainmentCheck);
                 }
                 else
                 {
@@ -180,6 +183,44 @@ namespace Versionr.Network
                 Printer.PrintError(e.ToString());
                 return false;
             }
+        }
+
+        public static Tuple<bool, string, int, string> ParseRemoteName(string name)
+        {
+            if (!string.IsNullOrEmpty(name))
+            {
+                System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(
+                    "((vsr|versionr)\\://)?" +
+                    "(?<host>" +
+                        "(?:(?:\\w|\\.|-|_|~|\\d)+)|" +
+                        "(?:(?:(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|" +
+                        "(?:(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])))" +
+                    ")" +
+                    "(?:\\:(?<port>[0-9]+))?" +
+                    "(?:/(?<vault>[A-Za-z_0-9]+))?$");
+                var match = regex.Match(name);
+                if (match.Success)
+                {
+                    string host = match.Groups["host"].Value;
+                    int port = -1;
+                    var portGroup = match.Groups["port"];
+                    if (portGroup.Success)
+                    {
+                        bool fail = false;
+                        if (!int.TryParse(portGroup.Value, out port))
+                            fail = true;
+                        if (port < 1 || port > ushort.MaxValue)
+                            fail = true;
+                        if (fail)
+                        {
+                            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
+                        }
+                    }
+                    string domain = match.Groups["vault"].Success ? match.Groups["vault"].Value : null;
+                    return new Tuple<bool, string, int, string>(true, host, port, domain);
+                }
+            }
+            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
         }
 
         public bool Push()
@@ -489,7 +530,15 @@ namespace Versionr.Network
             Host = host;
             Port = port;
             Connected = false;
-            Connection = new System.Net.Sockets.TcpClient(host, port);
+            try
+            {
+                Connection = new System.Net.Sockets.TcpClient(host, port);
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError(e.Message);
+                return false;
+            }
             if (Connection.Connected)
             {
                 try

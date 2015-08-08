@@ -6,6 +6,17 @@ using System.Threading.Tasks;
 
 namespace Versionr
 {
+    public class Extern
+    {
+        public string Location { get; set; }
+        public string Host { get; set; }
+        public string PartialPath { get; set; }
+        public string Branch { get; set; }
+        public Extern()
+        {
+            Branch = "master";
+        }
+    }
     public class Ignores
     {
         private string[] m_Patterns;
@@ -46,9 +57,11 @@ namespace Versionr
         public Ignores Include { get; set; }
         public string DefaultCompression { get; set; }
 		public SvnCompatibility Svn { get; set; }
+        public Dictionary<string, Extern> Externals { get; set; }
         public Directives()
         {
             Ignore = new Ignores();
+            Externals = new Dictionary<string, Extern>();
         }
     }
 }

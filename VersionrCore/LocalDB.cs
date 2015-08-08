@@ -21,8 +21,6 @@ namespace Versionr
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
             CreateTable<LocalState.LockingObject>();
-
-            m_PartialPath = GetPartialPath();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -142,6 +140,7 @@ namespace Versionr
 
         private bool Upgrade()
         {
+            RefreshPartialPath();
             if (Configuration.Version != LocalDBVersion)
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
@@ -199,6 +198,11 @@ namespace Versionr
                 Rollback();
                 return false;
             }
+        }
+
+        internal void RefreshPartialPath()
+        {
+            m_PartialPath = GetPartialPath();
         }
 
         public static LocalDB Create(string fullPath)
