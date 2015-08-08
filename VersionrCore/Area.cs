@@ -2809,9 +2809,9 @@ namespace Versionr
                 potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '{0}%'", v));
             if (potentials.Count > 1)
             {
-                Printer.PrintError("Can't find a unique version with {1}: {0}\nCould be:", v, postfix ? "postfix" : "prefix");
+                Printer.PrintError("Can't find a unique version with {1}: {0}##\nCould be:", v, postfix ? "postfix" : "prefix");
                 foreach (var x in potentials)
-                    Printer.PrintMessage("\t{0} - branch: {1}, {2}", x.ID, Database.Get<Objects.Branch>(x.Branch).Name, x.Timestamp.ToLocalTime());
+                    Printer.PrintMessage("\t#b#{0}## - branch: \"#b#{1}##\", {2}", x.ID, Database.Get<Objects.Branch>(x.Branch).Name, x.Timestamp.ToLocalTime());
             }
             if (potentials.Count == 1)
                 return potentials[0];
