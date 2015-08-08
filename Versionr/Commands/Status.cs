@@ -115,6 +115,12 @@ namespace Versionr.Commands
                     Printer.WriteLineMessage("  {0} #b#{2}## #q#{1}##", codeCount[i], codeCount[i] != 1 ? "Objects" : "Object", ((StatusCode)i).ToString());
                 Printer.WriteLineMessage("\n  {0}#q# files in ##{1}#q# diectories ({2} ignored)", ss.Files, ss.Directories, ss.IgnoredObjects);
             }
+
+            foreach (var x in Workspace.Externs)
+            {
+                Printer.WriteLineMessage("\nExternal #c#{0}##:", x.Key);
+                new Status().Run(new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location)), options);
+            }
             return true;
         }
 

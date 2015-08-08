@@ -44,7 +44,7 @@ namespace Versionr.Commands
                 return false;
             if (localOptions.Update)
             {
-                client.Workspace.Merge(localOptions.RemoteBranch, true, true);
+                client.Workspace.Update();
             }
             return true;
         }

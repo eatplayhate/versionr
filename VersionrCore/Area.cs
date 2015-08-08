@@ -42,6 +42,7 @@ namespace Versionr
         public void Update()
         {
             Merge(CurrentBranch.ID.ToString(), true, false);
+            ProcessExterns();
         }
 
         public FileInfo LocalMetadataFile
@@ -3127,6 +3128,14 @@ namespace Versionr
                         client.Workspace.Update();
                     }
                 }
+            }
+        }
+
+        public List<KeyValuePair<string, Extern>> Externs
+        {
+            get
+            {
+                return Directives.Externals.ToList();
             }
         }
 
