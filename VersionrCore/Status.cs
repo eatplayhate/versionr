@@ -449,15 +449,28 @@ namespace Versionr
 
 				foreach (var x in Elements)
 				{
-					foreach (var y in canonicalPaths)
-					{
-						if ((filenames && (string.Equals(x.Name, y, comparisonOptions) || string.Equals(x.Name, y + "/", comparisonOptions))) ||
-							(!filenames && (string.Equals(x.CanonicalName, y, comparisonOptions) || string.Equals(x.CanonicalName, y + "/", comparisonOptions))))
-						{
-							results.Add(x);
-							break;
-						}
-					}
+                    if (filenames)
+                    {
+                        foreach (var y in files)
+                        {
+                            if (string.Equals(x.Name, y, comparisonOptions) || string.Equals(x.Name, y + "/", comparisonOptions))
+                            {
+                                results.Add(x);
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        foreach (var y in canonicalPaths)
+                        {
+                            if (string.Equals(x.CanonicalName, y, comparisonOptions) || string.Equals(x.CanonicalName, y + "/", comparisonOptions))
+                            {
+                                results.Add(x);
+                                break;
+                            }
+                        }
+                    }
 				}
 			}
 			return results;
