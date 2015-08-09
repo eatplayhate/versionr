@@ -65,11 +65,19 @@ namespace Versionr.Commands
 
         protected virtual bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
         {
-            return (localOptions.Objects != null && localOptions.Objects.Count > 0);
+            return (localOptions.Objects != null && localOptions.Objects.Count > 0) || OnNoTargetsAssumeAll;
         }
 
         protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, List<Versionr.Status.StatusEntry> targets)
         {
+        }
+
+        protected virtual bool OnNoTargetsAssumeAll
+        {
+            get
+            {
+                return false;
+            }
         }
 
         protected virtual void GetInitialList(Versionr.Status status, FileBaseCommandVerbOptions localOptions, out List<Versionr.Status.StatusEntry> targets)
@@ -82,7 +90,7 @@ namespace Versionr.Commands
 
         protected abstract bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options);
 
-        protected virtual bool RequiresTargets { get { return false; } }
+        protected virtual bool RequiresTargets { get { return OnNoTargetsAssumeAll; } }
 
     }
 }

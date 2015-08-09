@@ -123,7 +123,15 @@ namespace Versionr.Commands
                 }
             }
 			return true;
-		}
+        }
+
+        protected override bool OnNoTargetsAssumeAll
+        {
+            get
+            {
+                return true;
+            }
+        }
 
         class Region
         {

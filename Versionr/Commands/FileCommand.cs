@@ -23,7 +23,7 @@ namespace Versionr.Commands
         {
             FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;
             FilterOptions = localOptions;
-            if (localOptions.All)
+            if (localOptions.All || (localOptions.Objects.Count == 0 && OnNoTargetsAssumeAll))
                 targets = status.Elements;
             else
                 targets = status.GetElements(localOptions.Objects, localOptions.Regex, localOptions.Filename, localOptions.Insensitive);
