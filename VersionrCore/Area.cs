@@ -1901,13 +1901,10 @@ namespace Versionr
                 bool included = Included(x.CanonicalName);
                 if (localObject == null || localObject.Removed)
                 {
-                    if (localObject != null && localObject.Staged == false)
+                    if (localObject != null && localObject.Staged == false && localObject.IsDirectory)
                     {
-                        if (localObject.IsDirectory)
-                        {
-                            Printer.PrintMessage("Recreating locally missing directory: #b#{0}##.", localObject.CanonicalName);
-                            RestoreRecord(x, newRefTime);
-                        }
+                        Printer.PrintMessage("Recreating locally missing directory: #b#{0}##.", localObject.CanonicalName);
+                        RestoreRecord(x, newRefTime);
                     }
                     else if (parentObject == null)
                     {
