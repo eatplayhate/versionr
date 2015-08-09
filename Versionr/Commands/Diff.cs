@@ -62,6 +62,8 @@ namespace Versionr.Commands
                 Printer.PrintMessage("Showing changes for version #c#{0}", version.ID);
 			}
 
+            bool showUnchangedObjects = localOptions.Objects.Count != 0;
+
             if (version == null)
             {
                 foreach (var x in targets)
@@ -90,6 +92,14 @@ namespace Versionr.Commands
                                 System.IO.File.Delete(tmp);
                             }
                         }
+                    }
+                    else if (x.Code == StatusCode.Unchanged && showUnchangedObjects)
+                    {
+                        Printer.PrintMessage("File: #b#{0}## is #s#unchanged##.", x.CanonicalName);
+                    }
+                    else if (x.VersionControlRecord == null)
+                    {
+                        Printer.PrintMessage("File: #b#{0}## is #c#unversioned##.", x.CanonicalName);
                     }
                 }
             }
