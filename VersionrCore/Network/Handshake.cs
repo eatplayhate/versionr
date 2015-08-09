@@ -23,6 +23,7 @@ namespace Versionr.Network
             Protocols = new Dictionary<SharedNetwork.Protocol, string>();
             Protocols[SharedNetwork.Protocol.Versionr281] = "Versionr/Protocol:2.8.1";
             Protocols[SharedNetwork.Protocol.Versionr29] = "Versionr/Protocol:2.9";
+            Protocols[SharedNetwork.Protocol.Versionr3] = "Versionr/Protocol:3.0";
         }
 
         public static string GetProtocolString(SharedNetwork.Protocol protocol)

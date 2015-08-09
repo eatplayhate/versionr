@@ -27,21 +27,39 @@ namespace Versionr.Network
     }
     public class Server
     {
+        private static ServerConfig Config { get; set; }
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
         public static bool Bare { get; set; }
         public static object SyncObject = new object();
-        public static bool Run(System.IO.DirectoryInfo info, int port, bool encryptData = true)
+        public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
         {
             Area ws = Area.Load(info);
             Bare = false;
+            Config = new ServerConfig();
+            if (!string.IsNullOrEmpty(configFile))
+            {
+                var configInfo = new System.IO.FileInfo(configFile);
+                if (!configInfo.Exists)
+                {
+                    Printer.PrintError("#x#Error:##\n  Can't find config file #b#{0}##! Using default.", configFile);
+                }
+                else
+                {
+                    using (var fs = configInfo.OpenText())
+                    {
+                        Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
+                    }
+                }
+            }
             if (ws == null)
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
                 Bare = true;
             }
-            if (encryptData)
+            bool enableEncryption = encryptData.HasValue ? encryptData.Value : Config.Encrypted;
+            if (enableEncryption)
             {
                 Printer.PrintDiagnostics("Creating RSA pair...");
                 System.Security.Cryptography.RSACryptoServiceProvider rsaCSP = new System.Security.Cryptography.RSACryptoServiceProvider();
@@ -82,6 +100,7 @@ namespace Versionr.Network
             public Dictionary<Guid, Objects.Head> UpdatedHeads { get; set; }
             public List<VersionInfo> MergeVersions { get; set; }
             public SharedNetwork.SharedNetworkInfo SharedInfo { get; set; }
+            public Rights Access { get; set; }
             public ClientStateInfo()
             {
                 MergeVersions = new List<VersionInfo>();
@@ -107,16 +126,23 @@ namespace Versionr.Network
                     if (clientProtocol == null)
                         valid = false;
                     else
+                    {
                         valid = SharedNetwork.AllowedProtocols.Contains(clientProtocol.Value);
+                        if (Config.RequiresAuthentication && !SharedNetwork.SupportsAuthentication(clientProtocol.Value))
+                            valid = false;
+                    }
                     if (valid)
                     {
                         sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
+                        clientInfo.Access = Rights.Read | Rights.Write;
                         if (PrivateKey != null)
                         {
                             startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
                             Printer.PrintDiagnostics("Sending RSA key...");
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                            if (!HandleAuthentication(clientInfo, client, sharedInfo))
+                                throw new Exception("Authentication failed.");
                             StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
                             System.Security.Cryptography.RSAOAEPKeyExchangeDeformatter exch = new System.Security.Cryptography.RSAOAEPKeyExchangeDeformatter(PrivateKey);
                             byte[] aesKey = exch.DecryptKeyExchange(clientKey.Key);
@@ -132,6 +158,8 @@ namespace Versionr.Network
                         {
                             startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), clientProtocol.Value);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                            if (!HandleAuthentication(clientInfo, client, sharedInfo))
+                                throw new Exception("Authentication failed.");
                             StartClientTransaction clientKey = ProtoBuf.Serializer.DeserializeWithLengthPrefix<StartClientTransaction>(stream, ProtoBuf.PrefixStyle.Fixed32);
                         }
                         sharedInfo.Stream = stream;
@@ -149,16 +177,22 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Write))
+                                    throw new Exception("Access denied.");
                                 ws = Area.InitRemote(info, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
                                 clientInfo.SharedInfo.Workspace = ws;
                                 Bare = false;
                             }
                             else if (command.Type == NetCommandType.PushBranchJournal)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Write))
+                                    throw new Exception("Access denied.");
                                 SharedNetwork.ReceiveBranchJournal(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.QueryBranchID)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
                                 bool multiple;
                                 var branch = ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
@@ -177,11 +211,15 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.RequestRecordUnmapped)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client is requesting specific record data blobs.");
                                 SharedNetwork.SendRecordDataUnmapped(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.Clone)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client is requesting to clone the vault.");
                                 Objects.Version initialRevision = ws.GetVersion(ws.Domain);
                                 Objects.Branch initialBranch = ws.GetBranch(initialRevision.Branch);
@@ -189,6 +227,8 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.PullVersions)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client asking for remote version information.");
                                 Branch branch = ws.GetBranch(new Guid(command.AdditionalPayload));
                                 if (branch == null)
@@ -208,21 +248,29 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.PushObjectQuery)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Write))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client asking about objects on the server...");
                                 SharedNetwork.ProcesPushObjectQuery(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.PushBranch)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Write))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client attempting to send branch data...");
                                 SharedNetwork.ReceiveBranches(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.PushVersions)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Write))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client attempting to send version data...");
                                 SharedNetwork.ReceiveVersions(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.PushHead)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Write))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Determining head information.");
                                 string errorData;
                                 lock (ws)
@@ -259,6 +307,8 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.SynchronizeRecords)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Received {0} versions in version pack, but need {1} records to commit data.", sharedInfo.PushedVersions.Count, sharedInfo.UnknownRecords.Count);
                                 Printer.PrintDiagnostics("Beginning record synchronization...");
                                 if (sharedInfo.UnknownRecords.Count > 0)
@@ -273,6 +323,8 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.FullClone)
                             {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
                                 command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
                                 if (command.Type == NetCommandType.Acknowledge)
@@ -353,6 +405,76 @@ namespace Versionr.Network
                 }
             }
             Printer.PrintDiagnostics("Ended client processor task!");
+        }
+
+        private static bool HandleAuthentication(ClientStateInfo clientInfo, TcpClient client, SharedNetwork.SharedNetworkInfo sharedInfo)
+        {
+            if (Config.RequiresAuthentication)
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate }, ProtoBuf.PrefixStyle.Fixed32);
+                AuthenticationChallenge challenge = new AuthenticationChallenge();
+                challenge.AvailableModes = new List<AuthenticationMode>();
+                if (Config.SupportsSimpleAuthentication)
+                    challenge.AvailableModes.Add(AuthenticationMode.Simple);
+                challenge.Salt = BCrypt.Net.BCrypt.GenerateSalt();
+                ProtoBuf.Serializer.SerializeWithLengthPrefix(client.GetStream(), challenge, ProtoBuf.PrefixStyle.Fixed32);
+                int retries = Config.AuthenticationAttempts;
+                bool success = false;
+                while (true)
+                {
+                    var response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationResponse>(client.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    Rights accessRights;
+                    if (CheckAuthentication(response, challenge.Salt, out accessRights))
+                    {
+                        clientInfo.Access = accessRights;
+                        success = true;
+                        break;
+                    }
+                    else
+                    {
+                        if (--retries == 0)
+                            break;
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.AuthRetry }, ProtoBuf.PrefixStyle.Fixed32);
+                    }
+                }
+                if (success)
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                else
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.AuthFail }, ProtoBuf.PrefixStyle.Fixed32);
+                    return false;
+                }
+            }
+            else
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.SkipAuthentication }, ProtoBuf.PrefixStyle.Fixed32);
+            }
+            return true;
+        }
+
+        private static bool CheckAuthentication(AuthenticationResponse response, string salt, out Rights accessRights)
+        {
+            accessRights = 0;
+            if (response.Mode == AuthenticationMode.Simple)
+            {
+                var login = Config.GetSimpleLogin(response.IdentifierToken);
+                if (login == null)
+                {
+                    string doSomeWork = BCrypt.Net.BCrypt.GenerateSalt();
+                    return false;
+                }
+                else
+                {
+                    if (BCrypt.Net.BCrypt.HashPassword(login.Password, salt) == System.Text.ASCIIEncoding.ASCII.GetString(response.Payload))
+                    {
+                        accessRights = login.Access;
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            else
+                throw new Exception(string.Format("Unknown authentication mode: {0}", response.Mode));
         }
 
         private static bool AcceptHeads(ClientStateInfo clientInfo, Area ws, out string errorData)

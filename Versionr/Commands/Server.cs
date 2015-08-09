@@ -14,6 +14,8 @@ namespace Versionr.Commands
         public int Port { get; set; }
         [Option('u', "unsecure", DefaultValue = false, HelpText = "Disables AES encryption for data communications.")]
         public bool Unsecure { get; set; }
+        [Option('c', "config", HelpText = "Specify a server config file for authentication/options.")]
+        public string Config { get; set; }
 
         public override string[] Description
         {
@@ -40,7 +42,10 @@ namespace Versionr.Commands
         {
             ServerVerbOptions localOptions = options as ServerVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
-            return Network.Server.Run(workingDirectory, localOptions.Port, !localOptions.Unsecure);
+            bool? encrypt = null;
+            if (localOptions.Unsecure)
+                encrypt = false;
+            return Network.Server.Run(workingDirectory, localOptions.Port, localOptions.Config, encrypt);
         }
     }
 }

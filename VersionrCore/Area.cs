@@ -2416,15 +2416,21 @@ namespace Versionr
             string mb = parentFile.FullName;
             string ml = local.FullName;
             string mr = temporaryFile.FullName;
+            bool isBinary = FileClassifier.Classify(foreign) == FileEncoding.Binary ||
+                FileClassifier.Classify(local) == FileEncoding.Binary ||
+                FileClassifier.Classify(parentFile) == FileEncoding.Binary;
 
-            if (Utilities.DiffTool.Merge3Way(mb, ml, mf, mr))
+            if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr))
             {
                 Printer.PrintMessage(" - Resolved.");
                 return temporaryFile;
             }
             else
             {
-                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                if (!isBinary)
+                    Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                else
+                    Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
                 string resolution = System.Console.ReadLine();
                 if (resolution.StartsWith("m"))
                 {
@@ -2454,14 +2460,20 @@ namespace Versionr
             string ml = local.FullName;
             string mr = temporaryFile.FullName;
 
-            if (Utilities.DiffTool.Merge(ml, mf, mr))
+            bool isBinary = FileClassifier.Classify(foreign) == FileEncoding.Binary ||
+                FileClassifier.Classify(local) == FileEncoding.Binary;
+
+            if (!isBinary && Utilities.DiffTool.Merge(ml, mf, mr))
             {
                 Printer.PrintMessage(" - Resolved.");
                 return temporaryFile;
             }
             else
             {
-                Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                if (!isBinary)
+                    Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
+                else
+                    Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
                 string resolution = System.Console.ReadLine();
                 if (resolution.StartsWith("m"))
                 {

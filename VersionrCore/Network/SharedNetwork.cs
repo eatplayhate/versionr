@@ -15,8 +15,15 @@ namespace Versionr.Network
         {
             Versionr281,
             Versionr29,
+            Versionr3,
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr29, Protocol.Versionr281 };
+        public static bool SupportsAuthentication(Protocol protocol)
+        {
+            if (protocol == Protocol.Versionr281 || protocol == Protocol.Versionr29)
+                return false;
+            return true;
+        }
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr3, Protocol.Versionr29, Protocol.Versionr281 };
         public static Protocol DefaultProtocol
         {
             get

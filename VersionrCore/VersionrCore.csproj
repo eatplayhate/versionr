@@ -32,6 +32,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="BCrypt.Net">
+      <HintPath>..\References\BCrypt.Net.dll</HintPath>
+    </Reference>
     <Reference Include="LZ4">
       <HintPath>..\References\LZ4.dll</HintPath>
     </Reference>
@@ -61,6 +64,7 @@
     <Compile Include="LocalState\RemoteConfig.cs" />
     <Compile Include="LocalState\StageOperation.cs" />
     <Compile Include="LocalState\Workspace.cs" />
+    <Compile Include="Network\Authentication.cs" />
     <Compile Include="Network\Client.cs" />
     <Compile Include="Network\ClonePayload.cs" />
     <Compile Include="Network\CompressibleAttribute.cs" />
@@ -68,7 +72,9 @@
     <Compile Include="Network\NetCommand.cs" />
     <Compile Include="Network\PushObjectQuery.cs" />
     <Compile Include="Network\Server.cs" />
+    <Compile Include="Network\ServerConfig.cs" />
     <Compile Include="Network\SharedNetwork.cs" />
+    <Compile Include="Network\SimpleAuth.cs" />
     <Compile Include="Network\StartClientTransaction.cs" />
     <Compile Include="Network\StartTransaction.cs" />
     <Compile Include="Network\Utilities.cs" />

@@ -563,6 +563,52 @@ namespace Versionr.Network
                     }
 
                     RemoteDomain = startTransaction.Domain;
+
+                    if (SharedNetwork.SupportsAuthentication(startTransaction.ServerHandshake.CheckProtocol().Value))
+                    {
+                        var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                        if (command.Type == NetCommandType.Authenticate)
+                        {
+                            Printer.PrintMessage("Server requires authentication.");
+                            var challenge = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationChallenge>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                            while (true)
+                            {
+                                if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
+                                {
+                                    Printer.PrintMessageSingleLine("#b#Username:## ");
+                                    string user = System.Console.ReadLine();
+                                    Printer.PrintMessageSingleLine("#b#Password:## ");
+                                    string pass = GetPassword();
+
+                                    user = user.Trim(new char[] { '\r', '\n', ' ' });
+
+                                    AuthenticationResponse response = new AuthenticationResponse()
+                                    {
+                                        IdentifierToken = user,
+                                        Mode = AuthenticationMode.Simple,
+                                        Payload = System.Text.ASCIIEncoding.ASCII.GetBytes(BCrypt.Net.BCrypt.HashPassword(pass, challenge.Salt))
+                                    };
+                                    Printer.PrintMessage("\n");
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
+                                    command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                                    if (command.Type == NetCommandType.AuthRetry)
+                                        Printer.PrintMessage("#e#Authentication failed.## Retry.");
+                                    if (command.Type == NetCommandType.AuthFail)
+                                    {
+                                        Printer.PrintMessage("#e#Authentication failed.##");
+                                        return false;
+                                    }
+                                    if (command.Type == NetCommandType.Acknowledge)
+                                        break;
+                                }
+                                else
+                                {
+                                    Printer.PrintError("Unsupported authentication requirements!");
+                                    return false;
+                                }
+                            }
+                        }
+                    }
                     if (startTransaction.Encrypted)
                     {
                         var key = startTransaction.RSAKey;
@@ -629,6 +675,33 @@ namespace Versionr.Network
             }
             else
                 return false;
+        }
+
+        private string GetPassword()
+        {
+            List<char> pwd = new List<char>();
+            while (true)
+            {
+                ConsoleKeyInfo i = Console.ReadKey(true);
+                if (i.Key == ConsoleKey.Enter)
+                {
+                    break;
+                }
+                else if (i.Key == ConsoleKey.Backspace)
+                {
+                    if (pwd.Count > 0)
+                    {
+                        pwd.RemoveAt(pwd.Count - 1);
+                        Console.Write("\b \b");
+                    }
+                }
+                else
+                {
+                    pwd.Add(i.KeyChar);
+                    Console.Write("*");
+                }
+            }
+            return new string(pwd.ToArray());
         }
 
         internal List<string> GetRecordData(List<Record> missingRecords)

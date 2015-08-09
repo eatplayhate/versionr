@@ -29,7 +29,11 @@ namespace Versionr.Network
         FullClone,
         QueryBranchID,
         PushBranchJournal,
-        PushInitialVersion
+        PushInitialVersion,
+        Authenticate,
+        SkipAuthentication,
+        AuthRetry,
+        AuthFail,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand
