@@ -39,9 +39,9 @@ namespace Versionr
             }
         }
 
-        public void Update()
+        public void Update(string updateTarget = null)
         {
-            Merge(CurrentBranch.ID.ToString(), true, false);
+            Merge(string.IsNullOrEmpty(updateTarget) ? CurrentBranch.ID.ToString() : updateTarget, true, false);
             ProcessExterns();
         }
 
@@ -176,10 +176,10 @@ namespace Versionr
                 if (v.StartsWith("..."))
                 {
                     postfix = true;
-                    branches = Database.Query<Objects.Branch>(string.Format("SELECT rowid, * FROM Branch WHERE Branch.ID LIKE '%{0}'", v.Substring(3)));
+                    branches = Database.Query<Objects.Branch>(string.Format("SELECT * FROM Branch WHERE Branch.ID LIKE '%{0}'", v.Substring(3)));
                 }
                 else
-                    branches = Database.Query<Objects.Branch>(string.Format("SELECT rowid, * FROM Branch WHERE Branch.ID LIKE '{0}%'", v));
+                    branches = Database.Query<Objects.Branch>(string.Format("SELECT * FROM Branch WHERE Branch.ID LIKE '{0}%'", v));
             }
             if (branches.Count == 1)
                 return branches[0];
@@ -3102,14 +3102,20 @@ namespace Versionr
                     }
                     Client client = null;
                     Area external = LoadWorkspace(directory, true);
+                    bool fresh = false;
                     if (external == null)
+                    {
                         client = new Client(directory, true);
+                        fresh = true;
+                    }
                     else
                         client = new Client(external);
                     if (!client.Connect(result.Item2, result.Item3))
                     {
                         Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
-                        continue;
+                        if (external == null)
+                            continue;
+                        client = null;
                     }
                     if (external == null)
                     {
@@ -3119,21 +3125,55 @@ namespace Versionr
                             continue;
                         }
                     }
-                    client.Workspace.SetPartialPath(x.Value.PartialPath);
-                    client.Workspace.SetRemote(result.Item2, result.Item3, "default");
-                    if (!client.Pull(false, x.Value.Branch))
+                    if (client != null)
                     {
-                        Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
-                        continue;
+                        client.Workspace.SetPartialPath(x.Value.PartialPath);
+                        client.Workspace.SetRemote(result.Item2, result.Item3, "default");
+                        if (!client.Pull(false, x.Value.Branch))
+                        {
+                            Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
+                            continue;
+                        }
                     }
-                    if (external == null)
+                    external = LoadWorkspace(directory, true);
+                    external.SetPartialPath(x.Value.PartialPath);
+                    external.SetRemote(result.Item2, result.Item3, "default");
+                    if (fresh)
                     {
-                        external = LoadWorkspace(directory, true);
                         external.Checkout(x.Value.Target, false);
                     }
                     else
                     {
-                        client.Workspace.Update();
+                        bool multiple;
+                        Objects.Branch externBranch = external.GetBranchByPartialName(string.IsNullOrEmpty(x.Value.Branch) ? external.GetVersion(external.Domain).Branch.ToString() : x.Value.Branch, out multiple);
+                        if (x.Value.Target == null)
+                        {
+                            if (external.CurrentBranch.ID == externBranch.ID)
+                                external.Update();
+                            else
+                            {
+                                if (external.Status.HasModifications(false))
+                                    Printer.PrintError("#x#Error:##\n  Extern #c#{0}## can't switch to branch \"#b#{1}##\", due to local modifications.", x.Key, externBranch.Name);
+                                else
+                                    external.Checkout(externBranch.ID.ToString(), false);
+                            }
+                        }
+                        else
+                        {
+                            Objects.Version externVersion = external.GetPartialVersion(x.Value.Target);
+                            if (externVersion == null)
+                                Printer.PrintError("#x#Error:##\n  Extern #c#{0}## can't locate target \"#b#{1}##\"", x.Key, x.Value.Target);
+                            else
+                            {
+                                if (external.Version.ID != externVersion.ID)
+                                {
+                                    if (external.Status.HasModifications(false))
+                                        Printer.PrintError("#x#Error:##\n  Extern #c#{0}## can't switch to version \"#b#{1}##\", due to local modifications.", x.Key, externVersion.ID);
+                                    else
+                                        external.Checkout(externVersion.ID.ToString(), false);
+                                }
+                            }
+                        }
                     }
                 }
             }
