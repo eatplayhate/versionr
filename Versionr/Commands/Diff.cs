@@ -97,7 +97,7 @@ namespace Versionr.Commands
                     {
                         Printer.PrintMessage("File: #b#{0}## is #s#unchanged##.", x.CanonicalName);
                     }
-                    else if (x.VersionControlRecord == null)
+                    else if (x.VersionControlRecord == null && showUnchangedObjects)
                     {
                         Printer.PrintMessage("File: #b#{0}## is #c#unversioned##.", x.CanonicalName);
                     }
