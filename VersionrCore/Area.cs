@@ -285,7 +285,7 @@ namespace Versionr
                     {
                         if (sharedInfo != null)
                         {
-                            if (SharedNetwork.IsAncestor(targetID, x.Version, sharedInfo))
+                            if (targetID != x.Version && SharedNetwork.IsAncestor(targetID, x.Version, sharedInfo))
                             {
                                 if (interactive)
                                 {

@@ -289,6 +289,7 @@ namespace Versionr
                     Rollback();
                 }
             }
+            PrepareTables();
         }
 
         private void PrepareTables()
