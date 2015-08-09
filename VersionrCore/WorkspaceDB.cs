@@ -13,9 +13,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 27;
+        public const int InternalDBVersion = 28;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 27;
+        public const int MaximumDBVersion = 28;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -92,6 +92,14 @@ namespace Versionr
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
 
+                    if (priorFormat < 28)
+                    {
+                        var tips = Query<BranchJournal>("SELECT * FROM BranchJournal WHERE NOT EXISTS (SELECT * FROM BranchJournalLink WHERE Parent = BranchJournal.ID)").ToList();
+                        if (tips.Count > 1)
+                            Printer.PrintError("#e#Database update encountered an error - multiple possible tips for branch journal data found. Selecting final revision.");
+                        if (tips.Count != 0)
+                            BranchJournalTip = tips[tips.Count - 1].ID;
+                    }
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
@@ -313,6 +321,20 @@ namespace Versionr
             get
             {
                 return Table<Objects.Domain>().First().InitialRevision;
+            }
+        }
+
+        public Guid? BranchJournalTip
+        {
+            get
+            {
+                return Table<Objects.Domain>().First().JournalTip;
+            }
+            set
+            {
+                var domain = Table<Objects.Domain>().First();
+                domain.JournalTip = value;
+                this.UpdateSafe(domain);
             }
         }
 

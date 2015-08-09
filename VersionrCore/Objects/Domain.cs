@@ -10,5 +10,6 @@ namespace Versionr.Objects
     {
         [SQLite.PrimaryKey]
         public Guid InitialRevision { get; set; }
+        public Guid? JournalTip { get; set; }
     }
 }

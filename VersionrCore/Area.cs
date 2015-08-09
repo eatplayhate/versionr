@@ -131,9 +131,7 @@ namespace Versionr
             
             ReplayBranchJournal(change, false, null);
 
-            var ws = LocalData.Workspace;
-            ws.JournalTip = change.ID;
-            LocalData.UpdateSafe(ws);
+            Database.BranchJournalTip = change.ID;
         }
 
         public bool SetPartialPath(string path)
@@ -476,7 +474,7 @@ namespace Versionr
 
         internal BranchJournal GetBranchJournalTip()
         {
-            Guid? branchJournalTip = LocalData.Workspace.JournalTip;
+            Guid? branchJournalTip = Database.BranchJournalTip;
             BranchJournal journal = null;
             if (branchJournalTip.HasValue)
                 journal = Database.Get<BranchJournal>(branchJournalTip);
@@ -961,10 +959,8 @@ namespace Versionr
                     end = merge;
                 }
             }
-            
-            var ws = LocalData.Workspace;
-            ws.JournalTip = end.ID;
-            LocalData.UpdateSafe(ws);
+
+            Database.BranchJournalTip = end.ID;
 
             return true;
         }

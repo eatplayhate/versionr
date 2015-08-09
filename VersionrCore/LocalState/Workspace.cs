@@ -12,7 +12,6 @@ namespace Versionr.LocalState
         public Guid ID { get; set; }
         public Guid Branch { get; set; }
         public Guid Tip { get; set; }
-        public Guid? JournalTip { get; set; }
         public Guid Domain { get; set; }
         public string Name { get; set; }
         public DateTime LocalCheckoutTime { get; set; }
