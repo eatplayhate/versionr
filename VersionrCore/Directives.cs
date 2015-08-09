@@ -12,6 +12,7 @@ namespace Versionr
         public string Host { get; set; }
         public string PartialPath { get; set; }
         public string Branch { get; set; }
+        public string Target { get; set; }
         public Extern()
         {
             Branch = "master";

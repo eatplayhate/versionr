@@ -3129,7 +3129,7 @@ namespace Versionr
                     if (external == null)
                     {
                         external = LoadWorkspace(directory, true);
-                        external.Checkout(client.Workspace.CurrentBranch.ID.ToString(), false);
+                        external.Checkout(x.Value.Target, false);
                     }
                     else
                     {
