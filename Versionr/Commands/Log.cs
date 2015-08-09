@@ -50,6 +50,7 @@ namespace Versionr.Commands
 			LogVerbOptions localOptions = options as LogVerbOptions;
 			Printer.EnableDiagnostics = localOptions.Verbose;
 
+            bool targetedBranch = false;
 			Objects.Version version = null;
 			if (!string.IsNullOrEmpty(localOptions.Branch))
 			{
@@ -61,7 +62,8 @@ namespace Versionr.Commands
 					return false;
 				}
 				version = ws.GetBranchHeadVersion(branch);
-			}
+                targetedBranch = true;
+            }
 			else if (!string.IsNullOrEmpty(localOptions.Version))
 			{
 				version = ws.GetPartialVersion(localOptions.Version);
@@ -80,7 +82,7 @@ namespace Versionr.Commands
 
 			var enumeration = history.Where(y => HasAlterationForTarget(y, targets));
             if (localOptions.Limit == -1)
-                localOptions.Limit = version == null ? 10 : 1;
+                localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
 
             if (localOptions.Limit != 0)
                 enumeration = enumeration.Take(localOptions.Limit);
@@ -92,7 +94,7 @@ namespace Versionr.Commands
                     string message = x.Message;
                     if (message == null)
                         message = string.Empty;
-                    Printer.PrintMessage("({4}) #c#{0}:## {1} #q#({2} {3})##", x.ShortName, message.Replace('\n', ' '), x.Author, new DateTime(x.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), x.Revision);
+                    Printer.PrintMessage("#c#{0}:## ({4}/#b#{5}##) {1} #q#({2} {3})##", x.ShortName, message.Replace('\n', ' '), x.Author, new DateTime(x.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), x.Revision, Workspace.GetBranch(x.Branch).Name);
                 }
                 else
                 {

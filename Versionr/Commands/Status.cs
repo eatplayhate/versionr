@@ -118,7 +118,7 @@ namespace Versionr.Commands
 
             foreach (var x in Workspace.Externs)
             {
-                Printer.WriteLineMessage("\nExternal #c#{0}##:", x.Key);
+                Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
                 new Status().Run(new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location)), options);
             }
             return true;

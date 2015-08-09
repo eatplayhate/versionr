@@ -68,7 +68,7 @@ namespace Versionr
             return path;
         }
 
-        string m_PartialPath;
+        string m_PartialPath = string.Empty;
 
         public string PartialPath
         {

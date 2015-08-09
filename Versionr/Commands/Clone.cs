@@ -32,6 +32,12 @@ namespace Versionr.Commands
         [Option('f', "fullmeta", DefaultValue = false, HelpText = "Clones entire vault metadata table.")]
         public bool Full { get; set; }
 
+        [Option('u', "update", HelpText = "Runs pull and checkout after cloning.")]
+        public bool Update { get; set; }
+
+        [Option('b', "branch", HelpText = "Selects a branch to pull and checkout after cloning, requires #b#--update##")]
+        public string Branch { get; set; }
+
         [Option('s', "sync", DefaultValue = false, HelpText = "Synchronizes all objects in metadata after cloning. Requires #b#--fullmeta## to be useful.")]
         public bool Synchronize { get; set; }
 
@@ -54,6 +60,13 @@ namespace Versionr.Commands
 
                 if (localOptions.Partial != null)
                     client.Workspace.SetPartialPath(localOptions.Partial);
+
+                if (localOptions.Update)
+                {
+                    client.Pull(true, string.IsNullOrEmpty(localOptions.Branch) ? client.Workspace.CurrentBranch.ID.ToString() : localOptions.Branch);
+                    Area area = Area.Load(client.Workspace.Root);
+                    area.Checkout(localOptions.Branch, false);
+                }
 
                 if (localOptions.Synchronize)
                     return client.SyncRecords();
