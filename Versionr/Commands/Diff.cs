@@ -68,6 +68,11 @@ namespace Versionr.Commands
                 {
                     if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
                     {
+                        if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
+                        {
+                            Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
+                            continue;
+                        }
                         // Displaying local modifications
                         string tmp = Utilities.DiffTool.GetTempFilename();
                         if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
