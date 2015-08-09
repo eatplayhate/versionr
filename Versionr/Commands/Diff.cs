@@ -93,13 +93,17 @@ namespace Versionr.Commands
                             }
                         }
                     }
-                    else if (x.Code == StatusCode.Unchanged && showUnchangedObjects)
+                    else if (x.Code == StatusCode.Unchanged && showUnchangedObjects && !x.IsDirectory)
                     {
-                        Printer.PrintMessage("File: #b#{0}## is #s#unchanged##.", x.CanonicalName);
+                        var filter = Filter(new KeyValuePair<string, Objects.Record>[] { new KeyValuePair<string, Objects.Record>(x.CanonicalName, x.VersionControlRecord) }).FirstOrDefault();
+                        if (filter.Value != null && filter.Key == true) // check if the file was really specified
+                            Printer.PrintMessage("Object: #b#{0}## is #s#unchanged##.", x.CanonicalName);
                     }
                     else if (x.VersionControlRecord == null && showUnchangedObjects)
                     {
-                        Printer.PrintMessage("File: #b#{0}## is #c#unversioned##.", x.CanonicalName);
+                        var filter = Filter(new KeyValuePair<string, bool>[] { new KeyValuePair<string, bool>(x.CanonicalName, true) }).FirstOrDefault();
+                        if (filter.Value != false && filter.Key == true) // check if the file was really specified
+                            Printer.PrintMessage("Object: #b#{0}## is #c#unversioned##.", x.CanonicalName);
                     }
                 }
             }
@@ -109,8 +113,9 @@ namespace Versionr.Commands
                     .Where(x => x.Type == Objects.AlterationType.Update)
                     .Select(x => ws.GetRecord(x.NewRecord.Value))
                     .Select(x => new KeyValuePair<string, Objects.Record>(x.CanonicalName, x)).ToList();
-                foreach (var rec in Filter(updates))
+                foreach (var pair in Filter(updates))
                 {
+                    Objects.Record rec = pair.Value;
                     string tmpVersion = Utilities.DiffTool.GetTempFilename();
                     bool exportedVersion = Workspace.ExportRecord(rec.CanonicalName, version, tmpVersion);
 

@@ -29,12 +29,12 @@ namespace Versionr.Commands
                 targets = status.GetElements(localOptions.Objects, localOptions.Regex, localOptions.Filename, localOptions.Insensitive);
         }
 
-        protected IEnumerable<T> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)
+        protected IEnumerable<KeyValuePair<bool, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)
         {
             if (FilterOptions.All)
             {
                 foreach (var x in input.Select(x => x.Value))
-                    yield return x;
+                    yield return new KeyValuePair<bool, T>(false, x);
                 yield break;
             }
 
@@ -79,9 +79,19 @@ namespace Versionr.Commands
                             fn = x.Key;
                         else
                             fn = x.Key.Substring(idx + 1);
-                        if ((!FilterOptions.Filename && y.IsMatch(x.Key)) || (FilterOptions.Filename && y.IsMatch(fn)))
+                        Match fnMatch = y.Match(fn);
+                        Match nMatch = y.Match(x.Key);
+                        if (!FilterOptions.Filename)
                         {
-                            yield return x.Value;
+                            if (nMatch.Success)
+                            {
+                                yield return new KeyValuePair<bool, T>(false, x.Value);
+                            }
+                            break;
+                        }
+                        else if (fnMatch.Success)
+                        {
+                            yield return new KeyValuePair<bool, T>(false, x.Value);
                             break;
                         }
                     }
@@ -109,7 +119,7 @@ namespace Versionr.Commands
                         {
                             if (string.Equals(fn, y, comparisonOptions) || string.Equals(fn, y + "/", comparisonOptions))
                             {
-                                yield return x.Value;
+                                yield return new KeyValuePair<bool, T>(true, x.Value);
                                 break;
                             }
                         }
@@ -120,7 +130,7 @@ namespace Versionr.Commands
                         {
                             if (string.Equals(x.Key, y, comparisonOptions) || string.Equals(x.Key, y + "/", comparisonOptions))
                             {
-                                yield return x.Value;
+                                yield return new KeyValuePair<bool, T>(true, x.Value);
                                 break;
                             }
                         }
