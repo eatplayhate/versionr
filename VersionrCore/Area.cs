@@ -1985,6 +1985,8 @@ namespace Versionr
                             
                                 RestoreRecord(x, newRefTime, mf.FullName);
 
+                                mf = new FileInfo(mf.FullName);
+
                                 FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true);
                                 if (result != null)
                                 {
@@ -2028,11 +2030,14 @@ namespace Versionr
                                 {
                                     mb = GetTemporaryFile(parentObject.Record);
                                     RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
+                                    mb = new FileInfo(mb.FullName);
                                 }
                                 else
                                     mb = parentObject.TemporaryFile;
                             
                                 RestoreRecord(x, newRefTime, mf.FullName);
+
+                                mf = new FileInfo(mf.FullName);
 
                                 FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true);
                                 if (result != null)
@@ -3126,7 +3131,7 @@ namespace Versionr
                     {
                         if (!client.Clone(false))
                         {
-                            Printer.PrintError("#x#Error:##\n  Couldn't clone remote repository while processing extern \"#b#{1}##\"!", x.Key);
+                            Printer.PrintError("#x#Error:##\n  Couldn't clone remote repository while processing extern \"#b#{0}##\"!", x.Key);
                             continue;
                         }
                     }

@@ -13,9 +13,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 28;
+        public const int InternalDBVersion = 30;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 28;
+        public const int MaximumDBVersion = 30;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -104,7 +104,7 @@ namespace Versionr
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
                     }
-                    if (priorFormat < 21)
+                    if (priorFormat < 30)
                     {
                         Printer.PrintMessage(" - Upgrading database - running full consistency check.");
                         var objNames = Table<ObjectName>().ToList();
@@ -194,7 +194,7 @@ namespace Versionr
                             }
                         }
                     }
-                    if (priorFormat < 18)
+                    if (priorFormat < 30)
                     {
                         foreach (var x in Table<Objects.Version>().ToList())
                         {
@@ -236,7 +236,7 @@ namespace Versionr
                                 Printer.PrintDiagnostics("Version {0} had {1} multiple-moves that have been fixed.", x.ShortName, counter);
                         }
                     }
-                    if (priorFormat < 20)
+                    if (priorFormat < 30)
                     {
                         foreach (var x in Table<Objects.Version>().ToList())
                         {
@@ -555,7 +555,7 @@ namespace Versionr
                                 Printer.PrintMessage(" (error, already present)");
 #endif
                             if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("Consistency contraint invalid!");
+                                throw new Exception("Consistency constraint invalid!");
                             records[record.Id] = record;
                             break;
                         }
@@ -573,7 +573,7 @@ namespace Versionr
                                 Printer.PrintMessage(" (error, already present)");
 #endif
                             if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("Consistency contraint invalid!");
+                                throw new Exception("Consistency constraint invalid!");
                             records[record.Id] = record;
                             break;
                         }
@@ -592,7 +592,7 @@ namespace Versionr
                             Printer.PrintMessage(" (error, not present)");
 #endif
                         if (!records.Remove(x.PriorRecord.Value))
-                            throw new Exception("Consistency contraint invalid!");
+                            throw new Exception("Consistency constraint invalid!");
 						break;
                     default:
                         throw new Exception();

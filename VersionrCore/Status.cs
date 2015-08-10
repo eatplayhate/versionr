@@ -340,6 +340,7 @@ namespace Versionr
                     Dictionary<string, Record> hashes = null;
                     if (recordSizeMap.TryGetValue(x.Value.Length, out hashes))
                     {
+                        Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
                         hashes.TryGetValue(x.Value.Hash, out possibleRename);
                     }
                     if (possibleRename != null)
