@@ -10,7 +10,7 @@ namespace Versionr.Commands
 {
 	abstract class FileCommandVerbOptions : FileBaseCommandVerbOptions
     {
-		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "regex recursive")]
+		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "filtertype")]
 		public bool All { get; set; }
 		[Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
 		public bool Tracked { get; set; }

@@ -11,9 +11,9 @@ namespace Versionr.Commands
 {
     abstract class FileBaseCommandVerbOptions : VerbOptionBase
     {
-        [Option('g', "regex", HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet = "all")]
+        [Option('g', "regex", HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet = "filtertype")]
         public bool Regex { get; set; }
-        [Option('n', "filename", HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "all")]
+        [Option('n', "filename", HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "filtertype")]
         public bool Filename { get; set; }
         [Option('r', "recursive", DefaultValue = true, HelpText = "Recursively consider objects in directories.")]
         public bool Recursive { get; set; }

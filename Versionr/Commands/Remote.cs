@@ -9,15 +9,15 @@ namespace Versionr.Commands
 {
     class RemoteVerbOptions : VerbOptionBase
     {
-        [Option('h', "host", Required = false, HelpText = "Specifies the hostname of the remote.")]
-        public string Host { get; set; }
+        [Option('h', "host", Required = false, HelpText = "Specifies the hostname of the remote.", MutuallyExclusiveSet = "remotemode")]
+		public string Host { get; set; }
         [Option('p', "port", Required = false, HelpText = "Specifies the port of the remote.")]
         public int Port { get; set; }
 
-		[Option('l', "list", HelpText = "List the known remotes", MutuallyExclusiveSet = "host list clear")]
+		[Option('l', "list", HelpText = "List the known remotes", MutuallyExclusiveSet = "remotemode")]
 		public bool List { get; set; }
 
-		[Option('c', "clear", HelpText = "Clears all existing remotes", MutuallyExclusiveSet = "host list clear")]
+		[Option('c', "clear", HelpText = "Clears all existing remotes", MutuallyExclusiveSet = "remotemode")]
 		public bool Clear { get; set; }
 		public override string Usage
         {

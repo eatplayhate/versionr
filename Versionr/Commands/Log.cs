@@ -10,15 +10,15 @@ namespace Versionr.Commands
 {
 	class LogVerbOptions : FileBaseCommandVerbOptions
 	{
-		[Option('l', "alterations", HelpText = "Display a listing of alterations.", MutuallyExclusiveSet = "concise")]
+		[Option('l', "alterations", HelpText = "Display a listing of alterations.", MutuallyExclusiveSet = "logdetail")]
 		public bool Alterations { get; set; }
 		[Option('t', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
-        [Option('c', "concise", HelpText = "Uses a short log formatting style.", MutuallyExclusiveSet = "alterations")]
+        [Option('c', "concise", HelpText = "Uses a short log formatting style.", MutuallyExclusiveSet = "logdetail")]
         public bool Concise { get; set; }
-		[Option('b', "branch", HelpText = "Name of the branch to view", MutuallyExclusiveSet = "version")]
+		[Option('b', "branch", HelpText = "Name of the branch to view", MutuallyExclusiveSet = "versionselect")]
 		public string Branch { get; set; }
-		[Option('v', "version", HelpText = "Specific version to view", MutuallyExclusiveSet = "branch")]
+		[Option('v', "version", HelpText = "Specific version to view", MutuallyExclusiveSet = "versionselect")]
 		public string Version { get; set; }
 
         public override string[] Description
