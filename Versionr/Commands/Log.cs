@@ -44,6 +44,37 @@ namespace Versionr.Commands
 	class Log : FileBaseCommand
 	{
 		protected override bool RequiresTargets { get { return false; } }
+		protected override bool OnNoTargetsAssumeAll { get { return true; } }
+
+		protected override bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
+		{
+			return false;
+		}
+
+		class ResolvedAlteration
+		{
+			public Objects.Alteration Alteration { get; private set; }
+			public Objects.Record Record { get; private set; }
+			public ResolvedAlteration(Objects.Alteration alteration, Area ws)
+			{
+				Alteration = alteration;
+				if (alteration.NewRecord.HasValue)
+					Record = ws.GetRecord(Alteration.NewRecord.Value);
+				else if (alteration.PriorRecord.HasValue)
+					Record = ws.GetRecord(Alteration.PriorRecord.Value);
+				else
+					throw new Exception("unexpected");
+			}
+		}
+
+		IEnumerable<KeyValuePair<bool, ResolvedAlteration>> GetAlterations(Objects.Version v)
+		{
+			var enumeration = Workspace.GetAlterations(v)
+				.Select(x => new ResolvedAlteration(x, Workspace))
+				.Select(x => new KeyValuePair<string, ResolvedAlteration>(x.Record.CanonicalName, x));
+
+			return Filter(enumeration);
+		}
 
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
@@ -74,14 +105,11 @@ namespace Versionr.Commands
 				}
 			}
 
-			List<Objects.Version> history = null;
-			if (version == null)
-				history = ws.History;
-			else
-				history = ws.GetHistory(version);
+			var enumeration = (version == null ? ws.History : ws.GetHistory(version))
+				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, GetAlterations(x)))
+				.Where(x => x.Item2.Any());
 
-			var enumeration = history.Where(y => HasAlterationForTarget(y, targets));
-            if (localOptions.Limit == -1)
+			if (localOptions.Limit == -1)
                 localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
 
             if (localOptions.Limit != 0)
@@ -89,34 +117,33 @@ namespace Versionr.Commands
 
             foreach (var x in enumeration.Reverse())
 			{
+				Objects.Version v = x.Item1;
                 if (localOptions.Concise)
                 {
-                    string message = x.Message;
+                    string message = v.Message;
                     if (message == null)
                         message = string.Empty;
-                    Printer.PrintMessage("#c#{0}:## ({4}/#b#{5}##) {1} #q#({2} {3})##", x.ShortName, message.Replace('\n', ' '), x.Author, new DateTime(x.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), x.Revision, Workspace.GetBranch(x.Branch).Name);
+                    Printer.PrintMessage("#c#{0}:## ({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, Workspace.GetBranch(v.Branch).Name);
                 }
                 else
                 {
-                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##", x.Revision, x.ID, ws.GetBranch(x.Branch).Name);
+                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##", v.Revision, v.ID, ws.GetBranch(v.Branch).Name);
 
-                    foreach (var y in ws.GetMergeInfo(x.ID))
+                    foreach (var y in ws.GetMergeInfo(v.ID))
                     {
                         var mergeParent = ws.GetVersion(y.SourceVersion);
                         Printer.PrintMessage(" <- Merged from {0} on branch {1}", mergeParent.ID, ws.GetBranch(mergeParent.Branch).Name);
                     }
 
-                    Printer.PrintMessage("#b#Author:## {0} #q# {1} ##", x.Author, x.Timestamp.ToLocalTime());
-                    Printer.PrintMessage("#b#Message:##\n{0}", string.IsNullOrWhiteSpace(x.Message) ? "<none>" : Printer.Escape(x.Message));
+                    Printer.PrintMessage("#b#Author:## {0} #q# {1} ##", v.Author, v.Timestamp.ToLocalTime());
+                    Printer.PrintMessage("#b#Message:##\n{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
 
                     if (localOptions.Alterations)
                     {
                         Printer.PrintMessage("#b#Alterations:##");
-                        foreach (var y in ws.GetAlterations(x).OrderBy(z => z.Type))
+                        foreach (var y in x.Item2.Select(z => z.Value).OrderBy(z => z.Alteration.Type))
                         {
-							Objects.Record rec = y.NewRecord.HasValue ? ws.GetRecord(y.NewRecord.Value) : y.PriorRecord.HasValue ? ws.GetRecord(y.PriorRecord.Value) : null;
-							if (rec != null && IsTarget(rec, targets))
-								Printer.PrintMessage("#{2}#({0})## {1}", y.Type.ToString().ToLower(), rec.CanonicalName, GetAlterationFormat(y.Type));
+							Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
 						}
 					}
                 }
@@ -124,38 +151,6 @@ namespace Versionr.Commands
 
 			return true;
 		}
-
-		private bool HasAlterationForTarget(Objects.Version v, IList<Versionr.Status.StatusEntry> targets)
-		{
-			if (targets == null || targets.Count == 0)
-				return true;
-
-			foreach (var x in Workspace.GetAlterations(v))
-			{
-				if (x.NewRecord.HasValue)
-				{
-					if (IsTarget(Workspace.GetRecord(x.NewRecord.Value), targets))
-						return true;
-				}
-				else if (x.PriorRecord.HasValue)
-				{
-					if (IsTarget(Workspace.GetRecord(x.PriorRecord.Value), targets))
-						return true;
-				}
-			}
-			return false;
-		}
-
-		private bool IsTarget(Objects.Record rec, IList<Versionr.Status.StatusEntry> targets)
-		{
-			if (targets == null || targets.Count == 0)
-				return true;
-
-			if (rec == null)
-				return false;
-
-			return targets.Where(x => x.CanonicalName == rec.CanonicalName).FirstOrDefault() != null;
-        }
 
 		private string GetAlterationFormat(Objects.AlterationType code)
 		{
