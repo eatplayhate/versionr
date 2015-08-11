@@ -10,18 +10,40 @@ namespace Versionr.Commands
 {
 	class LogVerbOptions : FileBaseCommandVerbOptions
 	{
-		[Option('l', "alterations", HelpText = "Display a listing of alterations.", MutuallyExclusiveSet = "logdetail")]
-		public bool Alterations { get; set; }
 		[Option('t', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
-        [Option('c', "concise", HelpText = "Uses a short log formatting style.", MutuallyExclusiveSet = "logdetail")]
-        public bool Concise { get; set; }
+
+		public enum DetailMode
+		{
+			Normal,
+			N = Normal,
+			Concise,
+			C = Concise,
+			Detailed,
+			D = Detailed,
+			Full,
+			F = Full
+		}
+		[Option("detail", HelpText = "Set the display mode. One of (n)ormal, (c)oncise, (d)etailed, (f)ull", MetaValue = "<value>", MutuallyExclusiveSet = "logdetail")]
+		public DetailMode Detail { get; set; }
+		[Option('c', "concise", HelpText = "Uses a short log formatting style. Alias for --detail=concise", MutuallyExclusiveSet = "logdetail")]
+		public bool Concise
+		{
+			get { return Detail == DetailMode.Concise; }
+			set { if (value) Detail = DetailMode.Concise; }
+		}
+
+
 		[Option('b', "branch", HelpText = "Name of the branch to view", MutuallyExclusiveSet = "versionselect")]
 		public string Branch { get; set; }
 		[Option('v', "version", HelpText = "Specific version to view", MutuallyExclusiveSet = "versionselect")]
 		public string Version { get; set; }
 
-        public override string[] Description
+		[Option("author", HelpText = "Filter log on specific author")]
+		public string Author { get; set; }
+
+
+		public override string[] Description
 		{
 			get
 			{
@@ -67,12 +89,15 @@ namespace Versionr.Commands
 			}
 		}
 
-		IEnumerable<KeyValuePair<bool, ResolvedAlteration>> GetAlterations(Objects.Version v)
+		IEnumerable<ResolvedAlteration> GetAlterations(Objects.Version v)
 		{
-			var enumeration = Workspace.GetAlterations(v)
-				.Select(x => new ResolvedAlteration(x, Workspace))
-				.Select(x => new KeyValuePair<string, ResolvedAlteration>(x.Record.CanonicalName, x));
+			return Workspace.GetAlterations(v).Select(x => new ResolvedAlteration(x, Workspace));
+		}
 
+		IEnumerable<KeyValuePair<bool, ResolvedAlteration>> FilterAlterations(Objects.Version v)
+		{
+			var enumeration = GetAlterations(v)
+				.Select(x => new KeyValuePair<string, ResolvedAlteration>(x.Record.CanonicalName, x));
 			return Filter(enumeration);
 		}
 
@@ -105,8 +130,13 @@ namespace Versionr.Commands
 				}
 			}
 
-			var enumeration = (version == null ? ws.History : ws.GetHistory(version))
-				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, GetAlterations(x)))
+			var history = (version == null ? ws.History : ws.GetHistory(version)).AsEnumerable();
+
+			if (!string.IsNullOrEmpty(localOptions.Author))
+				history = history.Where(x => x.Author.Equals(localOptions.Author, StringComparison.OrdinalIgnoreCase));
+
+			var enumeration = history
+				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, FilterAlterations(x)))
 				.Where(x => x.Item2.Any());
 
 			if (localOptions.Limit == -1)
@@ -138,15 +168,16 @@ namespace Versionr.Commands
                     Printer.PrintMessage("#b#Author:## {0} #q# {1} ##", v.Author, v.Timestamp.ToLocalTime());
                     Printer.PrintMessage("#b#Message:##\n{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
 
-                    if (localOptions.Alterations)
-                    {
-                        Printer.PrintMessage("#b#Alterations:##");
-                        foreach (var y in x.Item2.Select(z => z.Value).OrderBy(z => z.Alteration.Type))
-                        {
+					if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
+					{
+						Printer.PrintMessage("#b#Alterations:##");
+						var alterations = localOptions.Detail == LogVerbOptions.DetailMode.Detailed ? x.Item2.Select(z => z.Value) : GetAlterations(v);
+						foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
+						{
 							Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
 						}
 					}
-                }
+				}
 			}
 
 			return true;
