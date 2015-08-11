@@ -64,47 +64,62 @@ namespace Versionr.Commands
 
             bool showUnchangedObjects = localOptions.Objects.Count != 0;
 
-            if (version == null)
+			List<Task> tasks = new List<Task>();
+			if (version == null)
             {
                 foreach (var x in targets)
                 {
-                    if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
-                    {
-                        if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
-                        {
-                            Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
-                            continue;
-                        }
-                        // Displaying local modifications
-                        string tmp = Utilities.DiffTool.GetTempFilename();
-                        if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
-                        {
-                            try
-                            {
-                                Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-                                if (localOptions.External)
-                                    Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
-                                else
-                                    RunInternalDiff(tmp, x.CanonicalName);
-                            }
-                            finally
-                            {
-                                System.IO.File.Delete(tmp);
-                            }
-                        }
-                    }
-                    else if (x.Code == StatusCode.Unchanged && showUnchangedObjects && !x.IsDirectory)
-                    {
-                        var filter = Filter(new KeyValuePair<string, Objects.Record>[] { new KeyValuePair<string, Objects.Record>(x.CanonicalName, x.VersionControlRecord) }).FirstOrDefault();
-                        if (filter.Value != null && filter.Key == true) // check if the file was really specified
-                            Printer.PrintMessage("Object: #b#{0}## is #s#unchanged##.", x.CanonicalName);
-                    }
-                    else if (x.VersionControlRecord == null && showUnchangedObjects)
-                    {
-                        var filter = Filter(new KeyValuePair<string, bool>[] { new KeyValuePair<string, bool>(x.CanonicalName, true) }).FirstOrDefault();
-                        if (filter.Value != false && filter.Key == true) // check if the file was really specified
-                            Printer.PrintMessage("Object: #b#{0}## is #c#unversioned##.", x.CanonicalName);
-                    }
+					if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
+					{
+						if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
+						{
+							Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
+							continue;
+						}
+						// Displaying local modifications
+						string tmp = Utilities.DiffTool.GetTempFilename();
+						if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
+						{
+							Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
+							if (localOptions.External)
+							{
+								tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+								{
+									try
+									{
+										Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
+									}
+									finally
+									{
+										System.IO.File.Delete(tmp);
+									}
+								}));
+							}
+							else
+							{
+								try
+								{
+									RunInternalDiff(tmp, x.CanonicalName);
+								}
+								finally
+								{
+									System.IO.File.Delete(tmp);
+								}
+							}
+						}
+					}
+					else if (x.Code == StatusCode.Unchanged && showUnchangedObjects && !x.IsDirectory)
+					{
+						var filter = Filter(new KeyValuePair<string, Objects.Record>[] { new KeyValuePair<string, Objects.Record>(x.CanonicalName, x.VersionControlRecord) }).FirstOrDefault();
+						if (filter.Value != null && filter.Key == true) // check if the file was really specified
+							Printer.PrintMessage("Object: #b#{0}## is #s#unchanged##.", x.CanonicalName);
+					}
+					else if (x.VersionControlRecord == null && showUnchangedObjects)
+					{
+						var filter = Filter(new KeyValuePair<string, bool>[] { new KeyValuePair<string, bool>(x.CanonicalName, true) }).FirstOrDefault();
+						if (filter.Value != false && filter.Key == true) // check if the file was really specified
+							Printer.PrintMessage("Object: #b#{0}## is #c#unversioned##.", x.CanonicalName);
+					}
                 }
             }
             else
@@ -117,32 +132,48 @@ namespace Versionr.Commands
                 {
                     Objects.Record rec = pair.Value;
                     string tmpVersion = Utilities.DiffTool.GetTempFilename();
-                    bool exportedVersion = Workspace.ExportRecord(rec.CanonicalName, version, tmpVersion);
+					if (!Workspace.ExportRecord(rec.CanonicalName, version, tmpVersion))
+						continue;
 
                     string tmpParent = Utilities.DiffTool.GetTempFilename();
-                    bool exportedParent = Workspace.ExportRecord(rec.CanonicalName, parent, tmpParent);
+                    if (!Workspace.ExportRecord(rec.CanonicalName, parent, tmpParent))
+					{
+						System.IO.File.Delete(tmpVersion);
+						continue;
+					}
 
-                    try
-                    {
-                        if (exportedParent && exportedVersion)
-                        {
-                            Printer.PrintMessage("Displaying changes for file: #b#{0}", rec.CanonicalName);
-                            if (localOptions.External)
-                                Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName);
-                            else
-                                RunInternalDiff(tmpParent, tmpVersion);
-                        }
-                    }
-                    finally
-                    {
-                        if (exportedVersion)
-                            System.IO.File.Delete(tmpVersion);
-                        if (exportedParent)
-                            System.IO.File.Delete(tmpParent);
-                    }
-                }
-            }
-			return true;
+					Printer.PrintMessage("Displaying changes for file: #b#{0}", rec.CanonicalName);
+					if (localOptions.External)
+					{
+						tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+						{
+							try
+							{
+								Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName);
+							}
+							finally
+							{
+								System.IO.File.Delete(tmpVersion);
+								System.IO.File.Delete(tmpParent);
+							}
+						}));
+					}
+					else
+					{
+						try
+						{
+							RunInternalDiff(tmpParent, tmpVersion);
+						}
+						finally
+						{
+							System.IO.File.Delete(tmpVersion);
+							System.IO.File.Delete(tmpParent);
+						}
+					}
+				}
+			}
+			Task.WaitAll(tasks.ToArray());
+            return true;
         }
 
         protected override bool OnNoTargetsAssumeAll
