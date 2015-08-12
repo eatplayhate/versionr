@@ -13,6 +13,11 @@ namespace Versionr.ObjectStore
         public abstract long PendingRecordBytes { get; }
         public abstract int PendingRecords { get; }
     }
+    public class RecordInfo
+    {
+        public long AllocatedSize { get; set; }
+        public bool DeltaCompressed { get; set; }
+    }
     public abstract class ObjectStoreBase
     {
         public abstract void Create(Area owner);
@@ -29,5 +34,6 @@ namespace Versionr.ObjectStore
         public abstract bool EndStorageTransaction(ObjectStoreTransaction transaction);
         public abstract void WriteRecordStream(Record rec, System.IO.Stream outputStream);
         public abstract bool HasDataDirect(string x);
+        internal abstract RecordInfo GetInfo(Record x);
     }
 }

@@ -13,6 +13,16 @@ using Versionr.Utilities;
 
 namespace Versionr
 {
+    public static class IndexedSelect
+    {
+        public static IEnumerable<Tuple<int, T>> SelectIndexed<T>(this IEnumerable<T> input)
+        {
+            int count = 0;
+            foreach (var x in input)
+                yield return new Tuple<int, T>(count++, x);
+            yield break;
+        }
+    }
     public class Area : IDisposable
     {
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
@@ -31,6 +41,169 @@ namespace Versionr
                 return Database.Domain;
             }
         }
+
+        public void PrintStats(string objectname = null)
+        {
+            if (objectname != null)
+            {
+                var nameObject = Database.Table<ObjectName>().ToList().Where(x => x.CanonicalName.Equals(objectname, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+                if (nameObject == null)
+                {
+                    Printer.PrintMessage("Unknown object #e#{0}##!", objectname);
+                    return;
+                }
+                PrintObjectStats(nameObject);
+                return;
+            }
+            long vcount = Database.Table<Objects.Version>().Count();
+            Printer.PrintMessage("#b#Core Metadata Stats:##");
+            Printer.PrintMessage("  #b#{0}## Versions", vcount);
+            Printer.PrintMessage("  #b#{0}## Branches", Database.Table<Objects.Branch>().Count());
+            Printer.PrintMessage("  #b#{0}## Records", Database.Table<Objects.Record>().Count());
+            Printer.PrintMessage("  #b#{0}## Alterations", Database.Table<Objects.Alteration>().Count());
+            Printer.PrintMessage("  #b#{0}## Branch Journal Entries", Database.Table<Objects.BranchJournal>().Count());
+
+            long additions = 0;
+            long updates = 0;
+            long deletions = 0;
+            foreach (var x in Database.Table<Objects.Version>())
+            {
+                var alterations = GetAlterations(x);
+                foreach (var y in alterations)
+                {
+                    if (y.Type == AlterationType.Add || y.Type == AlterationType.Copy)
+                        additions++;
+                    else if (y.Type == AlterationType.Move || y.Type == AlterationType.Update)
+                        updates++;
+                    else if (y.Type == AlterationType.Delete)
+                        deletions++;
+                }
+            }
+            Printer.PrintMessage("\nAn #c#average## commit has:");
+            Printer.PrintMessage("  #b#{0:N2}## Updates", updates / (double)vcount);
+            Printer.PrintMessage("  #s#{0:N2}## Additions", additions / (double)vcount);
+            Printer.PrintMessage("  #e#{0:N2}## Deletions", deletions / (double)vcount);
+
+            List<long> churnCount = new List<long>();
+            List<Record> records = new List<Record>();
+            foreach (var x in Database.Table<Objects.Record>())
+            {
+                records.Add(x);
+                while (x.CanonicalNameId >= churnCount.Count)
+                    churnCount.Add(0);
+                churnCount[(int)x.CanonicalNameId]++;
+            }
+            var top = churnCount.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
+            Printer.PrintMessage("\nFiles with the #b#most## churn:");
+            foreach (var x in top)
+            {
+                Printer.PrintMessage("  #b#{0}##: #c#{1}## stored revisions.", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, x.Item2);
+            }
+            HashSet<long> ids = new HashSet<long>();
+            var largest = records.OrderByDescending(x => x.Size).Where(x => !ids.Contains(x.CanonicalNameId)).Take(10);
+            Printer.PrintMessage("\n#b#Largest## files:");
+            foreach (var x in largest)
+            {
+                ids.Add(x.CanonicalNameId);
+                Printer.PrintMessage("  #b#{0}##: {1}", Database.Get<Objects.ObjectName>(x.CanonicalNameId).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Size));
+            }
+            List<long> objectSize = new List<long>();
+            foreach (var x in records)
+            {
+                while (x.CanonicalNameId >= objectSize.Count)
+                    objectSize.Add(0);
+                objectSize[(int)x.CanonicalNameId] += x.Size;
+            }
+            top = objectSize.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
+            Printer.PrintMessage("\n#b#Largest## committed size:");
+            foreach (var x in top)
+            {
+                Printer.PrintMessage("  #b#{0}##: {1} total", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2));
+            }
+            List<long> allocatedSize = new List<long>();
+            foreach (var x in records)
+            {
+                while (x.CanonicalNameId >= allocatedSize.Count)
+                    allocatedSize.Add(0);
+                var info = ObjectStore.GetInfo(x);
+                if (info != null)
+                    allocatedSize[(int)x.CanonicalNameId] += info.AllocatedSize;
+            }
+            top = allocatedSize.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
+            Printer.PrintMessage("\nMost #b#allocated object size##:");
+            foreach (var x in top)
+            {
+                Printer.PrintMessage("  #b#{0}##: {1} total", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2));
+            }
+            var ratios = allocatedSize.SelectIndexed().Where(x => x.Item2 != 0).Select(x => new Tuple<int, double>(x.Item1, x.Item2 / (double)objectSize[x.Item1]));
+            Printer.PrintMessage("\n#s#Best## compression:");
+            foreach (var x in ratios.OrderBy(x => x.Item2).Take(10))
+            {
+                Printer.PrintMessage("  #b#{0}##: {1} -> {2} ({3:N2}% over {4} versions)", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName,
+                    Versionr.Utilities.Misc.FormatSizeFriendly(objectSize[x.Item1]),
+                    Versionr.Utilities.Misc.FormatSizeFriendly(allocatedSize[x.Item1]),
+                    x.Item2 * 100.0,
+                    churnCount[x.Item1]);
+            }
+            Printer.PrintMessage("\n#e#Worst## compression:");
+            foreach (var x in ratios.Where(x => allocatedSize[x.Item1] > 1024).OrderByDescending(x => x.Item2).Take(10))
+            {
+                Printer.PrintMessage("  #b#{0}##: {1} -> {2} ({3:N2}% over {4} versions)", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName,
+                    Versionr.Utilities.Misc.FormatSizeFriendly(objectSize[x.Item1]),
+                    Versionr.Utilities.Misc.FormatSizeFriendly(allocatedSize[x.Item1]),
+                    x.Item2 * 100.0,
+                    churnCount[x.Item1]);
+            }
+        }
+
+        private void PrintObjectStats(ObjectName nameObject)
+        {
+            Printer.PrintMessage("Stats for #b#{0}##:", nameObject.CanonicalName);
+            List<Objects.Record> records = Database.Table<Objects.Record>().Where(x => x.CanonicalNameId == nameObject.NameId).ToList();
+            HashSet<long> revisions = new HashSet<long>();
+            foreach (var x in records)
+                revisions.Add(x.Id);
+
+            foreach (var x in records)
+            {
+                if (x.Parent == null)
+                {
+                    var alteration = Database.Table<Objects.Alteration>().Where(y => y.NewRecord == x.Id).First();
+                    var version = Database.Table<Objects.Version>().Where(y => y.AlterationList == alteration.Owner).First();
+                    Printer.PrintMessage("Object initially added in version #c#{0}##.", version.ShortName);
+                    break;
+                }
+                else if (!revisions.Contains(x.Parent.Value))
+                {
+                    var alteration = Database.Table<Objects.Alteration>().Where(y => y.NewRecord == x.Id).First();
+                    var version = Database.Table<Objects.Version>().Where(y => y.AlterationList == alteration.Owner).First();
+                    var prior = Database.Table<Objects.Record>().Where(y => y.Id == x.Parent.Value).First();
+                    Printer.PrintMessage("Object initially copied from #b#{1}## in version #c#{0}##.", version.ShortName, Database.Get<ObjectName>(prior.CanonicalNameId).CanonicalName);
+                }
+            }
+
+            Printer.PrintMessage("#b#{0}## records in vault.", records.Count);
+            Printer.PrintMessage("  #b#Earliest:## {0}", new DateTime(records.Min(x => x.ModificationTime.ToLocalTime().Ticks)));
+            Printer.PrintMessage("  #b#Latest:## {0}", new DateTime(records.Max(x => x.ModificationTime.ToLocalTime().Ticks)));
+            Printer.PrintMessage("  #b#Size:## Min {0}, Max: {1}, Av: {2}",
+                Versionr.Utilities.Misc.FormatSizeFriendly(records.Min(x => x.Size)),
+                Versionr.Utilities.Misc.FormatSizeFriendly(records.Max(x => x.Size)),
+                Versionr.Utilities.Misc.FormatSizeFriendly((long)records.Average(x => x.Size)));
+            Printer.PrintMessage("  #b#Total Bytes:## {0}", Versionr.Utilities.Misc.FormatSizeFriendly(records.Sum(x => x.Size)));
+            var objstoreinfo = records.Select(x => new Tuple<Record, ObjectStore.RecordInfo>(x, ObjectStore.GetInfo(x))).Where(x => x.Item2 != null).ToList();
+            Printer.PrintMessage("\n#b#{0}## objects stored.", objstoreinfo.Count);
+            Printer.PrintMessage("  #b#Total Allocated:## {0}", Versionr.Utilities.Misc.FormatSizeFriendly(objstoreinfo.Sum(x => x.Item2.AllocatedSize)));
+            Printer.PrintMessage("  #b#Compression Ratio:## {0:N2}%", 100.0 * objstoreinfo.Average(x => (double)x.Item2.AllocatedSize / x.Item1.Size));
+
+            int deltas = objstoreinfo.Count(x => x.Item2.DeltaCompressed);
+            Printer.PrintMessage("  #b#Delta Count:## {0} ({1:N2}%)", deltas, 100.0 * deltas / (double)objstoreinfo.Count);
+
+            if (deltas != objstoreinfo.Count)
+                Printer.PrintMessage("  #b#Average snapshot size:## {0}", Versionr.Utilities.Misc.FormatSizeFriendly((long)objstoreinfo.Where(x => !x.Item2.DeltaCompressed).Average(x => x.Item2.AllocatedSize)));
+            if (deltas != 0)
+                Printer.PrintMessage("  #b#Average delta size:## {0}", Versionr.Utilities.Misc.FormatSizeFriendly((long)objstoreinfo.Where(x => x.Item2.DeltaCompressed).Average(x => x.Item2.AllocatedSize)));
+        }
+
         public FileInfo MetadataFile
         {
             get

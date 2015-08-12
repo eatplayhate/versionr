@@ -81,6 +81,8 @@ namespace Versionr
 		public Commands.ListBranchVerbOptions ListBranchVerb { get; set; }
 		[VerbOption("deletebranch", HelpText = "Deletes a branch in the vault.")]
 		public Commands.DeleteBranchVerbOptions DeleteBranchVerb { get; set; }
+		[VerbOption("stats", HelpText = "Displays statistics.")]
+		public Commands.StatsVerbOptions StatsVerb { get; set; }
 
 		[HelpOption]
         public string GetUsage()
@@ -165,6 +167,8 @@ namespace Versionr
                 return ListBranchVerb.GetUsage();
             else if (verb == "deletebranch")
                 return DeleteBranchVerb.GetUsage();
+            else if (verb == "stats")
+                return StatsVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -245,13 +249,18 @@ namespace Versionr
             commands["renamebranch"] = new Commands.RenameBranch();
             commands["listbranch"] = new Commands.ListBranch();
             commands["deletebranch"] = new Commands.DeleteBranch();
+            commands["stats"] = new Commands.Stats();
 
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
-                printerStream.Flush();
-                System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
-                Environment.Exit(10);
+                command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
+                if (command == null)
+                {
+                    printerStream.Flush();
+                    System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
+                    Environment.Exit(10);
+                }
             }
             try
             {

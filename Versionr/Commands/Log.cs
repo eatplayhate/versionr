@@ -137,7 +137,7 @@ namespace Versionr.Commands
 
 			var enumeration = history
 				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, FilterAlterations(x)))
-				.Where(x => x.Item2.Any());
+				.Where(x => x.Item2.Any() || (x.Item1.Parent == null && localOptions.Objects.Count == 0));
 
 			if (localOptions.Limit == -1)
                 localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;

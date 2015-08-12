@@ -840,6 +840,11 @@ namespace Versionr.ObjectStore
                 return 0;
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            return GetTransmissionLengthInternal(storeData);
+        }
+
+        private long GetTransmissionLengthInternal(FileObjectStoreData storeData)
+        {
             if (storeData.BlobID.HasValue)
                 return BlobDatabase.Get<Blobsize>(x => x.BlobID == storeData.BlobID.Value).Length;
             return GetFileForDataID(storeData.Lookup).Length;
@@ -1034,6 +1039,27 @@ namespace Versionr.ObjectStore
         private string GetLookup(Record record)
         {
             return record.Fingerprint + "-" + record.Size.ToString();
+        }
+
+        internal override RecordInfo GetInfo(Record x)
+        {
+            if (!x.HasData)
+            {
+                return new RecordInfo()
+                {
+                    AllocatedSize = 0,
+                    DeltaCompressed = false
+                };
+            }
+            string lookup = GetLookup(x);
+            var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            if (storeData == null)
+                return null;
+            return new RecordInfo()
+            {
+                AllocatedSize = GetTransmissionLengthInternal(storeData),
+                DeltaCompressed = storeData.Mode == StorageMode.Delta
+            };
         }
     }
 }

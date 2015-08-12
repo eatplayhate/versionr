@@ -40,7 +40,7 @@ namespace Versionr.Network
             AuthEntry result = null;
             if (SimpleAuthentication != null && SimpleAuthentication.Users.TryGetValue(identifierToken, out result))
                 return result;
-            return null;
+            return SimpleAuthentication.Users.Where(x => x.Key.Equals(identifierToken, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
         }
     }
 }
