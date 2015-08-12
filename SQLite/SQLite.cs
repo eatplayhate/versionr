@@ -3101,14 +3101,14 @@ namespace SQLite
 			return q;
 		}
 
-		private SQLiteCommand GenerateCommand (string selectionList)
+		private SQLiteCommand GenerateCommand (string selectionList, bool norowid = false)
 		{
 			if (_joinInner != null && _joinOuter != null) {
 				throw new NotSupportedException ("Joins are not supported.");
 			}
 			else {
                 string cmdText;
-                if (Table.WantsRowID)
+                if (Table.WantsRowID && !norowid)
     				cmdText = "select rowid, " + selectionList + " from \"" + Table.TableName + "\"";
                 else
                     cmdText = "select " + selectionList + " from \"" + Table.TableName + "\"";
@@ -3369,7 +3369,7 @@ namespace SQLite
 		
 		public int Count ()
 		{
-			return GenerateCommand("count(*)").ExecuteScalar<int> ();			
+			return GenerateCommand("count(*)", true).ExecuteScalar<int> ();			
 		}
 
 		public int Count (Expression<Func<T, bool>> predExpr)
