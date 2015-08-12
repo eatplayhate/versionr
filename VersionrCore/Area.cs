@@ -136,10 +136,14 @@ namespace Versionr
             long snapSize = 0;
             long deltaCount = 0;
             long deltaSize = 0;
+            HashSet<long> objectIDs = new HashSet<long>();
             foreach (var x in recordInfoMap)
             {
                 if (x.Value != null)
                 {
+                    if (objectIDs.Contains(x.Value.ID))
+                        continue;
+                    objectIDs.Add(x.Value.ID);
                     if (x.Value.DeltaCompressed)
                     {
                         deltaCount++;

@@ -80,6 +80,8 @@ namespace Versionr.ObjectStore
         public Guid? PackFileID { get; set; }
         public string DeltaBase { get; set; }
         public long? BlobID { get; set; }
+        [SQLite.LoadOnly, SQLite.Column("rowid")]
+        public uint ID { get; set; }
     }
     public class StandardObjectStoreMetadata
     {
@@ -1048,7 +1050,8 @@ namespace Versionr.ObjectStore
                 return new RecordInfo()
                 {
                     AllocatedSize = 0,
-                    DeltaCompressed = false
+                    DeltaCompressed = false,
+                    ID = -1,
                 };
             }
             string lookup = GetLookup(x);
@@ -1058,7 +1061,8 @@ namespace Versionr.ObjectStore
             return new RecordInfo()
             {
                 AllocatedSize = GetTransmissionLengthInternal(storeData),
-                DeltaCompressed = storeData.Mode == StorageMode.Delta
+                DeltaCompressed = storeData.Mode == StorageMode.Delta,
+                ID = storeData.ID
             };
         }
 
