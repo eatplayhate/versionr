@@ -1061,5 +1061,10 @@ namespace Versionr.ObjectStore
                 DeltaCompressed = storeData.Mode == StorageMode.Delta
             };
         }
+
+        internal override long GetEntryCount()
+        {
+            return ObjectDatabase.Table<FileObjectStoreData>().Count();
+        }
     }
 }

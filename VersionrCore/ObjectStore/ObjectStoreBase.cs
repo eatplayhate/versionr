@@ -35,5 +35,6 @@ namespace Versionr.ObjectStore
         public abstract void WriteRecordStream(Record rec, System.IO.Stream outputStream);
         public abstract bool HasDataDirect(string x);
         internal abstract RecordInfo GetInfo(Record x);
+        internal abstract long GetEntryCount();
     }
 }

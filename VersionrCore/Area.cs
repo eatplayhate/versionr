@@ -121,14 +121,42 @@ namespace Versionr
                 Printer.PrintMessage("  #b#{0}##: {1} total", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2));
             }
             List<long> allocatedSize = new List<long>();
+            Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
             foreach (var x in records)
             {
                 while (x.CanonicalNameId >= allocatedSize.Count)
                     allocatedSize.Add(0);
                 var info = ObjectStore.GetInfo(x);
+                recordInfoMap[x] = info;
                 if (info != null)
                     allocatedSize[(int)x.CanonicalNameId] += info.AllocatedSize;
             }
+            long objectEntries = ObjectStore.GetEntryCount();
+            long snapCount = 0;
+            long snapSize = 0;
+            long deltaCount = 0;
+            long deltaSize = 0;
+            foreach (var x in recordInfoMap)
+            {
+                if (x.Value != null)
+                {
+                    if (x.Value.DeltaCompressed)
+                    {
+                        deltaCount++;
+                        deltaSize += x.Value.AllocatedSize;
+                    }
+                    else
+                    {
+                        snapCount++;
+                        snapSize += x.Value.AllocatedSize;
+                    }
+                }
+            }
+            Printer.PrintMessage("\n#b#Core Object Store Stats:##");
+            Printer.PrintMessage("  #b#{0}## Entries", objectEntries);
+            Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
+            Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
+
             top = allocatedSize.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
             Printer.PrintMessage("\nMost #b#allocated object size##:");
             foreach (var x in top)
