@@ -93,7 +93,7 @@ namespace Versionr
                     churnCount.Add(0);
                 churnCount[(int)x.CanonicalNameId]++;
             }
-            var top = churnCount.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
+            var top = churnCount.SelectIndexed().OrderByDescending(x => x.Item2).Take(20);
             Printer.PrintMessage("\nFiles with the #b#most## churn:");
             foreach (var x in top)
             {
