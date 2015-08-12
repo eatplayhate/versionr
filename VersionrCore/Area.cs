@@ -153,7 +153,7 @@ namespace Versionr
                 }
             }
             Printer.PrintMessage("\n#b#Core Object Store Stats:##");
-            Printer.PrintMessage("  #b#{0}## Entries", objectEntries);
+            Printer.PrintMessage("  #b#{0}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)records.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
 
