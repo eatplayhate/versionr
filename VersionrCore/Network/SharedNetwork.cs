@@ -525,46 +525,36 @@ namespace Versionr.Network
                 return true;
             lock (sharedInfo.Workspace)
             {
-                try
+                Printer.InteractivePrinter printer = null;
+                System.Diagnostics.Stopwatch sw = null;
+                long nextUpdate = 400;
+                if (enablePrinter)
                 {
-                    Printer.InteractivePrinter printer = null;
-                    System.Diagnostics.Stopwatch sw = null;
-                    long nextUpdate = 400;
-                    if (enablePrinter)
+                    sw = new System.Diagnostics.Stopwatch();
+                    sw.Start();
+                    printer = Printer.CreateSpinnerBarPrinter(string.Format("Importing metadata for {0} objects", sharedInfo.UnknownRecords.Count), string.Empty, (object obj) => { return string.Empty; }, 60);
+                }
+                foreach (var x in sharedInfo.UnknownRecords.Select(x => x).Reverse())
+                {
+                    Record rec = sharedInfo.RemoteRecordMap[x];
+                    if (rec.Parent.HasValue)
                     {
-                        sw = new System.Diagnostics.Stopwatch();
-                        sw.Start();
-                        printer = Printer.CreateSpinnerBarPrinter(string.Format("Importing metadata for {0} objects", sharedInfo.UnknownRecords.Count), string.Empty, (object obj) => { return string.Empty; }, 60);
+                        rec.Parent = sharedInfo.LocalRecordMap[rec.Parent.Value].Id;
                     }
-                    sharedInfo.Workspace.BeginDatabaseTransaction();
-                    foreach (var x in sharedInfo.UnknownRecords.Select(x => x).Reverse())
-                    {
-                        Record rec = sharedInfo.RemoteRecordMap[x];
-                        if (rec.Parent.HasValue)
-                        {
-                            rec.Parent = sharedInfo.LocalRecordMap[rec.Parent.Value].Id;
-                        }
-                        sharedInfo.Workspace.ImportRecordNoCommit(rec, false);
-                        sharedInfo.LocalRecordMap[x] = rec;
-                        if (printer != null)
-                        {
-                            if (sw.ElapsedMilliseconds > nextUpdate)
-                            {
-                                nextUpdate = sw.ElapsedMilliseconds + 400;
-                                printer.Update(null);
-                            }
-                        }
-                    }
-                    sharedInfo.Workspace.CommitDatabaseTransaction();
+                    sharedInfo.Workspace.ImportRecordNoCommit(rec, false);
+                    sharedInfo.LocalRecordMap[x] = rec;
                     if (printer != null)
-                        printer.End(null);
-                    return true;
+                    {
+                        if (sw.ElapsedMilliseconds > nextUpdate)
+                        {
+                            nextUpdate = sw.ElapsedMilliseconds + 400;
+                            printer.Update(null);
+                        }
+                    }
                 }
-                catch
-                {
-                    sharedInfo.Workspace.RollbackDatabaseTransaction();
-                    throw;
-                }
+                if (printer != null)
+                    printer.End(null);
+                return true;
             }
         }
 

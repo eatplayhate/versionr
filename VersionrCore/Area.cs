@@ -1305,7 +1305,7 @@ namespace Versionr
             long? present = null;
             if (!KnownCanonicalNames.TryGetValue(newRecord.CanonicalName, out present))
             {
-                ObjectName canonicalNameId = Database.Query<ObjectName>("SELECT * FROM ObjectName WHERE ObjectName.CanonicalName IS '?'", newRecord.CanonicalName).FirstOrDefault();
+                ObjectName canonicalNameId = Database.Query<ObjectName>("SELECT * FROM ObjectName WHERE ObjectName.CanonicalName IS ?", newRecord.CanonicalName).FirstOrDefault();
                 if (canonicalNameId == null)
                 {
                     KnownCanonicalNames[newRecord.CanonicalName] = null;
@@ -1417,7 +1417,7 @@ namespace Versionr
             if (!cnId.HasValue)
             {
                 Retry:
-                ObjectName canonicalNameId = Database.Query<ObjectName>("SELECT * FROM ObjectName WHERE ObjectName.CanonicalName IS '?'", rec.CanonicalName).FirstOrDefault();
+                ObjectName canonicalNameId = Database.Query<ObjectName>("SELECT * FROM ObjectName WHERE CanonicalName IS ?", rec.CanonicalName).FirstOrDefault();
                 if (canonicalNameId == null)
                 {
                     canonicalNameId = new ObjectName() { CanonicalName = rec.CanonicalName };
