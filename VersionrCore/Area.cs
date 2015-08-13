@@ -3044,17 +3044,22 @@ namespace Versionr
             if (version != null)
                 return version;
             List<Objects.Version> potentials;
-            bool postfix = false;
-            if (v.StartsWith("..."))
+            string searchmode = "ID prefix";
+            if (v.StartsWith("%"))
             {
-                postfix = true;
+                searchmode = "revnumber";
+                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE rowid = ?", int.Parse(v.Substring(1))));
+            }
+            else if (v.StartsWith("..."))
+            {
+                searchmode = "ID suffix";
                 potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '%{0}'", v.Substring(3)));
             }
             else
                 potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '{0}%'", v));
             if (potentials.Count > 1)
             {
-                Printer.PrintError("Can't find a unique version with {1}: {0}##\nCould be:", v, postfix ? "postfix" : "prefix");
+                Printer.PrintError("Can't find a unique version with {1}: {0}##\nCould be:", v, searchmode);
                 foreach (var x in potentials)
                     Printer.PrintMessage("\t#b#{0}## - branch: \"#b#{1}##\", {2}", x.ID, Database.Get<Objects.Branch>(x.Branch).Name, x.Timestamp.ToLocalTime());
             }
