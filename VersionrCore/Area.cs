@@ -62,37 +62,54 @@ namespace Versionr
             Printer.PrintMessage("  #b#{0}## Records", Database.Table<Objects.Record>().Count());
             Printer.PrintMessage("  #b#{0}## Alterations", Database.Table<Objects.Alteration>().Count());
             Printer.PrintMessage("  #b#{0}## Branch Journal Entries", Database.Table<Objects.BranchJournal>().Count());
+            
+            List<long> churnCount = new List<long>();
+            List<Record> records = new List<Record>();
+            Dictionary<long, Record> recordMap = new Dictionary<long, Record>();
+            foreach (var x in Database.Table<Objects.Record>())
+            {
+                records.Add(x);
+                recordMap[x.Id] = x;
+                while (x.CanonicalNameId >= churnCount.Count)
+                    churnCount.Add(0);
+                churnCount[(int)x.CanonicalNameId]++;
+            }
 
             long additions = 0;
             long updates = 0;
             long deletions = 0;
+            Dictionary<Guid, long> versionSize = new Dictionary<Guid, long>();
             foreach (var x in Database.Table<Objects.Version>())
             {
+                long totalSize = x.Parent.HasValue ? versionSize[x.Parent.Value] : 0;
                 var alterations = GetAlterations(x);
                 foreach (var y in alterations)
                 {
                     if (y.Type == AlterationType.Add || y.Type == AlterationType.Copy)
+                    {
+                        totalSize += recordMap[y.NewRecord.Value].Size;
                         additions++;
+                    }
                     else if (y.Type == AlterationType.Move || y.Type == AlterationType.Update)
+                    {
+                        totalSize -= recordMap[y.PriorRecord.Value].Size;
                         updates++;
+                        totalSize += recordMap[y.NewRecord.Value].Size;
+                    }
                     else if (y.Type == AlterationType.Delete)
+                    {
+                        totalSize -= recordMap[y.PriorRecord.Value].Size;
                         deletions++;
+                    }
                 }
+                versionSize[x.ID] = totalSize;
             }
             Printer.PrintMessage("\nAn #c#average## commit has:");
             Printer.PrintMessage("  #b#{0:N2}## Updates", updates / (double)vcount);
             Printer.PrintMessage("  #s#{0:N2}## Additions", additions / (double)vcount);
             Printer.PrintMessage("  #e#{0:N2}## Deletions", deletions / (double)vcount);
+            Printer.PrintMessage("And requires #c#{0}## of space.", Versionr.Utilities.Misc.FormatSizeFriendly((long)versionSize.Values.Average()));
 
-            List<long> churnCount = new List<long>();
-            List<Record> records = new List<Record>();
-            foreach (var x in Database.Table<Objects.Record>())
-            {
-                records.Add(x);
-                while (x.CanonicalNameId >= churnCount.Count)
-                    churnCount.Add(0);
-                churnCount[(int)x.CanonicalNameId]++;
-            }
             var top = churnCount.SelectIndexed().OrderByDescending(x => x.Item2).Take(20);
             Printer.PrintMessage("\nFiles with the #b#most## churn:");
             foreach (var x in top)
@@ -118,7 +135,7 @@ namespace Versionr
             Printer.PrintMessage("\n#b#Largest## committed size:");
             foreach (var x in top)
             {
-                Printer.PrintMessage("  #b#{0}##: {1} total", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2));
+                Printer.PrintMessage("  #b#{0}##: {1} total over {2} revisions", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2), churnCount[x.Item1]);
             }
             List<long> allocatedSize = new List<long>();
             Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
@@ -136,6 +153,7 @@ namespace Versionr
             long snapSize = 0;
             long deltaCount = 0;
             long deltaSize = 0;
+            long storedObjectUnpackedSize = 0;
             HashSet<long> objectIDs = new HashSet<long>();
             foreach (var x in recordInfoMap)
             {
@@ -143,6 +161,7 @@ namespace Versionr
                 {
                     if (objectIDs.Contains(x.Value.ID))
                         continue;
+                    storedObjectUnpackedSize += x.Key.Size;
                     objectIDs.Add(x.Value.ID);
                     if (x.Value.DeltaCompressed)
                     {
@@ -160,6 +179,9 @@ namespace Versionr
             Printer.PrintMessage("  #b#{0}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)records.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
+            Printer.PrintMessage("  Unpacked size of all objects: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(storedObjectUnpackedSize));
+            Printer.PrintMessage("  Total size of all records: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(records.Select(x => x.Size).Sum()));
+            Printer.PrintMessage("  Total size of all versions: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(versionSize.Values.Sum()));
 
             top = allocatedSize.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
             Printer.PrintMessage("\nMost #b#allocated object size##:");

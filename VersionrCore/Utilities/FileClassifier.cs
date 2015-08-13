@@ -86,8 +86,9 @@ namespace Versionr.Utilities
             {
                 if (c >= 0xa0 && c <= 0xff)
                     return true;
+                return false;
             }
-            return false;
+            return true;
         }
 
         private static bool InPrintableSet(byte c)
