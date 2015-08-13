@@ -173,10 +173,12 @@ namespace Versionr.Commands
                         Printer.PrintMessage(" <- Merged from {0} on branch {1}", mergeParent.ID, ws.GetBranch(mergeParent.Branch).Name);
                     }
 
-                    Printer.PrintMessage("#b#Author:## {0} #q# {1} ##", v.Author, v.Timestamp.ToLocalTime());
-                    Printer.PrintMessage("#b#Message:##\n{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
+                    Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
+                    Printer.PushIndent();
+                    Printer.PrintMessage("{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
+                    Printer.PopIndent();
 
-					if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
+                    if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
 					{
 						Printer.PrintMessage("#b#Alterations:##");
 						var alterations = localOptions.Detail == LogVerbOptions.DetailMode.Detailed ? x.Item2.Select(z => z.Value) : GetAlterations(v);
