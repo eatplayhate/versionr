@@ -145,6 +145,8 @@ namespace Versionr.Commands
             if (localOptions.Limit != 0)
                 enumeration = enumeration.Take(localOptions.Limit);
 
+            Objects.Version tip = Workspace.Version;
+
             foreach (var x in enumeration.Reverse())
 			{
 				Objects.Version v = x.Item1;
@@ -153,11 +155,17 @@ namespace Versionr.Commands
                     string message = v.Message;
                     if (message == null)
                         message = string.Empty;
-                    Printer.PrintMessage("#c#{0}:## ({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, Workspace.GetBranch(v.Branch).Name);
+                    string tipmarker = " ";
+                    if (v.ID == tip.ID)
+                        tipmarker = "#w#*##";
+                    Printer.PrintMessage("{6}#c#{0}:## ({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, Workspace.GetBranch(v.Branch).Name, tipmarker);
                 }
                 else
                 {
-                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##", v.Revision, v.ID, ws.GetBranch(v.Branch).Name);
+                    string tipmarker = "";
+                    if (v.ID == tip.ID)
+                        tipmarker = " #w#*<current>##";
+                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##{3}", v.Revision, v.ID, ws.GetBranch(v.Branch).Name, tipmarker);
 
                     foreach (var y in ws.GetMergeInfo(v.ID))
                     {
