@@ -139,11 +139,14 @@ namespace Versionr
             }
             List<long> allocatedSize = new List<long>();
             Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
+            long missingData = 0;
             foreach (var x in records)
             {
                 while (x.CanonicalNameId >= allocatedSize.Count)
                     allocatedSize.Add(0);
                 var info = ObjectStore.GetInfo(x);
+                if (info == null && x.HasData)
+                    missingData++;
                 recordInfoMap[x] = info;
                 if (info != null)
                     allocatedSize[(int)x.CanonicalNameId] += info.AllocatedSize;
@@ -176,6 +179,7 @@ namespace Versionr
                 }
             }
             Printer.PrintMessage("\n#b#Core Object Store Stats:##");
+            Printer.PrintMessage("  Missing data for #b#{0} ({1:N2}%)## records.", missingData, 100.0 * missingData / (double)records.Count);
             Printer.PrintMessage("  #b#{0}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)records.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
