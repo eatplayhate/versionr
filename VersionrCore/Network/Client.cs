@@ -363,8 +363,12 @@ namespace Versionr.Network
 
         private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo)
         {
-            SharedNetwork.ImportRecords(sharedInfo, true);
-
+            bool importResult = sharedInfo.Workspace.RunLocked(() =>
+            {
+                return SharedNetwork.ImportRecords(sharedInfo, true);
+            }, false);
+            if (!importResult)
+                return false;
             return sharedInfo.Workspace.RunLocked(() =>
             {
                 lock (sharedInfo.Workspace)

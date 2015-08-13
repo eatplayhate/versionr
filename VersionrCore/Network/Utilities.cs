@@ -21,6 +21,7 @@ namespace Versionr.Network
             XXHash,
             Adler32,
             MurMur3,
+            Default = Adler32
         }
         [ProtoBuf.ProtoContract]
         public class Packet
@@ -96,7 +97,7 @@ namespace Versionr.Network
                 result = memoryStream.ToArray();
             }
 
-            ChecksumCodec ccode = ChecksumCodec.MurMur3;
+            ChecksumCodec ccode = info.ChecksumType;
             uint checksum = 0;
             if (ccode == ChecksumCodec.XXHash)
                 checksum = ComputeChecksumXXHash(result);

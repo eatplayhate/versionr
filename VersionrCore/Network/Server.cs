@@ -164,6 +164,7 @@ namespace Versionr.Network
                         }
                         sharedInfo.Stream = stream;
                         sharedInfo.Workspace = ws;
+                        sharedInfo.ChecksumType = Config.ChecksumType;
 
                         clientInfo.SharedInfo = sharedInfo;
 
@@ -317,7 +318,11 @@ namespace Versionr.Network
                                     SharedNetwork.RequestRecordMetadata(clientInfo.SharedInfo);
                                     Printer.PrintDiagnostics("Requesting record data...");
                                     SharedNetwork.RequestRecordData(sharedInfo);
-                                    SharedNetwork.ImportRecords(sharedInfo);
+                                    if (!sharedInfo.Workspace.RunLocked(() =>
+                                    {
+                                        return SharedNetwork.ImportRecords(sharedInfo);
+                                    }, false))
+                                        throw new Exception("Unable to import records!");
                                 }
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                             }

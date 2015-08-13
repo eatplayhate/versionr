@@ -63,7 +63,7 @@ namespace Versionr.Commands
 
                 if (localOptions.Update)
                 {
-                    client.Pull(true, string.IsNullOrEmpty(localOptions.Branch) ? client.Workspace.CurrentBranch.ID.ToString() : localOptions.Branch);
+                    client.Pull(false, string.IsNullOrEmpty(localOptions.Branch) ? client.Workspace.CurrentBranch.ID.ToString() : localOptions.Branch);
                     Area area = Area.Load(client.Workspace.Root);
                     area.Checkout(localOptions.Branch, false);
                 }

@@ -42,6 +42,7 @@ namespace Versionr.Network
 
         internal class SharedNetworkInfo : IDisposable
         {
+            public Utilities.ChecksumCodec ChecksumType { get; set; }
             public Protocol CommunicationProtocol { get; set; }
             public bool Client { get; set; }
             public Func<ICryptoTransform> EncryptorFunction { get; set; }
@@ -91,6 +92,7 @@ namespace Versionr.Network
                 ReceivedBranchJournals = new List<BranchJournalPack>();
                 LZHLCompressor = Versionr.Utilities.LZHL.CreateCompressor();
                 LZHLDecompressor = Versionr.Utilities.LZHL.CreateDecompressor();
+                ChecksumType = Utilities.ChecksumCodec.Default;
             }
 
             #region IDisposable Support
@@ -304,6 +306,7 @@ namespace Versionr.Network
         {
             try
             {
+                int ackCount = 0;
                 byte[] tempBuffer = new byte[16 * 1024 * 1024];
                 if (versionsToSend.Count == 0)
                 {
@@ -325,6 +328,10 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushVersions }, ProtoBuf.PrefixStyle.Fixed32);
                     VersionPack pack = CreatePack(sharedInfo, versionData);
                     Utilities.SendEncrypted(sharedInfo, pack);
+                    ackCount++;
+                }
+                while (ackCount-- > 0)
+                {
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (response.Type != NetCommandType.Acknowledge)
                         return false;
@@ -537,7 +544,7 @@ namespace Versionr.Network
                         {
                             rec.Parent = sharedInfo.LocalRecordMap[rec.Parent.Value].Id;
                         }
-                        sharedInfo.Workspace.ImportRecordNoCommit(rec);
+                        sharedInfo.Workspace.ImportRecordNoCommit(rec, false);
                         sharedInfo.LocalRecordMap[x] = rec;
                         if (printer != null)
                         {
@@ -827,8 +834,6 @@ namespace Versionr.Network
                         sharedInfo.Workspace.ObjectStore.AbortStorageTransaction(transaction);
                         throw;
                     }
-                    if (printer != null)
-                        printer.Update(status);
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
             }

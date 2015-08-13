@@ -1275,11 +1275,7 @@ namespace Versionr
 
         public Objects.Record GetRecord(long id)
         {
-            Objects.Record rec = Database.Find<Objects.Record>(id);
-            if (rec != null)
-            {
-                rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
-            }
+            Objects.Record rec = Database.Query<Objects.Record>("SELECT * FROM ObjectName INNER JOIN (SELECT Record.* FROM Record WHERE Record.Id = ?) AS results ON ObjectName.NameId = results.CanonicalNameId", id).FirstOrDefault();
             return rec;
         }
 
@@ -1305,7 +1301,7 @@ namespace Versionr
             long? present = null;
             if (!KnownCanonicalNames.TryGetValue(newRecord.CanonicalName, out present))
             {
-                ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == newRecord.CanonicalName);
+                ObjectName canonicalNameId = Database.Query<ObjectName>("SELECT * FROM ObjectName WHERE ObjectName.CanonicalName IS '?'", newRecord.CanonicalName).FirstOrDefault();
                 if (canonicalNameId == null)
                 {
                     KnownCanonicalNames[newRecord.CanonicalName] = null;
@@ -1401,20 +1397,23 @@ namespace Versionr
             Database.Commit();
         }
 
-        internal void ImportRecordNoCommit(Record rec)
+        internal void ImportRecordNoCommit(Record rec, bool checkduplicates = true)
         {
-            Record r1 = LocateRecord(rec);
-            if (r1 != null)
+            if (checkduplicates)
             {
-                rec.Id = r1.Id;
-                return;
+                Record r1 = LocateRecord(rec);
+                if (r1 != null)
+                {
+                    rec.Id = r1.Id;
+                    return;
+                }
             }
             long? cnId = null;
             KnownCanonicalNames.TryGetValue(rec.CanonicalName, out cnId);
             if (!cnId.HasValue)
             {
                 Retry:
-                ObjectName canonicalNameId = Database.Find<ObjectName>(x => x.CanonicalName == rec.CanonicalName);
+                ObjectName canonicalNameId = Database.Query<ObjectName>("SELECT * FROM ObjectName WHERE ObjectName.CanonicalName IS '?'", rec.CanonicalName).FirstOrDefault();
                 if (canonicalNameId == null)
                 {
                     canonicalNameId = new ObjectName() { CanonicalName = rec.CanonicalName };
@@ -3150,7 +3149,8 @@ namespace Versionr
 			List<Record> pendingSymlinks = new List<Record>();
 
             Printer.InteractivePrinter printer = null;
-            if (targetRecords.Count > 0)
+            long totalSize = targetRecords.Sum(x => x.Size);
+            if (targetRecords.Count > 0 && totalSize > 0)
             {
                 printer = Printer.CreateProgressBarPrinter(
                 string.Empty,
@@ -3161,7 +3161,7 @@ namespace Versionr
                 },
                 (obj) =>
                 {
-                    return 100.0f * (int)obj / targetRecords.Count;
+                    return (float)(100.0f * (long)obj / (double)totalSize);
                 },
                 (pct, obj) =>
                 {
@@ -3169,7 +3169,7 @@ namespace Versionr
                 },
                 65);
             }
-            int count = 0;
+            long count = 0;
             ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
 			foreach (var x in CheckoutOrder(targetRecords))
 			{
@@ -3193,9 +3193,9 @@ namespace Versionr
                         tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => {
                             RestoreRecord(x, newRefTime, null, updatedTimestamps, (created, name) =>
                             {
-                                Printer.PrintMessage("#b#{0}##: {1}", created ? "Created" : "Updated", name);
+                                //Printer.PrintMessage("#b#{0}##: {1}", created ? "Created" : "Updated", name);
                                 if (printer != null)
-                                    printer.Update(System.Threading.Interlocked.Increment(ref count));
+                                    printer.Update(System.Threading.Interlocked.Add(ref count, x.Size));
                             });
                         }));
                     }
@@ -3311,7 +3311,7 @@ namespace Versionr
 				}
 			}
             if (printer != null)
-                printer.End(targetRecords.Count);
+                printer.End(totalSize);
 
             ReferenceTime = newRefTime;
             LocalData.BeginTransaction();
