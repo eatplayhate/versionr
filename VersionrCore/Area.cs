@@ -3144,7 +3144,10 @@ namespace Versionr
 			List<Task> tasks = new List<Task>();
 			List<Record> pendingSymlinks = new List<Record>();
 
-            Printer.InteractivePrinter printer = Printer.CreateProgressBarPrinter(
+            Printer.InteractivePrinter printer = null;
+            if (targetRecords.Count > 0)
+            {
+                printer = Printer.CreateProgressBarPrinter(
                 string.Empty,
                 "Progress",
                 (obj) =>
@@ -3160,6 +3163,7 @@ namespace Versionr
                     return string.Format("{0:N2}%", pct);
                 },
                 65);
+            }
             int count = 0;
             ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
 			foreach (var x in CheckoutOrder(targetRecords))
@@ -3185,7 +3189,8 @@ namespace Versionr
                             RestoreRecord(x, newRefTime, null, updatedTimestamps, (created, name) =>
                             {
                                 Printer.PrintMessage("#b#{0}##: {1}", created ? "Created" : "Updated", name);
-                                printer.Update(System.Threading.Interlocked.Increment(ref count));
+                                if (printer != null)
+                                    printer.Update(System.Threading.Interlocked.Increment(ref count));
                             });
                         }));
                     }
@@ -3300,7 +3305,8 @@ namespace Versionr
 					}
 				}
 			}
-            printer.End(targetRecords.Count);
+            if (printer != null)
+                printer.End(targetRecords.Count);
 
             ReferenceTime = newRefTime;
             LocalData.BeginTransaction();
