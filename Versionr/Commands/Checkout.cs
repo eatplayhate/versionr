@@ -67,7 +67,7 @@ namespace Versionr.Commands
             }
             if (localOptions.Partial != null)
                 Workspace.SetPartialPath(localOptions.Partial);
-            Workspace.Checkout(target, localOptions.Purge);
+            Workspace.Checkout(target, localOptions.Purge, false);
 			return true;
         }
     }

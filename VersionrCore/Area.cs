@@ -273,7 +273,7 @@ namespace Versionr
         public void Update(string updateTarget = null)
         {
             Merge(string.IsNullOrEmpty(updateTarget) ? CurrentBranch.ID.ToString() : updateTarget, true, false);
-            ProcessExterns();
+            ProcessExterns(true);
         }
 
         public FileInfo LocalMetadataFile
@@ -2898,7 +2898,7 @@ namespace Versionr
             }
         }
 
-        public void Checkout(string v, bool purge)
+        public void Checkout(string v, bool purge, bool verbose)
         {
             Objects.Version target = null;
             if (!string.IsNullOrEmpty(v))
@@ -2922,7 +2922,7 @@ namespace Versionr
             if (target == null)
                 target = Database.Get<Objects.Version>(GetBranchHead(Database.Branch).Version);
             CleanStage();
-            CheckoutInternal(target);
+            CheckoutInternal(target, verbose);
 
 			if (purge)
 				Purge();
@@ -3134,7 +3134,7 @@ namespace Versionr
 			}
 		}
 
-		private void CheckoutInternal(Objects.Version tipVersion)
+		private void CheckoutInternal(Objects.Version tipVersion, bool verbose)
         {
             List<Record> records = Database.Records;
             
@@ -3174,6 +3174,13 @@ namespace Versionr
                 65);
             }
             long count = 0;
+            Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
+            {
+                if (verbose)
+                    Printer.PrintMessage("#b#{0}{2}##: {1}", created ? "Created" : "Updated", name, rec.IsDirectory ? " directory" : "");
+                if (printer != null)
+                    printer.Update(System.Threading.Interlocked.Add(ref count, rec.Size));
+            };
             ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
 			foreach (var x in CheckoutOrder(targetRecords))
 			{
@@ -3181,26 +3188,21 @@ namespace Versionr
                 if (x.IsDirectory)
                 {
                     System.Threading.Interlocked.Increment(ref count);
-                    RestoreRecord(x, newRefTime);
+                    RestoreRecord(x, newRefTime, null, null, feedback);
                 }
                 else if (x.IsFile)
                 {
                     if (x.IsDirective)
                     {
                         System.Threading.Interlocked.Increment(ref count);
-                        RestoreRecord(x, newRefTime);
+                        RestoreRecord(x, newRefTime, null, null, feedback);
                         LoadDirectives();
                     }
                     else
                     {
                         //RestoreRecord(x, newRefTime);
                         tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => {
-                            RestoreRecord(x, newRefTime, null, updatedTimestamps, (created, name) =>
-                            {
-                                //Printer.PrintMessage("#b#{0}##: {1}", created ? "Created" : "Updated", name);
-                                if (printer != null)
-                                    printer.Update(System.Threading.Interlocked.Add(ref count, x.Size));
-                            });
+                            RestoreRecord(x, newRefTime, null, updatedTimestamps, feedback);
                         }));
                     }
 
@@ -3209,7 +3211,7 @@ namespace Versionr
                 {
                     try
                     {
-                        RestoreRecord(x, newRefTime);
+                        RestoreRecord(x, newRefTime, null, null, feedback);
                         System.Threading.Interlocked.Increment(ref count);
                     }
                     catch (Utilities.Symlink.TargetNotFoundException e)
@@ -3244,7 +3246,7 @@ namespace Versionr
 				{
 					try
 					{
-						RestoreRecord(x, newRefTime);
+						RestoreRecord(x, newRefTime, null, null, feedback);
 						done.Add(x);
 						Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
 					}
@@ -3273,7 +3275,8 @@ namespace Versionr
 						{
 							RemoveFileTimeCache(x.CanonicalName);
 							System.IO.File.Delete(path);
-							Printer.PrintMessage("Deleted {0}", x.CanonicalName);
+                            if (verbose)
+    							Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
 						}
 						catch
 						{
@@ -3289,7 +3292,8 @@ namespace Versionr
 						try
 						{
 							Utilities.Symlink.Delete(path);
-							Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
+                            if (verbose)
+                                Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
 						}
 						catch (Exception e)
 						{
@@ -3332,10 +3336,10 @@ namespace Versionr
                 throw new Exception("Couldn't update local information!", e);
             }
 
-            ProcessExterns();
+            ProcessExterns(verbose);
         }
 
-        private void ProcessExterns()
+        private void ProcessExterns(bool verbose)
         {
             foreach (var x in Directives.Externals)
             {
@@ -3392,7 +3396,7 @@ namespace Versionr
                     external.SetRemote(result.Item2, result.Item3, "default");
                     if (fresh)
                     {
-                        external.Checkout(x.Value.Target, false);
+                        external.Checkout(x.Value.Target, false, verbose);
                     }
                     else
                     {
@@ -3407,7 +3411,7 @@ namespace Versionr
                                 if (external.Status.HasModifications(false))
                                     Printer.PrintError("#x#Error:##\n  Extern #c#{0}## can't switch to branch \"#b#{1}##\", due to local modifications.", x.Key, externBranch.Name);
                                 else
-                                    external.Checkout(externBranch.ID.ToString(), false);
+                                    external.Checkout(externBranch.ID.ToString(), false, verbose);
                             }
                         }
                         else
@@ -3422,7 +3426,7 @@ namespace Versionr
                                     if (external.Status.HasModifications(false))
                                         Printer.PrintError("#x#Error:##\n  Extern #c#{0}## can't switch to version \"#b#{1}##\", due to local modifications.", x.Key, externVersion.ID);
                                     else
-                                        external.Checkout(externVersion.ID.ToString(), false);
+                                        external.Checkout(externVersion.ID.ToString(), false, verbose);
                                 }
                             }
                         }
@@ -4007,7 +4011,7 @@ namespace Versionr
             }
         }
 
-        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<bool, string> feedback = null)
+        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<bool, string, Objects.Record> feedback = null)
         {
 			if (rec.IsSymlink)
 			{
@@ -4028,7 +4032,10 @@ namespace Versionr
                 DirectoryInfo directory = new DirectoryInfo(GetRecordPath(rec));
                 if (!directory.Exists)
                 {
-                    Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
+                    if (feedback == null)
+                        Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
+                    else
+                        feedback(true, GetLocalCanonicalName(rec), rec);
                     directory.Create();
                     ApplyAttributes(directory, referenceTime, rec);
                 }
@@ -4058,7 +4065,7 @@ namespace Versionr
                     if (feedback == null)
                         Printer.PrintMessage("Updating {0}", GetLocalCanonicalName(rec));
                     else
-                        feedback(false, GetLocalCanonicalName(rec));
+                        feedback(false, GetLocalCanonicalName(rec), rec);
                 }
             }
             else if (overridePath == null)
@@ -4066,7 +4073,7 @@ namespace Versionr
                 if (feedback == null)
                     Printer.PrintMessage("Creating {0}", GetLocalCanonicalName(rec));
                 else
-                    feedback(true, GetLocalCanonicalName(rec));
+                    feedback(true, GetLocalCanonicalName(rec), rec);
             }
             int retries = 0;
         Retry:

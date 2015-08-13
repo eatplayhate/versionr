@@ -65,7 +65,7 @@ namespace Versionr.Commands
                 {
                     client.Pull(false, string.IsNullOrEmpty(localOptions.Branch) ? client.Workspace.CurrentBranch.ID.ToString() : localOptions.Branch);
                     Area area = Area.Load(client.Workspace.Root);
-                    area.Checkout(localOptions.Branch, false);
+                    area.Checkout(localOptions.Branch, false, false);
                 }
 
                 if (localOptions.Synchronize)
