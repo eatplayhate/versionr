@@ -3048,7 +3048,7 @@ namespace Versionr
             if (v.StartsWith("%"))
             {
                 searchmode = "revnumber";
-                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE rowid = ?", int.Parse(v.Substring(1))));
+                potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE rowid = '?'", int.Parse(v.Substring(1))));
             }
             else if (v.StartsWith("..."))
             {
