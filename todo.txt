@@ -8,7 +8,6 @@ Versionr features
 - blame
 - remove/rename
 - docs
-- detect binary files for merge
 - internal diff and merge engine
 - configurable merge/diff tools
 - cherry pick revisions?
