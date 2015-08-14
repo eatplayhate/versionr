@@ -14,6 +14,8 @@ namespace Versionr.Commands
         public string Host { get; set; }
         [Option('p', "port", DefaultValue = 5122, Required = false, HelpText = "Specifies the port to connect to.")]
         public int Port { get; set; }
+        [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
+        public string Remote { get; set; }
         [Option('v', "vault", Required = false, HelpText = "The server vault to connect to (used if a single server is hosting multiple vaults).")]
         public string Vault { get; set; }
 
@@ -39,6 +41,13 @@ namespace Versionr.Commands
             {
                 if (NeedsNoWorkspace)
                 {
+                    if (!string.IsNullOrEmpty(localOptions.Name))
+                    {
+                        System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(System.IO.Path.Combine(workingDirectory.FullName, localOptions.Name));
+                        info.Create();
+                        Printer.PrintMessage("Target directory: #b#{0}##.", info);
+                        workingDirectory = info;
+                    }
                     try
                     {
                         ws = Area.Load(workingDirectory);
@@ -68,27 +77,16 @@ namespace Versionr.Commands
                 if (UpdateRemoteTimestamp && config != null)
                     ws.UpdateRemoteTimestamp(config);
             }
-            else if (!string.IsNullOrEmpty(localOptions.Name))
-            {
-                if (parsedRemoteName == null)
-                    parsedRemoteName = TryParseRemoteName(localOptions.Name);
-                if (parsedRemoteName.Item1 == false)
-                {
-                    Printer.PrintError("Remote names cannot be used outside of a Versionr vault.");
-                    return false;
-                }
-                localOptions.Name = null;
-            }
+
             if (config == null && requireRemoteName)
             {
                 if (parsedRemoteName == null)
-                    parsedRemoteName = TryParseRemoteName(localOptions.Name);
+                    parsedRemoteName = TryParseRemoteName(localOptions.Remote);
                 if (parsedRemoteName.Item1 == false)
                 {
                     Printer.PrintError("You must specify either a host and port or a remote name.");
                     return false;
                 }
-                localOptions.Name = null;
                 localOptions.Host = parsedRemoteName.Item2;
                 if (parsedRemoteName.Item3 != -1)
                     localOptions.Port = parsedRemoteName.Item3;

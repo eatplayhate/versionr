@@ -2028,17 +2028,7 @@ namespace Versionr
                         throw new Exception("Please commit data before merging again.");
                     }
                 }
-
-                if (!force)
-                {
-                    if (status.HasModifications(false))
-                    {
-                        Printer.PrintMessage("Repository is not clean!");
-                        Printer.PrintMessage(" - Until this is fixed, please commit your changes before starting a merge!");
-                        return;
-                    }
-                }
-
+                
                 possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).FirstOrDefault();
                 if (possibleBranch != null)
                 {
@@ -3397,7 +3387,7 @@ namespace Versionr
                     external.SetRemote(result.Item2, result.Item3, "default");
                     if (fresh)
                     {
-                        external.Checkout(x.Value.Target, false, verbose);
+                        external.Checkout(x.Value.Target, false, false);
                     }
                     else
                     {
@@ -4142,6 +4132,14 @@ namespace Versionr
             get
             {
                 return LocalData.PartialPath;
+            }
+        }
+
+        public Branch RootBranch
+        {
+            get
+            {
+                return Database.Get<Objects.Branch>(GetVersion(Domain).Branch);
             }
         }
 

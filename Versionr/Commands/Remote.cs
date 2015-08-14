@@ -72,13 +72,15 @@ namespace Versionr.Commands
 			{
 				foreach (var x in ws.GetRemotes())
                 {
-					Printer.PrintMessage("Remote {0} is {1}:{2}", x.Name, x.Host, x.Port);
+					Printer.PrintMessage("Remote \"#b#{0}##\" is #b#{1}##", x.Name, Network.Client.ToVersionrURL(x.Host, x.Port));
 				}
 			}
 			else if (!string.IsNullOrEmpty(localOptions.Host) && localOptions.Port > 0)
 			{
-				return ws.SetRemote(localOptions.Host, localOptions.Port, string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name);
-			}
+                string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
+                if (ws.SetRemote(localOptions.Host, localOptions.Port, remoteName))
+                    Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, Network.Client.ToVersionrURL(localOptions.Host, localOptions.Port));
+            }
 			else
 			{
 				Printer.PrintMessage(localOptions.GetUsage());

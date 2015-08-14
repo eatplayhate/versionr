@@ -29,8 +29,8 @@ namespace Versionr.Commands
             }
         }
 
-        [Option('f', "fullmeta", DefaultValue = false, HelpText = "Clones entire vault metadata table.")]
-        public bool Full { get; set; }
+        [Option('f', "fullmeta", HelpText = "Clones entire vault metadata table.")]
+        public bool? Full { get; set; }
 
         [Option('u', "update", HelpText = "Runs pull and checkout after cloning.")]
         public bool Update { get; set; }
@@ -49,11 +49,19 @@ namespace Versionr.Commands
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
-            bool result = client.Clone(localOptions.Full);
+            bool result = false;
+            if (localOptions.Full.HasValue)
+                result = client.Clone(localOptions.Full.Value);
+            else
+            {
+                result = client.Clone(true);
+                if (!result)
+                    result = client.Clone(false);
+            }
             if (result)
             {
                 Printer.PrintMessage("Successfully cloned from remote vault. Initializing default remote.");
-                string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
+                string remoteName = "default";
                 
                 if (client.Workspace.SetRemote(client.Host, client.Port, remoteName))
                     Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, client.VersionrURL);

@@ -194,9 +194,9 @@ namespace Versionr.Network
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))
                                     throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
-                                bool multiple;
-                                var branch = ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
+                                Printer.PrintDiagnostics("Client is requesting a branch info for {0}", string.IsNullOrEmpty(command.AdditionalPayload) ? "<root>" : "\"" + command.AdditionalPayload + "\"");
+                                bool multiple = false;
+                                Objects.Branch branch = string.IsNullOrEmpty(command.AdditionalPayload) ? ws.RootBranch : ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
                                 if (branch != null)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);

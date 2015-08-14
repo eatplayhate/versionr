@@ -45,7 +45,7 @@ namespace Versionr.Network
         {
             get
             {
-                return "vsr://" + Host + ":" + Port;
+                return ToVersionrURL(Host, Port);
             }
         }
 
@@ -76,6 +76,12 @@ namespace Versionr.Network
                 return false;
             return true;
         }
+
+        public static string ToVersionrURL(string host, int port, string domain = null)
+        {
+            return "vsr://" + host + ":" + port + (string.IsNullOrEmpty(domain) ? "" : ("/" + domain));
+        }
+
         public void Close()
         {
             if (Connected)
@@ -132,17 +138,25 @@ namespace Versionr.Network
 
                     System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetRandomFileName());
                     Printer.PrintMessage("Attempting to import metadata file to temp path {0}", fsInfo.FullName);
+                    var printer = Printer.CreateSimplePrinter("Progress", (obj) =>
+                    {
+                        return string.Format("#b#{0}## received.", Versionr.Utilities.Misc.FormatSizeFriendly((long)obj));
+                    });
                     try
                     {
+                        long total = 0;
                         using (var stream = fsInfo.OpenWrite())
                         {
                             while (true)
                             {
                                 var data = Utilities.ReceiveEncrypted<DataPayload>(SharedInfo);
                                 stream.Write(data.Data, 0, data.Data.Length);
+                                total += data.Data.Length;
+                                printer.Update(total);
                                 if (data.EndOfStream)
                                     break;
                             }
+                            printer.End(total);
                             response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                             if (response.Type == NetCommandType.Error)
                             {
