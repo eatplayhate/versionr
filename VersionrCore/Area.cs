@@ -2950,7 +2950,7 @@ namespace Versionr
 			if (purge)
 				Purge();
 
-            Printer.PrintMessage("At version {0} on branch \"{1}\"", Database.Version.ID, Database.Branch.Name);
+            Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
         }
 
 		private void Purge()
@@ -3194,7 +3194,7 @@ namespace Versionr
                 {
                     return string.Format("{0:N2}%", pct);
                 },
-                40);
+                49);
             }
             long count = 0;
             Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
