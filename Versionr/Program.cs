@@ -259,6 +259,7 @@ namespace Versionr
             {
                 if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
                 {
+                    Printer.RestoreDefaults();
                     printerStream.Flush();
                     Environment.Exit(2);
                 }

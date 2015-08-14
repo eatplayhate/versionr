@@ -17,6 +17,7 @@ namespace Versionr.Network
         public bool Connected { get; set; }
         public string Host { get; set; }
         public string RemoteDomain { get; set; }
+        public string Module { get; set; }
         public int Port { get; set; }
 
         System.IO.DirectoryInfo BaseDirectory { get; set; }
@@ -45,7 +46,7 @@ namespace Versionr.Network
         {
             get
             {
-                return ToVersionrURL(Host, Port);
+                return ToVersionrURL(Host, Port, Module);
             }
         }
 
@@ -537,7 +538,7 @@ namespace Versionr.Network
             }, false);
         }
 
-        public bool Connect(string host, int port)
+        public bool Connect(string host, int port, string module)
         {
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
             Retry:
@@ -548,6 +549,7 @@ namespace Versionr.Network
             }
             Host = host;
             Port = port;
+            Module = module;
             Connected = false;
             try
             {
@@ -564,14 +566,22 @@ namespace Versionr.Network
                 {
                     Printer.PrintDiagnostics("Connected to server at {0}:{1}", host, port);
                     Handshake hs = Handshake.Create(protocols.Current);
+                    hs.RequestedModule = Module;
                     Printer.PrintDiagnostics("Sending handshake...");
                     Connection.NoDelay = true;
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<Handshake>(Connection.GetStream(), hs, ProtoBuf.PrefixStyle.Fixed32);
 
                     var startTransaction = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Network.StartTransaction>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                    if (!startTransaction.Accepted)
+                    if (startTransaction == null || !startTransaction.Accepted)
                     {
-                        Printer.PrintMessage("#b#Server rejected connection.##\n Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        Printer.PrintError("#b#Server rejected connection.##");
+                        if (startTransaction != null && hs.VersionrProtocol != startTransaction.ServerHandshake.VersionrProtocol)
+                            Printer.PrintError("## Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        else
+                        {
+                            Printer.PrintError("## Rejected request.");
+                            return false;
+                        }
                         goto Retry;
                     }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);

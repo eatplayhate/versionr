@@ -16,8 +16,8 @@ namespace Versionr.Commands
         public int Port { get; set; }
         [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
         public string Remote { get; set; }
-        [Option('v', "vault", Required = false, HelpText = "The server vault to connect to (used if a single server is hosting multiple vaults).")]
-        public string Vault { get; set; }
+        [Option('m', "module", Required = false, HelpText = "The name of the remote module to select (used if a single server is hosting multiple vaults).")]
+        public string Module { get; set; }
 
         [ValueOption(0)]
         public string Name { get; set; }
@@ -90,10 +90,11 @@ namespace Versionr.Commands
                 localOptions.Host = parsedRemoteName.Item2;
                 if (parsedRemoteName.Item3 != -1)
                     localOptions.Port = parsedRemoteName.Item3;
+                localOptions.Module = parsedRemoteName.Item4;
             }
             if (config == null)
-                config = new LocalState.RemoteConfig() { Host = localOptions.Host, Port = localOptions.Port };
-            if (!client.Connect(config.Host, config.Port))
+                config = new LocalState.RemoteConfig() { Host = localOptions.Host, Port = localOptions.Port, Module = localOptions.Module };
+            if (!client.Connect(config.Host, config.Port, config.Module))
             {
                 Printer.PrintError("Couldn't connect to server!");
                 return false;
