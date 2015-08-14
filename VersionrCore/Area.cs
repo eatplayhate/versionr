@@ -126,7 +126,7 @@ namespace Versionr
             Printer.PrintMessage("\nFiles with the #b#most## churn:");
             foreach (var x in top)
             {
-                Printer.PrintMessage("  #b#{0}##: #c#{1}## stored revisions.", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, x.Item2);
+                Printer.PrintMessage("  #b#{0}##: #c#{1}## stored revisions.", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, x.Item2 + 1);
             }
             HashSet<long> ids = new HashSet<long>();
             var largest = records.OrderByDescending(x => x.Size).Where(x => !ids.Contains(x.CanonicalNameId)).Take(10);
@@ -141,27 +141,44 @@ namespace Versionr
             {
                 while (x.CanonicalNameId >= objectSize.Count)
                     objectSize.Add(-1);
-                objectSize[(int)x.CanonicalNameId] += x.Size;
+                if (objectSize[(int)x.CanonicalNameId] == -1)
+                    objectSize[(int)x.CanonicalNameId] = x.Size;
+                else
+                    objectSize[(int)x.CanonicalNameId] += x.Size;
             }
             top = objectSize.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(10);
             Printer.PrintMessage("\n#b#Largest## committed size:");
             foreach (var x in top)
             {
-                Printer.PrintMessage("  #b#{0}##: {1} total over {2} revisions", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2), churnCount[x.Item1]);
+                Printer.PrintMessage("  #b#{0}##: {1} total over {2} revisions", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2), churnCount[x.Item1] + 1);
             }
             List<long> allocatedSize = new List<long>();
             Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
             long missingData = 0;
+            List<long> allocObjectSize = new List<long>();
             foreach (var x in records)
             {
                 while (x.CanonicalNameId >= allocatedSize.Count)
                     allocatedSize.Add(-1);
+                while (x.CanonicalNameId >= allocObjectSize.Count)
+                    allocObjectSize.Add(-1);
                 var info = ObjectStore.GetInfo(x);
                 if (info == null && x.HasData)
                     missingData++;
                 recordInfoMap[x] = info;
                 if (info != null)
-                    allocatedSize[(int)x.CanonicalNameId] += info.AllocatedSize;
+                {
+                    if (allocatedSize[(int)x.CanonicalNameId] == -1)
+                    {
+                        allocObjectSize[(int)x.CanonicalNameId] = x.Size;
+                        allocatedSize[(int)x.CanonicalNameId] = info.AllocatedSize;
+                    }
+                    else
+                    {
+                        allocObjectSize[(int)x.CanonicalNameId] += x.Size;
+                        allocatedSize[(int)x.CanonicalNameId] += info.AllocatedSize;
+                    }
+                }
             }
             long objectEntries = 0;
             long snapCount = 0;
@@ -206,24 +223,24 @@ namespace Versionr
             {
                 Printer.PrintMessage("  #b#{0}##: {1} total", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2));
             }
-            var ratios = allocatedSize.SelectIndexed().Where(x => x.Item2 > 0).Select(x => new Tuple<int, double>(x.Item1, x.Item2 / (double)objectSize[x.Item1]));
+            var ratios = allocatedSize.SelectIndexed().Where(x => x.Item2 > 0).Select(x => new Tuple<int, double>(x.Item1, x.Item2 / (double)allocObjectSize[x.Item1]));
             Printer.PrintMessage("\n#s#Best## compression:");
             foreach (var x in ratios.OrderBy(x => x.Item2).Take(10))
             {
                 Printer.PrintMessage("  #b#{0}##: {1} -> {2} ({3:N2}% over {4} versions)", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName,
-                    Versionr.Utilities.Misc.FormatSizeFriendly(objectSize[x.Item1]),
+                    Versionr.Utilities.Misc.FormatSizeFriendly(allocObjectSize[x.Item1]),
                     Versionr.Utilities.Misc.FormatSizeFriendly(allocatedSize[x.Item1]),
                     x.Item2 * 100.0,
-                    churnCount[x.Item1]);
+                    churnCount[x.Item1] + 1);
             }
             Printer.PrintMessage("\n#e#Worst## compression:");
             foreach (var x in ratios.Where(x => allocatedSize[x.Item1] > 1024).OrderByDescending(x => x.Item2).Take(10))
             {
                 Printer.PrintMessage("  #b#{0}##: {1} -> {2} ({3:N2}% over {4} versions)", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName,
-                    Versionr.Utilities.Misc.FormatSizeFriendly(objectSize[x.Item1]),
+                    Versionr.Utilities.Misc.FormatSizeFriendly(allocObjectSize[x.Item1]),
                     Versionr.Utilities.Misc.FormatSizeFriendly(allocatedSize[x.Item1]),
                     x.Item2 * 100.0,
-                    churnCount[x.Item1]);
+                    churnCount[x.Item1] + 1);
             }
         }
 
