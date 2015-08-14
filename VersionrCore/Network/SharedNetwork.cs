@@ -541,7 +541,7 @@ namespace Versionr.Network
                     {
                         rec.Parent = sharedInfo.LocalRecordMap[rec.Parent.Value].Id;
                     }
-                    sharedInfo.Workspace.ImportRecordNoCommit(rec, false);
+                    sharedInfo.Workspace.ImportRecordNoCommit(rec, true);
                     sharedInfo.LocalRecordMap[x] = rec;
                     if (printer != null)
                     {
@@ -692,7 +692,9 @@ namespace Versionr.Network
                 {
                     if (requests.Count == 512)
                         break;
-                    requests.Add(sharedInfo.UnknownRecords[index]);
+                    var record = sharedInfo.RemoteRecordMap[sharedInfo.UnknownRecords[index]];
+                    if (record.Parent.HasValue && !sharedInfo.UnknownRecordSet.Contains(record.Parent.Value))
+                        requests.Add(sharedInfo.UnknownRecords[index]);
                     index++;
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordParents }, ProtoBuf.PrefixStyle.Fixed32);
