@@ -44,7 +44,7 @@ namespace Versionr
 
         public void PrintStats(string objectname = null)
         {
-            if (objectname != null)
+            if (objectname != null && !objectname.Contains("*"))
             {
                 var nameObject = Database.Table<ObjectName>().ToList().Where(x => x.CanonicalName.Equals(objectname, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
                 if (nameObject == null)
@@ -55,6 +55,12 @@ namespace Versionr
                 PrintObjectStats(nameObject);
                 return;
             }
+            Regex matchedObjects = null;
+            if (objectname != null)
+            {
+                string pattern = "^" + Regex.Escape(objectname).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
+                matchedObjects = new Regex(pattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+            }
             long vcount = Database.Table<Objects.Version>().Count();
             Printer.PrintMessage("#b#Core Metadata Stats:##");
             Printer.PrintMessage("  #b#{0}## Versions", vcount);
@@ -62,17 +68,23 @@ namespace Versionr
             Printer.PrintMessage("  #b#{0}## Records", Database.Table<Objects.Record>().Count());
             Printer.PrintMessage("  #b#{0}## Alterations", Database.Table<Objects.Alteration>().Count());
             Printer.PrintMessage("  #b#{0}## Branch Journal Entries", Database.Table<Objects.BranchJournal>().Count());
-            
+
             List<long> churnCount = new List<long>();
             List<Record> records = new List<Record>();
             Dictionary<long, Record> recordMap = new Dictionary<long, Record>();
+            Dictionary<long, string> nameMap = new Dictionary<long, string>();
             foreach (var x in Database.Table<Objects.Record>())
             {
-                records.Add(x);
                 recordMap[x.Id] = x;
-                while (x.CanonicalNameId >= churnCount.Count)
-                    churnCount.Add(0);
-                churnCount[(int)x.CanonicalNameId]++;
+                if (!nameMap.ContainsKey(x.CanonicalNameId))
+                    nameMap[x.CanonicalNameId] = Database.Get<ObjectName>(x.CanonicalNameId).CanonicalName;
+                if (matchedObjects == null || matchedObjects.IsMatch(nameMap[x.CanonicalNameId]))
+                {
+                    records.Add(x);
+                    while (x.CanonicalNameId >= churnCount.Count)
+                        churnCount.Add(0);
+                    churnCount[(int)x.CanonicalNameId]++;
+                }
             }
 
             long additions = 0;
@@ -151,7 +163,7 @@ namespace Versionr
                 if (info != null)
                     allocatedSize[(int)x.CanonicalNameId] += info.AllocatedSize;
             }
-            long objectEntries = ObjectStore.GetEntryCount();
+            long objectEntries = 0;
             long snapCount = 0;
             long snapSize = 0;
             long deltaCount = 0;
@@ -164,6 +176,7 @@ namespace Versionr
                 {
                     if (objectIDs.Contains(x.Value.ID))
                         continue;
+                    objectEntries++;
                     storedObjectUnpackedSize += x.Key.Size;
                     objectIDs.Add(x.Value.ID);
                     if (x.Value.DeltaCompressed)
@@ -179,8 +192,8 @@ namespace Versionr
                 }
             }
             Printer.PrintMessage("\n#b#Core Object Store Stats:##");
-            Printer.PrintMessage("  Missing data for #b#{0} ({1:N2}%)## records.", missingData, 100.0 * missingData / (double)records.Count);
-            Printer.PrintMessage("  #b#{0}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)records.Count);
+            Printer.PrintMessage("  Missing data for #b#{0} ({1:N2}%)## records.", missingData, 100.0 * missingData / (double)recordMap.Count);
+            Printer.PrintMessage("  #b#{0}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordMap.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
             Printer.PrintMessage("  Unpacked size of all objects: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(storedObjectUnpackedSize));
