@@ -765,7 +765,7 @@ namespace Versionr
             }
         }
 
-        public bool SetRemote(string host, int port, string name)
+        public bool SetRemote(string host, int port, string module, string name)
         {
             Regex validNames = new Regex("^[A-Za-z0-9-_]+$");
             if (!validNames.IsMatch(name))
@@ -781,12 +781,14 @@ namespace Versionr
 				{
 					config = new RemoteConfig() { Name = name };
 					config.Host = host;
-					config.Port = port;
+                    config.Module = module;
+                    config.Port = port;
 					LocalData.InsertSafe(config);
 				}
 				else
-				{
-					config.Host = host;
+                {
+                    config.Module = module;
+                    config.Host = host;
 					config.Port = port;
 					LocalData.UpdateSafe(config);
 				}
@@ -2948,7 +2950,7 @@ namespace Versionr
 			if (purge)
 				Purge();
 
-            Printer.PrintMessage("At version {0} on branch \"{1}\"", Database.Version.ID, Database.Branch.Name);
+            Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
         }
 
 		private void Purge()
@@ -3192,7 +3194,7 @@ namespace Versionr
                 {
                     return string.Format("{0:N2}%", pct);
                 },
-                40);
+                49);
             }
             long count = 0;
             Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
@@ -3387,7 +3389,7 @@ namespace Versionr
                     }
                     else
                         client = new Client(external);
-                    if (!client.Connect(result.Item2, result.Item3))
+                    if (!client.Connect(result.Item2, result.Item3, result.Item4))
                     {
                         Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
                         if (external == null)
@@ -3405,7 +3407,7 @@ namespace Versionr
                     if (client != null)
                     {
                         client.Workspace.SetPartialPath(x.Value.PartialPath);
-                        client.Workspace.SetRemote(result.Item2, result.Item3, "default");
+                        client.Workspace.SetRemote(result.Item2, result.Item3, result.Item4, "default");
                         if (!client.Pull(false, x.Value.Branch))
                         {
                             Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
@@ -3414,7 +3416,7 @@ namespace Versionr
                     }
                     external = LoadWorkspace(directory, true);
                     external.SetPartialPath(x.Value.PartialPath);
-                    external.SetRemote(result.Item2, result.Item3, "default");
+                    external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
                     if (fresh)
                     {
                         external.Checkout(x.Value.Target, false, false);
@@ -3487,7 +3489,7 @@ namespace Versionr
                     Client client = new Client(this);
                     try
                     {
-                        if (!client.Connect(x.Host, x.Port))
+                        if (!client.Connect(x.Host, x.Port, x.Module))
                             Printer.PrintMessage(" - Connection failed.");
                         List<string> retrievedRecords = client.GetRecordData(missingRecords);
                         HashSet<string> retrievedData = new HashSet<string>();

@@ -63,7 +63,7 @@ namespace Versionr.Commands
                 Printer.PrintMessage("Successfully cloned from remote vault. Initializing default remote.");
                 string remoteName = "default";
                 
-                if (client.Workspace.SetRemote(client.Host, client.Port, remoteName))
+                if (client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName))
                     Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, client.VersionrURL);
 
                 if (localOptions.Partial != null)

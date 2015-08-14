@@ -31,33 +31,29 @@ namespace Versionr.Network
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
-        public static bool Bare { get; set; }
         public static object SyncObject = new object();
+        class DomainInfo
+        {
+            public System.IO.DirectoryInfo Directory { get; set; }
+            public bool Bare { get; set; }
+        }
+        static Dictionary<string, DomainInfo> Domains = new Dictionary<string, DomainInfo>();
+        public static string ConfigFile;
         public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
         {
             Area ws = Area.Load(info);
-            Bare = false;
             Config = new ServerConfig();
             if (!string.IsNullOrEmpty(configFile))
             {
-                var configInfo = new System.IO.FileInfo(configFile);
-                if (!configInfo.Exists)
-                {
-                    Printer.PrintError("#x#Error:##\n  Can't find config file #b#{0}##! Using default.", configFile);
-                }
-                else
-                {
-                    using (var fs = configInfo.OpenText())
-                    {
-                        Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
-                    }
-                }
+                ConfigFile = configFile;
+                LoadConfig();
             }
             if (ws == null)
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
-                Bare = true;
             }
+            if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count != 0))
+                Domains[string.Empty] = new DomainInfo() { Bare = ws == null, Directory = info };
             bool enableEncryption = encryptData.HasValue ? encryptData.Value : Config.Encrypted;
             if (enableEncryption)
             {
@@ -79,20 +75,51 @@ namespace Versionr.Network
                 var client = listener.AcceptTcpClient();
                 Task.Run(() => {
                     Printer.PrintMessage("Received connection from {0}.", client.Client.RemoteEndPoint);
-                    if (Bare)
-                    {
-                        lock (SyncObject)
-                        {
-                            HandleConnection(info, client);
-                        }
-                    }
-                    else
-                        HandleConnection(info, client);
+                    HandleConnection(info, client);
                 });
             }
             listener.Stop();
 
             return true;
+        }
+
+        private static void LoadConfig()
+        {
+            lock (SyncObject)
+            {
+                var configInfo = new System.IO.FileInfo(ConfigFile);
+                if (!configInfo.Exists)
+                {
+                    Printer.PrintError("#x#Error:##\n  Can't find config file #b#{0}##! Using default.", ConfigFile);
+                }
+                else
+                {
+                    using (var fs = configInfo.OpenText())
+                    {
+                        Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
+                    }
+                    foreach (var x in Config.Domains)
+                    {
+                        System.IO.DirectoryInfo domInfo = new System.IO.DirectoryInfo(x.Value);
+                        if (domInfo.Exists)
+                        {
+                            Area dm = null;
+                            try
+                            {
+                                dm = Area.Load(domInfo);
+                            }
+                            catch
+                            {
+                                dm = null;
+                            }
+                            DomainInfo info = new DomainInfo() { Bare = dm == null, Directory = domInfo };
+                            Domains[x.Key] = info;
+                        }
+                        else
+                            Printer.PrintError("#x#Error:##\n  Can't find domain location {0}!", x.Value);
+                    }
+                }
+            }
         }
 
         internal class ClientStateInfo
@@ -110,8 +137,6 @@ namespace Versionr.Network
         static void HandleConnection(System.IO.DirectoryInfo info, TcpClient client)
         {
             Area ws = null;
-            if (!Bare)
-                ws = Area.Load(info);
             ClientStateInfo clientInfo = new ClientStateInfo();
             using (client)
             using (SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo())
@@ -120,6 +145,28 @@ namespace Versionr.Network
                 {
                     var stream = client.GetStream();
                     Handshake hs = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Handshake>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                    DomainInfo domainInfo = null;
+                    lock (SyncObject)
+                    {
+                        if (hs.RequestedModule == null)
+                            hs.RequestedModule = string.Empty;
+                        if (!Domains.TryGetValue(hs.RequestedModule, out domainInfo))
+                        {
+                            Network.StartTransaction startSequence = Network.StartTransaction.CreateRejection();
+                            Printer.PrintDiagnostics("Rejecting client due to invalid domain: \"{0}\".", hs.RequestedModule);
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                            return;
+                        }
+                    }
+                    try
+                    {
+                        ws = Area.Load(domainInfo.Directory);
+                    }
+                    catch
+                    {
+                        if (!domainInfo.Bare)
+                            throw;
+                    }
                     Printer.PrintDiagnostics("Received handshake - protocol: {0}", hs.VersionrProtocol);
                     SharedNetwork.Protocol? clientProtocol = hs.CheckProtocol();
                     bool valid = true;
@@ -138,7 +185,7 @@ namespace Versionr.Network
                         clientInfo.Access = Rights.Read | Rights.Write;
                         if (PrivateKey != null)
                         {
-                            startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
+                            startSequence = Network.StartTransaction.Create(domainInfo.Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
                             Printer.PrintDiagnostics("Sending RSA key...");
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             if (!HandleAuthentication(clientInfo, client, sharedInfo))
@@ -156,7 +203,7 @@ namespace Versionr.Network
                         }
                         else
                         {
-                            startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), clientProtocol.Value);
+                            startSequence = Network.StartTransaction.Create(domainInfo.Bare ? string.Empty : ws.Domain.ToString(), clientProtocol.Value);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             if (!HandleAuthentication(clientInfo, client, sharedInfo))
                                 throw new Exception("Authentication failed.");
@@ -182,7 +229,7 @@ namespace Versionr.Network
                                     throw new Exception("Access denied.");
                                 ws = Area.InitRemote(info, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
                                 clientInfo.SharedInfo.Workspace = ws;
-                                Bare = false;
+                                domainInfo.Bare = false;
                             }
                             else if (command.Type == NetCommandType.PushBranchJournal)
                             {

@@ -13,6 +13,7 @@ namespace Versionr.LocalState
         [SQLite.Indexed]
         public string Name { get; set; }
         public string Host { get; set; }
+        public string Module { get; set; }
         public int Port { get; set; }
         public DateTime LastPull { get; set; }
     }
