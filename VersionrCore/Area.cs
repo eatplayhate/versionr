@@ -82,7 +82,7 @@ namespace Versionr
                 {
                     records.Add(x);
                     while (x.CanonicalNameId >= churnCount.Count)
-                        churnCount.Add(0);
+                        churnCount.Add(-1);
                     churnCount[(int)x.CanonicalNameId]++;
                 }
             }
@@ -122,7 +122,7 @@ namespace Versionr
             Printer.PrintMessage("  #e#{0:N2}## Deletions", deletions / (double)vcount);
             Printer.PrintMessage("And requires #c#{0}## of space.", Versionr.Utilities.Misc.FormatSizeFriendly((long)versionSize.Values.Average()));
 
-            var top = churnCount.SelectIndexed().OrderByDescending(x => x.Item2).Take(20);
+            var top = churnCount.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(20);
             Printer.PrintMessage("\nFiles with the #b#most## churn:");
             foreach (var x in top)
             {
@@ -140,10 +140,10 @@ namespace Versionr
             foreach (var x in records)
             {
                 while (x.CanonicalNameId >= objectSize.Count)
-                    objectSize.Add(0);
+                    objectSize.Add(-1);
                 objectSize[(int)x.CanonicalNameId] += x.Size;
             }
-            top = objectSize.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
+            top = objectSize.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(10);
             Printer.PrintMessage("\n#b#Largest## committed size:");
             foreach (var x in top)
             {
@@ -155,7 +155,7 @@ namespace Versionr
             foreach (var x in records)
             {
                 while (x.CanonicalNameId >= allocatedSize.Count)
-                    allocatedSize.Add(0);
+                    allocatedSize.Add(-1);
                 var info = ObjectStore.GetInfo(x);
                 if (info == null && x.HasData)
                     missingData++;
@@ -193,20 +193,20 @@ namespace Versionr
             }
             Printer.PrintMessage("\n#b#Core Object Store Stats:##");
             Printer.PrintMessage("  Missing data for #b#{0} ({1:N2}%)## records.", missingData, 100.0 * missingData / (double)recordMap.Count);
-            Printer.PrintMessage("  #b#{0}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordMap.Count);
+            Printer.PrintMessage("  #b#{0}/{2}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordMap.Count, ObjectStore.GetEntryCount());
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
             Printer.PrintMessage("  Unpacked size of all objects: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(storedObjectUnpackedSize));
             Printer.PrintMessage("  Total size of all records: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(records.Select(x => x.Size).Sum()));
             Printer.PrintMessage("  Total size of all versions: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(versionSize.Values.Sum()));
 
-            top = allocatedSize.SelectIndexed().OrderByDescending(x => x.Item2).Take(10);
+            top = allocatedSize.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(10);
             Printer.PrintMessage("\nMost #b#allocated object size##:");
             foreach (var x in top)
             {
                 Printer.PrintMessage("  #b#{0}##: {1} total", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2));
             }
-            var ratios = allocatedSize.SelectIndexed().Where(x => x.Item2 != 0).Select(x => new Tuple<int, double>(x.Item1, x.Item2 / (double)objectSize[x.Item1]));
+            var ratios = allocatedSize.SelectIndexed().Where(x => x.Item2 > 0).Select(x => new Tuple<int, double>(x.Item1, x.Item2 / (double)objectSize[x.Item1]));
             Printer.PrintMessage("\n#s#Best## compression:");
             foreach (var x in ratios.OrderBy(x => x.Item2).Take(10))
             {
