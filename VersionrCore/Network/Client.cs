@@ -172,6 +172,7 @@ namespace Versionr.Network
                             if (!area.ImportDB())
                                 throw new Exception("Couldn't import data.");
                             Workspace = Area.Load(BaseDirectory);
+                            SharedInfo.Workspace = Workspace;
                             return true;
                         }
                         catch

@@ -640,7 +640,7 @@ namespace Versionr
             {
                 string fmt = Formatter(amount);
                 float pct = PercentCalculator(amount);
-                lock (Printer.SyncObject)
+                if (System.Threading.Monitor.TryEnter(Printer.SyncObject))
                 {
                     if (Printer.LastPrinter != this)
                     {
@@ -674,13 +674,17 @@ namespace Versionr
                         else
                             bar += '.';
                     }
-                    System.Console.CursorLeft = 0;
+                    if (Utilities.MultiArchPInvoke.IsRunningOnMono)
+                        System.Console.CursorLeft = 0;
+                    else
+                        bar = "\r" + bar;
                     bar += "] " + fmt;
                     string lastValue = Final == null ? string.Empty : Final;
                     Final = bar;
                     while (lastValue.Length > bar.Length)
                         bar += " ";
                     Write(MessageType.Interactive, bar);
+                    System.Threading.Monitor.Exit(Printer.SyncObject);
                 }
             }
         }

@@ -3162,10 +3162,10 @@ namespace Versionr
             {
                 printer = Printer.CreateProgressBarPrinter(
                 string.Empty,
-                "Progress",
+                "Unpacking",
                 (obj) =>
                 {
-                    return string.Empty;
+                    return Misc.FormatSizeFriendly((long)obj) + " total";
                 },
                 (obj) =>
                 {
@@ -3175,7 +3175,7 @@ namespace Versionr
                 {
                     return string.Format("{0:N2}%", pct);
                 },
-                65);
+                40);
             }
             long count = 0;
             Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
