@@ -246,7 +246,7 @@ namespace Versionr
                     ignored = true;
                     foreach (var y in area.Directives.Include.Extensions)
                     {
-                        if (x.Extension == y)
+                        if (x.Extension.Equals(y, StringComparison.OrdinalIgnoreCase))
                         {
                             ignored = false;
                             break;
@@ -257,7 +257,7 @@ namespace Versionr
                 {
                     foreach (var y in area.Directives.Ignore.Extensions)
                     {
-                        if (x.Extension == y)
+                        if (x.Extension.Equals(y, StringComparison.OrdinalIgnoreCase))
                         {
 							ignored = true;
                             break;
