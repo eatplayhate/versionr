@@ -554,6 +554,7 @@ namespace Versionr.Network
                                 continue;
                             }
                         }
+                        rec = ProtoBuf.Serializer.DeepClone(rec);
                         sharedInfo.Workspace.ImportRecordNoCommit(rec, true);
                         sharedInfo.LocalRecordMap[x] = rec;
                         if (printer != null)
