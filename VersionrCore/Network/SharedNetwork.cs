@@ -526,52 +526,62 @@ namespace Versionr.Network
                 return true;
             lock (sharedInfo.Workspace)
             {
-                Printer.InteractivePrinter printer = null;
-                System.Diagnostics.Stopwatch sw = null;
-                long nextUpdate = 400;
-                if (enablePrinter)
+                try
                 {
-                    sw = new System.Diagnostics.Stopwatch();
-                    sw.Start();
-                    printer = Printer.CreateSpinnerBarPrinter(string.Format("Importing metadata for {0} objects", sharedInfo.UnknownRecords.Count), string.Empty, (object obj) => { return string.Empty; }, 60);
-                }
-                List<long> importList = new List<long>();
-                importList.AddRange(sharedInfo.UnknownRecords.Select(x => x).Reverse());
-                while (importList.Count > 0)
-                {
-                    List<long> delayed = new List<long>();
-                    foreach (var x in importList)
+                    sharedInfo.Workspace.BeginDatabaseTransaction();
+                    Printer.InteractivePrinter printer = null;
+                    System.Diagnostics.Stopwatch sw = null;
+                    long nextUpdate = 400;
+                    if (enablePrinter)
                     {
-                        Record rec = sharedInfo.RemoteRecordMap[x];
-                        if (rec.Parent.HasValue)
-                        {
-                            Record parent;
-                            if (sharedInfo.LocalRecordMap.TryGetValue(rec.Parent.Value, out parent))
-                                rec.Parent = parent.Id;
-                            else
-                            {
-                                delayed.Add(x);
-                                continue;
-                            }
-                        }
-                        rec = ProtoBuf.Serializer.DeepClone(rec);
-                        sharedInfo.Workspace.ImportRecordNoCommit(rec, true);
-                        sharedInfo.LocalRecordMap[x] = rec;
-                        if (printer != null)
-                        {
-                            if (sw.ElapsedMilliseconds > nextUpdate)
-                            {
-                                nextUpdate = sw.ElapsedMilliseconds + 400;
-                                printer.Update(null);
-                            }
-                        }
+                        sw = new System.Diagnostics.Stopwatch();
+                        sw.Start();
+                        printer = Printer.CreateSpinnerBarPrinter(string.Format("Importing metadata for {0} objects", sharedInfo.UnknownRecords.Count), string.Empty, (object obj) => { return string.Empty; }, 60);
                     }
-                    importList.Clear();
-                    importList.AddRange(delayed);
+                    List<long> importList = new List<long>();
+                    importList.AddRange(sharedInfo.UnknownRecords.Select(x => x).Reverse());
+                    while (importList.Count > 0)
+                    {
+                        List<long> delayed = new List<long>();
+                        foreach (var x in importList)
+                        {
+                            Record rec = sharedInfo.RemoteRecordMap[x];
+                            if (rec.Parent.HasValue)
+                            {
+                                Record parent;
+                                if (sharedInfo.LocalRecordMap.TryGetValue(rec.Parent.Value, out parent))
+                                    rec.Parent = parent.Id;
+                                else
+                                {
+                                    delayed.Add(x);
+                                    continue;
+                                }
+                            }
+                            rec = ProtoBuf.Serializer.DeepClone(rec);
+                            sharedInfo.Workspace.ImportRecordNoCommit(rec, true);
+                            sharedInfo.LocalRecordMap[x] = rec;
+                            if (printer != null)
+                            {
+                                if (sw.ElapsedMilliseconds > nextUpdate)
+                                {
+                                    nextUpdate = sw.ElapsedMilliseconds + 400;
+                                    printer.Update(null);
+                                }
+                            }
+                        }
+                        importList.Clear();
+                        importList.AddRange(delayed);
+                    }
+                    if (printer != null)
+                        printer.End(null);
+                    sharedInfo.Workspace.CommitDatabaseTransaction();
+                    return true;
                 }
-                if (printer != null)
-                    printer.End(null);
-                return true;
+                catch
+                {
+                    sharedInfo.Workspace.RollbackDatabaseTransaction();
+                    throw;
+                }
             }
         }
 

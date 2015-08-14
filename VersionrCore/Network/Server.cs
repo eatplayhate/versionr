@@ -322,7 +322,9 @@ namespace Versionr.Network
                                     {
                                         return SharedNetwork.ImportRecords(sharedInfo);
                                     }, false))
+                                    {
                                         throw new Exception("Unable to import records!");
+                                    }
                                 }
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                             }
