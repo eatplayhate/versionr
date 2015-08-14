@@ -29,6 +29,8 @@ namespace Versionr
         }
         static public bool EnableDiagnostics { get; set; }
         static public bool Quiet { get; set; }
+        static public ConsoleColor DefaultBGColour { get; set; }
+        static public ConsoleColor DefaultColour { get; set; }
         static Printer()
         {
             EnableDiagnostics = false;
@@ -48,11 +50,20 @@ namespace Versionr
                 System.Console.CursorLeft += 1;
                 System.Console.CursorLeft -= 1;
                 AllowInteractivePrinting = true;
+                System.Console.CursorVisible = false;
+                DefaultBGColour = System.Console.BackgroundColor;
+                DefaultColour = System.Console.ForegroundColor;
             }
             catch
             {
                 AllowInteractivePrinting = false;
             }
+        }
+        public static void RestoreDefaults()
+        {
+            System.Console.CursorVisible = true;
+            System.Console.BackgroundColor = DefaultBGColour;
+            System.Console.ForegroundColor = DefaultColour;
         }
         public enum MessageType
         {
@@ -277,27 +288,27 @@ namespace Versionr
             switch (style)
             {
                 case OutputColour.Normal:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
-                    System.Console.ForegroundColor = ConsoleColor.Gray;
+                    System.Console.BackgroundColor = DefaultBGColour;
+                    System.Console.ForegroundColor = DefaultColour;
                     break;
                 case OutputColour.Success:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.BackgroundColor = DefaultBGColour;
                     System.Console.ForegroundColor = ConsoleColor.Green;
                     break;
                 case OutputColour.Blue:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.BackgroundColor = DefaultBGColour;
                     System.Console.ForegroundColor = ConsoleColor.Cyan;
                     break;
                 case OutputColour.Emphasis:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.BackgroundColor = DefaultBGColour;
                     System.Console.ForegroundColor = ConsoleColor.White;
                     break;
                 case OutputColour.Warning:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.BackgroundColor = DefaultBGColour;
                     System.Console.ForegroundColor = ConsoleColor.Yellow;
                     break;
                 case OutputColour.Error:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.BackgroundColor = DefaultBGColour;
                     System.Console.ForegroundColor = ConsoleColor.Red;
                     break;
                 case OutputColour.ErrorHeader:
@@ -309,7 +320,7 @@ namespace Versionr
                     System.Console.ForegroundColor = ConsoleColor.Black;
                     break;
                 case OutputColour.Trace:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
+                    System.Console.BackgroundColor = DefaultBGColour;
                     System.Console.ForegroundColor = ConsoleColor.DarkGray;
                     break;
                 case OutputColour.Invert:
@@ -317,8 +328,8 @@ namespace Versionr
                     System.Console.ForegroundColor = ConsoleColor.Black;
                     break;
                 default:
-                    System.Console.BackgroundColor = ConsoleColor.Black;
-                    System.Console.ForegroundColor = ConsoleColor.Gray;
+                    System.Console.BackgroundColor = DefaultBGColour;
+                    System.Console.ForegroundColor = DefaultColour;
                     break;
             }
         }

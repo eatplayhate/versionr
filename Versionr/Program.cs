@@ -185,16 +185,6 @@ namespace Versionr
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
 
-            if (args.Length > 0)
-            {
-                if (args[0] == "hax")
-                {
-                    Area ws = Area.Load(new System.IO.DirectoryInfo(workingDirectoryPath));
-                    ws.SetPartialPath(args.Length > 1 ? args[1] : string.Empty);
-                    return;
-                }
-            }
-
             var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
             CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
@@ -208,6 +198,7 @@ namespace Versionr
                 foreach (var x in Area.ComponentVersions)
                     Printer.WriteLineMessage("{0}: #b#{1}", x.Item1, x.Item2);
                 Printer.PopIndent();
+                Printer.RestoreDefaults();
                 return;
             }
 
@@ -222,6 +213,7 @@ namespace Versionr
                   }))
             {
                 printerStream.Flush();
+                Printer.RestoreDefaults();
                 Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
             }
 
@@ -259,6 +251,7 @@ namespace Versionr
                 {
                     printerStream.Flush();
                     System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
+                    Printer.RestoreDefaults();
                     Environment.Exit(10);
                 }
             }
@@ -269,14 +262,17 @@ namespace Versionr
                     printerStream.Flush();
                     Environment.Exit(2);
                 }
+                Printer.RestoreDefaults();
                 return;
             }
             catch (Exception e)
             {
                 printerStream.Flush();
                 System.Console.WriteLine("Error processing action:\n{0}", e.ToString());
+                Printer.RestoreDefaults();
                 Environment.Exit(20);
             }
+            Printer.RestoreDefaults();
 
             return;
         }

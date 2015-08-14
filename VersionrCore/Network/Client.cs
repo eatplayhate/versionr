@@ -588,16 +588,20 @@ namespace Versionr.Network
                         var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                         if (command.Type == NetCommandType.Authenticate)
                         {
+                            bool q = Printer.Quiet;
+                            Printer.Quiet = false;
                             Printer.PrintMessage("Server requires authentication.");
                             var challenge = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationChallenge>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                             while (true)
                             {
                                 if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
                                 {
+                                    System.Console.CursorVisible = true;
                                     Printer.PrintMessageSingleLine("#b#Username:## ");
                                     string user = System.Console.ReadLine();
                                     Printer.PrintMessageSingleLine("#b#Password:## ");
                                     string pass = GetPassword();
+                                    System.Console.CursorVisible = false;
 
                                     user = user.Trim(new char[] { '\r', '\n', ' ' });
 
@@ -611,10 +615,10 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
                                     command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                                     if (command.Type == NetCommandType.AuthRetry)
-                                        Printer.PrintMessage("#e#Authentication failed.## Retry.");
+                                        Printer.PrintError("#e#Authentication failed.## Retry.");
                                     if (command.Type == NetCommandType.AuthFail)
                                     {
-                                        Printer.PrintMessage("#e#Authentication failed.##");
+                                        Printer.PrintError("#e#Authentication failed.##");
                                         return false;
                                     }
                                     if (command.Type == NetCommandType.Acknowledge)
@@ -626,6 +630,7 @@ namespace Versionr.Network
                                     return false;
                                 }
                             }
+                            Printer.Quiet = q;
                         }
                     }
                     if (startTransaction.Encrypted)
