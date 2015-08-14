@@ -13,9 +13,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 30;
+        public const int InternalDBVersion = 31;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 30;
+        public const int MaximumDBVersion = 31;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -103,6 +103,21 @@ namespace Versionr
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
+                    }
+                    if (priorFormat < 31)
+                    {
+                        Dictionary<long, Record> recordMap = new Dictionary<long, Record>();
+                        foreach (var x in Table<Record>().ToList())
+                            recordMap[x.Id] = x;
+
+                        foreach (var x in Table<Record>().ToList())
+                        {
+                            if (x.Parent.HasValue && !recordMap.ContainsKey(x.Parent.Value))
+                            {
+                                x.Parent = null;
+                                Update(x);
+                            }
+                        }
                     }
                     if (priorFormat < 30)
                     {

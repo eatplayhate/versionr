@@ -30,7 +30,7 @@ namespace Versionr.Network
 
         public ServerConfig()
         {
-            ChecksumType = Utilities.ChecksumCodec.MurMur3;
+            ChecksumType = Utilities.ChecksumCodec.Default;
             Encrypted = true;
             AuthenticationAttempts = 3;
         }

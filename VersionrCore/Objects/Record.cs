@@ -27,7 +27,7 @@ namespace Versionr.Objects
         [ProtoBuf.ProtoMember(1)]
         [SQLite.PrimaryKey, SQLite.Unique, SQLite.AutoIncrement]
         public long Id { get; set; }
-        [ProtoBuf.ProtoIgnore]
+        [ProtoBuf.ProtoMember(7)]
         public long? Parent { get; set; }
         [ProtoBuf.ProtoMember(2)]
         [SQLite.NotNull]

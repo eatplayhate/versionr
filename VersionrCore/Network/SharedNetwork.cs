@@ -16,6 +16,7 @@ namespace Versionr.Network
             Versionr281,
             Versionr29,
             Versionr3,
+            Versionr31
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -23,7 +24,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr3, Protocol.Versionr29, Protocol.Versionr281 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -534,23 +535,38 @@ namespace Versionr.Network
                     sw.Start();
                     printer = Printer.CreateSpinnerBarPrinter(string.Format("Importing metadata for {0} objects", sharedInfo.UnknownRecords.Count), string.Empty, (object obj) => { return string.Empty; }, 60);
                 }
-                foreach (var x in sharedInfo.UnknownRecords.Select(x => x).Reverse())
+                List<long> importList = new List<long>();
+                importList.AddRange(sharedInfo.UnknownRecords.Select(x => x).Reverse());
+                while (importList.Count > 0)
                 {
-                    Record rec = sharedInfo.RemoteRecordMap[x];
-                    if (rec.Parent.HasValue)
+                    List<long> delayed = new List<long>();
+                    foreach (var x in importList)
                     {
-                        rec.Parent = sharedInfo.LocalRecordMap[rec.Parent.Value].Id;
-                    }
-                    sharedInfo.Workspace.ImportRecordNoCommit(rec, true);
-                    sharedInfo.LocalRecordMap[x] = rec;
-                    if (printer != null)
-                    {
-                        if (sw.ElapsedMilliseconds > nextUpdate)
+                        Record rec = sharedInfo.RemoteRecordMap[x];
+                        if (rec.Parent.HasValue)
                         {
-                            nextUpdate = sw.ElapsedMilliseconds + 400;
-                            printer.Update(null);
+                            Record parent;
+                            if (sharedInfo.LocalRecordMap.TryGetValue(rec.Parent.Value, out parent))
+                                rec.Parent = parent.Id;
+                            else
+                            {
+                                delayed.Add(x);
+                                continue;
+                            }
+                        }
+                        sharedInfo.Workspace.ImportRecordNoCommit(rec, true);
+                        sharedInfo.LocalRecordMap[x] = rec;
+                        if (printer != null)
+                        {
+                            if (sw.ElapsedMilliseconds > nextUpdate)
+                            {
+                                nextUpdate = sw.ElapsedMilliseconds + 400;
+                                printer.Update(null);
+                            }
                         }
                     }
+                    importList.Clear();
+                    importList.AddRange(delayed);
                 }
                 if (printer != null)
                     printer.End(null);
@@ -694,15 +710,18 @@ namespace Versionr.Network
                         break;
                     var record = sharedInfo.RemoteRecordMap[sharedInfo.UnknownRecords[index]];
                     if (record.Parent.HasValue && !sharedInfo.UnknownRecordSet.Contains(record.Parent.Value))
-                        requests.Add(sharedInfo.UnknownRecords[index]);
+                        requests.Add(record.Parent.Value);
                     index++;
                 }
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordParents }, ProtoBuf.PrefixStyle.Fixed32);
-                RequestRecordParents rrp = new RequestRecordParents() { RecordParents = requests.ToArray() };
-                Utilities.SendEncrypted<RequestRecordParents>(sharedInfo, rrp);
+                if (requests.Count > 0)
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.RequestRecordParents }, ProtoBuf.PrefixStyle.Fixed32);
+                    RequestRecordParents rrp = new RequestRecordParents() { RecordParents = requests.ToArray() };
+                    Utilities.SendEncrypted<RequestRecordParents>(sharedInfo, rrp);
 
-                var response = Utilities.ReceiveEncrypted<RecordParentPack>(sharedInfo);
-                ReceiveRecordParents(sharedInfo, response);
+                    var response = Utilities.ReceiveEncrypted<RecordParentPack>(sharedInfo);
+                    ReceiveRecordParents(sharedInfo, response);
+                }
             }
         }
 
