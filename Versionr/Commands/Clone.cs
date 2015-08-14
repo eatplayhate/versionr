@@ -32,7 +32,7 @@ namespace Versionr.Commands
         [Option('f', "fullmeta", HelpText = "Clones entire vault metadata table.")]
         public bool? Full { get; set; }
 
-        [Option('u', "update", HelpText = "Runs pull and checkout after cloning.")]
+        [Option('u', "update", DefaultValue = true, HelpText = "Runs pull and checkout after cloning.")]
         public bool Update { get; set; }
 
         [Option('b', "branch", HelpText = "Selects a branch to pull and checkout after cloning, requires #b#--update##")]
