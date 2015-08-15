@@ -10,7 +10,7 @@ namespace Versionr.Commands
     {
         public Area Workspace { get; set; }
         public System.IO.DirectoryInfo ActiveDirectory { get; set; }
-        public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        public virtual bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
             ActiveDirectory = workingDirectory;
             VerbOptionBase localOptions = options as VerbOptionBase;
