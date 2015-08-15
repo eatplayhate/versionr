@@ -26,7 +26,10 @@ namespace Versionr.Commands
 			{
 				return "diff";
 			}
-		}
+        }
+
+        [Option('d', "direct", HelpText = "Specify two files to compare that may not be under version control.")]
+        public bool Direct { get; set; }
 
         [Option('x', "external", HelpText = "Use external diffing tool")]
         public bool External { get; set; }
@@ -37,7 +40,41 @@ namespace Versionr.Commands
 
 	class Diff : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
+        public override bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        {
+            DiffVerbOptions localOptions = options as DiffVerbOptions;
+            if (localOptions.Direct)
+            {
+                if (localOptions.Objects.Count != 2)
+                {
+                    Printer.PrintError("Direct diff requires two files to compare.");
+                    return false;
+                }
+                System.IO.FileInfo f1 = new System.IO.FileInfo(localOptions.Objects[0]);
+                System.IO.FileInfo f2 = new System.IO.FileInfo(localOptions.Objects[1]);
+                if (!f1.Exists)
+                {
+                    Printer.PrintError("Can't locate file: \"{0}\".", f1.FullName);
+                    return false;
+                }
+                if (!f2.Exists)
+                {
+                    Printer.PrintError("Can't locate file: \"{0}\".", f2.FullName);
+                    return false;
+                }
+                if (localOptions.External)
+                {
+                    Utilities.DiffTool.Diff(f1.FullName, f1.FullName, f2.FullName, f2.FullName);
+                }
+                else
+                {
+                    RunInternalDiff(f1.FullName, f2.FullName);
+                }
+                return true;
+            }
+            return base.Run(workingDirectory, options);
+        }
+        protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
             DiffVerbOptions localOptions = options as DiffVerbOptions;
 
@@ -298,12 +335,9 @@ namespace Versionr.Commands
                         break;
                     }
                 }
-                if (isShort)
-                {
-                    if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
-                        isBrace = true;
-                }
-                if ((isWhitespace || isBrace) && isShort)
+                if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
+                    isBrace = true;
+                if ((isWhitespace && isShort) || isShort || isBrace)
                 {
                     var next = diff[i + 1];
                     diff.RemoveAt(i + 1);
