@@ -158,7 +158,10 @@ namespace Versionr.Commands
                     string tipmarker = " ";
                     if (v.ID == tip.ID)
                         tipmarker = "#w#*##";
-                    Printer.PrintMessage("{6}#c#{0}:## ({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, Workspace.GetBranch(v.Branch).Name, tipmarker);
+                    string mergemarker = " ";
+                    if (ws.GetMergeInfo(v.ID).FirstOrDefault() != null)
+                        mergemarker = "#s#M##";
+                    Printer.PrintMessage("{6}#c#{0}:##{7}({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, Workspace.GetBranch(v.Branch).Name, tipmarker, mergemarker);
                 }
                 else
                 {
@@ -170,7 +173,7 @@ namespace Versionr.Commands
                     foreach (var y in ws.GetMergeInfo(v.ID))
                     {
                         var mergeParent = ws.GetVersion(y.SourceVersion);
-                        Printer.PrintMessage(" <- Merged from {0} on branch {1}", mergeParent.ID, ws.GetBranch(mergeParent.Branch).Name);
+                        Printer.PrintMessage(" <- Merged from #s#{0}## on branch #b#{1}##", mergeParent.ID, ws.GetBranch(mergeParent.Branch).Name);
                     }
 
                     Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
