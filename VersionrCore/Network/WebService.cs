@@ -45,6 +45,8 @@ namespace Versionr.Network
                 }
                 throw e;
             }
+            if (Config.RequiresAuthentication && !Config.AllowUnauthenticatedRead && Config.SupportsSimpleAuthentication)
+                listener.AuthenticationSchemes = AuthenticationSchemes.Basic;
             if (Config.WebService.ProvideBinaries)
             {
                 System.IO.FileInfo assemblyFile = new System.IO.FileInfo(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -89,6 +91,20 @@ namespace Versionr.Network
         private void HandleRequest(HttpListenerContext httpListenerContext)
         {
             Printer.PrintDiagnostics("Received web request: {0}, raw url: {1}", httpListenerContext.Request.Url, httpListenerContext.Request.RawUrl);
+            if (Config.RequiresAuthentication && !Config.AllowUnauthenticatedRead && Config.SupportsSimpleAuthentication)
+            {
+                HttpListenerBasicIdentity id = (HttpListenerBasicIdentity)httpListenerContext.User.Identity;
+                if (!Config.SimpleAuthentication.CheckUser(id.Name, id.Password))
+                {
+                    httpListenerContext.Response.StatusCode = 401;
+                    httpListenerContext.Response.StatusDescription = "Unauthorized";
+                    using (var sr = new System.IO.StreamWriter(httpListenerContext.Response.OutputStream))
+                        sr.Write("<html><head><title>Versionr Server</title></head><body>Unauthorized.</body></html>");
+                    httpListenerContext.Response.Close();
+                    Printer.PrintDiagnostics("Request was unauthorized.");
+                    return;
+                }
+            }
             string uri = httpListenerContext.Request.RawUrl.Substring(Config.WebService.HttpSubdirectory.Length);
             if (Binaries != null && uri == "/binaries.pack")
             {
@@ -97,6 +113,7 @@ namespace Versionr.Network
                 httpListenerContext.Response.ContentType = System.Net.Mime.MediaTypeNames.Application.Zip;
                 httpListenerContext.Response.AddHeader("Content-disposition", "attachment; filename=VersionrBinaries.zip");
                 httpListenerContext.Response.OutputStream.Write(Binaries, 0, Binaries.Length);
+                httpListenerContext.Response.Close();
                 return;
             }
             using (var sr = new System.IO.StreamWriter(httpListenerContext.Response.OutputStream))
