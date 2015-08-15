@@ -45,9 +45,10 @@ namespace Versionr.Network
             Printer.PrintMessage("Running web interface on port #b#{0}##.", Config.HttpPort);
             while (true)
             {
+                var ctx = listener.GetContext();
                 Task.Run(() =>
                 {
-                    HandleRequest(listener.GetContext());
+                    HandleRequest(ctx);
                 });
             }
             listener.Stop();
