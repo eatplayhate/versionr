@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -8,6 +10,7 @@ namespace Versionr.Network
     {
         static bool TriedToRunNetSH = false;
         ServerConfig Config { get; set; }
+        byte[] Binaries { get; set; }
         public WebService(ServerConfig config)
         {
             Config = config;
@@ -42,6 +45,16 @@ namespace Versionr.Network
                 }
                 throw e;
             }
+            if (Config.WebService.ProvideBinaries)
+            {
+                System.IO.FileInfo assemblyFile = new System.IO.FileInfo(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                System.IO.DirectoryInfo containingDirectory = assemblyFile.Directory;
+                System.IO.MemoryStream memoryStream = new System.IO.MemoryStream();
+                System.IO.Compression.ZipArchive archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create);
+                CompressFolder(containingDirectory, string.Empty, archive);
+                archive.Dispose();
+                Binaries = memoryStream.ToArray();
+            }
             Printer.PrintMessage("Running web interface on port #b#{0}##.", Config.WebService.HttpPort);
             while (true)
             {
@@ -54,11 +67,40 @@ namespace Versionr.Network
             listener.Stop();
         }
 
+        private void CompressFolder(DirectoryInfo containingDirectory, string path, ZipArchive archive)
+        {
+            foreach (var x in containingDirectory.EnumerateDirectories())
+            {
+                CompressFolder(x, (!string.IsNullOrEmpty(path) ? path + "\\" + x.Name : x.Name), archive);
+            }
+            foreach (var y in containingDirectory.EnumerateFiles())
+            {
+                if (y.Name == "." || y.Name == "..")
+                    continue;
+                var entry = archive.CreateEntry((!string.IsNullOrEmpty(path) ? path + "\\" + y.Name : y.Name), CompressionLevel.Optimal);
+                using (var stream = entry.Open())
+                using (var src = y.OpenRead())
+                {
+                    src.CopyTo(stream);
+                }
+            }
+        }
+
         private void HandleRequest(HttpListenerContext httpListenerContext)
         {
-            Printer.PrintDiagnostics("Received web request: {0}", httpListenerContext.Request.Url);
+            Printer.PrintDiagnostics("Received web request: {0}, raw url: {1}", httpListenerContext.Request.Url, httpListenerContext.Request.RawUrl);
+            string uri = httpListenerContext.Request.RawUrl.Substring(Config.WebService.HttpSubdirectory.Length);
+            if (Binaries != null && uri == "/binaries.pack")
+            {
+                httpListenerContext.Response.ContentLength64 = Binaries.Length;
+                httpListenerContext.Response.SendChunked = false;
+                httpListenerContext.Response.ContentType = System.Net.Mime.MediaTypeNames.Application.Zip;
+                httpListenerContext.Response.AddHeader("Content-disposition", "attachment; filename=VersionrBinaries.zip");
+                httpListenerContext.Response.OutputStream.Write(Binaries, 0, Binaries.Length);
+                return;
+            }
             using (var sr = new System.IO.StreamWriter(httpListenerContext.Response.OutputStream))
-                sr.Write("<html><head><title>WOW</title></head><body>Omg it works</body></html>");
+                sr.Write("<html><head><title>Versionr Server</title></head><body>Omg it works</body></html>");
         }
     }
 }

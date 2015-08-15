@@ -10,5 +10,10 @@ namespace Versionr.Network
     {
         public int HttpPort { get; set; }
         public string HttpSubdirectory { get; set; }
+        public bool ProvideBinaries { get; set; }
+        public WebConfig()
+        {
+            ProvideBinaries = true;
+        }
     }
 }
