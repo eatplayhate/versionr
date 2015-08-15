@@ -16,7 +16,7 @@ namespace Versionr.Network
         {
             HttpListener listener = new HttpListener();
             Retry:
-            string bind = "http://+:" + Config.HttpPort + string.Format("/{0}", Config.HttpSubdirectory);
+            string bind = "http://+:" + Config.WebService.HttpPort + string.Format("/{0}", Config.WebService.HttpSubdirectory);
             listener.Prefixes.Add(bind);
             try
             {
@@ -42,7 +42,7 @@ namespace Versionr.Network
                 }
                 throw e;
             }
-            Printer.PrintMessage("Running web interface on port #b#{0}##.", Config.HttpPort);
+            Printer.PrintMessage("Running web interface on port #b#{0}##.", Config.WebService.HttpPort);
             while (true)
             {
                 var ctx = listener.GetContext();

@@ -68,7 +68,7 @@ namespace Versionr.Network
             System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
-            if (Config.HttpPort != 0)
+            if (Config.WebService != null && Config.WebService.HttpPort != 0)
             {
                 Task.Run(() =>
                 {

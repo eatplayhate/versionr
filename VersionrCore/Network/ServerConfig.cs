@@ -15,8 +15,7 @@ namespace Versionr.Network
         public bool AllowUnauthenticatedRead { get; set; }
         public Dictionary<string, string> Domains { get; set; }
         public bool? IncludeRoot { get; set; }
-        public int HttpPort { get; set; }
-        public string HttpSubdirectory { get; set; }
+        public WebConfig WebService { get; set; }
         public bool RequiresAuthentication
         {
             get

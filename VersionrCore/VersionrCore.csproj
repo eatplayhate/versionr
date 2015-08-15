@@ -78,6 +78,7 @@
     <Compile Include="Network\StartClientTransaction.cs" />
     <Compile Include="Network\StartTransaction.cs" />
     <Compile Include="Network\Utilities.cs" />
+    <Compile Include="Network\WebConfig.cs" />
     <Compile Include="Network\WebService.cs" />
     <Compile Include="ObjectStore\ChunkedChecksum.cs" />
     <Compile Include="ObjectStore\ChunkedCompressionStreamWriter.cs" />
