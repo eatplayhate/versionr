@@ -3177,6 +3177,9 @@ namespace Versionr
 
             Printer.InteractivePrinter printer = null;
             long totalSize = targetRecords.Sum(x => x.Size);
+            int updates = 0;
+            int deletions = 0;
+            int additions = 0;
             if (targetRecords.Count > 0 && totalSize > 0)
             {
                 printer = Printer.CreateProgressBarPrinter(
@@ -3199,6 +3202,10 @@ namespace Versionr
             long count = 0;
             Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
             {
+                if (created)
+                    additions++;
+                else
+                    updates++;
                 if (verbose)
                     Printer.PrintMessage("#b#{0}{2}##: {1}", created ? "Created" : "Updated", name, rec.IsDirectory ? " directory" : "");
                 if (printer != null)
@@ -3300,6 +3307,7 @@ namespace Versionr
 							System.IO.File.Delete(path);
                             if (verbose)
     							Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
+                            deletions++;
 						}
 						catch
 						{
@@ -3317,7 +3325,8 @@ namespace Versionr
 							Utilities.Symlink.Delete(path);
                             if (verbose)
                                 Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
-						}
+                            deletions++;
+                        }
 						catch (Exception e)
 						{
 							Printer.PrintMessage("Couldn't delete symlink `{0}`!\n{1}", x.CanonicalName, e.ToString());
@@ -3333,7 +3342,8 @@ namespace Versionr
 						{
 							RemoveFileTimeCache(x.CanonicalName);
 							System.IO.Directory.Delete(path);
-						}
+                            deletions++;
+                        }
 						catch
 						{
 							Printer.PrintMessage("Couldn't delete `{0}`, files still present!", x.CanonicalName);
@@ -3343,6 +3353,7 @@ namespace Versionr
 			}
             if (printer != null)
                 printer.End(totalSize);
+            Printer.PrintMessage("#b#{0}## updates, #b#{1}## additions, #b#{2}## deletions.", updates, additions, deletions);
 
             ReferenceTime = newRefTime;
             LocalData.BeginTransaction();
