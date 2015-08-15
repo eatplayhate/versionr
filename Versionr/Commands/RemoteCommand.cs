@@ -30,6 +30,18 @@ namespace Versionr.Commands
             Printer.EnableDiagnostics = localOptions.Verbose;
             Network.Client client = null;
             Area ws = null;
+            
+            Tuple<bool, string, int, string> parsedRemoteName = null;
+            if (!string.IsNullOrEmpty(localOptions.Remote))
+            {
+                if (parsedRemoteName == null)
+                    parsedRemoteName = TryParseRemoteName(localOptions.Remote);
+                localOptions.Host = parsedRemoteName.Item2;
+                if (parsedRemoteName.Item3 != -1)
+                    localOptions.Port = parsedRemoteName.Item3;
+                localOptions.Module = parsedRemoteName.Item4;
+            }
+
             if (NeedsWorkspace)
             {
                 ws = Area.Load(workingDirectory);
@@ -41,9 +53,12 @@ namespace Versionr.Commands
             {
                 if (NeedsNoWorkspace)
                 {
-                    if (!string.IsNullOrEmpty(localOptions.Name))
+                    string subdir = localOptions.Name;
+                    if (string.IsNullOrEmpty(subdir) && !string.IsNullOrEmpty(localOptions.Module))
+                        subdir = localOptions.Module;
+                    if (!string.IsNullOrEmpty(subdir))
                     {
-                        System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(System.IO.Path.Combine(workingDirectory.FullName, localOptions.Name));
+                        System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(System.IO.Path.Combine(workingDirectory.FullName, subdir));
                         info.Create();
                         Printer.PrintMessage("Target directory: #b#{0}##.", info);
                         workingDirectory = info;
@@ -67,8 +82,6 @@ namespace Versionr.Commands
             bool requireRemoteName = false;
             if (string.IsNullOrEmpty(localOptions.Host) || localOptions.Port == -1)
                 requireRemoteName = true;
-
-            Tuple<bool, string, int, string> parsedRemoteName = null;
             LocalState.RemoteConfig config = null;
             if (ws != null)
             {
@@ -80,17 +93,11 @@ namespace Versionr.Commands
 
             if (config == null && requireRemoteName)
             {
-                if (parsedRemoteName == null)
-                    parsedRemoteName = TryParseRemoteName(localOptions.Remote);
                 if (parsedRemoteName.Item1 == false)
                 {
                     Printer.PrintError("You must specify either a host and port or a remote name.");
                     return false;
                 }
-                localOptions.Host = parsedRemoteName.Item2;
-                if (parsedRemoteName.Item3 != -1)
-                    localOptions.Port = parsedRemoteName.Item3;
-                localOptions.Module = parsedRemoteName.Item4;
             }
             if (config == null)
                 config = new LocalState.RemoteConfig() { Host = localOptions.Host, Port = localOptions.Port, Module = localOptions.Module };
