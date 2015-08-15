@@ -244,6 +244,7 @@ namespace Versionr
             commands["stats"] = new Commands.Stats();
 
             Commands.BaseCommand command = null;
+            Console.CancelKeyPress += Console_CancelKeyPress;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
                 command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
@@ -276,6 +277,11 @@ namespace Versionr
             Printer.RestoreDefaults();
 
             return;
+        }
+
+        private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            Printer.RestoreDefaults();
         }
     }
 }

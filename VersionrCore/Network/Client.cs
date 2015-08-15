@@ -538,7 +538,7 @@ namespace Versionr.Network
             }, false);
         }
 
-        public bool Connect(string host, int port, string module)
+        public bool Connect(string host, int port, string module, bool requirewrite = false)
         {
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
             Retry:
@@ -598,49 +598,65 @@ namespace Versionr.Network
                         var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                         if (command.Type == NetCommandType.Authenticate)
                         {
-                            bool q = Printer.Quiet;
-                            Printer.Quiet = false;
-                            Printer.PrintMessage("Server requires authentication.");
+                            bool runauth = true;
                             var challenge = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationChallenge>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                            while (true)
+                            if (!requirewrite && command.Identifier == 1) // server supports unauthenticated read
                             {
-                                if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
+                                AuthenticationResponse response = new AuthenticationResponse()
                                 {
-                                    System.Console.CursorVisible = true;
-                                    Printer.PrintMessageSingleLine("#b#Username:## ");
-                                    string user = System.Console.ReadLine();
-                                    Printer.PrintMessageSingleLine("#b#Password:## ");
-                                    string pass = GetPassword();
-                                    System.Console.CursorVisible = false;
-
-                                    user = user.Trim(new char[] { '\r', '\n', ' ' });
-
-                                    AuthenticationResponse response = new AuthenticationResponse()
+                                    IdentifierToken = string.Empty,
+                                    Mode = AuthenticationMode.Guest
+                                };
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
+                                command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                                if (command.Type == NetCommandType.Acknowledge)
+                                    runauth = false;
+                            }
+                            if (runauth)
+                            {
+                                bool q = Printer.Quiet;
+                                Printer.Quiet = false;
+                                Printer.PrintMessage("Server at #b#{0}## requires authentication.", VersionrURL);
+                                while (true)
+                                {
+                                    if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
                                     {
-                                        IdentifierToken = user,
-                                        Mode = AuthenticationMode.Simple,
-                                        Payload = System.Text.ASCIIEncoding.ASCII.GetBytes(BCrypt.Net.BCrypt.HashPassword(pass, challenge.Salt))
-                                    };
-                                    Printer.PrintMessage("\n");
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
-                                    command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                                    if (command.Type == NetCommandType.AuthRetry)
-                                        Printer.PrintError("#e#Authentication failed.## Retry.");
-                                    if (command.Type == NetCommandType.AuthFail)
+                                        System.Console.CursorVisible = true;
+                                        Printer.PrintMessageSingleLine("#b#Username:## ");
+                                        string user = System.Console.ReadLine();
+                                        Printer.PrintMessageSingleLine("#b#Password:## ");
+                                        string pass = GetPassword();
+                                        System.Console.CursorVisible = false;
+
+                                        user = user.Trim(new char[] { '\r', '\n', ' ' });
+
+                                        AuthenticationResponse response = new AuthenticationResponse()
+                                        {
+                                            IdentifierToken = user,
+                                            Mode = AuthenticationMode.Simple,
+                                            Payload = System.Text.ASCIIEncoding.ASCII.GetBytes(BCrypt.Net.BCrypt.HashPassword(pass, challenge.Salt))
+                                        };
+                                        Printer.PrintMessage("\n");
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
+                                        command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                                        if (command.Type == NetCommandType.AuthRetry)
+                                            Printer.PrintError("#e#Authentication failed.## Retry.");
+                                        if (command.Type == NetCommandType.AuthFail)
+                                        {
+                                            Printer.PrintError("#e#Authentication failed.##");
+                                            return false;
+                                        }
+                                        if (command.Type == NetCommandType.Acknowledge)
+                                            break;
+                                    }
+                                    else
                                     {
-                                        Printer.PrintError("#e#Authentication failed.##");
+                                        Printer.PrintError("Unsupported authentication requirements!");
                                         return false;
                                     }
-                                    if (command.Type == NetCommandType.Acknowledge)
-                                        break;
                                 }
-                                else
-                                {
-                                    Printer.PrintError("Unsupported authentication requirements!");
-                                    return false;
-                                }
+                                Printer.Quiet = q;
                             }
-                            Printer.Quiet = q;
                         }
                     }
                     if (startTransaction.Encrypted)

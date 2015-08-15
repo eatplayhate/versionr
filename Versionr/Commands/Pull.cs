@@ -49,6 +49,14 @@ namespace Versionr.Commands
             return true;
         }
 
+        protected override bool RequiresWriteAccess
+        {
+            get
+            {
+                return true;
+            }
+        }
+
         protected override bool UpdateRemoteTimestamp
         {
             get

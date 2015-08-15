@@ -101,7 +101,7 @@ namespace Versionr.Commands
             }
             if (config == null)
                 config = new LocalState.RemoteConfig() { Host = localOptions.Host, Port = localOptions.Port, Module = localOptions.Module };
-            if (!client.Connect(config.Host, config.Port, config.Module))
+            if (!client.Connect(config.Host, config.Port, config.Module, RequiresWriteAccess))
             {
                 Printer.PrintError("Couldn't connect to server!");
                 return false;
@@ -109,6 +109,13 @@ namespace Versionr.Commands
             bool result = RunInternal(client, localOptions);
             client.Close();
             return result;
+        }
+        protected virtual bool RequiresWriteAccess
+        {
+            get
+            {
+                return false;
+            }
         }
 
         private Tuple<bool, string, int, string> TryParseRemoteName(string name)
