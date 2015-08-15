@@ -68,19 +68,51 @@ namespace Versionr.Network
             System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
+            if (Config.HttpPort != 0)
+            {
+                Task.Run(() =>
+                {
+                    RunWebServer();
+                });
+            }
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
             while (true)
             {
                 Printer.PrintDiagnostics("Waiting for connection.");
-                var client = listener.AcceptTcpClient();
-                Task.Run(() => {
-                    Printer.PrintMessage("Received connection from {0}.", client.Client.RemoteEndPoint);
-                    HandleConnection(info, client);
-                });
+                var client = listener.AcceptTcpClientAsync();
+                Retry:
+                if (client.Wait(5000))
+                {
+                    Task.Run(() =>
+                    {
+                        Printer.PrintMessage("Received connection from {0}.", client.Result.Client.RemoteEndPoint);
+                        HandleConnection(info, client.Result);
+                    });
+                }
+                else
+                    goto Retry;
             }
             listener.Stop();
 
             return true;
+        }
+
+        private static void RunWebServer()
+        {
+            while (true)
+            {
+                try
+                {
+                    WebService service = new WebService(Config);
+                    service.Run();
+                }
+                catch (Exception e)
+                {
+                    Printer.PrintError("Error: {0}", e.ToString());
+                    Printer.PrintMessage("Error starting web interface. Restarting in 10s.");
+                    System.Threading.Thread.Sleep(10000);
+                }
+            }
         }
 
         private static void LoadConfig()
