@@ -304,6 +304,7 @@ namespace Versionr
 				if (x.Result.VersionControlRecord != null)
 					statusMap[x.Result.VersionControlRecord] = x.Result;
 			}
+            tasks.Clear();
             Dictionary<long, Dictionary<string, Record>> recordSizeMap = new Dictionary<long, Dictionary<string, Record>>();
             foreach (var x in records)
             {
@@ -336,47 +337,56 @@ namespace Versionr
                 stageInformation.TryGetValue(x.Value.CanonicalName, out objectFlags);
                 if (!foundEntries.Contains(x.Value))
                 {
-                    Record possibleRename = null;
-                    Dictionary<string, Record> hashes = null;
-                    if (recordSizeMap.TryGetValue(x.Value.Length, out hashes))
+                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew<StatusEntry>(() =>
                     {
-                        Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
-                        hashes.TryGetValue(x.Value.Hash, out possibleRename);
-                    }
-                    if (possibleRename != null)
-                    {
-                        StageFlags otherFlags;
-                        stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
-                        if (otherFlags.HasFlag(StageFlags.Removed))
-						{
-                            pendingRenames.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
-						}
-						else
+                        Record possibleRename = null;
+                        Dictionary<string, Record> hashes = null;
+                        lock (recordSizeMap)
+                            recordSizeMap.TryGetValue(x.Value.Length, out hashes);
+                        if (hashes != null)
                         {
-                            if (objectFlags.HasFlag(StageFlags.Recorded))
+                            Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
+                            hashes.TryGetValue(x.Value.Hash, out possibleRename);
+                        }
+                        if (possibleRename != null)
+                        {
+                            StageFlags otherFlags;
+                            stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
+                            if (otherFlags.HasFlag(StageFlags.Removed))
                             {
-                                Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = possibleRename });
+                                lock (pendingRenames)
+                                    pendingRenames.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
+                                return null;
                             }
                             else
                             {
-                                Elements.Add(new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = possibleRename });
+                                if (objectFlags.HasFlag(StageFlags.Recorded))
+                                {
+                                    return new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = possibleRename };
+                                }
+                                else
+                                {
+                                    return new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = possibleRename };
+                                }
                             }
                         }
-                        goto Next;
-                    }
-                    if (objectFlags.HasFlag(StageFlags.Recorded))
-                    {
-                        Elements.Add(new StatusEntry() { Code = StatusCode.Added, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = null });
-                        goto Next;
-                    }
-                    if (objectFlags.HasFlag(StageFlags.Conflicted))
-                    {
-                        Elements.Add(new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = null });
-                        goto Next;
-                    }
-                    Elements.Add(new StatusEntry() { Code = StatusCode.Unversioned, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null });
-                    Next:;
+                        if (objectFlags.HasFlag(StageFlags.Recorded))
+                        {
+                            return new StatusEntry() { Code = StatusCode.Added, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = null };
+                        }
+                        if (objectFlags.HasFlag(StageFlags.Conflicted))
+                        {
+                            return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = null };
+                        }
+                        return new StatusEntry() { Code = StatusCode.Unversioned, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+                    }));
                 }
+            }
+            Task.WaitAll(tasks.ToArray());
+            foreach (var x in tasks)
+            {
+                if (x.Result != null)
+                    Elements.Add(x.Result);
             }
             Dictionary<Record, bool> allowedRenames = new Dictionary<Record, bool>();
             foreach (var x in pendingRenames)
