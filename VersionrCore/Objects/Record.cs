@@ -57,7 +57,7 @@ namespace Versionr.Objects
 		{
 			get
 			{
-				return !IsSymlink && CanonicalName.EndsWith("/");
+				return !IsSymlink && CanonicalName.EndsWith("/", StringComparison.Ordinal);
 			}
 		}
 		[SQLite.Ignore]
@@ -65,7 +65,7 @@ namespace Versionr.Objects
 		{
 			get
 			{
-				return Attributes.HasFlag(Objects.Attributes.Symlink);
+				return ((uint)Attributes & (uint)Objects.Attributes.Symlink) != 0;
 			}
 		}
 
