@@ -103,7 +103,7 @@ namespace Versionr.Network
             {
                 try
                 {
-                    WebService service = new WebService(Config);
+                    SimpleWebService.WebService service = new SimpleWebService.WebService(Config);
                     service.Run();
                 }
                 catch (Exception e)

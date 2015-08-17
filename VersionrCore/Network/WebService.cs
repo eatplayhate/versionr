@@ -1,16 +1,31 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Threading.Tasks;
 
-namespace Versionr.Network
+namespace Versionr.Network.SimpleWebService
 {
+    internal interface SimpleWebHandler
+    {
+        void HandleRequest(HttpListenerContext context);
+    }
+    internal class DirectHandler : SimpleWebHandler
+    {
+        public Action<HttpListenerContext> Handler { get; set; }
+
+        public void HandleRequest(HttpListenerContext context)
+        {
+            Handler.Invoke(context);
+        }
+    }
     internal class WebService
     {
         static bool TriedToRunNetSH = false;
         ServerConfig Config { get; set; }
         byte[] Binaries { get; set; }
+        Dictionary<string, SimpleWebHandler> RootHandlers { get; set; }
         public WebService(ServerConfig config)
         {
             Config = config;
@@ -57,6 +72,11 @@ namespace Versionr.Network
                 archive.Dispose();
                 Binaries = memoryStream.ToArray();
             }
+            RootHandlers = new Dictionary<string, SimpleWebHandler>();
+            RootHandlers.Add("/", new DirectHandler()
+            {
+
+            });
             Printer.PrintMessage("Running web interface on port #b#{0}##.", Config.WebService.HttpPort);
             while (true)
             {
