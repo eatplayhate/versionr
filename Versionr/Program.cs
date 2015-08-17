@@ -243,6 +243,8 @@ namespace Versionr
             commands["deletebranch"] = new Commands.DeleteBranch();
             commands["stats"] = new Commands.Stats();
 
+            Console.CancelKeyPress += Console_CancelKeyPress;
+
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
@@ -276,6 +278,11 @@ namespace Versionr
             Printer.RestoreDefaults();
 
             return;
+        }
+
+        private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            Printer.RestoreDefaults();
         }
     }
 }

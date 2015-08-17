@@ -167,6 +167,8 @@ namespace Versionr
         private static List<Entry> PopulateList(Area area, Entry parentEntry, DirectoryInfo info, string subdirectory, DirectoryInfo adminFolder, bool ignoreDirectory)
         {
             List<Entry> result = new List<Entry>();
+            if (area.InExtern(info))
+                return result;
             string slashedSubdirectory = subdirectory;
             if (subdirectory != string.Empty)
             {

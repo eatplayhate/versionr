@@ -118,8 +118,16 @@ namespace Versionr.Commands
 
             foreach (var x in Workspace.Externs)
             {
-                Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
-                new Status().Run(new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location)), options);
+                bool include = true;
+                if (!string.IsNullOrEmpty(ss.RestrictedPath))
+                    include = Workspace.PathContains(ss.RestrictedPath, x.Value.Location);
+                else
+                    include = Filter(new KeyValuePair<string, object>[] { new KeyValuePair<string, object>(x.Value.Location, new object()) }).FirstOrDefault().Value != null;
+                if (include)
+                {
+                    Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
+                    new Status().Run(new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location)), options);
+                }
             }
             return true;
         }

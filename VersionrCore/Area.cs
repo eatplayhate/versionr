@@ -244,6 +244,29 @@ namespace Versionr
             }
         }
 
+        public bool PathContains(string possibleparent, string location)
+        {
+            string outerpath = GetLocalPath(Path.Combine(Root.FullName, possibleparent));
+            if (!outerpath.EndsWith("/"))
+                outerpath += "/";
+            if (GetLocalPath(location).ToLower().StartsWith(outerpath.ToLower()))
+                return true;
+            return false;
+        }
+
+        internal bool InExtern(DirectoryInfo info)
+        {
+            foreach (var x in Externs)
+            {
+                string externPath = GetLocalPath(Path.Combine(Root.FullName, x.Value.Location));
+                if (!externPath.EndsWith("/"))
+                    externPath += "/";
+                if (GetLocalPath(info.FullName).ToLower().StartsWith(externPath.ToLower()))
+                    return true;
+            }
+            return false;
+        }
+
         private void PrintObjectStats(ObjectName nameObject)
         {
             Printer.PrintMessage("Stats for #b#{0}##:", nameObject.CanonicalName);
