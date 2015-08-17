@@ -3432,7 +3432,7 @@ namespace Versionr
                     }
                     if (external == null)
                     {
-                        if (!client.Clone(false))
+                        if (!client.Clone(true))
                         {
                             Printer.PrintError("#x#Error:##\n  Couldn't clone remote repository while processing extern \"#b#{0}##\"!", x.Key);
                             continue;

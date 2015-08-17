@@ -164,14 +164,18 @@ namespace Versionr.ObjectStore
             }
             DefaultCompression = cmode;
 
+            ObjectDatabase.BeginTransaction();
             ObjectDatabase.EnableWAL = true;
             ObjectDatabase.CreateTable<FileObjectStoreData>();
             ObjectDatabase.CreateTable<PackfileObject>();
             ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
+            ObjectDatabase.Commit();
 
+            BlobDatabase.BeginTransaction();
             BlobDatabase.EnableWAL = true;
             BlobDatabase.CreateTable<Blobject>();
             BlobDatabase.CreateTable<Blobsize>();
+            BlobDatabase.Commit();
 
             TempFiles = new HashSet<string>();
             TempFolder.Create();

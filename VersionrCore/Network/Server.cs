@@ -52,7 +52,7 @@ namespace Versionr.Network
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
             }
-            if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count != 0))
+            if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count == 0))
                 Domains[string.Empty] = new DomainInfo() { Bare = ws == null, Directory = info };
             bool enableEncryption = encryptData.HasValue ? encryptData.Value : Config.Encrypted;
             if (enableEncryption)

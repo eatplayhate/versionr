@@ -15,7 +15,6 @@ namespace Versionr
         public string Target { get; set; }
         public Extern()
         {
-            Branch = "master";
         }
     }
     public class Ignores
