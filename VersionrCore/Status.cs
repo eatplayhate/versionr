@@ -415,6 +415,7 @@ namespace Versionr
             Map = new Dictionary<string, StatusEntry>();
 			foreach (var x in Elements)
 				Map[x.CanonicalName] = x;
+            Elements = Elements.OrderBy(x => x.CanonicalName).ToList();
             Printer.PrintDiagnostics("Status finalization: {0}", sw.ElapsedTicks);
         }
 

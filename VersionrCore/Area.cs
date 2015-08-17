@@ -3447,6 +3447,8 @@ namespace Versionr
                             Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
                             continue;
                         }
+                        if (!client.ReceivedData)
+                            continue;
                     }
                     external = LoadWorkspace(directory, true);
                     external.SetPartialPath(x.Value.PartialPath);

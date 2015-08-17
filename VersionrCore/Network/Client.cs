@@ -289,8 +289,11 @@ namespace Versionr.Network
             }
         }
 
+        public bool ReceivedData { get; set; }
+
         public bool Pull(bool pullRemoteObjects, string branchName)
         {
+            ReceivedData = false;
             if (Workspace == null)
                 return false;
             if (string.IsNullOrEmpty(RemoteDomain))
@@ -363,7 +366,9 @@ namespace Versionr.Network
                             Printer.PrintDiagnostics("Requesting record data...");
                             SharedNetwork.RequestRecordData(SharedInfo);
                         }
-                        bool result = PullVersions(SharedInfo);
+                        bool gotData = false;
+                        bool result = PullVersions(SharedInfo, out gotData);
+                        ReceivedData = gotData;
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                         return result;
                     }
@@ -377,14 +382,18 @@ namespace Versionr.Network
             }
         }
 
-        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo)
+        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo, out bool receivedData)
         {
             bool importResult = sharedInfo.Workspace.RunLocked(() =>
             {
                 return SharedNetwork.ImportRecords(sharedInfo, true);
             }, false);
+            receivedData = false;
             if (!importResult)
                 return false;
+            if (sharedInfo.PushedVersions.Count == 0 && sharedInfo.ReceivedBranchJournals.Count == 0 && sharedInfo.ReceivedBranches.Count == 0)
+                return true;
+            receivedData = true;
             return sharedInfo.Workspace.RunLocked(() =>
             {
                 lock (sharedInfo.Workspace)
