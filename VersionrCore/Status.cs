@@ -175,7 +175,7 @@ namespace Versionr
             HashSet<Entry> foundEntries = new HashSet<Entry>();
             List<Objects.Record> baserecs;
             List<Objects.Alteration> alterations;
-            var records = db.GetRecords(CurrentVersion, out baserecs, out alterations);
+            var records = db.GetCachedRecords(CurrentVersion, out baserecs, out alterations);
             BaseRecords = baserecs;
             Alterations = alterations;
             var stage = ldb.StageOperations;
@@ -415,7 +415,6 @@ namespace Versionr
             Map = new Dictionary<string, StatusEntry>();
 			foreach (var x in Elements)
 				Map[x.CanonicalName] = x;
-            Elements = Elements.OrderBy(x => x.CanonicalName).ToList();
             Printer.PrintDiagnostics("Status finalization: {0}", sw.ElapsedTicks);
         }
 

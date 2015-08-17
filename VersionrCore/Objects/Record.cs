@@ -21,6 +21,7 @@ namespace Versionr.Objects
         Hidden = 128,
 		Symlink = 256,
     }
+    // NB MAKE SURE YOU CHANGE THE LOCALDB CACHE!!!!
     [ProtoBuf.ProtoContract]
     public class Record
     {

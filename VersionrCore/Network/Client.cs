@@ -547,8 +547,12 @@ namespace Versionr.Network
             }, false);
         }
 
+        public const int VersionrDefaultPort = 5122;
+
         public bool Connect(string host, int port, string module)
         {
+            if (port == -1)
+                port = VersionrDefaultPort;
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
             Retry:
             if (!protocols.MoveNext())

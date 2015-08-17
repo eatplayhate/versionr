@@ -36,6 +36,18 @@ namespace Versionr.Network
         {
             public System.IO.DirectoryInfo Directory { get; set; }
             public bool Bare { get; set; }
+            public BackupInfo Backup { get; set; }
+
+            public DomainInfo()
+            {
+                Backup = new BackupInfo();
+            }
+        }
+        class BackupInfo
+        {
+            public string Key;
+            public int Refs;
+            public System.IO.FileInfo Backup;
         }
         static Dictionary<string, DomainInfo> Domains = new Dictionary<string, DomainInfo>();
         public static string ConfigFile;
@@ -383,58 +395,84 @@ namespace Versionr.Network
                                 command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
                                 if (command.Type == NetCommandType.Acknowledge)
                                 {
-                                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetTempFileName());
-                                    Printer.PrintDiagnostics("Client requesting full clone, temp file: {0}", fsInfo.FullName);
-                                    try
+                                    bool accept = false;
+                                    BackupInfo backupInfo = null;
+                                    lock (domainInfo)
                                     {
-                                        if (ws.BackupDB(fsInfo))
+                                        string backupKey = ws.LastVersion + "-" + ws.LastBranch + "-" + ws.BranchJournalTipID.ToString();
+                                        backupInfo = domainInfo.Backup;
+                                        if (backupKey != backupInfo.Key)
                                         {
-                                            Printer.PrintDiagnostics("Backup complete. Sending data.");
-                                            byte[] blob = new byte[256 * 1024];
-                                            long filesize = fsInfo.Length;
-                                            long position = 0;
-                                            using (System.IO.FileStream reader = fsInfo.OpenRead())
+                                            Printer.PrintMessage("Backup key out of date for domain DB[{0}] - {1}", domainInfo.Directory, backupKey);
+                                            if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
+                                                backupInfo.Backup.Delete();
+                                            backupInfo = new BackupInfo();
+                                            domainInfo.Backup = backupInfo;
+                                            var directory = new System.IO.DirectoryInfo(System.IO.Path.Combine(ws.AdministrationFolder.FullName, "backups"));
+                                            directory.Create();
+                                            backupInfo.Backup = new System.IO.FileInfo(System.IO.Path.Combine(directory.FullName, System.IO.Path.GetRandomFileName()));
+                                            if (ws.BackupDB(backupInfo.Backup))
                                             {
-                                                while (true)
-                                                {
-                                                    long remainder = filesize - position;
-                                                    int count = blob.Length;
-                                                    if (count > remainder)
-                                                        count = (int)remainder;
-                                                    reader.Read(blob, 0, count);
-                                                    position += count;
-                                                    Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
-                                                    if (count == remainder)
-                                                    {
-                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
-                                                        {
-                                                            Data = blob.Take(count).ToArray(),
-                                                            EndOfStream = true
-                                                        });
-                                                        break;
-                                                    }
-                                                    else
-                                                    {
-                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
-                                                        {
-                                                            Data = blob,
-                                                            EndOfStream = false
-                                                        });
-                                                    }
-                                                }
+                                                System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                                accept = true;
+                                                backupInfo.Key = backupKey;
                                             }
-                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                                         }
                                         else
                                         {
-                                            Printer.PrintDiagnostics("Backup failed. Aborting.");
-                                            Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
-                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                                            accept = true;
+                                        }
+
+                                        if (accept)
+                                            System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                    }
+                                    if (accept)
+                                    {
+                                        Printer.PrintDiagnostics("Backup complete. Sending data.");
+                                        byte[] blob = new byte[256 * 1024];
+                                        long filesize = backupInfo.Backup.Length;
+                                        long position = 0;
+                                        using (System.IO.FileStream reader = backupInfo.Backup.OpenRead())
+                                        {
+                                            while (true)
+                                            {
+                                                long remainder = filesize - position;
+                                                int count = blob.Length;
+                                                if (count > remainder)
+                                                    count = (int)remainder;
+                                                reader.Read(blob, 0, count);
+                                                position += count;
+                                                Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
+                                                if (count == remainder)
+                                                {
+                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                    {
+                                                        Data = blob.Take(count).ToArray(),
+                                                        EndOfStream = true
+                                                    });
+                                                    break;
+                                                }
+                                                else
+                                                {
+                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                    {
+                                                        Data = blob,
+                                                        EndOfStream = false
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                        lock (domainInfo)
+                                        {
+                                            if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
+                                                backupInfo.Backup.Delete();
                                         }
                                     }
-                                    finally
+                                    else
                                     {
-                                        fsInfo.Delete();
+                                        Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
                                     }
                                 }
                             }

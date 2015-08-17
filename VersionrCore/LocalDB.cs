@@ -1,19 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.LocalState;
+using Versionr.Objects;
 using Versionr.Utilities;
 
 namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 8;
+        public const int LocalDBVersion = 9;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
+            BeginTransaction();
             EnableWAL = true;
             CreateTable<LocalState.Workspace>();
             CreateTable<LocalState.Configuration>();
@@ -21,6 +24,8 @@ namespace Versionr
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
             CreateTable<LocalState.LockingObject>();
+            CreateTable<LocalState.CachedRecords>();
+            Commit();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -391,6 +396,130 @@ namespace Versionr
             {
                 return false;
             }
+        }
+
+        const int CachedRecordVersion = 1;
+
+        internal bool GetCachedRecords(Guid iD, out List<Record> results, out List<Record> baseList, out List<Alteration> alterations)
+        {
+            var rec = Find<CachedRecords>(iD);
+            if (rec != null && rec.Version == CachedRecordVersion)
+                return DeserializeCachedRecords(rec.Data, out results, out baseList, out alterations);
+            results = null;
+            baseList = null;
+            alterations = null;
+            return false;
+        }
+
+        private bool DeserializeCachedRecords(byte[] data, out List<Record> results, out List<Record> baseList, out List<Alteration> alterations)
+        {
+            using (System.IO.MemoryStream ms = new System.IO.MemoryStream(data))
+            using (System.IO.BinaryReader br = new System.IO.BinaryReader(ms))
+            {
+                int count = br.ReadInt32();
+                results = new List<Record>(count);
+                for (int i = 0; i < count; i++)
+                    results.Add(DeserializeRecord(br));
+                count = br.ReadInt32();
+                baseList = new List<Record>(count);
+                for (int i = 0; i < count; i++)
+                    baseList.Add(DeserializeRecord(br));
+                count = br.ReadInt32();
+                alterations = new List<Alteration>(count);
+                for (int i = 0; i < count; i++)
+                    alterations.Add(DeserializeAlteration(br));
+            }
+            return true;
+        }
+
+        private byte[] SerializeCachedRecords(List<Record> results, List<Record> baseList, List<Alteration> alterations)
+        {
+            System.IO.MemoryStream ms = new System.IO.MemoryStream();
+            using (System.IO.BinaryWriter bw = new System.IO.BinaryWriter(ms))
+            {
+                bw.Write(results.Count);
+                foreach (var x in results)
+                {
+                    SerializeRecord(x, bw);
+                }
+                bw.Write(baseList.Count);
+                foreach (var x in baseList)
+                {
+                    SerializeRecord(x, bw);
+                }
+                bw.Write(alterations.Count);
+                foreach (var x in alterations)
+                {
+                    SerializeAlteration(x, bw);
+                }
+            }
+            return ms.ToArray();
+        }
+
+        private void SerializeAlteration(Alteration x, BinaryWriter bw)
+        {
+            bw.Write(x.Id);
+            bw.Write(x.Owner);
+            bw.Write((uint)x.Type);
+            bw.Write(x.NewRecord.HasValue ? x.NewRecord.Value : -1);
+            bw.Write(x.PriorRecord.HasValue ? x.PriorRecord.Value : -1);
+        }
+
+        private Alteration DeserializeAlteration(BinaryReader br)
+        {
+            Alteration alt = new Alteration();
+            alt.Id = br.ReadInt64();
+            alt.Owner = br.ReadInt64();
+            alt.Type = (AlterationType)br.ReadUInt32();
+            long newRec = br.ReadInt64();
+            long oldRec = br.ReadInt64();
+            if (newRec != -1)
+                alt.NewRecord = newRec;
+            if (oldRec != -1)
+                alt.PriorRecord = oldRec;
+            return alt;
+        }
+
+        private Record DeserializeRecord(BinaryReader br)
+        {
+            Record rec = new Record();
+            rec.Id = br.ReadInt64();
+            long parent = br.ReadInt64();
+            if (parent != -1)
+                rec.Parent = parent;
+            rec.Size = br.ReadInt64();
+            rec.Attributes = (Attributes)br.ReadUInt32();
+            rec.Fingerprint = br.ReadString();
+            rec.CanonicalNameId = br.ReadInt64();
+            rec.ModificationTime = new DateTime(br.ReadInt64());
+            rec.CanonicalName = br.ReadString();
+            return rec;
+        }
+
+        private void SerializeRecord(Record x, BinaryWriter bw)
+        {
+            bw.Write(x.Id);
+            bw.Write(x.Parent.HasValue ? x.Parent.Value : -1L);
+            bw.Write(x.Size);
+            bw.Write((uint)x.Attributes);
+            bw.Write(x.Fingerprint);
+            bw.Write(x.CanonicalNameId);
+            bw.Write(x.ModificationTime.Ticks);
+            bw.Write(x.CanonicalName);
+        }
+
+        internal void CacheRecords(Guid iD, List<Record> results, List<Record> baseList, List<Alteration> alterations)
+        {
+            BeginTransaction();
+            CachedRecords cr = new CachedRecords()
+            {
+                AssociatedVersion = iD,
+                Data = SerializeCachedRecords(results, baseList, alterations),
+                Version = CachedRecordVersion
+            };
+            InsertOrReplace(cr);
+            
+            Commit();
         }
     }
 }

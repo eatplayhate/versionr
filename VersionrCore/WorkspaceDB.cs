@@ -362,7 +362,7 @@ namespace Versionr
         {
             get
             {
-                return GetRecords(Version);
+                return GetCachedRecords(Version);
             }
         }
         public List<Record> GetRecords(Objects.Version version)
@@ -370,6 +370,22 @@ namespace Versionr
             List<Record> baseList;
             List<Alteration> alterations;
             return GetRecords(version, out baseList, out alterations);
+        }
+        public List<Record> GetCachedRecords(Objects.Version version)
+        {
+            List<Record> baseList;
+            List<Alteration> alterations;
+            return GetCachedRecords(version, out baseList, out alterations);
+        }
+
+        public List<Record> GetCachedRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations)
+        {
+            List<Record> results;
+            if (LocalDatabase.GetCachedRecords(version.ID, out results, out baseList, out alterations))
+                return results;
+            results = GetRecords(version, out baseList, out alterations);
+            LocalDatabase.CacheRecords(version.ID, results, baseList, alterations);
+            return results;
         }
 
         public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations)

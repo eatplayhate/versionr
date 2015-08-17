@@ -88,7 +88,7 @@ namespace Versionr.Commands
             }
             if (status.MergeInputs.Count > 0)
                 Printer.WriteLineMessage("");
-            foreach (var x in targets)
+            foreach (var x in targets.OrderBy(x => x.CanonicalName))
             {
 				if (x.Code == StatusCode.Unchanged && !localOptions.All)
                     continue;

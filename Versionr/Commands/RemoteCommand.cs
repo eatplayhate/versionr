@@ -12,7 +12,7 @@ namespace Versionr.Commands
     {
         [Option('h', "host", Required = false, HelpText = "Specifies the hostname to push to.")]
         public string Host { get; set; }
-        [Option('p', "port", DefaultValue = 5122, Required = false, HelpText = "Specifies the port to connect to.")]
+        [Option('p', "port", DefaultValue = Client.VersionrDefaultPort, Required = false, HelpText = "Specifies the port to connect to.")]
         public int Port { get; set; }
         [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
         public string Remote { get; set; }

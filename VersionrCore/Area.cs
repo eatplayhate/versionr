@@ -761,6 +761,17 @@ namespace Versionr
             return parents;
         }
 
+        internal Guid BranchJournalTipID
+        {
+            get
+            {
+                Guid? branchJournalTip = Database.BranchJournalTip;
+                if (branchJournalTip.HasValue)
+                    return branchJournalTip.Value;
+                return Guid.Empty;
+            }
+        }
+
         internal BranchJournal GetBranchJournalTip()
         {
             Guid? branchJournalTip = Database.BranchJournalTip;
@@ -801,6 +812,8 @@ namespace Versionr
                 Printer.PrintError("#e#Name \"{0}\" invalid for remote. Only alphanumeric characters, underscores and dashes are allowed.", name);
                 return false;
             }
+            if (port == -1)
+                port = Client.VersionrDefaultPort;
             LocalData.BeginTransaction();
             try
             {
@@ -3448,12 +3461,12 @@ namespace Versionr
                     {
                         client.Workspace.SetPartialPath(x.Value.PartialPath);
                         client.Workspace.SetRemote(result.Item2, result.Item3, result.Item4, "default");
-                        if (!client.Pull(false, x.Value.Branch))
+                        if (!fresh && !client.Pull(false, x.Value.Branch))
                         {
                             Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
                             continue;
                         }
-                        if (!client.ReceivedData)
+                        if (!client.ReceivedData && !fresh)
                             continue;
                     }
                     external = LoadWorkspace(directory, true);
@@ -3989,6 +4002,7 @@ namespace Versionr
                             }
                             foreach (var x in records)
                             {
+                                UpdateFileTimeCache(x.CanonicalName, x, x.ModificationTime, true);
                                 Database.InsertSafe(x);
                             }
                             foreach (var x in alterationLinkages)
@@ -4214,6 +4228,22 @@ namespace Versionr
             get
             {
                 return Database.Get<Objects.Branch>(GetVersion(Domain).Branch);
+            }
+        }
+
+        public long LastVersion
+        {
+            get
+            {
+                return Database.ExecuteScalar<long>("SELECT rowid FROM Version ORDER BY rowid DESC LIMIT 1");
+            }
+        }
+
+        public long LastBranch
+        {
+            get
+            {
+                return Database.ExecuteScalar<long>("SELECT rowid FROM Branch ORDER BY rowid DESC LIMIT 1");
             }
         }
 

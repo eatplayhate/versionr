@@ -10,7 +10,7 @@ namespace Versionr.Commands
 {
     class ServerVerbOptions : VerbOptionBase
     {
-        [Option('p', "port", DefaultValue = 5122, HelpText = "Specifies the port to run on.")]
+        [Option('p', "port", DefaultValue = Network.Client.VersionrDefaultPort, HelpText = "Specifies the port to run on.")]
         public int Port { get; set; }
         [Option('u', "unsecure", DefaultValue = false, HelpText = "Disables AES encryption for data communications.")]
         public bool Unsecure { get; set; }
