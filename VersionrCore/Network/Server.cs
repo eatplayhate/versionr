@@ -53,7 +53,7 @@ namespace Versionr.Network
         public static string ConfigFile;
         public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
         {
-            Area ws = Area.Load(info);
+            Area ws = Area.Load(info, true);
             Config = new ServerConfig();
             if (!string.IsNullOrEmpty(configFile))
             {
@@ -172,7 +172,7 @@ namespace Versionr.Network
                     }
                     try
                     {
-                        ws = Area.Load(domainInfo.Directory);
+                        ws = Area.Load(domainInfo.Directory, true);
                     }
                     catch
                     {

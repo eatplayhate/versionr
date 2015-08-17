@@ -1730,7 +1730,7 @@ namespace Versionr
             return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
         }
 
-        private bool Load()
+        private bool Load(bool headless = false)
         {
             try
             {
@@ -1749,7 +1749,8 @@ namespace Versionr
                 if (LocalData.RefreshLocalTimes)
                     RefreshLocalTimes();
 
-                FileTimeCache = LocalData.LoadFileTimes();
+                if (!headless)
+                    FileTimeCache = LocalData.LoadFileTimes();
 
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
@@ -3433,7 +3434,7 @@ namespace Versionr
                         continue;
                     }
                     Client client = null;
-                    Area external = LoadWorkspace(directory, true);
+                    Area external = LoadWorkspace(directory, false, true);
                     bool fresh = false;
                     if (external == null)
                     {
@@ -3469,7 +3470,8 @@ namespace Versionr
                         if (!client.ReceivedData && !fresh)
                             continue;
                     }
-                    external = LoadWorkspace(directory, true);
+                    if (external == null)
+                        external = client.Workspace;
                     external.SetPartialPath(x.Value.PartialPath);
                     external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
                     if (fresh)
@@ -4380,7 +4382,7 @@ namespace Versionr
 
         private static Area CreateWorkspace(DirectoryInfo workingDir, bool skipContainmentCheck = false)
         {
-            Area ws = LoadWorkspace(workingDir, skipContainmentCheck);
+            Area ws = LoadWorkspace(workingDir, false, skipContainmentCheck);
             if (ws != null)
             {
                 Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:#e# Vault Initialization Failed##\n  The current directory #b#`{0}`## is already part of a versionr vault located in #b#`{1}`##.\n", workingDir.FullName, ws.Root.FullName));
@@ -4392,19 +4394,19 @@ namespace Versionr
             return ws;
         }
 
-        public static Area Load(DirectoryInfo workingDir)
+        public static Area Load(DirectoryInfo workingDir, bool headless = false)
         {
-            Area ws = LoadWorkspace(workingDir);
+            Area ws = LoadWorkspace(workingDir, headless);
             return ws;
         }
 
-        private static Area LoadWorkspace(DirectoryInfo workingDir, bool skipContainmentCheck = false)
+        private static Area LoadWorkspace(DirectoryInfo workingDir, bool headless = false, bool skipContainmentCheck = false)
         {
             DirectoryInfo adminFolder = FindAdministrationFolder(workingDir, skipContainmentCheck);
             if (adminFolder == null)
                 return null;
             Area ws = new Area(adminFolder);
-            if (!ws.Load())
+            if (!ws.Load(headless))
                 return null;
             return ws;
         }
