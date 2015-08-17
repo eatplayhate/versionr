@@ -159,6 +159,14 @@ namespace Versionr.Commands
             return true;
         }
 
+        protected override bool OnNoTargetsAssumeAll
+        {
+            get
+            {
+                return true;
+            }
+        }
+
         public static Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
         {
             return GetStatusText(x.Code, x.Staged);
