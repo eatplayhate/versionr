@@ -41,6 +41,8 @@ namespace Versionr.Utilities
             }
         }
 
+        ConcurrentQueue<Task> InternalList = new ConcurrentQueue<Task>();
+
         // Inform the ThreadPool that there's work to be executed for this scheduler.  
         private void NotifyThreadPoolOfPendingWork()
         {
@@ -52,18 +54,23 @@ namespace Versionr.Utilities
                     while (true)
                     {
                         Task item;
-                        lock (m_Tasks)
+                        if (!InternalList.TryDequeue(out item))
                         {
-                            if (m_Tasks.Count == 0)
+                            lock (m_Tasks)
+                            {
+                                while (m_Tasks.Count > 0)
+                                {
+                                    InternalList.Enqueue(m_Tasks.First.Value);
+                                    m_Tasks.RemoveFirst();
+                                }
+                            }
+                            if (!InternalList.TryDequeue(out item))
                             {
                                 --m_DelegatesQueuedOrRunning;
                                 break;
                             }
-                            
-                            item = m_Tasks.First.Value;
-                            m_Tasks.RemoveFirst();
                         }
-                        
+                            
                         base.TryExecuteTask(item);
                     }
                 }
