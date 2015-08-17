@@ -511,6 +511,7 @@ namespace Versionr
         internal void CacheRecords(Guid iD, List<Record> results, List<Record> baseList, List<Alteration> alterations)
         {
             BeginTransaction();
+            DeleteAll<CachedRecords>();
             CachedRecords cr = new CachedRecords()
             {
                 AssociatedVersion = iD,
