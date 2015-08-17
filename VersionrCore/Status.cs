@@ -108,8 +108,6 @@ namespace Versionr
             }
         }
         public List<Objects.Record> VersionControlRecords { get; set; }
-        public List<Objects.Record> BaseRecords { get; set; }
-        public List<Objects.Alteration> Alterations { get; set; }
         public Objects.Version CurrentVersion { get; set; }
         public Branch Branch { get; set; }
         public List<StatusEntry> Elements { get; set; }
@@ -173,11 +171,7 @@ namespace Versionr
             foreach (var x in currentSnapshot.Entries)
                 snapshotData[x.CanonicalName] = x;
             HashSet<Entry> foundEntries = new HashSet<Entry>();
-            List<Objects.Record> baserecs;
-            List<Objects.Alteration> alterations;
-            var records = db.GetCachedRecords(CurrentVersion, out baserecs, out alterations);
-            BaseRecords = baserecs;
-            Alterations = alterations;
+            var records = db.GetCachedRecords(CurrentVersion);
             var stage = ldb.StageOperations;
             Stage = stage;
             VersionControlRecords = records;

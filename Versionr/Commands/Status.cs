@@ -88,14 +88,12 @@ namespace Versionr.Commands
             }
             if (status.MergeInputs.Count > 0)
                 Printer.WriteLineMessage("");
-            foreach (var x in targets.OrderBy(x => x.CanonicalName))
+            IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return x.Code != StatusCode.Ignored; });
+            if (!localOptions.All)
+                operands = operands.Where(x => x.Code != StatusCode.Unchanged);
+            if (!localOptions.NoList)
             {
-				if (x.Code == StatusCode.Unchanged && !localOptions.All)
-                    continue;
-                codeCount[(int)x.Code]++;
-                if (x.Code == StatusCode.Ignored)
-                    continue;
-                if (!localOptions.NoList)
+                foreach (var x in operands.OrderBy(x => x.CanonicalName))
                 {
                     string name = ws.GetLocalCanonicalName(x.CanonicalName);
                     int index = name.LastIndexOf('/');

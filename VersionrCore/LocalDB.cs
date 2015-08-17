@@ -398,20 +398,18 @@ namespace Versionr
             }
         }
 
-        const int CachedRecordVersion = 1;
+        const int CachedRecordVersion = 2;
 
-        internal bool GetCachedRecords(Guid iD, out List<Record> results, out List<Record> baseList, out List<Alteration> alterations)
+        internal bool GetCachedRecords(Guid iD, out List<Record> results)
         {
             var rec = Find<CachedRecords>(iD);
             if (rec != null && rec.Version == CachedRecordVersion)
-                return DeserializeCachedRecords(rec.Data, out results, out baseList, out alterations);
+                return DeserializeCachedRecords(rec.Data, out results);
             results = null;
-            baseList = null;
-            alterations = null;
             return false;
         }
 
-        private bool DeserializeCachedRecords(byte[] data, out List<Record> results, out List<Record> baseList, out List<Alteration> alterations)
+        private bool DeserializeCachedRecords(byte[] data, out List<Record> results)
         {
             using (System.IO.MemoryStream ms = new System.IO.MemoryStream(data))
             using (System.IO.BinaryReader br = new System.IO.BinaryReader(ms))
@@ -420,19 +418,11 @@ namespace Versionr
                 results = new List<Record>(count);
                 for (int i = 0; i < count; i++)
                     results.Add(DeserializeRecord(br));
-                count = br.ReadInt32();
-                baseList = new List<Record>(count);
-                for (int i = 0; i < count; i++)
-                    baseList.Add(DeserializeRecord(br));
-                count = br.ReadInt32();
-                alterations = new List<Alteration>(count);
-                for (int i = 0; i < count; i++)
-                    alterations.Add(DeserializeAlteration(br));
             }
             return true;
         }
 
-        private byte[] SerializeCachedRecords(List<Record> results, List<Record> baseList, List<Alteration> alterations)
+        private byte[] SerializeCachedRecords(List<Record> results)
         {
             System.IO.MemoryStream ms = new System.IO.MemoryStream();
             using (System.IO.BinaryWriter bw = new System.IO.BinaryWriter(ms))
@@ -442,42 +432,8 @@ namespace Versionr
                 {
                     SerializeRecord(x, bw);
                 }
-                bw.Write(baseList.Count);
-                foreach (var x in baseList)
-                {
-                    SerializeRecord(x, bw);
-                }
-                bw.Write(alterations.Count);
-                foreach (var x in alterations)
-                {
-                    SerializeAlteration(x, bw);
-                }
             }
             return ms.ToArray();
-        }
-
-        private void SerializeAlteration(Alteration x, BinaryWriter bw)
-        {
-            bw.Write(x.Id);
-            bw.Write(x.Owner);
-            bw.Write((uint)x.Type);
-            bw.Write(x.NewRecord.HasValue ? x.NewRecord.Value : -1);
-            bw.Write(x.PriorRecord.HasValue ? x.PriorRecord.Value : -1);
-        }
-
-        private Alteration DeserializeAlteration(BinaryReader br)
-        {
-            Alteration alt = new Alteration();
-            alt.Id = br.ReadInt64();
-            alt.Owner = br.ReadInt64();
-            alt.Type = (AlterationType)br.ReadUInt32();
-            long newRec = br.ReadInt64();
-            long oldRec = br.ReadInt64();
-            if (newRec != -1)
-                alt.NewRecord = newRec;
-            if (oldRec != -1)
-                alt.PriorRecord = oldRec;
-            return alt;
         }
 
         private Record DeserializeRecord(BinaryReader br)
@@ -508,14 +464,14 @@ namespace Versionr
             bw.Write(x.CanonicalName);
         }
 
-        internal void CacheRecords(Guid iD, List<Record> results, List<Record> baseList, List<Alteration> alterations)
+        internal void CacheRecords(Guid iD, List<Record> results)
         {
             BeginTransaction();
             DeleteAll<CachedRecords>();
             CachedRecords cr = new CachedRecords()
             {
                 AssociatedVersion = iD,
-                Data = SerializeCachedRecords(results, baseList, alterations),
+                Data = SerializeCachedRecords(results),
                 Version = CachedRecordVersion
             };
             InsertOrReplace(cr);
