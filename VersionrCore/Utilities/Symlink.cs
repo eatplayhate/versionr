@@ -23,9 +23,9 @@ namespace Versionr.Utilities
 			DirectoryInfo dir = new DirectoryInfo(path);
 			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
         }
-        public static bool Exists(FileSystemInfo info)
+        public static bool Exists(FileSystemInfo info, string hintpath = null)
         {
-			if (SvnIntegration.ApliesTo(info.FullName))
+			if (SvnIntegration.ApliesTo(info, hintpath))
 				return SvnIntegration.IsSymlink(info.FullName);
 
 			if (info.Exists)

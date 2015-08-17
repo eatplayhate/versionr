@@ -121,7 +121,7 @@ namespace Versionr
             Length = Info.Length;
             ModificationTime = Info.LastWriteTimeUtc;
 
-			if (Utilities.Symlink.Exists(Info))
+			if (Utilities.Symlink.Exists(Info, CanonicalName))
 			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
 				Length = 0;

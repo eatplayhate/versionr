@@ -27,6 +27,7 @@ namespace Versionr
     {
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
+        public DirectoryInfo RootDirectory { get; private set; }
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
@@ -422,22 +423,26 @@ namespace Versionr
         {
             if (!string.IsNullOrEmpty(path) && !path.EndsWith("/"))
                 path += "/";
-            try
+            if (LocalData.PartialPath != path)
             {
-                Printer.PrintMessage("Workspace internal path set to: #b#{0}##.", path);
-                LocalData.BeginTransaction();
-                var ws = LocalData.Workspace;
-                ws.PartialPath = path;
-                LocalData.UpdateSafe(ws);
-                LocalData.Commit();
-                LocalData.RefreshPartialPath();
-                return true;
+                try
+                {
+                    Printer.PrintMessage("Workspace internal path set to: #b#{0}##.", path);
+                    LocalData.BeginTransaction();
+                    var ws = LocalData.Workspace;
+                    ws.PartialPath = path;
+                    LocalData.UpdateSafe(ws);
+                    LocalData.Commit();
+                    LocalData.RefreshPartialPath();
+                    return true;
+                }
+                catch
+                {
+                    LocalData.Rollback();
+                    return false;
+                }
             }
-            catch
-            {
-                LocalData.Rollback();
-                return false;
-            }
+            return true;
         }
 
         internal List<Record> GetAllMissingRecords()
@@ -640,7 +645,7 @@ namespace Versionr
         {
             get
             {
-                return AdministrationFolder.Parent;
+                return RootDirectory;
             }
         }
 
@@ -960,6 +965,7 @@ namespace Versionr
         {
             Utilities.MultiArchPInvoke.BindDLLs();
             AdministrationFolder = adminFolder;
+            RootDirectory = AdministrationFolder.Parent;
             AdministrationFolder.Create();
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
         }

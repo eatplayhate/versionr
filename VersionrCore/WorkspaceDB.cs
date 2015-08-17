@@ -530,7 +530,7 @@ namespace Versionr
             }
 #endif
 
-                List<long> pending = new List<long>();
+            List<long> pending = new List<long>();
 
             CacheRecords(alterations.Select(x => x.NewRecord).Where(x => x.HasValue).Select(x => x.Value));
             foreach (var x in alterations.Select(x => x).Reverse())
