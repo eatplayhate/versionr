@@ -3740,7 +3740,7 @@ namespace Versionr
             }
             try
             {
-                return RunLocked(() =>
+                bool result = RunLocked(() =>
                 {
                     Objects.Version parentVersion = Database.Version;
                     Printer.PrintDiagnostics("Getting status for commit.");
@@ -4038,7 +4038,6 @@ namespace Versionr
                             Database.InsertSafe(vs);
 
                             Database.Commit();
-                            Database.GetCachedRecords(vs);
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
                             Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
@@ -4064,6 +4063,8 @@ namespace Versionr
                     }
                     return true;
                 }, true);
+                Database.GetCachedRecords(Version);
+                return result;
             }
             catch
             {
