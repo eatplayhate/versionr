@@ -77,7 +77,14 @@ namespace Versionr.Network
                 PublicKey = rsaCSP.ExportParameters(false);
                 Printer.PrintDiagnostics("RSA Fingerprint: {0}", PublicKey.Fingerprint());
             }
-            System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
+            System.Net.Sockets.TcpListener listener = null;
+            if (System.Net.Sockets.Socket.OSSupportsIPv6)
+            {
+                listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.IPv6Any, port);
+                listener.Server.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
+            }
+            else
+                listener = new TcpListener(System.Net.IPAddress.Any, port);
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
@@ -496,6 +503,7 @@ namespace Versionr.Network
                     Printer.PrintDiagnostics("Client was a terrible person, because: {0}", e);
                 }
             }
+
             Printer.PrintDiagnostics("Ended client processor task!");
         }
 

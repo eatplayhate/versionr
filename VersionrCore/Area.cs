@@ -2989,6 +2989,7 @@ namespace Versionr
                 target = Database.Get<Objects.Version>(GetBranchHead(Database.Branch).Version);
             CleanStage();
             CheckoutInternal(target, verbose);
+            Database.GetCachedRecords(Version);
 
 			if (purge)
 				Purge();
@@ -3443,6 +3444,7 @@ namespace Versionr
                     }
                     else
                         client = new Client(external);
+
                     if (!client.Connect(result.Item2, result.Item3, result.Item4))
                     {
                         Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
@@ -3464,12 +3466,16 @@ namespace Versionr
                         client.Workspace.SetRemote(result.Item2, result.Item3, result.Item4, "default");
                         if (!fresh && !client.Pull(false, x.Value.Branch))
                         {
+                            client.Close();
                             Printer.PrintError("#x#Error:##\n  Couldn't pull remote branch \"#b#{0}##\" while processing extern \"#b#{1}##\"", x.Value.Branch, x.Key);
                             continue;
                         }
+
+                        client.Close();
                         if (!client.ReceivedData && !fresh)
                             continue;
                     }
+
                     if (external == null)
                         external = client.Workspace;
                     external.SetPartialPath(x.Value.PartialPath);
@@ -3527,7 +3533,7 @@ namespace Versionr
         {
             if (canonicalName.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
                 return true;
-            if (canonicalName.StartsWith(LocalData.PartialPath))
+            if (canonicalName.StartsWith(LocalData.PartialPath, StringComparison.OrdinalIgnoreCase))
                 return true;
             return false;
         }
@@ -4032,6 +4038,7 @@ namespace Versionr
                             Database.InsertSafe(vs);
 
                             Database.Commit();
+                            Database.GetCachedRecords(vs);
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
                             Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
@@ -4394,9 +4401,9 @@ namespace Versionr
             return ws;
         }
 
-        public static Area Load(DirectoryInfo workingDir, bool headless = false)
+        public static Area Load(DirectoryInfo workingDir, bool headless = false, bool skipContainment = false)
         {
-            Area ws = LoadWorkspace(workingDir, headless);
+            Area ws = LoadWorkspace(workingDir, headless, skipContainment);
             return ws;
         }
 

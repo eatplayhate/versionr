@@ -8,6 +8,7 @@ namespace Versionr.Commands
 {
     abstract class BaseWorkspaceCommand : BaseCommand
     {
+        public bool DirectExtern { get; set; }
         public Area Workspace { get; set; }
         public System.IO.DirectoryInfo ActiveDirectory { get; set; }
         public virtual bool Run(System.IO.DirectoryInfo workingDirectory, object options)
@@ -17,7 +18,7 @@ namespace Versionr.Commands
             Printer.EnableDiagnostics = localOptions.Verbose;
             Printer.Quiet = localOptions.Quiet;
 
-            using (Workspace = Area.Load(workingDirectory))
+            using (Workspace = Area.Load(workingDirectory, false, DirectExtern))
             {
                 if (Workspace == null)
                 {

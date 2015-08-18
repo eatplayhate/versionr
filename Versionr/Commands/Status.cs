@@ -123,8 +123,14 @@ namespace Versionr.Commands
                     include = Filter(new KeyValuePair<string, object>[] { new KeyValuePair<string, object>(x.Value.Location, new object()) }).FirstOrDefault().Value != null;
                 if (include)
                 {
-                    Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
-                    new Status().Run(new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location)), options);
+                    System.IO.DirectoryInfo directory = new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location));
+                    if (directory.Exists)
+                    {
+                        Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
+                        new Status() { DirectExtern = true }.Run(directory, options);
+                    }
+                    else
+                        Printer.WriteLineMessage("\nExternal #c#{0}## ({1}): #e#missing##", x.Key, x.Value.Location);
                 }
             }
             return true;
