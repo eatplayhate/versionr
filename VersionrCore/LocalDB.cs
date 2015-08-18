@@ -16,6 +16,14 @@ namespace Versionr
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
+            if ((flags & SQLite.SQLiteOpenFlags.Create) != 0)
+            {
+                PrepareTables();
+            }
+        }
+
+        private void PrepareTables()
+        {
             BeginTransaction();
             EnableWAL = true;
             CreateTable<LocalState.Workspace>();
@@ -150,6 +158,7 @@ namespace Versionr
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
                 return true;
+            PrepareTables();
             if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;

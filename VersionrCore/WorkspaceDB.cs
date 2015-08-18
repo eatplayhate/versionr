@@ -311,8 +311,8 @@ namespace Versionr
                 {
                     Rollback();
                 }
+                PrepareTables();
             }
-            PrepareTables();
         }
 
         private void PrepareTables()
