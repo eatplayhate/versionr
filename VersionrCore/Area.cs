@@ -245,6 +245,11 @@ namespace Versionr
             }
         }
 
+        internal bool SyncCurrentRecords()
+        {
+            return GetMissingRecords(Database.Records);
+        }
+
         public bool PathContains(string possibleparent, string location)
         {
             string outerpath = GetLocalPath(Path.Combine(Root.FullName, possibleparent));
@@ -1629,7 +1634,7 @@ namespace Versionr
                 if (x.Type == StageOperationType.Add)
                 {
                     Status.StatusEntry entry = status.Map[x.Operand1];
-                    while (entry.FilesystemEntry.Parent != null)
+                    while (entry.FilesystemEntry != null && entry.FilesystemEntry.Parent != null)
                     {
                         entry = status.Map[entry.FilesystemEntry.Parent.CanonicalName];
                         if (entry.Staged == false && (
@@ -2195,8 +2200,11 @@ namespace Versionr
                 {
                     if (localObject != null && localObject.Staged == false && localObject.IsDirectory)
                     {
-                        Printer.PrintMessage("Recreating locally missing directory: #b#{0}##.", localObject.CanonicalName);
-                        RestoreRecord(x, newRefTime);
+                        if (included)
+                        {
+                            Printer.PrintMessage("Recreating locally missing directory: #b#{0}##.", localObject.CanonicalName);
+                            RestoreRecord(x, newRefTime);
+                        }
                     }
                     else if (parentObject == null)
                     {
@@ -2229,9 +2237,9 @@ namespace Versionr
                                 return;
                             }
                             // less fine
-                            Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
                             if (included)
                             {
+                                Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
                                 RestoreRecord(x, newRefTime);
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                                 if (!updateMode)
@@ -2964,7 +2972,7 @@ namespace Versionr
             }
         }
 
-        public void Checkout(string v, bool purge, bool verbose)
+        public void Checkout(string v, bool purge, bool verbose, bool metadataOnly = false)
         {
             Objects.Version target = null;
             if (!string.IsNullOrEmpty(v))
@@ -2988,7 +2996,24 @@ namespace Versionr
             if (target == null)
                 target = Database.Get<Objects.Version>(GetBranchHead(Database.Branch).Version);
             CleanStage();
-            CheckoutInternal(target, verbose);
+            if (metadataOnly)
+            {
+                LocalData.BeginTransaction();
+                try
+                {
+                    var ws = LocalData.Workspace;
+                    ws.Tip = target.ID;
+                    ws.LocalCheckoutTime = DateTime.Now;
+                    LocalData.Update(ws);
+                    LocalData.Commit();
+                }
+                catch (Exception e)
+                {
+                    throw new Exception("Couldn't update local information!", e);
+                }
+            }
+            else
+                CheckoutInternal(target, verbose);
             Database.GetCachedRecords(Version);
 
 			if (purge)
@@ -3630,6 +3655,8 @@ namespace Versionr
         {
 			foreach (var x in targets)
             {
+                if (!Included(x.CanonicalName))
+                    continue;
                 if (interactive && (x.Staged || (revertRecord && x.Code != StatusCode.Unchanged)))
                 {
                     Printer.PrintMessageSingleLine("{1} object #b#{0}##", x.CanonicalName, (revertRecord && x.Code == StatusCode.Modified) ? "#e#Revert##" : "#b#Unrecord##");
@@ -3744,7 +3771,7 @@ namespace Versionr
                 {
                     Objects.Version parentVersion = Database.Version;
                     Printer.PrintDiagnostics("Getting status for commit.");
-                    Status st = Status;
+                    Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
                     if (st.HasModifications(true) || mergeIDs.Count > 0)
                     {
                         Printer.PrintMessage("Committing changes..");

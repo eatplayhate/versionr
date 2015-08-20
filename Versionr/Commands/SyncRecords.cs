@@ -28,13 +28,19 @@ namespace Versionr.Commands
                 return "syncrecords";
             }
         }
+
+        [Option("current", HelpText = "Sync objects for current version only.")]
+        public bool Current { get; set; }
     }
     class SyncRecords : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             SyncRecordsOptions localOptions = options as SyncRecordsOptions;
-            return client.SyncRecords();
+            if (localOptions.Current)
+                return client.SyncCurrentRecords();
+            else
+                return client.SyncRecords();
         }
     }
 }

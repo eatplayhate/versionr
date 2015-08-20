@@ -67,6 +67,10 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
+        public bool SyncCurrentRecords()
+        {
+            return Workspace.SyncCurrentRecords();
+        }
         public bool SyncRecords()
         {
             List<Record> missingRecords = Workspace.GetAllMissingRecords();

@@ -155,7 +155,7 @@ namespace Versionr
         }
         int UpdatedFileTimeCount = 0;
 
-        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null)
+        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null, bool fullChecks = true)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
@@ -284,7 +284,7 @@ namespace Versionr
             }
             finally
             {
-                if (UpdatedFileTimeCount > 0)
+                if (UpdatedFileTimeCount > 0 && fullChecks)
                     Workspace.ReplaceFileTimes();
             }
             Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
@@ -326,6 +326,8 @@ namespace Versionr
                     IgnoredObjects++;
                     continue;
                 }
+                if (x.Key == RestrictedPath)
+                    continue;
 
                 StageFlags objectFlags;
                 stageInformation.TryGetValue(x.Value.CanonicalName, out objectFlags);

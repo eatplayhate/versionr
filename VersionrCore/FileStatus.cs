@@ -179,8 +179,7 @@ namespace Versionr
                     ignoreDirectory = true;
                     foreach (var y in area.Directives.Include.RegexPatterns)
                     {
-                        var match = y.Match(slashedSubdirectory);
-                        if (match.Success)
+                        if (y.IsMatch(slashedSubdirectory))
                         {
                             ignoreDirectory = false;
                             break;
@@ -191,8 +190,7 @@ namespace Versionr
 				{
 					foreach (var y in area.Directives.Ignore.RegexPatterns)
 					{
-                        var match = y.Match(slashedSubdirectory);
-                        if (match.Success)
+                        if (y.IsMatch(slashedSubdirectory))
 						{
 							ignoreDirectory = true;
 							break;
@@ -235,8 +233,7 @@ namespace Versionr
                     ignored = true;
                     foreach (var y in area.Directives.Include.RegexPatterns)
                     {
-                        var match = y.Match(name);
-                        if (match.Success)
+                        if (y.IsMatch(name))
                         {
                             ignored = false;
                             break;
@@ -270,8 +267,7 @@ namespace Versionr
                 {
                     foreach (var y in area.Directives.Ignore.RegexPatterns)
                     {
-                        var match = y.Match(name);
-                        if (match.Success)
+                        if (y.IsMatch(name))
                         {
 							ignored = true;
                             break;

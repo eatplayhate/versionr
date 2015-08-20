@@ -124,7 +124,7 @@ namespace Versionr.Commands
 								{
 									try
 									{
-										Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
+										Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name);
 									}
 									finally
 									{
@@ -136,7 +136,7 @@ namespace Versionr.Commands
 							{
 								try
 								{
-									RunInternalDiff(tmp, x.CanonicalName);
+									RunInternalDiff(tmp, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
 								}
 								finally
 								{
@@ -336,7 +336,10 @@ namespace Versionr.Commands
                     }
                 }
                 if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
-                    isBrace = true;
+                {
+                    if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
+                        isBrace = true;
+                }
                 if ((isWhitespace && isShort) || isShort || isBrace)
                 {
                     var next = diff[i + 1];

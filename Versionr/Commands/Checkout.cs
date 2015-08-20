@@ -43,6 +43,9 @@ namespace Versionr.Commands
         [Option("partial", HelpText = "Sets a partial path within the vault.")]
         public string Partial { get; set; }
 
+        [Option("metadata", HelpText = "Moves version tip but does not alter the state of files on disk. Use with caution!")]
+        public bool Metadata { get; set; }
+
         [ValueOption(0)]
         public string Target { get; set; }
     }
@@ -67,7 +70,7 @@ namespace Versionr.Commands
             }
             if (localOptions.Partial != null)
                 Workspace.SetPartialPath(localOptions.Partial);
-            Workspace.Checkout(target, localOptions.Purge, false);
+            Workspace.Checkout(target, localOptions.Purge, false, localOptions.Metadata);
 			return true;
         }
     }

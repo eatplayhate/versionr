@@ -118,7 +118,7 @@ namespace Versionr.Commands
             {
                 bool include = true;
                 if (!string.IsNullOrEmpty(ss.RestrictedPath))
-                    include = Workspace.PathContains(ss.RestrictedPath, x.Value.Location);
+                    include = Workspace.PathContains(ss.RestrictedPath, System.IO.Path.Combine(ws.Root.FullName, x.Value.Location));
                 else
                     include = Filter(new KeyValuePair<string, object>[] { new KeyValuePair<string, object>(x.Value.Location, new object()) }).FirstOrDefault().Value != null;
                 if (include)
