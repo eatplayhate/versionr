@@ -20,18 +20,30 @@ namespace Versionr.Utilities
 
 		public static void Diff(string baseFile, string baseAlias, string file, string fileAlias)
 		{
-			System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-			{
-				FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseMerge.exe",
-				Arguments = string.Format("/base:\"{0}\" /mine:\"{1}\"", baseFile, file)
-			};
-            if (!System.IO.File.Exists(psi.FileName))
+            System.Diagnostics.ProcessStartInfo psi;
+            if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
             {
                 psi = new System.Diagnostics.ProcessStartInfo()
                 {
-                    FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                    Arguments = string.Format("{0} {1} --L1 {2} --L2 {3}", baseFile, file, baseAlias, fileAlias)
+                    FileName = "diff",
+                    Arguments = string.Format("--unified \"{0}\" \"{1}\"", baseFile, file)
                 };
+            }
+            else
+            {
+                psi = new System.Diagnostics.ProcessStartInfo()
+                {
+                    FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseMerge.exe",
+                    Arguments = string.Format("/base:\"{0}\" /mine:\"{1}\"", baseFile, file)
+                };
+                if (!System.IO.File.Exists(psi.FileName))
+                {
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                        Arguments = string.Format("{0} {1} --L1 {2} --L2 {3}", baseFile, file, baseAlias, fileAlias)
+                    };
+                }
             }
 			var proc = System.Diagnostics.Process.Start(psi);
 			proc.WaitForExit();
@@ -42,12 +54,12 @@ namespace Versionr.Utilities
 			return Merge(baseFile, baseFile, file, file, output);
 		}
         public static bool Merge(string baseFile, string baseAlias, string file, string fileAlias, string output)
-		{
-			System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-			{
-				FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-				Arguments = string.Format("\"{0}\" \"{1}\" -o \"{2}\" --auto --L1 \"{3}\" --L2 \"{4}\"", baseFile, file, output, baseAlias, fileAlias)
-			};
+        {
+            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
+            {
+                FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                Arguments = string.Format("\"{0}\" \"{1}\" -o \"{2}\" --auto --L1 \"{3}\" --L2 \"{4}\"", baseFile, file, output, baseAlias, fileAlias)
+            };
 			var proc = System.Diagnostics.Process.Start(psi);
 			proc.WaitForExit();
 			return (proc.ExitCode == 0);
@@ -58,12 +70,24 @@ namespace Versionr.Utilities
 		}
 
 		public static bool Merge3Way(string baseFile, string baseAlias, string file1, string file1Alias, string file2, string file2Alias, string output)
-		{
-			System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-			{
-				FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-				Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto --L1 \"{4}\" --L2 \"{5}\"", baseFile, file1, file2, output, baseAlias, file1Alias, file2Alias)
-			};
+        {
+            System.Diagnostics.ProcessStartInfo psi;
+            if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+            {
+                psi = new System.Diagnostics.ProcessStartInfo()
+                {
+                    FileName = "merge",
+                    Arguments = string.Format("\"{1}\" \"{0}\" \"{2}\"", baseFile, file1, file2)
+                };
+            }
+            else
+            {
+                psi = new System.Diagnostics.ProcessStartInfo()
+                {
+                    FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                    Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto --L1 \"{4}\" --L2 \"{5}\"", baseFile, file1, file2, output, baseAlias, file1Alias, file2Alias)
+                };
+            }
 			var proc = System.Diagnostics.Process.Start(psi);
 			proc.WaitForExit();
 			return (proc.ExitCode == 0);
