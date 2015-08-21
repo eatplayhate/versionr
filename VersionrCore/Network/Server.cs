@@ -78,13 +78,20 @@ namespace Versionr.Network
                 Printer.PrintDiagnostics("RSA Fingerprint: {0}", PublicKey.Fingerprint());
             }
             System.Net.Sockets.TcpListener listener = null;
-            if (System.Net.Sockets.Socket.OSSupportsIPv6)
+            try
             {
-                listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.IPv6Any, port);
-                listener.Server.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
+                if (System.Net.Sockets.Socket.OSSupportsIPv6)
+                {
+                    listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.IPv6Any, port);
+                    listener.Server.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
+                }
+                else
+                    listener = new TcpListener(System.Net.IPAddress.Any, port);
             }
-            else
+            catch
+            {
                 listener = new TcpListener(System.Net.IPAddress.Any, port);
+            }
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
@@ -246,7 +253,7 @@ namespace Versionr.Network
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Write))
                                     throw new Exception("Access denied.");
-                                ws = Area.InitRemote(info, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
+                                ws = Area.InitRemote(domainInfo.Directory, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
                                 clientInfo.SharedInfo.Workspace = ws;
                                 domainInfo.Bare = false;
                             }

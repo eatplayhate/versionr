@@ -26,7 +26,8 @@ namespace Versionr.Utilities
                 psi = new System.Diagnostics.ProcessStartInfo()
                 {
                     FileName = "diff",
-                    Arguments = string.Format("--unified \"{0}\" \"{1}\"", baseFile, file)
+                    Arguments = string.Format("--unified \"{0}\" \"{1}\"", baseFile, file),
+                    UseShellExecute = true
                 };
             }
             else
@@ -77,7 +78,8 @@ namespace Versionr.Utilities
                 psi = new System.Diagnostics.ProcessStartInfo()
                 {
                     FileName = "merge",
-                    Arguments = string.Format("\"{1}\" \"{0}\" \"{2}\"", baseFile, file1, file2)
+                    Arguments = string.Format("\"{1}\" \"{0}\" \"{2}\"", baseFile, file1, file2),
+                    UseShellExecute = true
                 };
             }
             else
