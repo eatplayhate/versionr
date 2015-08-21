@@ -93,7 +93,7 @@ namespace Versionr.Commands
 
             if (config == null && requireRemoteName)
             {
-                if (parsedRemoteName.Item1 == false)
+                if (parsedRemoteName != null && parsedRemoteName.Item1 == false)
                 {
                     Printer.PrintError("You must specify either a host and port or a remote name.");
                     return false;
