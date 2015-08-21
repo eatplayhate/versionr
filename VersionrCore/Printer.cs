@@ -93,6 +93,7 @@ namespace Versionr
         
         private static bool SuppressIndent = false;
         private static bool AllowInteractivePrinting = true;
+        public static bool NoColours = false;
 
         private static int IndentLevel { get; set; }
 
@@ -282,55 +283,99 @@ namespace Versionr
 
         private static void SetOutputColour(OutputColour style)
         {
+            if (NoColours)
+                return;
             if (style == PreviousColour)
                 return;
             PreviousColour = style;
-            switch (style)
+            if (Utilities.MultiArchPInvoke.RunningPlatform == Utilities.Platform.Windows)
             {
-                case OutputColour.Normal:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = DefaultColour;
-                    break;
-                case OutputColour.Success:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = ConsoleColor.Green;
-                    break;
-                case OutputColour.Blue:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = ConsoleColor.Cyan;
-                    break;
-                case OutputColour.Emphasis:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = ConsoleColor.White;
-                    break;
-                case OutputColour.Warning:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = ConsoleColor.Yellow;
-                    break;
-                case OutputColour.Error:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = ConsoleColor.Red;
-                    break;
-                case OutputColour.ErrorHeader:
-                    System.Console.BackgroundColor = ConsoleColor.Red;
-                    System.Console.ForegroundColor = ConsoleColor.White;
-                    break;
-                case OutputColour.WarningHeader:
-                    System.Console.BackgroundColor = ConsoleColor.Yellow;
-                    System.Console.ForegroundColor = ConsoleColor.Black;
-                    break;
-                case OutputColour.Trace:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = ConsoleColor.DarkGray;
-                    break;
-                case OutputColour.Invert:
-                    System.Console.BackgroundColor = ConsoleColor.White;
-                    System.Console.ForegroundColor = ConsoleColor.Black;
-                    break;
-                default:
-                    System.Console.BackgroundColor = DefaultBGColour;
-                    System.Console.ForegroundColor = DefaultColour;
-                    break;
+                switch (style)
+                {
+                    case OutputColour.Normal:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = DefaultColour;
+                        break;
+                    case OutputColour.Success:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Green;
+                        break;
+                    case OutputColour.Blue:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Cyan;
+                        break;
+                    case OutputColour.Emphasis:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.White;
+                        break;
+                    case OutputColour.Warning:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Yellow;
+                        break;
+                    case OutputColour.Error:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Red;
+                        break;
+                    case OutputColour.ErrorHeader:
+                        System.Console.BackgroundColor = ConsoleColor.Red;
+                        System.Console.ForegroundColor = ConsoleColor.White;
+                        break;
+                    case OutputColour.WarningHeader:
+                        System.Console.BackgroundColor = ConsoleColor.Yellow;
+                        System.Console.ForegroundColor = ConsoleColor.Black;
+                        break;
+                    case OutputColour.Trace:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.DarkGray;
+                        break;
+                    case OutputColour.Invert:
+                        System.Console.BackgroundColor = ConsoleColor.White;
+                        System.Console.ForegroundColor = ConsoleColor.Black;
+                        break;
+                    default:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = DefaultColour;
+                        break;
+                }
+            }
+            else
+            {
+                System.Console.Write("\x1b[0m");
+                switch (style)
+                {
+                    case OutputColour.Normal:
+                        break;
+                    case OutputColour.Success:
+                        System.Console.Write("\x1b[92m");
+                        break;
+                    case OutputColour.Blue:
+                        System.Console.Write("\x1b[96m");
+                        break;
+                    case OutputColour.Emphasis:
+                        System.Console.Write("\x1b[1m");
+                        break;
+                    case OutputColour.Warning:
+                        System.Console.Write("\x1b[93m");
+                        break;
+                    case OutputColour.Error:
+                        System.Console.Write("\x1b[91m");
+                        break;
+                    case OutputColour.ErrorHeader:
+                        System.Console.Write("\x1b[41m");
+                        break;
+                    case OutputColour.WarningHeader:
+                        System.Console.Write("\x1b[30;103m");
+                        break;
+                    case OutputColour.Trace:
+                        System.Console.Write("\x1b[37m");
+                        break;
+                    case OutputColour.Invert:
+                        System.Console.Write("\x1b[7m");
+                        break;
+                    default:
+                        System.Console.Write("\x1b[0m");
+                        break;
+                }
             }
         }
         public static void Write(MessageType type, string message)

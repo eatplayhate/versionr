@@ -244,7 +244,7 @@ namespace Versionr
             commands["stats"] = new Commands.Stats();
 
             Console.CancelKeyPress += Console_CancelKeyPress;
-
+            
             Commands.BaseCommand command = null;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
@@ -259,6 +259,9 @@ namespace Versionr
             }
             try
             {
+                VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
+                if (baseOptions != null)
+                    Printer.NoColours = baseOptions.NoColours;
                 if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
                 {
                     Printer.RestoreDefaults();

@@ -55,6 +55,9 @@ namespace Versionr
         [Option('q', "quiet", HelpText = "Disable output of all messages except errors and warnings.")]
         public bool Quiet { get; set; }
 
+        [Option("nocolours", HelpText = "Disable coloured output.")]
+        public bool NoColours { get; set; }
+
         public virtual string Usage
         {
             get
