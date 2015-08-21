@@ -1372,9 +1372,9 @@ namespace Versionr
             return ObjectStore.GetTransmissionLength(record);
         }
 
-        internal bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
+        internal bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
-            return ObjectStore.TransmitRecordData(record, sender, scratchBuffer);
+            return ObjectStore.TransmitRecordData(record, sender, scratchBuffer, beginTransmission);
         }
 
         Dictionary<string, long?> KnownCanonicalNames = new Dictionary<string, long?>();

@@ -191,7 +191,7 @@ namespace Versionr.Network
                     catch
                     {
                         if (!domainInfo.Bare)
-                            throw;
+                            throw new Exception("Domain not bare, but couldn't load workspace!");
                     }
                     Printer.PrintDiagnostics("Received handshake - protocol: {0}", hs.VersionrProtocol);
                     SharedNetwork.Protocol? clientProtocol = hs.CheckProtocol();
@@ -508,6 +508,11 @@ namespace Versionr.Network
                 catch (Exception e)
                 {
                     Printer.PrintDiagnostics("Client was a terrible person, because: {0}", e);
+                }
+                finally
+                {
+                    if (ws != null)
+                        ws.Dispose();
                 }
             }
 

@@ -596,7 +596,10 @@ namespace Versionr.Network
                             Printer.PrintError("## Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
                         else
                         {
-                            Printer.PrintError("## Rejected request.");
+                            if (startTransaction == null)
+                                Printer.PrintError("## Connection terminated unexpectedly.");
+                            else
+                                Printer.PrintError("## Rejected request.");
                             return false;
                         }
                         goto Retry;

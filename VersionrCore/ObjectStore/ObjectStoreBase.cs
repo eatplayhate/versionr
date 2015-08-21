@@ -26,7 +26,7 @@ namespace Versionr.ObjectStore
         public abstract ObjectStoreTransaction BeginStorageTransaction();
         public abstract bool RecordData(ObjectStoreTransaction transaction, Objects.Record newRecord, Objects.Record priorRecord, Entry fileEntry);
         public abstract bool ReceiveRecordData(ObjectStoreTransaction transaction, string directName, System.IO.Stream dataStream, out string dependency);
-        public abstract bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer);
+        public abstract bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null);
         public abstract System.IO.Stream GetRecordStream(Objects.Record record);
         public abstract long GetTransmissionLength(Record record);
         public abstract bool HasData(Objects.Record recordInfo);

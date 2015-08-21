@@ -858,18 +858,22 @@ namespace Versionr.ObjectStore
             return GetFileForDataID(storeData.Lookup).Length;
         }
 
-        public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
+        public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
             if (!record.HasData)
             {
                 return true;
             }
-            sender(BitConverter.GetBytes(GetTransmissionLength(record)), 8, false);
+            long dataSize = GetTransmissionLength(record);
+            if (dataSize == -1)
+                return false;
             using (System.IO.Stream dataStream = GetDataStream(record))
             {
                 if (dataStream == null)
                     return false;
-
+                if (beginTransmission != null)
+                    beginTransmission();
+                sender(BitConverter.GetBytes(dataSize), 8, false);
                 while (true)
                 {
                     var readCount = dataStream.Read(scratchBuffer, 0, scratchBuffer.Length);
