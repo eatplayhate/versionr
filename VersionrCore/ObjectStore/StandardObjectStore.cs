@@ -846,6 +846,8 @@ namespace Versionr.ObjectStore
                 return 0;
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            if (storeData == null)
+                return -1;
             return GetTransmissionLengthInternal(storeData);
         }
 

@@ -46,7 +46,10 @@ namespace Versionr.Commands
             {
                 ws = Area.Load(workingDirectory);
                 if (ws == null)
+                {
+                    Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:##\n  The current directory #b#`{0}`## is not part of a vault.\n", workingDirectory.FullName));
                     return false;
+                }
                 client = new Network.Client(ws);
             }
             else
