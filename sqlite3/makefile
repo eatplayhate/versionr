@@ -1,6 +1,6 @@
 CC=clang
 CFLAGS=-fPIC -c -O3
-LDFLAGS=-shared -ldl -lpthreads
+LDFLAGS=-shared -ldl -lpthread
 SOURCES=shell.c sqlite3.c
 OBJECTS=$(SOURCES:.c=.o)
 ifeq ($(OS),Windows_NT)

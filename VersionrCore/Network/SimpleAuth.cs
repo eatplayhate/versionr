@@ -10,7 +10,8 @@ namespace Versionr.Network
     public enum Rights
     {
         Read = 1,
-        Write = 2
+        Write = 2,
+        Create = 4
     }
     public class AuthEntry
     {

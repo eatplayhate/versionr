@@ -14,6 +14,7 @@ namespace Versionr.Network
         public int AuthenticationAttempts { get; set; }
         public Dictionary<string, string> Domains { get; set; }
         public bool? IncludeRoot { get; set; }
+        public bool AllowVaultCreation { get; set; }
         public bool RequiresAuthentication
         {
             get

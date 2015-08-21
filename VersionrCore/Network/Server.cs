@@ -178,15 +178,25 @@ namespace Versionr.Network
                             hs.RequestedModule = string.Empty;
                         if (!Domains.TryGetValue(hs.RequestedModule, out domainInfo))
                         {
-                            Network.StartTransaction startSequence = Network.StartTransaction.CreateRejection();
-                            Printer.PrintDiagnostics("Rejecting client due to invalid domain: \"{0}\".", hs.RequestedModule);
-                            ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
-                            return;
+                            if (!Config.AllowVaultCreation || !Config.RequiresAuthentication || string.IsNullOrEmpty(hs.RequestedModule) || System.IO.Directory.Exists(System.IO.Path.Combine(info.FullName, hs.RequestedModule)))
+                            {
+                                Network.StartTransaction startSequence = Network.StartTransaction.CreateRejection();
+                                Printer.PrintDiagnostics("Rejecting client due to invalid domain: \"{0}\".", hs.RequestedModule);
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                                return;
+                            }
+                            domainInfo = new DomainInfo()
+                            {
+                                Bare = true,
+                                Directory = null
+                            };
                         }
                     }
                     try
                     {
                         ws = Area.Load(domainInfo.Directory, true);
+                        if (domainInfo.Bare)
+                            throw new Exception("Domain is bare, but workspace could be loaded!");
                     }
                     catch
                     {
@@ -251,11 +261,28 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
+                                bool fresh = false;
+                                if (domainInfo.Directory == null)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Create))
+                                        throw new Exception("Access denied.");
+                                    fresh = true;
+                                    System.IO.DirectoryInfo newDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(info.FullName, hs.RequestedModule));
+                                    newDirectory.Create();
+                                    domainInfo.Directory = newDirectory;
+                                    if (!newDirectory.Exists)
+                                        throw new Exception("Access denied.");
+                                }
                                 if (!clientInfo.Access.HasFlag(Rights.Write))
                                     throw new Exception("Access denied.");
-                                ws = Area.InitRemote(domainInfo.Directory, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
-                                clientInfo.SharedInfo.Workspace = ws;
-                                domainInfo.Bare = false;
+                                lock (SyncObject)
+                                {
+                                    ws = Area.InitRemote(domainInfo.Directory, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
+                                    clientInfo.SharedInfo.Workspace = ws;
+                                    domainInfo.Bare = false;
+                                    if (fresh)
+                                        Domains[hs.RequestedModule] = domainInfo;
+                                }
                             }
                             else if (command.Type == NetCommandType.PushBranchJournal)
                             {
