@@ -3907,6 +3907,19 @@ namespace Versionr
                                                         }
                                                     }
                                                 }
+                                                FileStream stream = null;
+                                                if (!x.IsDirectory && !x.IsSymlink)
+                                                {
+                                                    stream = x.FilesystemEntry.Info.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
+                                                    FileInfo info = new FileInfo(x.FilesystemEntry.Info.FullName);
+                                                    DateTime overrideDateTime = info.LastWriteTimeUtc;
+                                                    if (overrideDateTime != x.FilesystemEntry.ModificationTime)
+                                                    {
+                                                        x.FilesystemEntry.ModificationTime = overrideDateTime;
+                                                        x.FilesystemEntry.Hash = Entry.CheckHash(info);
+                                                    }
+                                                }
+
                                                 if (record == null)
                                                 {
                                                     record = new Objects.Record();
@@ -3958,6 +3971,9 @@ namespace Versionr
                                                 }
                                                 if (!ObjectStore.HasData(record))
                                                     ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+
+                                                if (stream != null)
+                                                    stream.Close();
 
                                                 ObjectName nameRecord = null;
                                                 if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
@@ -4224,14 +4240,16 @@ namespace Versionr
                     Printer.PrintError("Hash mismatch after decoding record!");
                     Printer.PrintError(" - Expected: {0}", rec.Fingerprint);
                     Printer.PrintError(" - Found: {0}", hash);
-                    throw new Exception();
                 }
-                if (overridePath == null)
+                else
                 {
-                    if (updatedTimestamps == null)
-                        UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
-                    else
-                        updatedTimestamps.Enqueue(new FileTimestamp() { CanonicalName = rec.CanonicalName, DataIdentifier = rec.DataIdentifier, LastSeenTime = dest.LastWriteTimeUtc });
+                    if (overridePath == null)
+                    {
+                        if (updatedTimestamps == null)
+                            UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
+                        else
+                            updatedTimestamps.Enqueue(new FileTimestamp() { CanonicalName = rec.CanonicalName, DataIdentifier = rec.DataIdentifier, LastSeenTime = dest.LastWriteTimeUtc });
+                    }
                 }
             }
             catch (System.IO.IOException)
