@@ -154,14 +154,43 @@ namespace Versionr
             Conflicted = 8,
         }
         int UpdatedFileTimeCount = 0;
-
-        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null, bool fullChecks = true)
+        class StatusPercentage
         {
+            public FileStatus Snapshot { get; set; }
+            public System.Threading.ManualResetEvent EndEvent { get; set; }
+        }
+
+        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null, bool updateFileTimes = true, bool findCopies = true)
+        {
+            if (!string.IsNullOrEmpty(restrictedPath) && !restrictedPath.EndsWith("/"))
+                restrictedPath += "/";
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
+            StatusPercentage pct = new StatusPercentage()
+            {
+                Snapshot = currentSnapshot,
+                EndEvent = new System.Threading.ManualResetEvent(false)
+            };
+            var progressLog = Task.Run(() =>
+            {
+                Printer.InteractivePrinter ip = null;
+                while (true)
+                {
+                    if (pct.EndEvent.WaitOne(500))
+                    {
+                        if (ip != null)
+                            ip.End(0);
+                        return;
+                    }
+                    if (sw.ElapsedMilliseconds > 2000)
+                    {
+                        if (ip == null)
+                            ip = Printer.CreateSpinnerPrinter(string.Format("Computing status for {0} objects", pct.Snapshot.Entries.Count), (obj) => { return string.Empty; });
+                        ip.Update(0);
+                    }
+                }
+            });
             RestrictedPath = restrictedPath;
-            if (!string.IsNullOrEmpty(workspace.PartialPath))
-                RestrictedPath = workspace.PartialPath + restrictedPath;
             Workspace = workspace;
             CurrentVersion = db.Version;
             Branch = db.Branch;
@@ -221,7 +250,8 @@ namespace Versionr
                                             foundEntries.Add(snapshotRecord);
                                     }
                                 }
-                                return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                                else
+                                    return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                             }
                         }
 
@@ -284,7 +314,7 @@ namespace Versionr
             }
             finally
             {
-                if (UpdatedFileTimeCount > 0 && fullChecks)
+                if (UpdatedFileTimeCount > 0 && updateFileTimes)
                     Workspace.ReplaceFileTimes();
             }
             Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
@@ -300,20 +330,23 @@ namespace Versionr
 			}
             tasks.Clear();
             Dictionary<long, Dictionary<string, Record>> recordSizeMap = new Dictionary<long, Dictionary<string, Record>>();
-            foreach (var x in records)
+            if (findCopies)
             {
-                if (x.Size == 0 || !x.IsFile)
-                    continue;
-                Dictionary<string, Record> hashes = null;
-                if (!recordSizeMap.TryGetValue(x.Size, out hashes))
+                foreach (var x in records)
                 {
-                    hashes = new Dictionary<string, Record>();
-                    recordSizeMap[x.Size] = hashes;
+                    if (x.Size == 0 || !x.IsFile)
+                        continue;
+                    Dictionary<string, Record> hashes = null;
+                    if (!recordSizeMap.TryGetValue(x.Size, out hashes))
+                    {
+                        hashes = new Dictionary<string, Record>();
+                        recordSizeMap[x.Size] = hashes;
+                    }
+                    hashes[x.Fingerprint] = x;
                 }
-                hashes[x.Fingerprint] = x;
+                Printer.PrintDiagnostics("Status create size map: {0}", sw.ElapsedTicks);
+                sw.Restart();
             }
-            Printer.PrintDiagnostics("Status create size map: {0}", sw.ElapsedTicks);
-            sw.Restart();
             List<StatusEntry> pendingRenames = new List<StatusEntry>();
             foreach (var x in snapshotData)
             {
@@ -337,8 +370,11 @@ namespace Versionr
                     {
                         Record possibleRename = null;
                         Dictionary<string, Record> hashes = null;
-                        lock (recordSizeMap)
-                            recordSizeMap.TryGetValue(x.Value.Length, out hashes);
+                        if (findCopies)
+                        {
+                            lock (recordSizeMap)
+                                recordSizeMap.TryGetValue(x.Value.Length, out hashes);
+                        }
                         if (hashes != null)
                         {
                             Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
@@ -412,6 +448,9 @@ namespace Versionr
 			foreach (var x in Elements)
 				Map[x.CanonicalName] = x;
             Printer.PrintDiagnostics("Status finalization: {0}", sw.ElapsedTicks);
+
+            pct.EndEvent.Set();
+            progressLog.Wait();
         }
 
 		public List<StatusEntry> GetElements(IList<string> files, bool regex, bool filenames, bool caseInsensitive)

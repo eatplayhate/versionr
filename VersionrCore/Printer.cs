@@ -487,6 +487,7 @@ namespace Versionr
                     string lastValue = Last == null ? string.Empty : Last;
                     string bar = new string(' ', lastValue.Length);
                     Printer.Write(MessageType.Interactive, bar);
+                    Printer.Write(MessageType.Interactive, "\n");
                     System.Console.CursorLeft = 0;
                     Printer.LastPrinter = null;
                 }

@@ -711,9 +711,9 @@ namespace Versionr
 
         public Versionr.Status GetStatus(DirectoryInfo activeDirectory)
         {
-            if (activeDirectory.FullName == Root.FullName)
+            if (activeDirectory.FullName == Root.FullName && PartialPath == null)
                 return Status;
-            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName) + "/");
+            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName));
         }
 
         class LocalRefreshState
@@ -2096,7 +2096,7 @@ namespace Versionr
         {
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
-            Versionr.Status status = Status;
+            Versionr.Status status = new Status(this, Database, LocalData, FileSnapshot, null, false, false);
             List<TransientMergeObject> parentData;
             Objects.Branch possibleBranch = null;
             if (!updateMode)
@@ -2740,24 +2740,28 @@ namespace Versionr
                     Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
                 else
                     Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
-                string resolution = System.Console.ReadLine();
-                if (resolution.StartsWith("m"))
+                while (true)
                 {
-                    return local;
-                }
-                if (resolution.StartsWith("t"))
-                {
-                    return foreign;
-                }
-                else
-                {
-                    if (!allowConflict)
-                        throw new Exception();
-                    System.IO.File.Move(ml, ml + ".mine");
-                    System.IO.File.Move(mf, ml + ".theirs");
-                    System.IO.File.Move(mb, ml + ".base");
-                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
-                    return null;
+                    Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
+                    string resolution = System.Console.ReadLine();
+                    if (resolution.StartsWith("m"))
+                    {
+                        return local;
+                    }
+                    else if (resolution.StartsWith("t"))
+                    {
+                        return foreign;
+                    }
+                    else if (resolution.StartsWith("c"))
+                    {
+                        if (!allowConflict)
+                            throw new Exception();
+                        System.IO.File.Copy(ml, ml + ".mine");
+                        System.IO.File.Move(mf, ml + ".theirs");
+                        System.IO.File.Move(mb, ml + ".base");
+                        Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                        return null;
+                    }
                 }
             }
         }
@@ -2796,7 +2800,7 @@ namespace Versionr
                 {
                     if (!allowConflict)
                         throw new Exception();
-                    System.IO.File.Move(ml, ml + ".mine");
+                    System.IO.File.Copy(ml, ml + ".mine");
                     System.IO.File.Move(mf, ml + ".theirs");
                     Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
                     return null;
@@ -4397,7 +4401,7 @@ namespace Versionr
             else
             {
                 if (localFolder == rootFolder)
-                    return "";
+                    return PartialPath == null ? "" : PartialPath;
                 string local = localFolder.Substring(rootFolder.Length + 1);
                 if (local.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
                     return local;

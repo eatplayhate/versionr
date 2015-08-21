@@ -26,6 +26,10 @@ namespace Versionr
                     return m_Hash;
                 }
             }
+            set
+            {
+                m_Hash = value;
+            }
         }
         public long Length { get; set; }
         public DateTime ModificationTime { get; set; }
@@ -61,7 +65,7 @@ namespace Versionr
 		{
             Parent = parent;
             Area = area;
-            CanonicalName = area.PartialPath + canonicalName;
+            CanonicalName = canonicalName;
             DirectoryInfo = info;
             ModificationTime = DirectoryInfo.LastWriteTimeUtc;
 			Ignored = ignored;
@@ -88,7 +92,7 @@ namespace Versionr
         {
             Parent = parent;
             Area = area;
-            CanonicalName = canonicalName == ".vrmeta" ? canonicalName : area.PartialPath + canonicalName;
+            CanonicalName = info.Name == ".vrmeta" ? info.Name : canonicalName;
             Info = info;
 			Ignored = ignored;
             GetInfo();

@@ -91,11 +91,16 @@ namespace Versionr.Commands
             IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return x.Code != StatusCode.Ignored; });
             if (!localOptions.All)
                 operands = operands.Where(x => x.Code != StatusCode.Unchanged);
+            string localRestrictedPath = null;
+            if (ss.RestrictedPath != null)
+                localRestrictedPath = ws.GetLocalCanonicalName(ss.RestrictedPath);
             if (!localOptions.NoList)
             {
                 foreach (var x in operands.OrderBy(x => x.CanonicalName))
                 {
                     string name = ws.GetLocalCanonicalName(x.CanonicalName);
+                    if (localRestrictedPath != null)
+                        name = name.Substring(localRestrictedPath.Length);
                     int index = name.LastIndexOf('/');
                     if (index != name.Length - 1)
                         name = name.Insert(index + 1, "#b#");
