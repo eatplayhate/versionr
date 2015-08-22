@@ -9,7 +9,8 @@ namespace Versionr.Network
     public enum AuthenticationMode
     {
         Simple,
-        LDAP
+        LDAP,
+        Guest
     }
 
     [ProtoBuf.ProtoContract]

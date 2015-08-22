@@ -51,18 +51,20 @@ namespace Versionr.Network
         }
         static Dictionary<string, DomainInfo> Domains = new Dictionary<string, DomainInfo>();
         public static string ConfigFile;
+        public static System.IO.DirectoryInfo BaseDirectory;
         public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
         {
-            Area ws = Area.Load(info, true);
+            BaseDirectory = info;
+            Area ws = Area.Load(info);
+            if (ws == null)
+            {
+                Versionr.Utilities.MultiArchPInvoke.BindDLLs();
+            }
             Config = new ServerConfig();
             if (!string.IsNullOrEmpty(configFile))
             {
                 ConfigFile = configFile;
                 LoadConfig();
-            }
-            if (ws == null)
-            {
-                Versionr.Utilities.MultiArchPInvoke.BindDLLs();
             }
             if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count == 0))
                 Domains[string.Empty] = new DomainInfo() { Bare = ws == null, Directory = info };
@@ -98,25 +100,58 @@ namespace Versionr.Network
 #endif
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
+            if (Config.WebService != null && Config.WebService.HttpPort != 0 && false)
+            {
+                Task.Run(() =>
+                {
+                    RunWebServer();
+                });
+            }
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
             while (true)
             {
                 Printer.PrintDiagnostics("Waiting for connection.");
-                var client = listener.AcceptTcpClient();
-                Task.Run(() => {
-                    Printer.PrintMessage("Received connection from {0}.", client.Client.RemoteEndPoint);
-                    HandleConnection(info, client);
-                });
+                var client = listener.AcceptTcpClientAsync();
+                Retry:
+                if (client.Wait(5000))
+                {
+                    Task.Run(() =>
+                    {
+                        Printer.PrintMessage("Received connection from {0}.", client.Result.Client.RemoteEndPoint);
+                        HandleConnection(info, client.Result);
+                    });
+                }
+                else
+                    goto Retry;
             }
             listener.Stop();
 
             return true;
         }
 
+        private static void RunWebServer()
+        {
+            while (true)
+            {
+                try
+                {
+                    SimpleWebService.WebService service = new SimpleWebService.WebService(Config);
+                    service.Run();
+                }
+                catch (Exception e)
+                {
+                    Printer.PrintError("Error: {0}", e.ToString());
+                    Printer.PrintMessage("Error starting web interface. Restarting in 10s.");
+                    System.Threading.Thread.Sleep(10000);
+                }
+            }
+        }
+
         private static void LoadConfig()
         {
             lock (SyncObject)
             {
+                Printer.PrintMessage("Loading config...");
                 var configInfo = new System.IO.FileInfo(ConfigFile);
                 if (!configInfo.Exists)
                 {
@@ -128,6 +163,14 @@ namespace Versionr.Network
                     {
                         Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
                     }
+                    List<string> deletedDomains = new List<string>();
+                    foreach (var z in Domains)
+                    {
+                        if (z.Key != string.Empty && !Config.Domains.ContainsKey(z.Key))
+                            deletedDomains.Add(z.Key);
+                    }
+                    foreach (var z in deletedDomains)
+                        Domains.Remove(z);
                     foreach (var x in Config.Domains)
                     {
                         System.IO.DirectoryInfo domInfo = new System.IO.DirectoryInfo(x.Value);
@@ -142,12 +185,29 @@ namespace Versionr.Network
                             {
                                 dm = null;
                             }
+                            Printer.PrintMessage("Module: {0} => ./{1} {2}", x.Key, domInfo, dm == null ? "bare" : dm.Domain.ToString());
+
                             DomainInfo info = new DomainInfo() { Bare = dm == null, Directory = domInfo };
                             Domains[x.Key] = info;
+                            if (dm != null)
+                                dm.Dispose();
                         }
                         else
                             Printer.PrintError("#x#Error:##\n  Can't find domain location {0}!", x.Value);
                     }
+                    if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count != 0))
+                    {
+                        using (Area a = Area.Load(BaseDirectory))
+                        {
+                            Domains[string.Empty] = new DomainInfo() { Bare = a == null, Directory = BaseDirectory };
+                            Printer.PrintMessage("Root Module {1} {2}", BaseDirectory, a == null ? "bare" : a.Domain.ToString());
+                        }
+                    }
+                    else if (Config.IncludeRoot.HasValue && Config.IncludeRoot.Value == false)
+                        Domains.Remove(string.Empty);
+
+                    if (Config.RequiresAuthentication)
+                        Printer.PrintMessage("Configured to use authentication. Unauthenticated read {0}.", (Config.AllowUnauthenticatedRead ? "allowed" : "disabled"));
                 }
             }
         }
@@ -181,6 +241,10 @@ namespace Versionr.Network
                         if (hs.RequestedModule == null)
                             hs.RequestedModule = string.Empty;
                         if (!Domains.TryGetValue(hs.RequestedModule, out domainInfo))
+                        {
+                            domainInfo = Domains.Where(x => x.Key.Equals(hs.RequestedModule, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
+                        }
+                        if (domainInfo == null)
                         {
                             if (!Config.AllowVaultCreation || !Config.RequiresAuthentication || string.IsNullOrEmpty(hs.RequestedModule) || System.IO.Directory.Exists(System.IO.Path.Combine(info.FullName, hs.RequestedModule)))
                             {
@@ -554,7 +618,7 @@ namespace Versionr.Network
         {
             if (Config.RequiresAuthentication)
             {
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate }, ProtoBuf.PrefixStyle.Fixed32);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate, Identifier = Config.AllowUnauthenticatedRead ? 1 : 0 }, ProtoBuf.PrefixStyle.Fixed32);
                 AuthenticationChallenge challenge = new AuthenticationChallenge();
                 challenge.AvailableModes = new List<AuthenticationMode>();
                 if (Config.SupportsSimpleAuthentication)
@@ -598,7 +662,12 @@ namespace Versionr.Network
         private static bool CheckAuthentication(AuthenticationResponse response, string salt, out Rights accessRights)
         {
             accessRights = 0;
-            if (response.Mode == AuthenticationMode.Simple)
+            if (response.Mode == AuthenticationMode.Guest && Config.AllowUnauthenticatedRead)
+            {
+                accessRights = Rights.Read;
+                return true;
+            }
+            else if (response.Mode == AuthenticationMode.Simple)
             {
                 var login = Config.GetSimpleLogin(response.IdentifierToken);
                 if (login == null)

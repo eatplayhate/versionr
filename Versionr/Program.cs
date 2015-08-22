@@ -246,6 +246,7 @@ namespace Versionr
             Console.CancelKeyPress += Console_CancelKeyPress;
             
             Commands.BaseCommand command = null;
+            Console.CancelKeyPress += Console_CancelKeyPress;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
                 command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();

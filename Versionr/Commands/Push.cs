@@ -36,5 +36,13 @@ namespace Versionr.Commands
             PushVerbOptions localOptions = options as PushVerbOptions;
             return client.Push();
         }
+
+        protected override bool RequiresWriteAccess
+        {
+            get
+            {
+                return true;
+            }
+        }
     }
 }
