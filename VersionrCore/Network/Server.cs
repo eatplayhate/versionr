@@ -78,6 +78,9 @@ namespace Versionr.Network
                 Printer.PrintDiagnostics("RSA Fingerprint: {0}", PublicKey.Fingerprint());
             }
             System.Net.Sockets.TcpListener listener = null;
+#if __MonoCS__
+            listener = new TcpListener(System.Net.IPAddress.Any, port);
+#else
             try
             {
                 if (System.Net.Sockets.Socket.OSSupportsIPv6)
@@ -92,6 +95,7 @@ namespace Versionr.Network
             {
                 listener = new TcpListener(System.Net.IPAddress.Any, port);
             }
+#endif
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
