@@ -56,7 +56,10 @@ namespace Versionr
         public Ignores Ignore { get; set; }
         public Ignores Include { get; set; }
         public string DefaultCompression { get; set; }
-		public SvnCompatibility Svn { get; set; }
+        public string ExternalDiff { get; set; }
+        public string ExternalMerge { get; set; }
+        public string ExternalMerge2Way { get; set; }
+        public SvnCompatibility Svn { get; set; }
         public Dictionary<string, Extern> Externals { get; set; }
         public Directives()
         {

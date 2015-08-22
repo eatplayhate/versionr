@@ -64,7 +64,7 @@ namespace Versionr.Commands
                 }
                 if (localOptions.External)
                 {
-                    Utilities.DiffTool.Diff(f1.FullName, f1.FullName, f2.FullName, f2.FullName);
+                    Utilities.DiffTool.Diff(f1.FullName, f1.FullName, f2.FullName, f2.FullName, Workspace.Directives.ExternalDiff);
                 }
                 else
                 {
@@ -124,7 +124,7 @@ namespace Versionr.Commands
 								{
 									try
 									{
-										Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name);
+										Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name, ws.Directives.ExternalDiff);
 									}
 									finally
 									{
@@ -186,7 +186,7 @@ namespace Versionr.Commands
 						{
 							try
 							{
-								Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName);
+								Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName, ws.Directives.ExternalDiff);
 							}
 							finally
 							{

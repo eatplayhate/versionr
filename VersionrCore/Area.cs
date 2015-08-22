@@ -2174,6 +2174,7 @@ namespace Versionr
             
             var foreignRecords = Database.GetRecords(mergeVersion);
             DateTime newRefTime = DateTime.UtcNow;
+            ResolveType? resolveAll = null;
 
             if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(foreignRecords).ToList()))
             {
@@ -2291,7 +2292,7 @@ namespace Versionr
 
                                 mf = new FileInfo(mf.FullName);
 
-                                FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true);
+                                FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true, ref resolveAll);
                                 if (result != null)
                                 {
                                     if (result != ml)
@@ -2343,7 +2344,7 @@ namespace Versionr
 
                                 mf = new FileInfo(mf.FullName);
 
-                                FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true);
+                                FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true, ref resolveAll);
                                 if (result != null)
                                 {
                                     if (result != ml)
@@ -2559,6 +2560,7 @@ namespace Versionr
             foreach (var x in localRecords)
                 localLookup[x.CanonicalName] = x;
 
+            ResolveType? resolveAll = null;
             foreach (var x in foreignRecords)
             {
                 TransientMergeObject parentObject = null;
@@ -2628,7 +2630,7 @@ namespace Versionr
                             RestoreRecord(x, newRefTime, foreign.FullName);
                             RestoreRecord(localRecord, newRefTime, local.FullName);
 
-                            FileInfo info = Merge2Way(x, foreign, localRecord, local, transientResult.TemporaryFile, false);
+                            FileInfo info = Merge2Way(x, foreign, localRecord, local, transientResult.TemporaryFile, false, ref resolveAll);
                             if (info != transientResult.TemporaryFile)
                             {
                                 transientResult.TemporaryFile.Delete();
@@ -2658,7 +2660,7 @@ namespace Versionr
                             RestoreRecord(x, newRefTime, foreign.FullName);
                             RestoreRecord(localRecord, newRefTime, local.FullName);
 
-                            FileInfo info = Merge3Way(x, foreign, localRecord, local, parentObject.Record, parentFile, transientResult.TemporaryFile, false);
+                            FileInfo info = Merge3Way(x, foreign, localRecord, local, parentObject.Record, parentFile, transientResult.TemporaryFile, false, ref resolveAll);
                             if (info != transientResult.TemporaryFile)
                             {
                                 transientResult.TemporaryFile.Delete();
@@ -2717,7 +2719,7 @@ namespace Versionr
             return results;
         }
 
-        private FileInfo Merge3Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, Record record, FileInfo parentFile, FileInfo temporaryFile, bool allowConflict)
+        private FileInfo Merge3Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, Record record, FileInfo parentFile, FileInfo temporaryFile, bool allowConflict, ref ResolveType? resolveAll)
         {
             Printer.PrintMessage("Merging {0}", x.CanonicalName);
             // modified in both places
@@ -2729,44 +2731,46 @@ namespace Versionr
                 FileClassifier.Classify(local) == FileEncoding.Binary ||
                 FileClassifier.Classify(parentFile) == FileEncoding.Binary;
 
-            if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr))
+            System.IO.File.Copy(ml, ml + ".mine");
+            if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
             {
+                System.IO.File.Delete(ml + ".mine");
                 Printer.PrintMessage(" - Resolved.");
                 return temporaryFile;
             }
             else
             {
-                if (!isBinary)
-                    Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
-                else
-                    Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
-                while (true)
+                ResolveType resolution = GetResolution(isBinary, ref resolveAll);
+                if (resolution == ResolveType.Mine)
                 {
-                    Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
-                    string resolution = System.Console.ReadLine();
-                    if (resolution.StartsWith("m"))
-                    {
-                        return local;
-                    }
-                    else if (resolution.StartsWith("t"))
-                    {
-                        return foreign;
-                    }
-                    else if (resolution.StartsWith("c"))
-                    {
-                        if (!allowConflict)
-                            throw new Exception();
-                        System.IO.File.Copy(ml, ml + ".mine");
-                        System.IO.File.Move(mf, ml + ".theirs");
-                        System.IO.File.Move(mb, ml + ".base");
-                        Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
-                        return null;
-                    }
+                    System.IO.File.Delete(ml + ".mine");
+                    return local;
+                }
+                if (resolution == ResolveType.Theirs)
+                {
+                    System.IO.File.Delete(ml + ".mine");
+                    return foreign;
+                }
+                else
+                {
+                    if (!allowConflict)
+                        throw new Exception();
+                    System.IO.File.Move(mf, ml + ".theirs");
+                    System.IO.File.Move(mb, ml + ".base");
+                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                    return null;
                 }
             }
         }
 
-        private FileInfo Merge2Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, FileInfo temporaryFile, bool allowConflict)
+        enum ResolveType
+        {
+            Mine,
+            Theirs,
+            Conflict
+        }
+
+        private FileInfo Merge2Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, FileInfo temporaryFile, bool allowConflict, ref ResolveType? resolveAll)
         {
             Printer.PrintMessage("Merging {0}", x.CanonicalName);
             string mf = foreign.FullName;
@@ -2776,35 +2780,66 @@ namespace Versionr
             bool isBinary = FileClassifier.Classify(foreign) == FileEncoding.Binary ||
                 FileClassifier.Classify(local) == FileEncoding.Binary;
 
-            if (!isBinary && Utilities.DiffTool.Merge(ml, mf, mr))
+            System.IO.File.Copy(ml, ml + ".mine");
+            if (!isBinary && Utilities.DiffTool.Merge(ml, mf, mr, Directives.ExternalMerge2Way))
             {
+                System.IO.File.Delete(ml + ".mine");
                 Printer.PrintMessage(" - Resolved.");
                 return temporaryFile;
             }
             else
             {
-                if (!isBinary)
-                    Printer.PrintMessage("Merge marked as failure, use (m)ine, (t)heirs or (c)onflict?");
-                else
-                    Printer.PrintMessage("File is binary, use (m)ine, (t)heirs or (c)onflict?");
-                string resolution = System.Console.ReadLine();
-                if (resolution.StartsWith("m"))
+                ResolveType resolution = GetResolution(isBinary, ref resolveAll);
+                if (resolution == ResolveType.Mine)
                 {
+                    System.IO.File.Delete(ml + ".mine");
                     return local;
                 }
-                if (resolution.StartsWith("t"))
+                if (resolution == ResolveType.Theirs)
                 {
+                    System.IO.File.Delete(ml + ".mine");
                     return foreign;
                 }
                 else
                 {
                     if (!allowConflict)
                         throw new Exception();
-                    System.IO.File.Copy(ml, ml + ".mine");
                     System.IO.File.Move(mf, ml + ".theirs");
                     Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
                     return null;
                 }
+            }
+        }
+
+        private ResolveType GetResolution(bool binary, ref ResolveType? resolveAll)
+        {
+            if (resolveAll.HasValue)
+            {
+                Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
+                return resolveAll.Value;
+            }
+            if (!binary)
+                Printer.PrintMessage("Merge marked as failure, use #s#(m)ine##, #c#(t)heirs## or #r#(c)onflict##? (Use #b#*## for all)");
+            else
+                Printer.PrintMessage("File is binary, use #s#(m)ine##, #c#(t)heirs## or #r#(c)onflict##? (Use #b#*## for all)");
+            string resolution = System.Console.ReadLine();
+            if (resolution.StartsWith("m"))
+            {
+                if (resolution.Contains("*"))
+                    resolveAll = ResolveType.Mine;
+                return ResolveType.Mine;
+            }
+            if (resolution.StartsWith("t"))
+            {
+                if (resolution.Contains("*"))
+                    resolveAll = ResolveType.Theirs;
+                return ResolveType.Theirs;
+            }
+            else
+            {
+                if (resolution.Contains("*"))
+                    resolveAll = ResolveType.Conflict;
+                return ResolveType.Conflict;
             }
         }
 

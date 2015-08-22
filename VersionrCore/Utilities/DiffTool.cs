@@ -13,86 +13,305 @@ namespace Versionr.Utilities
 			return System.IO.Path.GetTempFileName();
 		}
 
-		public static void Diff(string baseFile, string file)
+		public static void Diff(string baseFile, string file, string externalTool)
 		{
-			Diff(baseFile, baseFile, file, file);
+			Diff(baseFile, baseFile, file, file, externalTool);
 		}
 
-		public static void Diff(string baseFile, string baseAlias, string file, string fileAlias)
+		public static void Diff(string baseFile, string baseAlias, string file, string fileAlias, string externalTool)
 		{
             System.Diagnostics.ProcessStartInfo psi;
-            if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+            if (!string.IsNullOrEmpty(externalTool))
             {
-                psi = new System.Diagnostics.ProcessStartInfo()
+                string xtool = externalTool.Trim();
+                int filenameIndex = xtool.Length;
+                bool quoted = false;
+                for (int i = 0; i < xtool.Length; i++)
                 {
-                    FileName = "diff",
-                    Arguments = string.Format("--unified \"{0}\" \"{1}\"", baseFile, file),
-                    UseShellExecute = true
-                };
+                    if (xtool[i] == '"')
+                    {
+                        if (quoted)
+                        {
+                            filenameIndex = i;
+                            break;
+                        }
+                        else
+                            quoted = true;
+                    }
+                    else if (xtool[i] == ' ')
+                    {
+                        filenameIndex = i;
+                        break;
+                    }
+                }
+                string filename = xtool.Substring(0, filenameIndex);
+                xtool = xtool.Substring(filenameIndex);
+                xtool = xtool.Replace("%base", "{0}");
+                xtool = xtool.Replace("%changed", "{1}");
+                xtool = xtool.Replace("%basename", "{2}");
+                xtool = xtool.Replace("%changedname", "{3}");
+                try
+                {
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = filename,
+                        Arguments = string.Format(xtool, baseFile, file, baseAlias, fileAlias),
+                        UseShellExecute = true
+                    };
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    proc.WaitForExit();
+                }
+                catch
+                {
+                    Printer.PrintMessage("Error during diff, external diff tool should be specified like this: ");
+                    Printer.PrintMessage("Parameters:");
+                    Printer.PrintMessage("  #b#%base## - Base filename.");
+                    Printer.PrintMessage("  #b#%changed## - Changed filename.");
+                    Printer.PrintMessage("  #b#%basename## - Alias for base file.");
+                    Printer.PrintMessage("  #b#%changedname## - Alias for changed file.");
+                    Printer.PrintMessage("Example:");
+                    Printer.PrintMessage("  difftool --unified #b#%base## #b#%changed## --L1 #q#%basename## --L2 #q#%changedname##");
+                }
+                return;
             }
             else
             {
-                psi = new System.Diagnostics.ProcessStartInfo()
+                if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
                 {
-                    FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseMerge.exe",
-                    Arguments = string.Format("/base:\"{0}\" /mine:\"{1}\"", baseFile, file)
-                };
-                if (!System.IO.File.Exists(psi.FileName))
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = "diff",
+                        Arguments = string.Format("--unified \"{0}\" \"{1}\"", baseFile, file),
+                        UseShellExecute = true
+                    };
+                }
+                else
+                {
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseMerge.exe",
+                        Arguments = string.Format("/base:\"{0}\" /mine:\"{1}\"", baseFile, file),
+                        UseShellExecute = true
+                    };
+                    if (!System.IO.File.Exists(psi.FileName))
+                    {
+                        psi = new System.Diagnostics.ProcessStartInfo()
+                        {
+                            FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                            Arguments = string.Format("{0} {1} --L1 {2} --L2 {3}", baseFile, file, baseAlias, fileAlias),
+                            UseShellExecute = true
+                        };
+                    }
+                }
+                try
+                {
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    proc.WaitForExit();
+                }
+                catch
+                {
+                    if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+                        Printer.PrintMessage("Couldn't run external diff. Make sure you have #b#diff## available or specify an #b#ExternalDiff## program in your directives file.");
+                    else
+                        Printer.PrintMessage("Couldn't run external diff. Make sure you have #b#kdiff3## or #b#TortoiseMerge## available or specify an #b#ExternalDiff## program in your directives file.");
+                    throw;
+                }
+            }
+        }
+
+		public static bool Merge(string baseFile, string file, string output, string externalTool)
+		{
+			return Merge(baseFile, baseFile, file, file, output, externalTool);
+		}
+        public static bool Merge(string baseFile, string baseAlias, string file, string fileAlias, string output, string externalTool)
+        {
+            System.Diagnostics.ProcessStartInfo psi;
+            if (!string.IsNullOrEmpty(externalTool))
+            {
+                string xtool = externalTool.Trim();
+                int filenameIndex = xtool.Length;
+                bool quoted = false;
+                for (int i = 0; i < xtool.Length; i++)
+                {
+                    if (xtool[i] == '"')
+                    {
+                        if (quoted)
+                        {
+                            filenameIndex = i;
+                            break;
+                        }
+                        else
+                            quoted = true;
+                    }
+                    else if (xtool[i] == ' ')
+                    {
+                        filenameIndex = i;
+                        break;
+                    }
+                }
+                string filename = xtool.Substring(0, filenameIndex);
+                xtool = xtool.Substring(filenameIndex);
+                xtool = xtool.Replace("%file1", "{0}");
+                xtool = xtool.Replace("%file2", "{1}");
+                xtool = xtool.Replace("%file1name", "{2}");
+                xtool = xtool.Replace("%file2name", "{3}");
+                try
+                {
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = filename,
+                        Arguments = string.Format(xtool, baseFile, file, baseAlias, fileAlias),
+                        UseShellExecute = true
+                    };
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    proc.WaitForExit();
+                    return proc.ExitCode == 0;
+                }
+                catch
+                {
+                    Printer.PrintMessage("Error during merge, external 2-way merge tool should be specified like this: ");
+                    Printer.PrintMessage("Parameters:");
+                    Printer.PrintMessage("  #b#%file1## - First changed filename.");
+                    Printer.PrintMessage("  #b#%file2## - Second changed filename.");
+                    Printer.PrintMessage("  #b#%file1name## - Alias for first file.");
+                    Printer.PrintMessage("  #b#%file2name## - Alias for second file.");
+                    Printer.PrintMessage("Example:");
+                    Printer.PrintMessage("  merge #b#%file1## #b#%file2##");
+                    return false;
+                }
+            }
+            else
+            {
+                if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+                {
+                    psi = null;
+                }
+                else
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
                     {
                         FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                        Arguments = string.Format("{0} {1} --L1 {2} --L2 {3}", baseFile, file, baseAlias, fileAlias)
+                        Arguments = string.Format("\"{0}\" \"{1}\" -o \"{2}\" --auto --L1 \"{3}\" --L2 \"{4}\"", baseFile, file, output, baseAlias, fileAlias),
+                        UseShellExecute = true
                     };
                 }
+                try
+                {
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    proc.WaitForExit();
+                    return (proc.ExitCode == 0);
+                }
+                catch
+                {
+                    if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+                        Printer.PrintMessage("Couldn't run external 2-way merge. Specify an #b#ExternalMerge2Way## program in your directives file.");
+                    else
+                        Printer.PrintMessage("Couldn't run external 2-way merge. Make sure you have #b#kdiff3## available or specify an #b#ExternalMerge2Way## program in your directives file.");
+                    throw;
+                }
             }
-			var proc = System.Diagnostics.Process.Start(psi);
-			proc.WaitForExit();
-		}
-
-		public static bool Merge(string baseFile, string file, string output)
-		{
-			return Merge(baseFile, baseFile, file, file, output);
-		}
-        public static bool Merge(string baseFile, string baseAlias, string file, string fileAlias, string output)
-        {
-            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-            {
-                FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                Arguments = string.Format("\"{0}\" \"{1}\" -o \"{2}\" --auto --L1 \"{3}\" --L2 \"{4}\"", baseFile, file, output, baseAlias, fileAlias)
-            };
-			var proc = System.Diagnostics.Process.Start(psi);
-			proc.WaitForExit();
-			return (proc.ExitCode == 0);
         }
-		public static bool Merge3Way(string baseFile, string file1, string file2, string output)
+		public static bool Merge3Way(string baseFile, string file1, string file2, string output, string externalTool)
 		{
-			return Merge3Way(baseFile, baseFile, file1, file1, file2, file2, output);
+			return Merge3Way(baseFile, baseFile, file1, file1, file2, file2, output, externalTool);
 		}
 
-		public static bool Merge3Way(string baseFile, string baseAlias, string file1, string file1Alias, string file2, string file2Alias, string output)
+		public static bool Merge3Way(string baseFile, string baseAlias, string file1, string file1Alias, string file2, string file2Alias, string output, string externalTool)
         {
             System.Diagnostics.ProcessStartInfo psi;
-            if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+            if (!string.IsNullOrEmpty(externalTool))
             {
-                psi = new System.Diagnostics.ProcessStartInfo()
+                string xtool = externalTool.Trim();
+                int filenameIndex = xtool.Length;
+                bool quoted = false;
+                for (int i = 0; i < xtool.Length; i++)
                 {
-                    FileName = "merge",
-                    Arguments = string.Format("\"{1}\" \"{0}\" \"{2}\"", baseFile, file1, file2),
-                    UseShellExecute = true
-                };
+                    if (xtool[i] == '"')
+                    {
+                        if (quoted)
+                        {
+                            filenameIndex = i;
+                            break;
+                        }
+                        else
+                            quoted = true;
+                    }
+                    else if (xtool[i] == ' ')
+                    {
+                        filenameIndex = i;
+                        break;
+                    }
+                }
+                string filename = xtool.Substring(0, filenameIndex);
+                xtool = xtool.Substring(filenameIndex);
+                xtool = xtool.Replace("%base", "{0}");
+                xtool = xtool.Replace("%file1", "{1}");
+                xtool = xtool.Replace("%file2", "{2}");
+                xtool = xtool.Replace("%basename", "{3}");
+                xtool = xtool.Replace("%file1name", "{4}");
+                xtool = xtool.Replace("%file2name", "{5}");
+                try
+                {
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = filename,
+                        Arguments = string.Format(xtool, baseFile, file1, file2, baseAlias, file1Alias, file2Alias),
+                        UseShellExecute = true
+                    };
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    proc.WaitForExit();
+                    return proc.ExitCode == 0;
+                }
+                catch
+                {
+                    Printer.PrintMessage("Error during merge, external merge tool should be specified like this: ");
+                    Printer.PrintMessage("Parameters:");
+                    Printer.PrintMessage("  #b#%base## - Base filename.");
+                    Printer.PrintMessage("  #b#%file1## - First changed filename.");
+                    Printer.PrintMessage("  #b#%file2## - Second changed filename.");
+                    Printer.PrintMessage("  #b#%basename## - Alias for base file.");
+                    Printer.PrintMessage("  #b#%file1name## - Alias for first file.");
+                    Printer.PrintMessage("  #b#%file2name## - Alias for second file.");
+                    Printer.PrintMessage("Example:");
+                    Printer.PrintMessage("  merge #b#%file1## #b#%base## #b#%file2##");
+                    return false;
+                }
             }
             else
             {
-                psi = new System.Diagnostics.ProcessStartInfo()
+                if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
                 {
-                    FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                    Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto --L1 \"{4}\" --L2 \"{5}\"", baseFile, file1, file2, output, baseAlias, file1Alias, file2Alias)
-                };
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = "merge",
+                        Arguments = string.Format("\"{1}\" \"{0}\" \"{2}\"", baseFile, file1, file2),
+                        UseShellExecute = true
+                    };
+                }
+                else
+                {
+                    psi = new System.Diagnostics.ProcessStartInfo()
+                    {
+                        FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                        Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto --L1 \"{4}\" --L2 \"{5}\"", baseFile, file1, file2, output, baseAlias, file1Alias, file2Alias),
+                        UseShellExecute = true
+                    };
+                }
+                try
+                {
+                    var proc = System.Diagnostics.Process.Start(psi);
+                    proc.WaitForExit();
+                    return (proc.ExitCode == 0);
+                }
+                catch
+                {
+                    if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+                        Printer.PrintMessage("Couldn't run external 3-way merge. Make sure you have #b#merge## available or specify an #b#ExternalMerge## program in your directives file.");
+                    else
+                        Printer.PrintMessage("Couldn't run external 3-way merge. Make sure you have #b#kdiff3## available or specify an #b#ExternalMerge## program in your directives file.");
+                    throw;
+                }
             }
-			var proc = System.Diagnostics.Process.Start(psi);
-			proc.WaitForExit();
-			return (proc.ExitCode == 0);
 		}
 	}
 }
