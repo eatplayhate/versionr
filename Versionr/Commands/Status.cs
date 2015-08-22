@@ -82,7 +82,7 @@ namespace Versionr.Commands
                 }
             }
             var ss = status;
-            if (ss.RestrictedPath != null)
+            if (!string.IsNullOrEmpty(ss.RestrictedPath))
                 Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
             Printer.WriteLineMessage("");
             int[] codeCount = new int[(int)StatusCode.Count];
