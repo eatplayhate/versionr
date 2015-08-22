@@ -38,6 +38,14 @@ namespace Versionr
         }
         [Newtonsoft.Json.JsonIgnore]
         public System.Text.RegularExpressions.Regex[] RegexPatterns { get; set; }
+
+        internal void Merge(Ignores ignore)
+        {
+            if (ignore.Extensions != null)
+                Extensions = Extensions.Concat(ignore.Extensions).ToArray();
+            if (ignore.RegexPatterns != null)
+                RegexPatterns = RegexPatterns.Concat(ignore.RegexPatterns).ToArray();
+        }
     }
 
 	public class SvnCompatibility
@@ -46,10 +54,14 @@ namespace Versionr
 		{
 			set
 			{
-				Utilities.SvnIntegration.SymlinkPatterns = value.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.Compiled)).ToArray();
-			}
+                var patterns = value.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.Compiled)).ToArray();
+                if (Utilities.SvnIntegration.SymlinkPatterns != null)
+                    Utilities.SvnIntegration.SymlinkPatterns = Utilities.SvnIntegration.SymlinkPatterns.Concat(patterns).ToArray();
+                else
+                    Utilities.SvnIntegration.SymlinkPatterns = patterns;
+            }
 		}
-	}
+    }
 
     public class Directives
     {
@@ -65,6 +77,35 @@ namespace Versionr
         {
             Ignore = new Ignores();
             Externals = new Dictionary<string, Extern>();
+        }
+        public void Merge(Directives other)
+        {
+            if (Ignore != null && other.Ignore != null)
+                Ignore.Merge(other.Ignore);
+            else if (other.Ignore != null)
+                Ignore = other.Ignore;
+
+            if (Include != null && other.Include != null)
+                Include.Merge(other.Include);
+            else if (other.Include != null)
+                Include = other.Include;
+
+            if (other.DefaultCompression != null)
+                DefaultCompression = other.DefaultCompression;
+            if (other.ExternalDiff != null)
+                ExternalDiff = other.ExternalDiff;
+            if (other.ExternalMerge != null)
+                ExternalMerge = other.ExternalMerge;
+            if (other.ExternalMerge2Way != null)
+                ExternalMerge2Way = other.ExternalMerge2Way;
+
+            if (other.Externals != null)
+            {
+                if (Externals != null)
+                    Externals = new Dictionary<string, Extern>();
+                foreach (var x in other.Externals)
+                    Externals[x.Key] = x.Value;
+            }
         }
     }
 }

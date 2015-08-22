@@ -1711,7 +1711,8 @@ namespace Versionr
 
 		private void LoadDirectives()
 		{
-			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
+            Configuration = null;
+            FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
             if (info.Exists)
             {
                 string data = string.Empty;
@@ -1724,7 +1725,29 @@ namespace Versionr
             }
             else
                 Directives = new Directives();
-		}
+            FileInfo localInfo = new FileInfo(Path.Combine(Root.FullName, ".vrlocal"));
+            if (localInfo.Exists)
+            {
+                string data = string.Empty;
+                using (var sr = localInfo.OpenText())
+                {
+                    data = sr.ReadToEnd();
+                }
+                var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
+                var localDirJSON = localObj["Versionr"];
+                if (localDirJSON != null)
+                {
+                    var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
+                    if (localDirectives != null)
+                    {
+                        if (Directives != null)
+                            Directives.Merge(localDirectives);
+                        else
+                            Directives = localDirectives;
+                    }
+                }
+            }
+        }
 
         public T LoadConfigurationElement<T>(string v)
             where T : new()
