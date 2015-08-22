@@ -568,11 +568,19 @@ namespace Versionr.Utilities
             {
                 if (x.File1 != head0 || x.File2 != head1)
                 {
-                    commonOrDifferentThing difference = new commonOrDifferentThing()
+                    commonOrDifferentThing difference = null;
+                    bool newDifference = false;
+                    if (result.Count > 0 && result[result.Count - 1].common == null)
+                        difference = result[result.Count - 1];
+                    else
                     {
-                        file1 = new List<string>(),
-                        file2 = new List<string>()
-                    };
+                        difference = new commonOrDifferentThing()
+                        {
+                            file1 = new List<string>(),
+                            file2 = new List<string>()
+                        };
+                        newDifference = true;
+                    }
                     if (x.File1 != head0)
                     {
                         for (; head0 < x.File1; head0++)
@@ -583,17 +591,27 @@ namespace Versionr.Utilities
                         for (; head1 < x.File2; head1++)
                             difference.file2.Add(file2[head1]);
                     }
-                    result.Add(difference);
+                    if (newDifference)
+                        result.Add(difference);
                 }
-                commonOrDifferentThing cc = new commonOrDifferentThing()
+                commonOrDifferentThing cc = null;
+                bool newItem = false;
+                if (result.Count > 0 && result[result.Count - 1].common != null)
+                    cc = result[result.Count - 1];
+                else
                 {
-                    common = new List<string>()
-                };
+                    cc = new commonOrDifferentThing()
+                    {
+                        common = new List<string>()
+                    };
+                    newItem = true;
+                }
                 for (int i = 0; i < x.Length; i++)
                     cc.common.Add(file1[i + head0]);
                 head0 += x.Length;
                 head1 += x.Length;
-                result.Add(cc);
+                if (newItem)
+                    result.Add(cc);
             }
 
 			if (file1.Length != head0 || file2.Length != head1)

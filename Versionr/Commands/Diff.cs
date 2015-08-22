@@ -390,12 +390,16 @@ namespace Versionr.Commands
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
-                    regions.Add(openRegion);
+                    if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                        regions.Add(openRegion);
                     openRegion = null;
                 }
             }
             if (openRegion != null && openRegion != last)
-                regions.Add(openRegion);
+            {
+                if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                    regions.Add(openRegion);
+            }
             int activeRegion = 0;
             while (activeRegion < regions.Count)
             {
