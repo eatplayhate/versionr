@@ -81,7 +81,7 @@ namespace Versionr.Commands
         {
             ""Extensions"" :
             [
-                "".vrlocal""
+                "".vruser""
             ],
             ""Patterns"" :
             [

@@ -1725,7 +1725,7 @@ namespace Versionr
             }
             else
                 Directives = new Directives();
-            FileInfo localInfo = new FileInfo(Path.Combine(Root.FullName, ".vrlocal"));
+            FileInfo localInfo = new FileInfo(Path.Combine(Root.FullName, ".vruser"));
             if (localInfo.Exists)
             {
                 string data = string.Empty;

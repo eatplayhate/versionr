@@ -3,8 +3,6 @@ Versionr features
 - revert+conflicts
 	.mine, .base, .theirs	(not deleted by revert but should be)
 	resolve?
-- default .vrmeta
-- .vruser
 - blame
 - remove/rename
 - docs
