@@ -125,7 +125,7 @@ namespace Versionr.Commands
 
         protected abstract bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options);
 
-        protected virtual bool RequiresTargets { get { return OnNoTargetsAssumeAll; } }
+        protected virtual bool RequiresTargets { get { return !OnNoTargetsAssumeAll; } }
 
 		protected FileBaseCommandVerbOptions FilterOptions { get; set; }
 

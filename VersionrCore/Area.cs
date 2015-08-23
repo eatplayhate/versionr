@@ -3343,7 +3343,68 @@ namespace Versionr
                     printer.Update(System.Threading.Interlocked.Add(ref count, rec.Size));
             };
             ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
-			foreach (var x in CheckoutOrder(targetRecords))
+
+            foreach (var x in DeletionOrder(records))
+            {
+                if (canonicalNames.Contains(x.CanonicalName))
+                    continue;
+
+                if (x.IsFile)
+                {
+                    string path = Path.Combine(Root.FullName, x.CanonicalName);
+                    if (System.IO.File.Exists(path))
+                    {
+                        try
+                        {
+                            RemoveFileTimeCache(x.CanonicalName);
+                            System.IO.File.Delete(path);
+                            if (verbose)
+                                Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
+                            deletions++;
+                        }
+                        catch
+                        {
+                            Printer.PrintMessage("Couldn't delete `{0}`!", x.CanonicalName);
+                        }
+                    }
+                }
+                else if (x.IsSymlink)
+                {
+                    string path = Path.Combine(Root.FullName, x.CanonicalName);
+                    if (Utilities.Symlink.Exists(path))
+                    {
+                        try
+                        {
+                            Utilities.Symlink.Delete(path);
+                            if (verbose)
+                                Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
+                            deletions++;
+                        }
+                        catch (Exception e)
+                        {
+                            Printer.PrintMessage("Couldn't delete symlink `{0}`!\n{1}", x.CanonicalName, e.ToString());
+                        }
+                    }
+                }
+                else if (x.IsDirectory)
+                {
+                    string path = Path.Combine(Root.FullName, x.CanonicalName.Substring(0, x.CanonicalName.Length - 1));
+                    if (System.IO.Directory.Exists(path))
+                    {
+                        try
+                        {
+                            RemoveFileTimeCache(x.CanonicalName);
+                            System.IO.Directory.Delete(path);
+                            deletions++;
+                        }
+                        catch
+                        {
+                            Printer.PrintMessage("Couldn't delete `{0}`, files still present!", x.CanonicalName);
+                        }
+                    }
+                }
+            }
+            foreach (var x in CheckoutOrder(targetRecords))
 			{
 				canonicalNames.Add(x.CanonicalName);
                 if (x.IsDirectory)
@@ -3420,67 +3481,6 @@ namespace Versionr
 				}
 				foreach (var x in done)
 					pendingSymlinks.Remove(x);
-			}
-
-			foreach (var x in DeletionOrder(records))
-			{
-				if (canonicalNames.Contains(x.CanonicalName))
-					continue;
-
-				if (x.IsFile)
-				{
-					string path = Path.Combine(Root.FullName, x.CanonicalName);
-					if (System.IO.File.Exists(path))
-					{
-						try
-						{
-							RemoveFileTimeCache(x.CanonicalName);
-							System.IO.File.Delete(path);
-                            if (verbose)
-    							Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
-                            deletions++;
-						}
-						catch
-						{
-							Printer.PrintMessage("Couldn't delete `{0}`!", x.CanonicalName);
-						}
-					}
-				}
-				else if (x.IsSymlink)
-				{
-					string path = Path.Combine(Root.FullName, x.CanonicalName);
-					if (Utilities.Symlink.Exists(path))
-					{
-						try
-						{
-							Utilities.Symlink.Delete(path);
-                            if (verbose)
-                                Printer.PrintMessage("Deleted symlink {0}", x.CanonicalName);
-                            deletions++;
-                        }
-						catch (Exception e)
-						{
-							Printer.PrintMessage("Couldn't delete symlink `{0}`!\n{1}", x.CanonicalName, e.ToString());
-						}
-					}
-				}
-				else if (x.IsDirectory)
-				{
-					string path = Path.Combine(Root.FullName, x.CanonicalName.Substring(0, x.CanonicalName.Length - 1));
-					if (System.IO.Directory.Exists(path))
-					{
-						try
-						{
-							RemoveFileTimeCache(x.CanonicalName);
-							System.IO.Directory.Delete(path);
-                            deletions++;
-                        }
-						catch
-						{
-							Printer.PrintMessage("Couldn't delete `{0}`, files still present!", x.CanonicalName);
-						}
-					}
-				}
 			}
             if (printer != null)
                 printer.End(totalSize);

@@ -204,9 +204,9 @@ namespace Versionr
             var stage = ldb.StageOperations;
             Stage = stage;
             VersionControlRecords = records;
-            HashSet<string> recordCanonicalNames = new HashSet<string>();
+            Dictionary<string, string> caseInsensitiveNames = new Dictionary<string, string>();
             foreach (var x in records)
-                recordCanonicalNames.Add(x.CanonicalName);
+                caseInsensitiveNames[x.CanonicalName.ToLowerInvariant()] = x.CanonicalName;
             MergeInputs = new List<Objects.Version>();
             Dictionary<string, StageFlags> stageInformation = new Dictionary<string, StageFlags>();
 			Dictionary<Record, StatusEntry> statusMap = new Dictionary<Record, StatusEntry>();
@@ -319,7 +319,9 @@ namespace Versionr
             }
             Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
             sw.Restart();
-			foreach (var x in tasks)
+
+            Map = new Dictionary<string, StatusEntry>();
+            foreach (var x in tasks)
 			{
 				if (x == null)
 					continue;
@@ -327,7 +329,8 @@ namespace Versionr
 				Elements.Add(x.Result);
 				if (x.Result.VersionControlRecord != null)
 					statusMap[x.Result.VersionControlRecord] = x.Result;
-			}
+                Map[x.Result.CanonicalName] = x.Result;
+            }
             tasks.Clear();
             Dictionary<long, Dictionary<string, Record>> recordSizeMap = new Dictionary<long, Dictionary<string, Record>>();
             if (findCopies)
@@ -375,6 +378,19 @@ namespace Versionr
                             lock (recordSizeMap)
                                 recordSizeMap.TryGetValue(x.Value.Length, out hashes);
                         }
+                        string possibleCaseRename = null;
+                        if (caseInsensitiveNames.TryGetValue(x.Key.ToLowerInvariant(), out possibleCaseRename))
+                        {
+                            StatusEntry otherEntry = null;
+                            if (Map.TryGetValue(possibleCaseRename, out otherEntry))
+                            {
+                                if (otherEntry.Code == StatusCode.Missing || otherEntry.Code == StatusCode.Deleted)
+                                {
+                                    otherEntry.Code = StatusCode.Ignored;
+                                    return new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = otherEntry.VersionControlRecord };
+                                }
+                            }
+                        }
                         if (hashes != null)
                         {
                             Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
@@ -418,7 +434,10 @@ namespace Versionr
             foreach (var x in tasks)
             {
                 if (x.Result != null)
+                {
                     Elements.Add(x.Result);
+                    Map[x.Result.CanonicalName] = x.Result;
+                }
             }
             Dictionary<Record, bool> allowedRenames = new Dictionary<Record, bool>();
             foreach (var x in pendingRenames)
@@ -440,14 +459,8 @@ namespace Versionr
                     x.Code = StatusCode.Copied;
                     Elements.Add(x);
                 }
+                Map[x.CanonicalName] = x;
             }
-            Printer.PrintDiagnostics("Status new file reconciliation: {0}", sw.ElapsedTicks);
-            sw.Restart();
-
-            Map = new Dictionary<string, StatusEntry>();
-			foreach (var x in Elements)
-				Map[x.CanonicalName] = x;
-            Printer.PrintDiagnostics("Status finalization: {0}", sw.ElapsedTicks);
 
             pct.EndEvent.Set();
             progressLog.Wait();
