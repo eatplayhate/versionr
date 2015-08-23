@@ -55,7 +55,7 @@ namespace Versionr.Network
         public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
         {
             BaseDirectory = info;
-            Area ws = Area.Load(info);
+            Area ws = Area.Load(info, true);
             if (ws == null)
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
@@ -179,7 +179,7 @@ namespace Versionr.Network
                             Area dm = null;
                             try
                             {
-                                dm = Area.Load(domInfo);
+                                dm = Area.Load(domInfo, true, true);
                             }
                             catch
                             {
@@ -262,7 +262,7 @@ namespace Versionr.Network
                     }
                     try
                     {
-                        ws = Area.Load(domainInfo.Directory, true);
+                        ws = Area.Load(domainInfo.Directory, true, true);
                         if (domainInfo.Bare)
                             throw new Exception("Domain is bare, but workspace could be loaded!");
                     }
