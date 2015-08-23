@@ -28,6 +28,7 @@
 				"/Debug/",
 				"^Release/",
 				"/Release/",
+				"lzham.*/Win32/",
 				".*\\.tlog",
 				"^x64",
 				"^lib/"

@@ -61,12 +61,6 @@ namespace Versionr.Commands
         protected override void Start()
         {
             Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
-            if (FilterOptions.Objects != null && FilterOptions.Objects.Count == 1)
-            {
-                System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(FilterOptions.Objects[0]);
-                if (info.Exists)
-                    ActiveDirectory = info;
-            }
         }
         protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
         {

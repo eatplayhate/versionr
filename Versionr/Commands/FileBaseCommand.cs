@@ -32,6 +32,7 @@ namespace Versionr.Commands
     }
     abstract class FileBaseCommand : BaseWorkspaceCommand
     {
+        bool RemovedOnlyTarget;
         protected override bool RunInternal(object options)
         {
             FileBaseCommandVerbOptions localOptions = options as FileBaseCommandVerbOptions;
@@ -39,6 +40,15 @@ namespace Versionr.Commands
 
 			FilterOptions = localOptions;
 			Start();
+
+            if (FilterOptions.Objects != null && FilterOptions.Objects.Count >= 1)
+            {
+                System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(FilterOptions.Objects[0]);
+                if (info.Exists)
+                    ActiveDirectory = info;
+                FilterOptions.Objects.RemoveAt(0);
+                RemovedOnlyTarget = FilterOptions.Objects.Count == 0;
+            }
 
             Versionr.Status status = null;
             List<Versionr.Status.StatusEntry> targets = null;
@@ -78,7 +88,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return false;
+                return RemovedOnlyTarget;
             }
         }
 
