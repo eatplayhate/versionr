@@ -35,7 +35,9 @@ namespace Versionr.Commands
                     "This command does not do anything for objects that are unchanged.",
                     "",
                     "The `#b#record#q#` command will respect patterns in the #b#.vrmeta#q# directive file.",
-                };
+                    "",
+                    "Full rules for selecting files are below:",
+                }.Concat(FileCommandVerbOptions.SharedDescription).ToArray();
             }
         }
 

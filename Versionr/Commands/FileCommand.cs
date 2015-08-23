@@ -14,6 +14,17 @@ namespace Versionr.Commands
 		public bool All { get; set; }
 		[Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
 		public bool Tracked { get; set; }
+
+        public new static string[] SharedDescription
+        {
+            get
+            {
+                return FileBaseCommandVerbOptions.SharedDescription.Concat(new string[]
+                {
+
+                }).ToArray();
+            }
+        }
 	}
 	abstract class FileCommand : FileBaseCommand
     {

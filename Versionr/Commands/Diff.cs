@@ -267,7 +267,9 @@ namespace Versionr.Commands
             Region openRegion = null;
             Region last = null;
             // cleanup step
-
+            bool doCleanup = true;
+            if (!doCleanup)
+                goto Display;
             for (int i = 1; i < diff.Count - 1; i++)
             {
                 if (diff[i - 1].common == null || diff[i - 1].common.Count == 0)
@@ -343,15 +345,26 @@ namespace Versionr.Commands
                 if ((isWhitespace && isShort) || isShort || isBrace)
                 {
                     var next = diff[i + 1];
-                    diff.RemoveAt(i + 1);
-                    foreach (var x in next.common)
+                    if (isBrace && next.common.Count > 1)
                     {
-                        diff[i].file1.Add(x);
-                        diff[i].file2.Add(x);
+                        // currently disabled
+                        diff[i].file1.Add(next.common[0]);
+                        diff[i].file2.Add(next.common[0]);
+                        next.common.RemoveAt(0);
                     }
-                    i--;
+                    else
+                    {
+                        diff.RemoveAt(i + 1);
+                        foreach (var x in next.common)
+                        {
+                            diff[i].file1.Add(x);
+                            diff[i].file2.Add(x);
+                        }
+                        i--;
+                    }
                 }
             }
+        Display:
             for (int i = 0; i < diff.Count; i++)
             {
                 if (regions.Count > 0)

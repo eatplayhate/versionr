@@ -27,6 +27,22 @@ namespace Versionr.Commands
             }
         }
 
+        public static string[] SharedDescription
+        {
+            get
+            {
+                return new string[]
+                {
+                    "",
+                    "#b#Matching Objects in Versionr#q#",
+                    "",
+                    "Versionr uses a mixture of path, wildcard and regex based matching systems to provide arguments to commands that require files.",
+                    "",
+                    "By default, Versionr uses partial matching of names as its primary mechanism. "
+                };
+            }
+        }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Objects { get; set; }
     }
@@ -41,13 +57,20 @@ namespace Versionr.Commands
 			FilterOptions = localOptions;
 			Start();
 
-            if (FilterOptions.Objects != null && FilterOptions.Objects.Count >= 1)
+            if (FilterOptions.Objects != null && FilterOptions.Objects.Count == 1)
             {
-                System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(FilterOptions.Objects[0]);
-                if (info.Exists)
-                    ActiveDirectory = info;
-                FilterOptions.Objects.RemoveAt(0);
-                RemovedOnlyTarget = FilterOptions.Objects.Count == 0;
+                try
+                {
+                    System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(FilterOptions.Objects[0]);
+                    if (info.Exists)
+                        ActiveDirectory = info;
+                    FilterOptions.Objects.RemoveAt(0);
+                    RemovedOnlyTarget = true;
+                }
+                catch
+                {
+
+                }
             }
 
             Versionr.Status status = null;
