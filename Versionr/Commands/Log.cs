@@ -146,10 +146,11 @@ namespace Versionr.Commands
                 enumeration = enumeration.Take(localOptions.Limit);
 
             Objects.Version tip = Workspace.Version;
-
+            Objects.Version last = null;
             foreach (var x in enumeration.Reverse())
 			{
 				Objects.Version v = x.Item1;
+                last = v;
                 if (localOptions.Concise)
                 {
                     string message = v.Message;
@@ -176,6 +177,16 @@ namespace Versionr.Commands
                         Printer.PrintMessage(" <- Merged from #s#{0}## on branch #b#{1}##", mergeParent.ID, ws.GetBranch(mergeParent.Branch).Name);
                     }
 
+                    var heads = Workspace.GetHeads(v.ID);
+                    foreach (var y in heads)
+                    {
+                        var branch = Workspace.GetBranch(y.Branch);
+                        string branchFlags = string.Empty;
+                        if (branch.Terminus.HasValue)
+                            branchFlags = " #e#(deleted)##";
+                        Printer.PrintMessage(" ++ #i#Head## of branch #b#{0}## (#b#\"{1}\"##){2}", branch.ID, branch.Name, branchFlags);
+                    }
+
                     Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
                     Printer.PushIndent();
                     Printer.PrintMessage("{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
@@ -192,8 +203,19 @@ namespace Versionr.Commands
 					}
 				}
 			}
+            if (last.ID == tip.ID && version == null)
+            {
+                var branch = Workspace.CurrentBranch;
+                var heads = Workspace.GetBranchHeads(branch);
+                bool isHead = heads.Any(x => x.Version == last.ID);
+                bool isOnlyHead = heads.Count == 1;
+                if (!isHead)
+                    Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", tip.ShortName, branch.ShortID, branch.Name);
+                else if (!isOnlyHead)
+                    Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", tip.ShortName, branch.ShortID, branch.Name);
+            }
 
-			return true;
+            return true;
 		}
 
 		private string GetAlterationFormat(Objects.AlterationType code)
