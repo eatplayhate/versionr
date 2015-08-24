@@ -147,10 +147,17 @@ namespace Versionr.Commands
 
             Objects.Version tip = Workspace.Version;
             Objects.Version last = null;
+            Dictionary<Guid, Objects.Branch> branches = new Dictionary<Guid, Objects.Branch>();
             foreach (var x in enumeration.Reverse())
 			{
 				Objects.Version v = x.Item1;
                 last = v;
+                Objects.Branch branch = null;
+                if (!branches.TryGetValue(v.Branch, out branch))
+                {
+                    branch = ws.GetBranch(v.Branch);
+                    branches[v.Branch] = branch;
+                }
                 if (localOptions.Concise)
                 {
                     string message = v.Message;
@@ -162,30 +169,43 @@ namespace Versionr.Commands
                     string mergemarker = " ";
                     if (ws.GetMergeInfo(v.ID).FirstOrDefault() != null)
                         mergemarker = "#s#M##";
-                    Printer.PrintMessage("{6}#c#{0}:##{7}({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, Workspace.GetBranch(v.Branch).Name, tipmarker, mergemarker);
+                    Printer.PrintMessage("{6}#c#{0}:##{7}({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker);
                 }
                 else
                 {
                     string tipmarker = "";
                     if (v.ID == tip.ID)
                         tipmarker = " #w#*<current>##";
-                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##{3}", v.Revision, v.ID, ws.GetBranch(v.Branch).Name, tipmarker);
+                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##{3}", v.Revision, v.ID, branch.Name, tipmarker);
 
                     foreach (var y in ws.GetMergeInfo(v.ID))
                     {
                         var mergeParent = ws.GetVersion(y.SourceVersion);
-                        Printer.PrintMessage(" <- Merged from #s#{0}## on branch #b#{1}##", mergeParent.ID, ws.GetBranch(mergeParent.Branch).Name);
+                        Objects.Branch mergeBranch = null;
+                        if (!branches.TryGetValue(mergeParent.Branch, out mergeBranch))
+                        {
+                            mergeBranch = ws.GetBranch(mergeParent.Branch);
+                            branches[mergeParent.Branch] = mergeBranch;
+                        }
+                        Printer.PrintMessage(" <- Merged from #s#{0}## on branch #b#{1}##", mergeParent.ID, mergeBranch.Name);
                     }
 
                     var heads = Workspace.GetHeads(v.ID);
                     foreach (var y in heads)
                     {
-                        var branch = Workspace.GetBranch(y.Branch);
+                        Objects.Branch headBranch = null;
+                        if (!branches.TryGetValue(y.Branch, out headBranch))
+                        {
+                            headBranch = ws.GetBranch(y.Branch);
+                            branches[y.Branch] = headBranch;
+                        }
                         string branchFlags = string.Empty;
                         if (branch.Terminus.HasValue)
                             branchFlags = " #e#(deleted)##";
-                        Printer.PrintMessage(" ++ #i#Head## of branch #b#{0}## (#b#\"{1}\"##){2}", branch.ID, branch.Name, branchFlags);
+                        Printer.PrintMessage(" ++ #i#Head## of branch #b#{0}## (#b#\"{1}\"##){2}", headBranch.ID, headBranch.Name, branchFlags);
                     }
+                    if (branch.Terminus == v.ID)
+                        Printer.PrintMessage(" ++ #i#Terminus## of #e#deleted branch## #b#{0}## (#b#\"{1}\"##)", branch.ID, branch.Name);
 
                     Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
                     Printer.PushIndent();
