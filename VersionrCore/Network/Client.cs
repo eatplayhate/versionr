@@ -569,7 +569,12 @@ namespace Versionr.Network
             Connected = false;
             try
             {
-                Connection = new System.Net.Sockets.TcpClient(host, port);
+                Connection = new System.Net.Sockets.TcpClient();
+                var connectionTask = Connection.ConnectAsync(Host, Port);
+                if (!connectionTask.Wait(5000))
+                {
+                    throw new Exception(string.Format("Couldn't connect to target: {0}", this.VersionrURL));
+                }
             }
             catch (Exception e)
             {

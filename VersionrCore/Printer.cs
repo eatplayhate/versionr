@@ -361,7 +361,7 @@ namespace Versionr
                         System.Console.Write("\x1b[91m");
                         break;
                     case OutputColour.ErrorHeader:
-                        System.Console.Write("\x1b[41m");
+                        System.Console.Write("\x1b[101;97m");
                         break;
                     case OutputColour.WarningHeader:
                         System.Console.Write("\x1b[30;103m");
