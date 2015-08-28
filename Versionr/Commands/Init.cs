@@ -44,8 +44,11 @@ namespace Versionr.Commands
             }
         }
 
-        [CommandLine.ValueOption(0)]
+        [CommandLine.Option('b', "branch", HelpText = "Name of the initial branch")]
         public string BranchName { get; set; }
+
+        [CommandLine.ValueOption(0)]
+        public string Directory { get; set; }
 
         [CommandLine.Option("novrmeta", HelpText = "Disables generation of the default .vrmeta file.")]
         public bool NoVRMeta { get; set; }
@@ -59,6 +62,20 @@ namespace Versionr.Commands
             Printer.Quiet = localOptions.Quiet;
             if (string.IsNullOrEmpty(localOptions.BranchName))
                 localOptions.BranchName = "master";
+            if (!string.IsNullOrEmpty(localOptions.Directory))
+            {
+                try
+                {
+                    System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(localOptions.Directory);
+                    info.Create();
+                    workingDirectory = info;
+                }
+                catch
+                {
+                    Printer.PrintError("#x#Error:##\n  Couldn't create directory '{0}'", localOptions.Directory);
+                    return false;
+                }
+            }
             Area ws = Area.Init(workingDirectory, localOptions.BranchName);
             if (ws == null)
                 return false;
