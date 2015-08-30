@@ -24,6 +24,7 @@ namespace Versionr.Commands
     }
     abstract class RemoteCommand : BaseCommand
     {
+        protected System.IO.DirectoryInfo TargetDirectory { get; set; }
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
             RemoteCommandVerbOptions localOptions = options as RemoteCommandVerbOptions;
@@ -61,8 +62,16 @@ namespace Versionr.Commands
                         subdir = localOptions.Module;
                     if (!string.IsNullOrEmpty(subdir))
                     {
-                        System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(System.IO.Path.Combine(workingDirectory.FullName, subdir));
-                        info.Create();
+                        System.IO.DirectoryInfo info;
+                        try
+                        {
+                            info = new System.IO.DirectoryInfo(System.IO.Path.Combine(workingDirectory.FullName, subdir));
+                        }
+                        catch
+                        {
+                            Printer.PrintError("#e#Error - invalid subdirectory \"{0}\"##", subdir);
+                            return false;
+                        }
                         Printer.PrintMessage("Target directory: #b#{0}##.", info);
                         workingDirectory = info;
                     }
@@ -82,6 +91,7 @@ namespace Versionr.Commands
                 }
                 client = new Client(workingDirectory);
             }
+            TargetDirectory = workingDirectory;
             bool requireRemoteName = false;
             if (string.IsNullOrEmpty(localOptions.Host) || localOptions.Port == -1)
                 requireRemoteName = true;

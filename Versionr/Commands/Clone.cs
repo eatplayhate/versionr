@@ -50,6 +50,15 @@ namespace Versionr.Commands
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
             bool result = false;
+            try
+            {
+                TargetDirectory.Create();
+            }
+            catch
+            {
+                Printer.PrintError("#e#Error - couldn't create subdirectory \"{0}\"##", TargetDirectory);
+                return false;
+            }
             if (localOptions.Full.HasValue)
                 result = client.Clone(localOptions.Full.Value);
             else
