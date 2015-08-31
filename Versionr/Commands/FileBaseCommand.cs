@@ -63,10 +63,12 @@ namespace Versionr.Commands
                 {
                     System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(FilterOptions.Objects[0]);
                     if (info.Exists)
-                        ActiveDirectory = info;
-                    FilterOptions.Objects.RemoveAt(0);
-                    RemovedOnlyTarget = true;
-                }
+					{
+						ActiveDirectory = info;
+						FilterOptions.Objects.RemoveAt(0);
+						RemovedOnlyTarget = true;
+					}
+				}
                 catch
                 {
 
