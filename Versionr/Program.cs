@@ -82,7 +82,9 @@ namespace Versionr
 		[VerbOption("deletebranch", HelpText = "Deletes a branch in the vault.")]
 		public Commands.DeleteBranchVerbOptions DeleteBranchVerb { get; set; }
 		[VerbOption("stats", HelpText = "Displays statistics.")]
-		public Commands.StatsVerbOptions StatsVerb { get; set; }
+        public Commands.StatsVerbOptions StatsVerb { get; set; }
+        [VerbOption("expunge", HelpText = "Deletes a version from the vault and rolls back history.")]
+        public Commands.ExpungeVerbOptions ExpungeVerb { get; set; }
 
 		[HelpOption]
         public string GetUsage()
@@ -169,6 +171,8 @@ namespace Versionr
                 return DeleteBranchVerb.GetUsage();
             else if (verb == "stats")
                 return StatsVerb.GetUsage();
+            else if (verb == "expunge")
+                return ExpungeVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -242,6 +246,7 @@ namespace Versionr
             commands["listbranch"] = new Commands.ListBranch();
             commands["deletebranch"] = new Commands.DeleteBranch();
             commands["stats"] = new Commands.Stats();
+            commands["expunge"] = new Commands.Expunge();
 
             Console.CancelKeyPress += Console_CancelKeyPress;
             

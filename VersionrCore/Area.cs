@@ -245,6 +245,42 @@ namespace Versionr
             }
         }
 
+        public bool ExpungeVersion(Objects.Version version)
+        {
+            try
+            {
+                Database.BeginExclusive();
+                if (!version.Parent.HasValue)
+                    throw new Exception("Can't remove first version!");
+                Objects.Version parent = GetVersion(version.Parent.Value);
+                Database.Delete(version);
+                Printer.PrintMessage("Deleted version #b#{0}##.", version.ID);
+                var heads = GetHeads(version.ID);
+                foreach (var x in heads)
+                {
+                    x.Version = parent.ID;
+                    Database.Update(x);
+                }
+                Printer.PrintMessage(" - Updated {0} heads.", heads.Count);
+
+                var ws = LocalData.Workspace;
+                if (ws.Tip == version.ID)
+                {
+                    ws.Tip = parent.ID;
+                    ws.Branch = parent.Branch;
+                    LocalData.Update(ws);
+                    Printer.PrintMessage("Moved tip to version #b#{0}## on branch \"#b#{1}##\"", parent.ID, GetBranch(parent.Branch).Name);
+                }
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                throw;
+            }
+        }
+
         internal bool SyncCurrentRecords()
         {
             return GetMissingRecords(Database.Records);
@@ -4074,9 +4110,6 @@ namespace Versionr
                             transaction = null;
 
                             Printer.PrintMessage("Updating internal state.");
-                            var ws = LocalData.Workspace;
-                            ws.Tip = vs.ID;
-                            LocalData.UpdateSafe(ws);
                             Objects.Snapshot ss = new Snapshot();
                             Database.BeginTransaction();
 
@@ -4141,6 +4174,10 @@ namespace Versionr
                                     Database.DeleteSafe(mergeHead);
                             }
                             Database.InsertSafe(vs);
+
+                            var ws = LocalData.Workspace;
+                            ws.Tip = vs.ID;
+                            LocalData.UpdateSafe(ws);
 
                             Database.Commit();
                             Printer.PrintDiagnostics("Finished.");
@@ -4406,6 +4443,8 @@ namespace Versionr
 
         public void UpdateFileTimeCache(string canonicalName, Record rec, DateTime lastAccessTimeUtc, bool commit = true)
         {
+            if (string.IsNullOrEmpty(canonicalName))
+                return;
             UpdateFileTimeCache(new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName }, commit);
         }
 

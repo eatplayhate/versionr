@@ -49,6 +49,7 @@
     <Compile Include="Commands\Clone.cs" />
     <Compile Include="Commands\DeleteBranch.cs" />
     <Compile Include="Commands\Diff.cs" />
+    <Compile Include="Commands\Expunge.cs" />
     <Compile Include="Commands\FileBaseCommand.cs" />
     <Compile Include="Commands\FileCommand.cs" />
     <Compile Include="Commands\ListBranch.cs" />
