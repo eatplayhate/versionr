@@ -252,6 +252,8 @@ namespace Versionr
                 Database.BeginExclusive();
                 if (!version.Parent.HasValue)
                     throw new Exception("Can't remove first version!");
+                if (Database.Table<Objects.Version>().Where(x => x.Parent == version.ID).Count() > 0)
+                    throw new Exception("Can't a version which is not at the tip of the history!");
                 Objects.Version parent = GetVersion(version.Parent.Value);
                 Database.Delete(version);
                 Printer.PrintMessage("Deleted version #b#{0}##.", version.ID);
@@ -262,6 +264,13 @@ namespace Versionr
                     Database.Update(x);
                 }
                 Printer.PrintMessage(" - Updated {0} heads.", heads.Count);
+                var terminators = Database.Table<Objects.Branch>().Where(x => x.Terminus == version.ID).ToList();
+                foreach (var x in terminators)
+                {
+                    x.Terminus = parent.ID;
+                    Database.Update(x);
+                }
+                Printer.PrintMessage(" - Updated {0} branch terminuses.", terminators.Count);
 
                 var ws = LocalData.Workspace;
                 if (ws.Tip == version.ID)
