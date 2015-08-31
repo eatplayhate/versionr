@@ -10,8 +10,7 @@ all:
 	cp sqlite3/*.so.0 bin
 	cp References/*.dll ./bin
 	cd Versionr; \
-		xbuild /p:Configuration=Release || echo "Ignore mono post-build errors!"
-	cp Versionr/bin/Release/* bin
+		xbuild /p:Configuration=Release
 	echo "Completed"
 
 clean:

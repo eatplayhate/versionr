@@ -32,7 +32,9 @@
 				"lzham.*/Win32/",
 				".*\\.tlog",
 				"^x64",
-				"^lib/"
+				"^lib/",
+				"^bin/",
+				"^bin_debug"
 			]
 		}
 	}
