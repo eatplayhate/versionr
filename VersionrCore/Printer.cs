@@ -181,7 +181,7 @@ namespace Versionr
                     }
                     else
                     {
-                        outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, nextFindLocation)));
+                        outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, nextFindLocation - pos)));
                         pos = nextFindLocation + 1;
                     }
                 }

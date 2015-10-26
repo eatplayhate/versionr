@@ -2799,7 +2799,7 @@ namespace Versionr
                 FileClassifier.Classify(local) == FileEncoding.Binary ||
                 FileClassifier.Classify(parentFile) == FileEncoding.Binary;
 
-            System.IO.File.Copy(ml, ml + ".mine");
+            System.IO.File.Copy(ml, ml + ".mine", true);
             if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
             {
                 System.IO.File.Delete(ml + ".mine");
@@ -2848,7 +2848,7 @@ namespace Versionr
             bool isBinary = FileClassifier.Classify(foreign) == FileEncoding.Binary ||
                 FileClassifier.Classify(local) == FileEncoding.Binary;
 
-            System.IO.File.Copy(ml, ml + ".mine");
+            System.IO.File.Copy(ml, ml + ".mine", true);
             if (!isBinary && Utilities.DiffTool.Merge(ml, mf, mr, Directives.ExternalMerge2Way))
             {
                 System.IO.File.Delete(ml + ".mine");
@@ -2887,9 +2887,9 @@ namespace Versionr
                 return resolveAll.Value;
             }
             if (!binary)
-                Printer.PrintMessage("Merge marked as failure, use #s#(m)ine##, #c#(t)heirs## or #r#(c)onflict##? (Use #b#*## for all)");
+                Printer.PrintMessage("Merge marked as failure, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
             else
-                Printer.PrintMessage("File is binary, use #s#(m)ine##, #c#(t)heirs## or #r#(c)onflict##? (Use #b#*## for all)");
+                Printer.PrintMessage("File is binary, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
             string resolution = System.Console.ReadLine();
             if (resolution.StartsWith("m"))
             {
