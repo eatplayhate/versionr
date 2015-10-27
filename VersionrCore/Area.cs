@@ -3388,15 +3388,15 @@ namespace Versionr
                     printer.Update(System.Threading.Interlocked.Add(ref count, rec.Size));
             };
             ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
-            HashSet<KeyValuePair<string, string>> signatures = new HashSet<KeyValuePair<string, string>>();
+            HashSet<string> signatures = new HashSet<string>();
 
             foreach (var x in targetRecords)
-                signatures.Add(new KeyValuePair<string, string>(x.UniqueIdentifier, x.CanonicalName));
+                signatures.Add(x.CanonicalName);
 
             List<Record> recordsToDelete = new List<Record>();
             foreach (var x in records)
             {
-                if (signatures.Contains(new KeyValuePair<string, string>(x.UniqueIdentifier, x.CanonicalName)))
+                if (signatures.Contains(x.CanonicalName))
                     continue;
                 recordsToDelete.Add(x);
             }
