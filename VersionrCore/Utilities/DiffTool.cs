@@ -63,7 +63,6 @@ namespace Versionr.Utilities
                         UseShellExecute = true
                     };
                     var proc = System.Diagnostics.Process.Start(psi);
-                    proc.WaitForExit();
                 }
                 catch
                 {
