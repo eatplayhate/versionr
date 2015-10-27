@@ -104,6 +104,8 @@ namespace Versionr.Commands
                     int index = name.LastIndexOf('/');
                     if (index != name.Length - 1)
                         name = name.Insert(index + 1, "#b#");
+                    if (name.Length == 0)
+                        name = "#q#<parent directory>##";
 					if (x.IsSymlink)
 						name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
                     Printer.WriteLineMessage("{1}## {0}", name, GetStatus(x));

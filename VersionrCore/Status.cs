@@ -241,7 +241,7 @@ namespace Versionr
                         Entry snapshotRecord = null;
                         if (RestrictedPath != null)
                         {
-                            if (!x.CanonicalName.StartsWith(RestrictedPath, StringComparison.Ordinal) || x.CanonicalName == RestrictedPath)
+                            if (!x.CanonicalName.StartsWith(RestrictedPath, StringComparison.Ordinal) && x.CanonicalName != RestrictedPath)
                             {
                                 if (x.CanonicalName == ".vrmeta" && !string.IsNullOrEmpty(Workspace.PartialPath))
                                 {

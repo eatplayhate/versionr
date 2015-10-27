@@ -2257,6 +2257,8 @@ namespace Versionr
             foreach (var x in foreignRecords)
                 foreignLookup[x.CanonicalName] = x;
 
+            List<StageOperation> delayedStageOperations = new List<StageOperation>();
+
             foreach (var x in CheckoutOrder(foreignRecords))
             {
                 TransientMergeObject parentObject = null;
@@ -2287,8 +2289,8 @@ namespace Versionr
                                 Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
                                 return;
                             }
-                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                            LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
                     }
                     else
@@ -2312,7 +2314,7 @@ namespace Versionr
                                 RestoreRecord(x, newRefTime);
                                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                                 if (!updateMode)
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                             }
                         }
                     }
@@ -2333,8 +2335,8 @@ namespace Versionr
                                 RestoreRecord(x, newRefTime);
                                 if (!updateMode)
                                 {
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                    delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                                 }
                             }
                             else if (!updateMode)
@@ -2372,8 +2374,8 @@ namespace Versionr
                                     result.MoveTo(ml.FullName);
 								    if (!updateMode)
 								    {
-									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 								    }
 							    }
                                 else
@@ -2381,7 +2383,7 @@ namespace Versionr
                                     mr.Delete();
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
 								    if (!updateMode)
-									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                                 }
                             }
                             else if (!updateMode)
@@ -2426,15 +2428,15 @@ namespace Versionr
                                     result.MoveTo(ml.FullName);
 								    if (!updateMode)
 								    {
-									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 								    }
 							    }
                                 else
                                 {
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
 								    if (!updateMode)
-									    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
 							    }
                             }
                             else if (!updateMode)
@@ -2479,11 +2481,12 @@ namespace Versionr
                                 deletionList.Add(x.Record);
 							}
 							if (resolution.StartsWith("c"))
-                                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                         }
                     }
                 }
             }
+            List<string> filetimesToRemove = new List<string>();
             foreach (var x in deletionList)
             {
                 if (!Included(x.CanonicalName))
@@ -2528,10 +2531,11 @@ namespace Versionr
 						Printer.PrintError("#x#Can't remove directory \"{0}\"!", x.CanonicalName);
 					}
 				}
-				RemoveFileTimeCache(x.CanonicalName);
+                filetimesToRemove.Add(x.CanonicalName);
 				if (!updateMode)
-					LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
+                    delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
 			}
+            LocalData.AddStageOperations(delayedStageOperations);
             foreach (var x in parentData)
             {
                 if (x.TemporaryFile != null)
@@ -2543,6 +2547,10 @@ namespace Versionr
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
             else
             {
+                LocalData.BeginTransaction();
+                foreach (var x in filetimesToRemove)
+                    RemoveFileTimeCache(x);
+                LocalData.Commit();
                 LocalData.BeginTransaction();
                 try
                 {
@@ -3356,6 +3364,7 @@ namespace Versionr
             int updates = 0;
             int deletions = 0;
             int additions = 0;
+            Object completeMarker = false;
             if (targetRecords.Count > 0 && totalSize > 0)
             {
                 printer = Printer.CreateProgressBarPrinter(
