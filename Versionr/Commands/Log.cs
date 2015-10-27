@@ -213,14 +213,44 @@ namespace Versionr.Commands
                     Printer.PopIndent();
 
                     if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
-					{
-						Printer.PrintMessage("#b#Alterations:##");
-						var alterations = localOptions.Detail == LogVerbOptions.DetailMode.Detailed ? x.Item2.Select(z => z.Value) : GetAlterations(v);
-						foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
-						{
-							Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
-						}
-					}
+                    {
+                        var alterations = localOptions.Detail == LogVerbOptions.DetailMode.Detailed ? x.Item2.Select(z => z.Value) : GetAlterations(v);
+                        if (localOptions.Detail == LogVerbOptions.DetailMode.Full)
+                        {
+                            Printer.PrintMessage("");
+                            Printer.PrintMessage("#b#Alterations:##");
+                            foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
+                            {
+                                Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
+                            }
+                        }
+                        else
+                        {
+                            int[] alterationCounts = new int[5];
+                            foreach (var y in alterations)
+                                alterationCounts[(int)y.Alteration.Type]++;
+                            bool first = true;
+                            string formatData = "";
+                            for (int i = 0; i < alterationCounts.Length; i++)
+                            {
+                                if (alterationCounts[i] != 0)
+                                {
+                                    if (!first)
+                                        formatData += ", ";
+                                    else
+                                        formatData += "  ";
+                                    first = false;
+                                    formatData += string.Format("#{2}#{0}s: {1}##", ((Objects.AlterationType)i).ToString(), alterationCounts[i], GetAlterationFormat((Objects.AlterationType)i));
+                                }
+                            }
+                            if (formatData.Length > 0)
+                            {
+                                Printer.PrintMessage("");
+                                Printer.PrintMessage("#b#Alterations:##");
+                                Printer.PrintMessage(formatData);
+                            }
+                        }
+                    }
 				}
 			}
             if (last.ID == tip.ID && version == null)
