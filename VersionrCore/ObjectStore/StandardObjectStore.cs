@@ -677,6 +677,11 @@ namespace Versionr.ObjectStore
                 var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
                 if (storeData == null)
                     return false;
+                if (!string.IsNullOrEmpty(storeData.DeltaBase))
+                {
+                    if (!HasDataDirect(storeData.DeltaBase))
+                        return false;
+                }
 #if SLOW_DATA_CHECK
                 if (storeData.BlobID == null)
                     return GetFileForDataID(x).Exists;
