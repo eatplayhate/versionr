@@ -26,30 +26,34 @@ namespace Versionr.Utilities
                 string xtool = externalTool.Trim();
                 int filenameIndex = xtool.Length;
                 bool quoted = false;
+                int baseIndex = 0;
                 for (int i = 0; i < xtool.Length; i++)
                 {
                     if (xtool[i] == '"')
                     {
                         if (quoted)
                         {
-                            filenameIndex = i;
+                            filenameIndex = i + 1;
                             break;
                         }
                         else
+                        {
+                            baseIndex = 1;
                             quoted = true;
+                        }
                     }
-                    else if (xtool[i] == ' ')
+                    else if (xtool[i] == ' ' && !quoted)
                     {
-                        filenameIndex = i;
+                        filenameIndex = i + 1;
                         break;
                     }
                 }
-                string filename = xtool.Substring(0, filenameIndex);
+                string filename = xtool.Substring(baseIndex, filenameIndex - baseIndex - 1);
                 xtool = xtool.Substring(filenameIndex);
-                xtool = xtool.Replace("%base", "{0}");
-                xtool = xtool.Replace("%changed", "{1}");
-                xtool = xtool.Replace("%basename", "{2}");
-                xtool = xtool.Replace("%changedname", "{3}");
+                xtool = xtool.Replace("%base", "\"{0}\"");
+                xtool = xtool.Replace("%changed", "\"{1}\"");
+                xtool = xtool.Replace("%basename", "\"{2}\"");
+                xtool = xtool.Replace("%changedname", "\"{3}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
@@ -131,30 +135,34 @@ namespace Versionr.Utilities
                 string xtool = externalTool.Trim();
                 int filenameIndex = xtool.Length;
                 bool quoted = false;
+                int baseIndex = 0;
                 for (int i = 0; i < xtool.Length; i++)
                 {
                     if (xtool[i] == '"')
                     {
                         if (quoted)
                         {
-                            filenameIndex = i;
+                            filenameIndex = i + 1;
                             break;
                         }
                         else
+                        {
+                            baseIndex = 1;
                             quoted = true;
+                        }
                     }
-                    else if (xtool[i] == ' ')
+                    else if (xtool[i] == ' ' && !quoted)
                     {
-                        filenameIndex = i;
+                        filenameIndex = i + 1;
                         break;
                     }
                 }
-                string filename = xtool.Substring(0, filenameIndex);
+                string filename = xtool.Substring(baseIndex, filenameIndex - baseIndex - 1);
                 xtool = xtool.Substring(filenameIndex);
-                xtool = xtool.Replace("%file1", "{0}");
-                xtool = xtool.Replace("%file2", "{1}");
-                xtool = xtool.Replace("%file1name", "{2}");
-                xtool = xtool.Replace("%file2name", "{3}");
+                xtool = xtool.Replace("%file1", "\"{0}\"");
+                xtool = xtool.Replace("%file2", "\"{1}\"");
+                xtool = xtool.Replace("%file1name", "\"{2}\"");
+                xtool = xtool.Replace("%file2name", "\"{3}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
@@ -224,32 +232,36 @@ namespace Versionr.Utilities
                 string xtool = externalTool.Trim();
                 int filenameIndex = xtool.Length;
                 bool quoted = false;
+                int baseIndex = 0;
                 for (int i = 0; i < xtool.Length; i++)
                 {
                     if (xtool[i] == '"')
                     {
                         if (quoted)
                         {
-                            filenameIndex = i;
+                            filenameIndex = i + 1;
                             break;
                         }
                         else
+                        {
+                            baseIndex = 1;
                             quoted = true;
+                        }
                     }
-                    else if (xtool[i] == ' ')
+                    else if (xtool[i] == ' ' && !quoted)
                     {
-                        filenameIndex = i;
+                        filenameIndex = i + 1;
                         break;
                     }
                 }
-                string filename = xtool.Substring(0, filenameIndex);
+                string filename = xtool.Substring(baseIndex, filenameIndex - baseIndex - 1);
                 xtool = xtool.Substring(filenameIndex);
-                xtool = xtool.Replace("%base", "{0}");
-                xtool = xtool.Replace("%file1", "{1}");
-                xtool = xtool.Replace("%file2", "{2}");
-                xtool = xtool.Replace("%basename", "{3}");
-                xtool = xtool.Replace("%file1name", "{4}");
-                xtool = xtool.Replace("%file2name", "{5}");
+                xtool = xtool.Replace("%base", "\"{0}\"");
+                xtool = xtool.Replace("%file1", "\"{1}\"");
+                xtool = xtool.Replace("%file2", "\"{2}\"");
+                xtool = xtool.Replace("%basename", "\"{3}\"");
+                xtool = xtool.Replace("%file1name", "\"{4}\"");
+                xtool = xtool.Replace("%file2name", "\"{5}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
