@@ -15,10 +15,10 @@ namespace Versionr.Utilities
 
 		public static void Diff(string baseFile, string file, string externalTool)
 		{
-			Diff(baseFile, baseFile, file, file, externalTool);
+			Diff(baseFile, baseFile, file, file, externalTool, false);
 		}
 
-		public static void Diff(string baseFile, string baseAlias, string file, string fileAlias, string externalTool)
+		public static System.Diagnostics.Process Diff(string baseFile, string baseAlias, string file, string fileAlias, string externalTool, bool nonblocking)
 		{
             System.Diagnostics.ProcessStartInfo psi;
             if (!string.IsNullOrEmpty(externalTool))
@@ -63,6 +63,10 @@ namespace Versionr.Utilities
                         UseShellExecute = true
                     };
                     var proc = System.Diagnostics.Process.Start(psi);
+                    if (nonblocking)
+                        return proc;
+                    proc.WaitForExit();
+                    return null;
                 }
                 catch
                 {
@@ -75,7 +79,7 @@ namespace Versionr.Utilities
                     Printer.PrintMessage("Example:");
                     Printer.PrintMessage("  difftool --unified #b#%base## #b#%changed## --L1 #q#%basename## --L2 #q#%changedname##");
                 }
-                return;
+                return null;
             }
             else
             {
@@ -109,7 +113,10 @@ namespace Versionr.Utilities
                 try
                 {
                     var proc = System.Diagnostics.Process.Start(psi);
+                    if (nonblocking)
+                        return proc;
                     proc.WaitForExit();
+                    return null;
                 }
                 catch
                 {

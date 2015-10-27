@@ -69,6 +69,7 @@ namespace Versionr
         public Ignores Include { get; set; }
         public string DefaultCompression { get; set; }
         public string ExternalDiff { get; set; }
+        public bool? NonBlockingDiff { get; set; }
         public string ExternalMerge { get; set; }
         public string ExternalMerge2Way { get; set; }
         public SvnCompatibility Svn { get; set; }
@@ -98,6 +99,8 @@ namespace Versionr
                 ExternalMerge = other.ExternalMerge;
             if (other.ExternalMerge2Way != null)
                 ExternalMerge2Way = other.ExternalMerge2Way;
+            if (other.NonBlockingDiff != null)
+                NonBlockingDiff = other.NonBlockingDiff;
 
             if (other.Externals != null)
             {
