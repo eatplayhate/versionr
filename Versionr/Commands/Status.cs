@@ -200,6 +200,9 @@ namespace Versionr.Commands
                 case StatusCode.Missing:
                     return staged ? new Tuple<char, string>('e', "error")
                         : new Tuple<char, string>('w', "missing");
+                case StatusCode.Masked:
+                    return staged ? new Tuple<char, string>('e', "error")
+                        : new Tuple<char, string>('w', "ignored");
                 case StatusCode.Modified:
                     return staged ? new Tuple<char, string>('s', "modified")
                         : new Tuple<char, string>('w', "changed");

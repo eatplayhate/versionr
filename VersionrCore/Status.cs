@@ -21,6 +21,7 @@ namespace Versionr
         Copied,
         Conflict,
 		Ignored,
+        Masked,
 
         Count
     }
@@ -304,7 +305,10 @@ namespace Versionr
                         {
                             if (objectFlags.HasFlag(StageFlags.Removed))
                                 return new StatusEntry() { Code = StatusCode.Deleted, FilesystemEntry = null, VersionControlRecord = x, Staged = true };
-                            return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
+                            if (snapshotRecord != null && snapshotRecord.Ignored)
+                                return new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = false };
+                            else
+                                return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
                     }));
                 }

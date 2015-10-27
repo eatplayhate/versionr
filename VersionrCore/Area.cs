@@ -1607,12 +1607,12 @@ namespace Versionr
 					x.Code == StatusCode.Renamed ||
 					x.Code == StatusCode.Modified ||
 					x.Code == StatusCode.Copied ||
-					(x.Code == StatusCode.Missing && missing)))
+					((x.Code == StatusCode.Masked || x.Code == StatusCode.Missing) && missing)))
 				{
 					stagedPaths.Add(x.CanonicalName);
 
-					if (x.Code == StatusCode.Missing)
-					{
+					if (x.Code == StatusCode.Masked || x.Code == StatusCode.Missing)
+                    {
                         if (interactive)
                         {
                             Printer.PrintMessageSingleLine("Record #e#deletion## of #b#{0}##", x.VersionControlRecord.CanonicalName);
@@ -3388,8 +3388,20 @@ namespace Versionr
                     printer.Update(System.Threading.Interlocked.Add(ref count, rec.Size));
             };
             ConcurrentQueue<FileTimestamp> updatedTimestamps = new ConcurrentQueue<FileTimestamp>();
+            HashSet<KeyValuePair<string, string>> signatures = new HashSet<KeyValuePair<string, string>>();
 
-            foreach (var x in DeletionOrder(records))
+            foreach (var x in targetRecords)
+                signatures.Add(new KeyValuePair<string, string>(x.UniqueIdentifier, x.CanonicalName));
+
+            List<Record> recordsToDelete = new List<Record>();
+            foreach (var x in records)
+            {
+                if (signatures.Contains(new KeyValuePair<string, string>(x.UniqueIdentifier, x.CanonicalName)))
+                    continue;
+                recordsToDelete.Add(x);
+            }
+
+            foreach (var x in DeletionOrder(recordsToDelete))
             {
                 if (canonicalNames.Contains(x.CanonicalName))
                     continue;
@@ -4107,6 +4119,7 @@ namespace Versionr
                                         }
                                     case StatusCode.Unchanged:
                                     case StatusCode.Missing:
+                                    case StatusCode.Masked:
                                         finalRecords.Add(x.VersionControlRecord);
                                         break;
                                     case StatusCode.Unversioned:
