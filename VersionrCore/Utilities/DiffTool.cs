@@ -50,10 +50,10 @@ namespace Versionr.Utilities
                 }
                 string filename = xtool.Substring(baseIndex, filenameIndex - baseIndex - 1);
                 xtool = xtool.Substring(filenameIndex);
-                xtool = xtool.Replace("%base", "\"{0}\"");
-                xtool = xtool.Replace("%changed", "\"{1}\"");
                 xtool = xtool.Replace("%basename", "\"{2}\"");
                 xtool = xtool.Replace("%changedname", "\"{3}\"");
+                xtool = xtool.Replace("%base", "\"{0}\"");
+                xtool = xtool.Replace("%changed", "\"{1}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
@@ -159,10 +159,10 @@ namespace Versionr.Utilities
                 }
                 string filename = xtool.Substring(baseIndex, filenameIndex - baseIndex - 1);
                 xtool = xtool.Substring(filenameIndex);
-                xtool = xtool.Replace("%file1", "\"{0}\"");
-                xtool = xtool.Replace("%file2", "\"{1}\"");
                 xtool = xtool.Replace("%file1name", "\"{2}\"");
                 xtool = xtool.Replace("%file2name", "\"{3}\"");
+                xtool = xtool.Replace("%file1", "\"{0}\"");
+                xtool = xtool.Replace("%file2", "\"{1}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
@@ -256,12 +256,12 @@ namespace Versionr.Utilities
                 }
                 string filename = xtool.Substring(baseIndex, filenameIndex - baseIndex - 1);
                 xtool = xtool.Substring(filenameIndex);
-                xtool = xtool.Replace("%base", "\"{0}\"");
-                xtool = xtool.Replace("%file1", "\"{1}\"");
-                xtool = xtool.Replace("%file2", "\"{2}\"");
                 xtool = xtool.Replace("%basename", "\"{3}\"");
                 xtool = xtool.Replace("%file1name", "\"{4}\"");
                 xtool = xtool.Replace("%file2name", "\"{5}\"");
+                xtool = xtool.Replace("%base", "\"{0}\"");
+                xtool = xtool.Replace("%file1", "\"{1}\"");
+                xtool = xtool.Replace("%file2", "\"{2}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
