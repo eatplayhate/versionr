@@ -157,7 +157,7 @@ namespace Versionr.ObjectStore
         private void InitializeDBTypes()
         {
             CompressionMode cmode = CompressionMode.LZHAM;
-            if (!string.IsNullOrEmpty(Owner.Directives?.DefaultCompression))
+            if (Owner.Directives != null && !string.IsNullOrEmpty(Owner.Directives.DefaultCompression))
             {
                 if (!Enum.TryParse<CompressionMode>(Owner.Directives.DefaultCompression, out cmode))
                     cmode = CompressionMode.LZHAM;

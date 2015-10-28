@@ -188,7 +188,6 @@ namespace Versionr
         static void Main(string[] args)
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
-
             var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
             CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(

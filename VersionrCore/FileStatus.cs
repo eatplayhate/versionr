@@ -152,11 +152,42 @@ namespace Versionr
             }
         }
     }
+    public static class FileSystemInfoExt
+    {
+
+        public static String GetFullNameWithCorrectCase(this FileSystemInfo fileOrFolder)
+        {
+            //Check whether null to simulate instance method behavior
+            if (Object.ReferenceEquals(fileOrFolder, null)) throw new NullReferenceException();
+            //Initialize common variables
+            String myResult = GetCorrectCaseOfParentFolder(fileOrFolder.FullName);
+            return myResult;
+        }
+
+        private static String GetCorrectCaseOfParentFolder(String fileOrFolder)
+        {
+            String myParentFolder = Path.GetDirectoryName(fileOrFolder);
+            String myChildName = Path.GetFileName(fileOrFolder);
+            if (Object.ReferenceEquals(myParentFolder, null)) return fileOrFolder.TrimEnd(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
+            if (Directory.Exists(myParentFolder))
+            {
+                //myParentFolder = GetLongPathName.Invoke(myFullName);
+                String myFileOrFolder = Directory.GetFileSystemEntries(myParentFolder, myChildName).FirstOrDefault();
+                if (!Object.ReferenceEquals(myFileOrFolder, null))
+                {
+                    myChildName = Path.GetFileName(myFileOrFolder);
+                }
+            }
+            return GetCorrectCaseOfParentFolder(myParentFolder) + Path.DirectorySeparatorChar + myChildName;
+        }
+
+    }
     public class FileStatus
     {
         public List<Entry> Entries { get; set; }
         public FileStatus(Area root, DirectoryInfo rootFolder)
         {
+            rootFolder = new DirectoryInfo(rootFolder.GetFullNameWithCorrectCase());
             Entries = GetEntryList(root, rootFolder, root.AdministrationFolder);
             int files = Entries.Where(x => !x.IsDirectory).Count();
             Printer.PrintDiagnostics("Current working directory has {0} file{1} in {2} director{3}.", files, files == 1 ? "" : "s", Entries.Count - files, (Entries.Count - files) == 1 ? "y" : "ies");
@@ -178,7 +209,7 @@ namespace Versionr
             {
                 if (slashedSubdirectory[slashedSubdirectory.Length - 1] != '/')
                     slashedSubdirectory += '/';
-                if (area?.Directives?.Include?.RegexPatterns != null)
+                if (area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexPatterns != null)
                 {
                     ignoreDirectory = true;
                     foreach (var y in area.Directives.Include.RegexPatterns)
@@ -190,7 +221,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (area?.Directives?.Ignore?.RegexPatterns != null)
+                if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexPatterns != null)
 				{
 					foreach (var y in area.Directives.Ignore.RegexPatterns)
 					{
@@ -201,8 +232,8 @@ namespace Versionr
 						}
 					}
 				}
-
-                if (area?.Directives?.Externals != null)
+                
+                if (area != null && area.Directives != null && area.Directives.Externals != null)
                 {
                     foreach (var x in area.Directives.Externals)
                     {
@@ -232,7 +263,7 @@ namespace Versionr
                     continue;
                 string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
 				bool ignored = ignoreDirectory;
-                if (!ignored && area?.Directives?.Include?.RegexPatterns != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexPatterns != null)
                 {
                     ignored = true;
                     foreach (var y in area.Directives.Include.RegexPatterns)
@@ -244,7 +275,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!ignored && area?.Directives?.Include?.Extensions != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.Extensions != null)
                 {
                     ignored = true;
                     foreach (var y in area.Directives.Include.Extensions)
@@ -256,7 +287,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!ignored && area?.Directives?.Ignore?.Extensions != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.Extensions != null)
                 {
                     foreach (var y in area.Directives.Ignore.Extensions)
                     {
@@ -267,7 +298,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!ignored && area?.Directives?.Ignore?.RegexPatterns != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexPatterns != null)
                 {
                     foreach (var y in area.Directives.Ignore.RegexPatterns)
                     {
