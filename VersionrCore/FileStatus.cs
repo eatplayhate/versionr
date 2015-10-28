@@ -154,7 +154,6 @@ namespace Versionr
     }
     public static class FileSystemInfoExt
     {
-
         public static String GetFullNameWithCorrectCase(this FileSystemInfo fileOrFolder)
         {
             //Check whether null to simulate instance method behavior

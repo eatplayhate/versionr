@@ -758,7 +758,7 @@ namespace Versionr
         {
             if (activeDirectory.FullName == Root.FullName && PartialPath == null)
                 return Status;
-            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.FullName));
+            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.GetFullNameWithCorrectCase()));
         }
 
         class LocalRefreshState
