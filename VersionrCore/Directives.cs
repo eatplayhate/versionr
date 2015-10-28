@@ -20,6 +20,8 @@ namespace Versionr
     public class Ignores
     {
         private string[] m_Patterns;
+        private string[] m_DirectoryPatterns;
+        private string[] m_FilePatterns;
         public string[] Extensions { get; set; }
         public string[] Patterns
         {
@@ -30,21 +32,67 @@ namespace Versionr
             set
             {
                 m_Patterns = value;
-                RegexPatterns = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+                var regexes = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+                if (RegexFilePatterns != null)
+                    RegexFilePatterns = RegexFilePatterns.Concat(regexes).ToArray();
+                else
+                    RegexFilePatterns = regexes;
+                if (RegexDirectoryPatterns != null)
+                    RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(regexes).ToArray();
+                else
+                    RegexDirectoryPatterns = regexes;
+            }
+        }
+        public string[] FilePatterns
+        {
+            get
+            {
+                return m_FilePatterns;
+            }
+            set
+            {
+                m_FilePatterns = value;
+                var regexes = m_FilePatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+
+                if (RegexFilePatterns != null)
+                    RegexFilePatterns = RegexFilePatterns.Concat(regexes).ToArray();
+                else
+                    RegexFilePatterns = regexes;
+            }
+        }
+        public string[] DirectoryPatterns
+        {
+            get
+            {
+                return m_DirectoryPatterns;
+            }
+            set
+            {
+                m_DirectoryPatterns = value;
+                var regexes = m_DirectoryPatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+
+                if (RegexDirectoryPatterns != null)
+                    RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(regexes).ToArray();
+                else
+                    RegexDirectoryPatterns = regexes;
             }
         }
         public Ignores()
         {
         }
         [Newtonsoft.Json.JsonIgnore]
-        public System.Text.RegularExpressions.Regex[] RegexPatterns { get; set; }
+        public System.Text.RegularExpressions.Regex[] RegexFilePatterns { get; set; }
+        [Newtonsoft.Json.JsonIgnore]
+        public System.Text.RegularExpressions.Regex[] RegexDirectoryPatterns { get; set; }
 
         internal void Merge(Ignores ignore)
         {
             if (ignore.Extensions != null)
                 Extensions = Extensions.Concat(ignore.Extensions).ToArray();
-            if (ignore.RegexPatterns != null)
-                RegexPatterns = RegexPatterns.Concat(ignore.RegexPatterns).ToArray();
+            if (ignore.RegexFilePatterns != null)
+                RegexFilePatterns = RegexFilePatterns.Concat(ignore.RegexFilePatterns).ToArray();
+            if (ignore.RegexDirectoryPatterns != null)
+                RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(ignore.RegexDirectoryPatterns).ToArray();
         }
     }
 

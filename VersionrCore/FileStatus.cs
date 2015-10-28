@@ -208,10 +208,10 @@ namespace Versionr
             {
                 if (slashedSubdirectory[slashedSubdirectory.Length - 1] != '/')
                     slashedSubdirectory += '/';
-                if (area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexPatterns != null)
+                if (area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexDirectoryPatterns != null)
                 {
                     ignoreDirectory = true;
-                    foreach (var y in area.Directives.Include.RegexPatterns)
+                    foreach (var y in area.Directives.Include.RegexDirectoryPatterns)
                     {
                         if (y.IsMatch(slashedSubdirectory))
                         {
@@ -220,9 +220,9 @@ namespace Versionr
                         }
                     }
                 }
-                if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexPatterns != null)
+                if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexDirectoryPatterns != null)
 				{
-					foreach (var y in area.Directives.Ignore.RegexPatterns)
+                    foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
 					{
                         if (y.IsMatch(slashedSubdirectory))
 						{
@@ -262,10 +262,10 @@ namespace Versionr
                     continue;
                 string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
 				bool ignored = ignoreDirectory;
-                if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexPatterns != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexFilePatterns != null)
                 {
                     ignored = true;
-                    foreach (var y in area.Directives.Include.RegexPatterns)
+                    foreach (var y in area.Directives.Include.RegexFilePatterns)
                     {
                         if (y.IsMatch(name))
                         {
@@ -297,9 +297,9 @@ namespace Versionr
                         }
                     }
                 }
-                if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexPatterns != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexFilePatterns != null)
                 {
-                    foreach (var y in area.Directives.Ignore.RegexPatterns)
+                    foreach (var y in area.Directives.Ignore.RegexFilePatterns)
                     {
                         if (y.IsMatch(name))
                         {
