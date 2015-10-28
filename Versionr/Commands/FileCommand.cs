@@ -12,8 +12,6 @@ namespace Versionr.Commands
     {
 		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "filtertype")]
 		public bool All { get; set; }
-		[Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
-		public bool Tracked { get; set; }
 
         public new static string[] SharedDescription
         {
@@ -58,14 +56,6 @@ namespace Versionr.Commands
                 return localOptions.All || localOptions.Tracked;
             }
             return true;
-        }
-
-        protected override void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions options, List<Versionr.Status.StatusEntry> targets)
-        {
-            FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;
-
-            if (localOptions.Tracked)
-                targets = targets.Where(x => x.VersionControlRecord != null).ToList();
         }
 
 		protected override bool RequiresTargets { get { return true; } }

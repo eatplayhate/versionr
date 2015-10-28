@@ -19,6 +19,8 @@ namespace Versionr.Commands
         public bool Recursive { get; set; }
         [Option('u', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
         public bool Insensitive { get; set; }
+        [Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
+        public bool Tracked { get; set; }
         public override string Usage
         {
             get
@@ -86,7 +88,7 @@ namespace Versionr.Commands
                 if (localOptions.Recursive)
                     status.AddRecursiveElements(targets);
 
-                ApplyFilters(status, localOptions, targets);
+                ApplyFilters(status, localOptions, ref targets);
             }
 
             if ((targets != null && targets.Count > 0) || !RequiresTargets)
@@ -105,8 +107,10 @@ namespace Versionr.Commands
             return (localOptions.Objects != null && localOptions.Objects.Count > 0) || OnNoTargetsAssumeAll;
         }
 
-        protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, List<Versionr.Status.StatusEntry> targets)
+        protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
         {
+            if (localOptions.Tracked)
+                targets = targets.Where(x => x.VersionControlRecord != null && x.Code != StatusCode.Masked && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed).ToList();
         }
 
         protected virtual bool OnNoTargetsAssumeAll
