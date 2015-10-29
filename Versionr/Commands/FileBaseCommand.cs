@@ -21,6 +21,8 @@ namespace Versionr.Commands
         public bool Insensitive { get; set; }
         [Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
         public bool Tracked { get; set; }
+        [Option('i', "ignored", HelpText = "Show ignored files")]
+        public bool Ignored { get; set; }
         public override string Usage
         {
             get
@@ -109,8 +111,10 @@ namespace Versionr.Commands
 
         protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
         {
+            if (!localOptions.Ignored)
+                targets = targets.Where(x => x.Code != StatusCode.Masked || x.Staged == true).ToList();
             if (localOptions.Tracked)
-                targets = targets.Where(x => x.VersionControlRecord != null && x.Code != StatusCode.Masked && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed).ToList();
+                targets = targets.Where(x => x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed).ToList();
         }
 
         protected virtual bool OnNoTargetsAssumeAll

@@ -153,6 +153,7 @@ namespace Versionr
             Removed = 2,
             Renamed = 4,
             Conflicted = 8,
+            MergeInfo = 16
         }
         int UpdatedFileTimeCount = 0;
         class StatusPercentage
@@ -210,7 +211,8 @@ namespace Versionr
                 caseInsensitiveNames[x.CanonicalName.ToLowerInvariant()] = x.CanonicalName;
             MergeInputs = new List<Objects.Version>();
             Dictionary<string, StageFlags> stageInformation = new Dictionary<string, StageFlags>();
-			Dictionary<Record, StatusEntry> statusMap = new Dictionary<Record, StatusEntry>();
+            Dictionary<Record, StatusEntry> statusMap = new Dictionary<Record, StatusEntry>();
+            Dictionary<string, bool> parentIgnoredList = new Dictionary<string, bool>();
             foreach (var x in stage)
             {
                 if (x.Type == LocalState.StageOperationType.Merge)
@@ -228,6 +230,8 @@ namespace Versionr
                     ops |= StageFlags.Removed;
                 if (x.Type == LocalState.StageOperationType.Rename)
                     ops |= StageFlags.Renamed;
+                if (x.Type == LocalState.StageOperationType.MergeRecord)
+                    ops |= StageFlags.MergeInfo;
                 stageInformation[x.Operand1] = ops;
             }
             try
@@ -305,8 +309,37 @@ namespace Versionr
                         {
                             if (objectFlags.HasFlag(StageFlags.Removed))
                                 return new StatusEntry() { Code = StatusCode.Deleted, FilesystemEntry = null, VersionControlRecord = x, Staged = true };
-                            if (snapshotRecord != null && snapshotRecord.Ignored)
-                                return new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = false };
+
+                            string parentName = x.CanonicalName;
+                            bool resolved = false;
+                            while (true)
+                            {
+                                if (!parentName.Contains('/'))
+                                    break;
+                                if (parentName.EndsWith("/"))
+                                    parentName = parentName.Substring(0, parentName.Length - 1);
+                                parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
+                                bool ignoredInParentList = false;
+                                if (parentIgnoredList.TryGetValue(parentName, out ignoredInParentList))
+                                {
+                                    if (ignoredInParentList)
+                                        resolved = true;
+                                    break;
+                                }
+                                else
+                                {
+                                    Entry parentObjectEntry = null;
+                                    snapshotData.TryGetValue(parentName, out parentObjectEntry);
+                                    if (parentObjectEntry != null && parentObjectEntry.Ignored == true)
+                                    {
+                                        parentIgnoredList[parentName] = true;
+                                        resolved = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (resolved || (snapshotRecord != null && snapshotRecord.Ignored))
+                                return new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Conflicted) || objectFlags.HasFlag(StageFlags.MergeInfo) };
                             else
                                 return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
@@ -363,6 +396,16 @@ namespace Versionr
                     Files++;
                 if (x.Value.Ignored)
                 {
+                    if (x.Value.IsDirectory)
+                    {
+                        if (!Map.ContainsKey(x.Value.CanonicalName))
+                        {
+                            var entry = new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+
+                            Elements.Add(entry);
+                            Map[entry.CanonicalName] = entry;
+                        }
+                    }
                     IgnoredObjects++;
                     continue;
                 }

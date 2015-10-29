@@ -10,7 +10,7 @@ namespace Versionr.Commands
 {
 	class LogVerbOptions : FileBaseCommandVerbOptions
 	{
-		[Option('t', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
+		[Option('l', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
 
 		public enum DetailMode

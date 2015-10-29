@@ -94,7 +94,7 @@ namespace Versionr.Commands
 {
     ""Versionr"" :
     {
-        ""Ignores"" :
+        ""Ignore"" :
         {
             ""Extensions"" :
             [
