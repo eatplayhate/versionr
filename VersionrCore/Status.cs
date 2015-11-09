@@ -320,21 +320,24 @@ namespace Versionr
                                     parentName = parentName.Substring(0, parentName.Length - 1);
                                 parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
                                 bool ignoredInParentList = false;
-                                if (parentIgnoredList.TryGetValue(parentName, out ignoredInParentList))
+                                lock (parentIgnoredList)
                                 {
-                                    if (ignoredInParentList)
-                                        resolved = true;
-                                    break;
-                                }
-                                else
-                                {
-                                    Entry parentObjectEntry = null;
-                                    snapshotData.TryGetValue(parentName, out parentObjectEntry);
-                                    if (parentObjectEntry != null && parentObjectEntry.Ignored == true)
+                                    if (parentIgnoredList.TryGetValue(parentName, out ignoredInParentList))
                                     {
-                                        parentIgnoredList[parentName] = true;
-                                        resolved = true;
+                                        if (ignoredInParentList)
+                                            resolved = true;
                                         break;
+                                    }
+                                    else
+                                    {
+                                        Entry parentObjectEntry = null;
+                                        snapshotData.TryGetValue(parentName, out parentObjectEntry);
+                                        if (parentObjectEntry != null && parentObjectEntry.Ignored == true)
+                                        {
+                                            parentIgnoredList[parentName] = true;
+                                            resolved = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
