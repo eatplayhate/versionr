@@ -61,9 +61,16 @@ namespace Versionr
         }
         public static void RestoreDefaults()
         {
-            System.Console.CursorVisible = true;
-            System.Console.BackgroundColor = DefaultBGColour;
-            System.Console.ForegroundColor = DefaultColour;
+            try
+            {
+                System.Console.CursorVisible = true;
+                System.Console.BackgroundColor = DefaultBGColour;
+                System.Console.ForegroundColor = DefaultColour;
+            }
+            catch
+            {
+                AllowInteractivePrinting = false;
+            }
         }
         public enum MessageType
         {
