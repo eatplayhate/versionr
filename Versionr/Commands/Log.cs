@@ -160,6 +160,16 @@ namespace Versionr.Commands
                 }
                 if (localOptions.Concise)
                 {
+                    var heads = Workspace.GetHeads(v.ID);
+                    bool isHead = false;
+                    foreach (var y in heads)
+                    {
+                        if (y.Branch == branch.ID)
+                        {
+                            isHead = true;
+                            break;
+                        }
+                    }
                     string message = v.Message;
                     if (message == null)
                         message = string.Empty;
@@ -169,7 +179,7 @@ namespace Versionr.Commands
                     string mergemarker = " ";
                     if (ws.GetMergeInfo(v.ID).FirstOrDefault() != null)
                         mergemarker = "#s#M##";
-                    Printer.PrintMessage("{6}#c#{0}:##{7}({4}/#b#{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker);
+                    Printer.PrintMessage("{6}#c#{0}:##{7}({4}/{8}{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker, isHead ? "#i#" : "#b#");
                 }
                 else
                 {
