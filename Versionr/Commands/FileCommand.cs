@@ -35,6 +35,16 @@ namespace Versionr.Commands
 				base.GetInitialList(status, options, out targets);
         }
 
+		protected override void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
+		{
+			base.ApplyFilters(status, localOptions, ref targets);
+
+			if (localOptions.Ignored)
+				targets = targets.Where(x => x.Code != StatusCode.Ignored).ToList();
+			else
+				targets = targets.Where(x => x.Code != StatusCode.Ignored && x.Code != StatusCode.Masked).ToList();
+		}
+
 		protected override IEnumerable<KeyValuePair<bool, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)
 		{
 			FileCommandVerbOptions options = FilterOptions as FileCommandVerbOptions;
