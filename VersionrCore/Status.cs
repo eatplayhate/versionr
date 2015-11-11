@@ -22,6 +22,7 @@ namespace Versionr
         Conflict,
 		Ignored,
         Masked,
+        Obstructed,
 
         Count
     }
@@ -279,6 +280,7 @@ namespace Versionr
                                 changed = true;
                             if (!changed && snapshotRecord.IsSymlink && snapshotRecord.SymlinkTarget != x.Fingerprint)
                                 changed = true;
+                            bool obstructed = false;
                             if (!changed && !snapshotRecord.IsDirectory && !snapshotRecord.IsSymlink)
                             {
                                 LocalState.FileTimestamp fst = Workspace.GetReferenceTime(x.CanonicalName);
@@ -287,17 +289,30 @@ namespace Versionr
                                 else
                                 {
                                     Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
-                                    if (snapshotRecord.Hash != x.Fingerprint)
-                                        changed = true;
-                                    else
+                                    try
                                     {
-                                        System.Threading.Interlocked.Increment(ref this.UpdatedFileTimeCount);
-                                        Workspace.UpdateFileTimeCache(x.CanonicalName, x, snapshotRecord.ModificationTime, false);
+                                        if (snapshotRecord.Hash != x.Fingerprint)
+                                            changed = true;
+                                        else
+                                        {
+                                            System.Threading.Interlocked.Increment(ref this.UpdatedFileTimeCount);
+                                            Workspace.UpdateFileTimeCache(x.CanonicalName, x, snapshotRecord.ModificationTime, false);
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        changed = true;
+                                        obstructed = true;
+                                        Printer.PrintWarning("Couldn't compute hash for #b#" + x.CanonicalName + "#w#, file in use!");
                                     }
                                 }
                             }
                             if (changed == true)
+                            {
+                                if (obstructed)
+                                    return new StatusEntry() { Code = StatusCode.Obstructed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
                                 return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                            }
                             else
                             {
                                 if (objectFlags.HasFlag(StageFlags.Recorded))

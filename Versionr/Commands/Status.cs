@@ -193,6 +193,9 @@ namespace Versionr.Commands
                 case StatusCode.Conflict:
                     return staged ? new Tuple<char, string>('e', "conflict")
                         : new Tuple<char, string>('e', "conflict");
+                case StatusCode.Obstructed:
+                    return staged ? new Tuple<char, string>('e', "obstructed")
+                        : new Tuple<char, string>('e', "obstructed");
                 case StatusCode.Copied:
                     return staged ? new Tuple<char, string>('s', "copied")
                         : new Tuple<char, string>('w', "copied");

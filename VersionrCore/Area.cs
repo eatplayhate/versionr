@@ -13,6 +13,10 @@ using Versionr.Utilities;
 
 namespace Versionr
 {
+    public class VersionrException : Exception
+    {
+
+    }
     public static class IndexedSelect
     {
         public static IEnumerable<Tuple<int, T>> SelectIndexed<T>(this IEnumerable<T> input)
@@ -4139,72 +4143,80 @@ namespace Versionr
                                                     }
                                                 }
                                                 FileStream stream = null;
-                                                if (!x.IsDirectory && !x.IsSymlink && x.Code != StatusCode.Masked)
-                                                {
-                                                    stream = x.FilesystemEntry.Info.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
-                                                    FileInfo info = new FileInfo(x.FilesystemEntry.Info.FullName);
-                                                    DateTime overrideDateTime = info.LastWriteTimeUtc;
-                                                    if (overrideDateTime != x.FilesystemEntry.ModificationTime)
-                                                    {
-                                                        x.FilesystemEntry.ModificationTime = overrideDateTime;
-                                                        x.FilesystemEntry.Hash = Entry.CheckHash(info);
-                                                    }
-                                                }
-
-                                                if (record == null)
-                                                {
-                                                    record = new Objects.Record();
-                                                    record.CanonicalName = x.FilesystemEntry.CanonicalName;
-                                                    record.Attributes = x.FilesystemEntry.Attributes;
-                                                    if (record.IsSymlink)
-                                                        record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
-                                                    else if (record.IsDirectory)
-                                                        record.Fingerprint = x.FilesystemEntry.CanonicalName;
-                                                    else
-                                                        record.Fingerprint = x.FilesystemEntry.Hash;
-                                                    record.Size = x.FilesystemEntry.Length;
-                                                    record.ModificationTime = x.FilesystemEntry.ModificationTime;
-                                                    if (x.VersionControlRecord != null)
-                                                        record.Parent = x.VersionControlRecord.Id;
-                                                }
-                                                Objects.Record possibleRecord = LocateRecord(record);
-                                                if (possibleRecord != null)
-                                                    record = possibleRecord;
-
                                                 Objects.Alteration alteration = new Alteration();
-                                                alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
-                                                if (x.Code == StatusCode.Added)
+                                                try
                                                 {
-                                                    Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                                    Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
-                                                    alteration.Type = AlterationType.Add;
-                                                }
-                                                else if (x.Code == StatusCode.Modified)
-                                                {
-                                                    Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                                    Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
-                                                    alteration.PriorRecord = x.VersionControlRecord.Id;
-                                                    alteration.Type = AlterationType.Update;
-                                                }
-                                                else if (x.Code == StatusCode.Copied)
-                                                {
-                                                    Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                                    Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                                    alteration.PriorRecord = x.VersionControlRecord.Id;
-                                                    alteration.Type = AlterationType.Copy;
-                                                }
-                                                else if (x.Code == StatusCode.Renamed)
-                                                {
-                                                    Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
-                                                    Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
-                                                    alteration.PriorRecord = x.VersionControlRecord.Id;
-                                                    alteration.Type = AlterationType.Move;
-                                                }
-                                                if (!ObjectStore.HasData(record))
-                                                    ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                    if (!x.IsDirectory && !x.IsSymlink && x.Code != StatusCode.Masked)
+                                                    {
+                                                        stream = x.FilesystemEntry.Info.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
+                                                        FileInfo info = new FileInfo(x.FilesystemEntry.Info.FullName);
+                                                        DateTime overrideDateTime = info.LastWriteTimeUtc;
+                                                        if (overrideDateTime != x.FilesystemEntry.ModificationTime)
+                                                        {
+                                                            x.FilesystemEntry.ModificationTime = overrideDateTime;
+                                                            x.FilesystemEntry.Hash = Entry.CheckHash(info);
+                                                        }
+                                                    }
 
-                                                if (stream != null)
-                                                    stream.Close();
+                                                    if (record == null)
+                                                    {
+                                                        record = new Objects.Record();
+                                                        record.CanonicalName = x.FilesystemEntry.CanonicalName;
+                                                        record.Attributes = x.FilesystemEntry.Attributes;
+                                                        if (record.IsSymlink)
+                                                            record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
+                                                        else if (record.IsDirectory)
+                                                            record.Fingerprint = x.FilesystemEntry.CanonicalName;
+                                                        else
+                                                            record.Fingerprint = x.FilesystemEntry.Hash;
+                                                        record.Size = x.FilesystemEntry.Length;
+                                                        record.ModificationTime = x.FilesystemEntry.ModificationTime;
+                                                        if (x.VersionControlRecord != null)
+                                                            record.Parent = x.VersionControlRecord.Id;
+                                                    }
+                                                    Objects.Record possibleRecord = LocateRecord(record);
+                                                    if (possibleRecord != null)
+                                                        record = possibleRecord;
+
+                                                    alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
+                                                    if (x.Code == StatusCode.Added)
+                                                    {
+                                                        Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
+                                                        alteration.Type = AlterationType.Add;
+                                                    }
+                                                    else if (x.Code == StatusCode.Modified)
+                                                    {
+                                                        Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
+                                                        alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                        alteration.Type = AlterationType.Update;
+                                                    }
+                                                    else if (x.Code == StatusCode.Copied)
+                                                    {
+                                                        Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                                        alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                        alteration.Type = AlterationType.Copy;
+                                                    }
+                                                    else if (x.Code == StatusCode.Renamed)
+                                                    {
+                                                        Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
+                                                        alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                        alteration.Type = AlterationType.Move;
+                                                    }
+                                                    if (!ObjectStore.HasData(record))
+                                                        ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+
+                                                    if (stream != null)
+                                                        stream.Close();
+                                                }
+                                                catch (Exception e)
+                                                {
+                                                    Printer.PrintError("Error:#e#\n File operations on #b#{0}#e# did not succeed.\n\n#b#Internal error:##\n{1}.", x.CanonicalName, e);
+                                                    throw new VersionrException();
+                                                }
 
                                                 ObjectName nameRecord = null;
                                                 if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
@@ -4235,6 +4247,21 @@ namespace Versionr
                                                 throw e;
                                             }
                                             break;
+                                        }
+                                    case StatusCode.Obstructed:
+                                        if (x.VersionControlRecord != null && !x.Staged)
+                                        {
+                                            finalRecords.Add(x.VersionControlRecord);
+                                            break;
+                                        }
+                                        else if (x.VersionControlRecord == null)
+                                        {
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            Printer.PrintError("Error:#e#\n Aborting commit. Obstructed file #b#\"{0}\"#e# is included in record list.", x.CanonicalName);
+                                            throw new VersionrException();
                                         }
                                     case StatusCode.Unchanged:
                                     case StatusCode.Missing:
@@ -4329,6 +4356,8 @@ namespace Versionr
                             if (transaction != null)
                                 ObjectStore.AbortStorageTransaction(transaction);
                             Database.Rollback();
+                            if (e is VersionrException)
+                                return false;
                             Printer.PrintError("Exception during commit: {0}", e.ToString());
                             return false;
                         }
