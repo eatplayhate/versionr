@@ -114,7 +114,7 @@ namespace Versionr.Commands
             if (!localOptions.Ignored)
                 targets = targets.Where(x => x.Code != StatusCode.Masked || x.Staged == true).ToList();
             if (localOptions.Tracked)
-                targets = targets.Where(x => x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed).ToList();
+                targets = targets.Where(x => x.Staged == true || (x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed)).ToList();
         }
 
         protected virtual bool OnNoTargetsAssumeAll
