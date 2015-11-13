@@ -50,7 +50,10 @@ namespace Versionr
         
 		[VerbOption("log", HelpText = "Prints a log of versions.")]
 		public Commands.LogVerbOptions LogVerb { get; set; }
-        
+
+		[VerbOption("lg", HelpText = "Prints a log of versions.")]
+		public Commands.LogVerbOptions LgVerb { get; set; }
+
 		[VerbOption("viewdag", HelpText = "Outputs a directed acyclic graph of version metadata.")]
 		public Commands.ViewDAGVerbOptions ViewDAGVerb { get; set; }
 
@@ -145,6 +148,8 @@ namespace Versionr
 				return RemoteVerb.GetUsage();
 			else if (verb == "log")
 				return LogVerb.GetUsage();
+			else if (verb == "lg")
+				return LogVerb.GetUsage();
 			else if (verb == "behead")
 				return BeheadVerb.GetUsage();
 			else if (verb == "viewdag")
@@ -231,7 +236,8 @@ namespace Versionr
             commands["push"] = new Commands.Push();
             commands["merge"] = new Commands.Merge();
 			commands["log"] = new Commands.Log();
-            commands["remote"] = new Commands.Remote();
+			commands["lg"] = new Commands.Log(true);
+			commands["remote"] = new Commands.Remote();
             commands["behead"] = new Commands.Behead();
             commands["viewdag"] = new Commands.ViewDAG();
             commands["clone"] = new Commands.Clone();

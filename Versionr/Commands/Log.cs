@@ -22,15 +22,26 @@ namespace Versionr.Commands
 			Detailed,
 			D = Detailed,
 			Full,
+			Jrunting,
+			J = Jrunting,
 			F = Full
 		}
-		[Option("detail", HelpText = "Set the display mode. One of (n)ormal, (c)oncise, (d)etailed, (f)ull", MetaValue = "<value>", MutuallyExclusiveSet = "logdetail")]
+
+		[Option("detail", HelpText = "Set the display mode. One of (n)ormal, (c)oncise, (d)etailed, (f)ull, (j)runting", MetaValue = "<value>", MutuallyExclusiveSet = "logdetail")]
 		public DetailMode Detail { get; set; }
+
 		[Option('c', "concise", HelpText = "Uses a short log formatting style. Alias for --detail=concise", MutuallyExclusiveSet = "logdetail")]
 		public bool Concise
 		{
 			get { return Detail == DetailMode.Concise; }
 			set { if (value) Detail = DetailMode.Concise; }
+		}
+
+		[Option('j', "jrunting", HelpText = "\"This looks better\" - jrunting. Alias for --detail=jrunting", MutuallyExclusiveSet = "logdetail")]
+		public bool Jrunting
+		{
+			get { return Detail == DetailMode.Jrunting; }
+			set { if (value) Detail = DetailMode.Jrunting; }
 		}
 
 
@@ -63,10 +74,12 @@ namespace Versionr.Commands
 		}
 
 	}
+
 	class Log : FileBaseCommand
 	{
 		protected override bool RequiresTargets { get { return false; } }
 		protected override bool OnNoTargetsAssumeAll { get { return true; } }
+		protected bool JruntingMode { get; set; }
 
 		protected override bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
 		{
@@ -89,6 +102,11 @@ namespace Versionr.Commands
 			}
 		}
 
+		public Log(bool jruntingMode = false)
+		{
+			JruntingMode = jruntingMode;
+		}
+
 		IEnumerable<ResolvedAlteration> GetAlterations(Objects.Version v)
 		{
 			return Workspace.GetAlterations(v).Select(x => new ResolvedAlteration(x, Workspace));
@@ -104,9 +122,12 @@ namespace Versionr.Commands
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			LogVerbOptions localOptions = options as LogVerbOptions;
+			if (JruntingMode)
+				localOptions.Detail = LogVerbOptions.DetailMode.Jrunting;
+
 			Printer.EnableDiagnostics = localOptions.Verbose;
 
-            bool targetedBranch = false;
+			bool targetedBranch = false;
 			Objects.Version version = null;
 			if (!string.IsNullOrEmpty(localOptions.Branch))
 			{
@@ -118,8 +139,8 @@ namespace Versionr.Commands
 					return false;
 				}
 				version = ws.GetBranchHeadVersion(branch);
-                targetedBranch = true;
-            }
+				targetedBranch = true;
+			}
 			else if (!string.IsNullOrEmpty(localOptions.Version))
 			{
 				version = ws.GetPartialVersion(localOptions.Version);
@@ -140,142 +161,187 @@ namespace Versionr.Commands
 				.Where(x => x.Item2.Any() || (x.Item1.Parent == null && localOptions.Objects.Count == 0));
 
 			if (localOptions.Limit == -1)
-                localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
+				localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
 
-            if (localOptions.Limit != 0)
-                enumeration = enumeration.Take(localOptions.Limit);
+			if (localOptions.Limit != 0)
+				enumeration = enumeration.Take(localOptions.Limit);
 
-            Objects.Version tip = Workspace.Version;
-            Objects.Version last = null;
-            Dictionary<Guid, Objects.Branch> branches = new Dictionary<Guid, Objects.Branch>();
-            foreach (var x in enumeration.Reverse())
+			Objects.Version tip = Workspace.Version;
+			Objects.Version last = null;
+			Dictionary<Guid, Objects.Branch> branches = new Dictionary<Guid, Objects.Branch>();
+			foreach (var x in (localOptions.Jrunting ? enumeration : enumeration.Reverse()))
 			{
 				Objects.Version v = x.Item1;
-                last = v;
-                Objects.Branch branch = null;
-                if (!branches.TryGetValue(v.Branch, out branch))
-                {
-                    branch = ws.GetBranch(v.Branch);
-                    branches[v.Branch] = branch;
-                }
-                if (localOptions.Concise)
-                {
-                    var heads = Workspace.GetHeads(v.ID);
-                    bool isHead = false;
-                    foreach (var y in heads)
-                    {
-                        if (y.Branch == branch.ID)
-                        {
-                            isHead = true;
-                            break;
-                        }
-                    }
-                    string message = v.Message;
-                    if (message == null)
-                        message = string.Empty;
-                    string tipmarker = " ";
-                    if (v.ID == tip.ID)
-                        tipmarker = "#w#*##";
-                    string mergemarker = " ";
-                    if (ws.GetMergeInfo(v.ID).FirstOrDefault() != null)
-                        mergemarker = "#s#M##";
-                    Printer.PrintMessage("{6}#c#{0}:##{7}({4}/{8}{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker, isHead ? "#i#" : "#b#");
-                }
-                else
-                {
-                    string tipmarker = "";
-                    if (v.ID == tip.ID)
-                        tipmarker = " #w#*<current>##";
-                    Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##{3}", v.Revision, v.ID, branch.Name, tipmarker);
+				last = v;
+				Objects.Branch branch = null;
+				if (!branches.TryGetValue(v.Branch, out branch))
+				{
+					branch = ws.GetBranch(v.Branch);
+					branches[v.Branch] = branch;
+				}
 
-                    foreach (var y in ws.GetMergeInfo(v.ID))
-                    {
-                        var mergeParent = ws.GetVersion(y.SourceVersion);
-                        Objects.Branch mergeBranch = null;
-                        if (!branches.TryGetValue(mergeParent.Branch, out mergeBranch))
-                        {
-                            mergeBranch = ws.GetBranch(mergeParent.Branch);
-                            branches[mergeParent.Branch] = mergeBranch;
-                        }
-                        Printer.PrintMessage(" <- Merged from #s#{0}## on branch #b#{1}##", mergeParent.ID, mergeBranch.Name);
-                    }
+				if (localOptions.Jrunting)
+				{
+					// list of heads
+					var heads = Workspace.GetHeads(v.ID);
+					bool isHead = false;
+					string headString = "";
+					foreach (var y in heads)
+					{
+						isHead = true;
+						if (headString.Length != 0)
+							headString = headString + ", ";
+						headString += ws.GetBranch(y.Branch).Name;
+					}
 
-                    var heads = Workspace.GetHeads(v.ID);
-                    foreach (var y in heads)
-                    {
-                        Objects.Branch headBranch = null;
-                        if (!branches.TryGetValue(y.Branch, out headBranch))
-                        {
-                            headBranch = ws.GetBranch(y.Branch);
-                            branches[y.Branch] = headBranch;
-                        }
-                        string branchFlags = string.Empty;
-                        if (branch.Terminus.HasValue)
-                            branchFlags = " #e#(deleted)##";
-                        Printer.PrintMessage(" ++ #i#Head## of branch #b#{0}## (#b#\"{1}\"##){2}", headBranch.ID, headBranch.Name, branchFlags);
-                    }
-                    if (branch.Terminus == v.ID)
-                        Printer.PrintMessage(" ++ #i#Terminus## of #e#deleted branch## #b#{0}## (#b#\"{1}\"##)", branch.ID, branch.Name);
+					// message up to first newline
+					string message = v.Message;
+					if (message == null)
+						message = string.Empty;
+					var idx = message.IndexOf('\n');
+					if (idx == -1)
+						idx = message.Length;
+					message = message.Substring(0, idx);
 
-                    Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
-                    Printer.PushIndent();
-                    Printer.PrintMessage("{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
-                    Printer.PopIndent();
 
-                    if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
-                    {
-                        var alterations = localOptions.Detail == LogVerbOptions.DetailMode.Detailed ? x.Item2.Select(z => z.Value) : GetAlterations(v);
-                        if (localOptions.Detail == LogVerbOptions.DetailMode.Full)
-                        {
-                            Printer.PrintMessage("");
-                            Printer.PrintMessage("#b#Alterations:##");
-                            foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
-                            {
-                                Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
-                            }
-                        }
-                        else
-                        {
-                            int[] alterationCounts = new int[5];
-                            foreach (var y in alterations)
-                                alterationCounts[(int)y.Alteration.Type]++;
-                            bool first = true;
-                            string formatData = "";
-                            for (int i = 0; i < alterationCounts.Length; i++)
-                            {
-                                if (alterationCounts[i] != 0)
-                                {
-                                    if (!first)
-                                        formatData += ", ";
-                                    else
-                                        formatData += "  ";
-                                    first = false;
-                                    formatData += string.Format("#{2}#{0}s: {1}##", ((Objects.AlterationType)i).ToString(), alterationCounts[i], GetAlterationFormat((Objects.AlterationType)i));
-                                }
-                            }
-                            if (formatData.Length > 0)
-                            {
-                                Printer.PrintMessage("");
-                                Printer.PrintMessage("#b#Alterations:##");
-                                Printer.PrintMessage(formatData);
-                            }
-                        }
-                    }
+					string mergemarker = "";
+					if (ws.GetMergeInfo(v.ID).Count() > 0)
+					{
+						var m = ws.GetMergeInfo(v.ID).First();
+						var heads2 = ws.GetHeads(m.SourceVersion);
+						if (heads2.Count > 0)
+							mergemarker = " <- " + ws.GetBranch(heads2.First().Branch).Name;
+					}
+
+					var date = new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString();
+
+					string pattern = "* #U#{0}## - ";
+
+					if (isHead)
+						pattern += "#Y#({4}{5})## ";
+
+					pattern += "{1} #g#({2}, {3})##";
+                    Printer.PrintMessage(pattern, v.ShortName, message, v.Author, date, headString, mergemarker);
+				}
+				else if (localOptions.Concise)
+				{
+					var heads = Workspace.GetHeads(v.ID);
+					bool isHead = false;
+					foreach (var y in heads)
+					{
+						if (y.Branch == branch.ID)
+						{
+							isHead = true;
+							break;
+						}
+					}
+					string message = v.Message;
+					if (message == null)
+						message = string.Empty;
+					string tipmarker = " ";
+					if (v.ID == tip.ID)
+						tipmarker = "#w#*##";
+					string mergemarker = " ";
+					if (ws.GetMergeInfo(v.ID).FirstOrDefault() != null)
+						mergemarker = "#s#M##";
+					Printer.PrintMessage("{6}#c#{0}:##{7}({4}/{8}{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker, isHead ? "#i#" : "#b#");
+				}
+				else
+				{
+					string tipmarker = "";
+					if (v.ID == tip.ID)
+						tipmarker = " #w#*<current>##";
+					Printer.PrintMessage("\n({0}) #c#{1}## on branch #b#{2}##{3}", v.Revision, v.ID, branch.Name, tipmarker);
+
+					foreach (var y in ws.GetMergeInfo(v.ID))
+					{
+						var mergeParent = ws.GetVersion(y.SourceVersion);
+						Objects.Branch mergeBranch = null;
+						if (!branches.TryGetValue(mergeParent.Branch, out mergeBranch))
+						{
+							mergeBranch = ws.GetBranch(mergeParent.Branch);
+							branches[mergeParent.Branch] = mergeBranch;
+						}
+						Printer.PrintMessage(" <- Merged from #s#{0}## on branch #b#{1}##", mergeParent.ID, mergeBranch.Name);
+					}
+
+					var heads = Workspace.GetHeads(v.ID);
+					foreach (var y in heads)
+					{
+						Objects.Branch headBranch = null;
+						if (!branches.TryGetValue(y.Branch, out headBranch))
+						{
+							headBranch = ws.GetBranch(y.Branch);
+							branches[y.Branch] = headBranch;
+						}
+						string branchFlags = string.Empty;
+						if (branch.Terminus.HasValue)
+							branchFlags = " #e#(deleted)##";
+						Printer.PrintMessage(" ++ #i#Head## of branch #b#{0}## (#b#\"{1}\"##){2}", headBranch.ID, headBranch.Name, branchFlags);
+					}
+					if (branch.Terminus == v.ID)
+						Printer.PrintMessage(" ++ #i#Terminus## of #e#deleted branch## #b#{0}## (#b#\"{1}\"##)", branch.ID, branch.Name);
+
+					Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
+					Printer.PushIndent();
+					Printer.PrintMessage("{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
+					Printer.PopIndent();
+
+					if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
+					{
+						var alterations = localOptions.Detail == LogVerbOptions.DetailMode.Detailed ? x.Item2.Select(z => z.Value) : GetAlterations(v);
+						if (localOptions.Detail == LogVerbOptions.DetailMode.Full)
+						{
+							Printer.PrintMessage("");
+							Printer.PrintMessage("#b#Alterations:##");
+							foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
+							{
+								Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
+							}
+						}
+						else
+						{
+							int[] alterationCounts = new int[5];
+							foreach (var y in alterations)
+								alterationCounts[(int)y.Alteration.Type]++;
+							bool first = true;
+							string formatData = "";
+							for (int i = 0; i < alterationCounts.Length; i++)
+							{
+								if (alterationCounts[i] != 0)
+								{
+									if (!first)
+										formatData += ", ";
+									else
+										formatData += "  ";
+									first = false;
+									formatData += string.Format("#{2}#{0}s: {1}##", ((Objects.AlterationType)i).ToString(), alterationCounts[i], GetAlterationFormat((Objects.AlterationType)i));
+								}
+							}
+							if (formatData.Length > 0)
+							{
+								Printer.PrintMessage("");
+								Printer.PrintMessage("#b#Alterations:##");
+								Printer.PrintMessage(formatData);
+							}
+						}
+					}
 				}
 			}
-            if (last.ID == tip.ID && version == null)
-            {
-                var branch = Workspace.CurrentBranch;
-                var heads = Workspace.GetBranchHeads(branch);
-                bool isHead = heads.Any(x => x.Version == last.ID);
-                bool isOnlyHead = heads.Count == 1;
-                if (!isHead)
-                    Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", tip.ShortName, branch.ShortID, branch.Name);
-                else if (!isOnlyHead)
-                    Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", tip.ShortName, branch.ShortID, branch.Name);
-            }
 
-            return true;
+			if (!localOptions.Jrunting && last.ID == tip.ID && version == null)
+			{
+				var branch = Workspace.CurrentBranch;
+				var heads = Workspace.GetBranchHeads(branch);
+				bool isHead = heads.Any(x => x.Version == last.ID);
+				bool isOnlyHead = heads.Count == 1;
+				if (!isHead)
+					Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", tip.ShortName, branch.ShortID, branch.Name);
+				else if (!isOnlyHead)
+					Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", tip.ShortName, branch.ShortID, branch.Name);
+			}
+
+			return true;
 		}
 
 		private string GetAlterationFormat(Objects.AlterationType code)
