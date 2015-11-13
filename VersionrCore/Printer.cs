@@ -36,7 +36,7 @@ namespace Versionr
             EnableDiagnostics = false;
             OutputStyles = new Dictionary<char, OutputColour>();
             OutputStyles['b'] = OutputColour.Emphasis;
-            OutputStyles['c'] = OutputColour.Blue;
+            OutputStyles['c'] = OutputColour.Cyan;
             OutputStyles['w'] = OutputColour.Warning;
             OutputStyles['e'] = OutputColour.Error;
             OutputStyles['x'] = OutputColour.ErrorHeader;
@@ -44,6 +44,23 @@ namespace Versionr
             OutputStyles['i'] = OutputColour.Invert;
             OutputStyles['s'] = OutputColour.Success;
             OutputStyles['z'] = OutputColour.WarningHeader;
+
+			OutputStyles['U'] = OutputColour.Blue;
+			OutputStyles['C'] = OutputColour.Cyan;
+			OutputStyles['u'] = OutputColour.DarkBlue;
+			OutputStyles['c'] = OutputColour.DarkCyan;
+			OutputStyles['a'] = OutputColour.DarkGray;
+			OutputStyles['g'] = OutputColour.DarkGreen;
+			OutputStyles['m'] = OutputColour.DarkMagenta;
+			OutputStyles['r'] = OutputColour.DarkRed;
+			OutputStyles['y'] = OutputColour.DarkYellow;
+			OutputStyles['A'] = OutputColour.Gray;
+			OutputStyles['G'] = OutputColour.Green;
+			OutputStyles['M'] = OutputColour.Magenta;
+			OutputStyles['R'] = OutputColour.Red;
+			OutputStyles['I'] = OutputColour.White;
+			OutputStyles['Y'] = OutputColour.Yellow;
+
 
             try
             {
@@ -83,17 +100,34 @@ namespace Versionr
 
         enum OutputColour
         {
-            Normal,
-            Success,
-            Emphasis,
-            Blue,
-            Warning,
-            Error,
-            Trace,
-            Invert,
+			SystemDefault,
+			Invert,
 
-            ErrorHeader,
-            WarningHeader,
+			// all of these use the DefaultBGColour
+			Blue,
+			Cyan,
+			DarkBlue,
+			DarkCyan,
+			DarkGray,
+			DarkGreen,
+			DarkMagenta,
+			DarkRed,
+			DarkYellow,
+			Gray,
+			Green,
+			Magenta,
+			Red,
+			White,
+			Yellow,
+
+			ErrorHeader,
+			WarningHeader,
+			Normal = SystemDefault,
+			Success = Green,
+			Emphasis = White,
+			Warning = Yellow,
+			Error = Red,
+			Trace = DarkGray,
         }
 
         static Dictionary<char, OutputColour> OutputStyles { get; set; }
@@ -299,29 +333,70 @@ namespace Versionr
             {
                 switch (style)
                 {
-                    case OutputColour.Normal:
-                        System.Console.BackgroundColor = DefaultBGColour;
-                        System.Console.ForegroundColor = DefaultColour;
-                        break;
-                    case OutputColour.Success:
-                        System.Console.BackgroundColor = DefaultBGColour;
-                        System.Console.ForegroundColor = ConsoleColor.Green;
-                        break;
-                    case OutputColour.Blue:
-                        System.Console.BackgroundColor = DefaultBGColour;
-                        System.Console.ForegroundColor = ConsoleColor.Cyan;
-                        break;
-                    case OutputColour.Emphasis:
+					case OutputColour.SystemDefault:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = DefaultColour;
+						break;
+
+					case OutputColour.Blue:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.Blue;
+						break;
+					case OutputColour.Cyan:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.Cyan;
+						break;
+					case OutputColour.DarkBlue:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkBlue;
+						break;
+					case OutputColour.DarkCyan:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkCyan;
+						break;
+					case OutputColour.DarkGray:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkGray;
+						break;
+					case OutputColour.DarkGreen:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkGreen;
+						break;
+					case OutputColour.DarkMagenta:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkMagenta;
+						break;
+					case OutputColour.DarkRed:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkRed;
+						break;
+					case OutputColour.DarkYellow:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.DarkYellow;
+						break;
+					case OutputColour.Gray:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.Gray;
+						break;
+					case OutputColour.Green:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.Green;
+						break;
+					case OutputColour.Magenta:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.Magenta;
+						break;
+					case OutputColour.Red:
+						System.Console.BackgroundColor = DefaultBGColour;
+						System.Console.ForegroundColor = ConsoleColor.Red;
+						break;
+					case OutputColour.White:
                         System.Console.BackgroundColor = DefaultBGColour;
                         System.Console.ForegroundColor = ConsoleColor.White;
                         break;
-                    case OutputColour.Warning:
+                    case OutputColour.Yellow:
                         System.Console.BackgroundColor = DefaultBGColour;
                         System.Console.ForegroundColor = ConsoleColor.Yellow;
-                        break;
-                    case OutputColour.Error:
-                        System.Console.BackgroundColor = DefaultBGColour;
-                        System.Console.ForegroundColor = ConsoleColor.Red;
                         break;
                     case OutputColour.ErrorHeader:
                         System.Console.BackgroundColor = ConsoleColor.Red;
@@ -331,10 +406,7 @@ namespace Versionr
                         System.Console.BackgroundColor = ConsoleColor.Yellow;
                         System.Console.ForegroundColor = ConsoleColor.Black;
                         break;
-                    case OutputColour.Trace:
-                        System.Console.BackgroundColor = DefaultBGColour;
-                        System.Console.ForegroundColor = ConsoleColor.DarkGray;
-                        break;
+                    
                     case OutputColour.Invert:
                         System.Console.BackgroundColor = ConsoleColor.White;
                         System.Console.ForegroundColor = ConsoleColor.Black;
