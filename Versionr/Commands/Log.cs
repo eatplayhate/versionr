@@ -210,7 +210,10 @@ namespace Versionr.Commands
 						var m = ws.GetMergeInfo(v.ID).First();
 						var heads2 = ws.GetHeads(m.SourceVersion);
 						if (heads2.Count > 0)
-							mergemarker = " <- " + ws.GetBranch(heads2.First().Branch).Name;
+							if (isHead)
+								mergemarker = " <- " + ws.GetBranch(heads2.First().Branch).Name;
+							else
+								mergemarker = "M: " + ws.GetBranch(heads2.First().Branch).Name;
 					}
 
 					var date = new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString();
@@ -219,6 +222,8 @@ namespace Versionr.Commands
 
 					if (isHead)
 						pattern += "#Y#({4}{5})## ";
+					else if (mergemarker.Length > 0)
+						pattern += "#Y#({5})## ";
 
 					pattern += "{1} #g#({2}, {3})##";
                     Printer.PrintMessage(pattern, v.ShortName, message, v.Author, date, headString, mergemarker);
