@@ -299,26 +299,44 @@ namespace Versionr.Commands
 						Printer.PushIndent();
 						Printer.PrintMessage("---- Merged versions ----");
 
-						int count = 0;
+						List<Objects.Version> mergedVersions = new List<Objects.Version>();
+
 						var p = mergeParent;
 						do
 						{
-							count++;
-							FormatLog(p, FilterAlterations(p), localOptions);
+							mergedVersions.Add(p);
 							if (p.Parent.HasValue && !m_LoggedVersions.Contains(p.Parent.Value))
 								p = Workspace.GetVersion(p.Parent.Value);
 							else
 								p = null;
-						} while (p != null && (count < localOptions.Limit || localOptions.Limit == 0));
+						} while (p != null);
 
-						if (p != null)
-							Printer.PrintMessage("#q#More versions omitted##");
+						foreach (var a in ApplyHistoryFilter(mergedVersions, localOptions))
+							FormatLog(a.Item1, a.Item2, localOptions);
 
 						Printer.PrintMessage("-------------------------");
 						Printer.PopIndent();
 					}
 				}
 			}
+		}
+
+		private IEnumerable<Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>> ApplyHistoryFilter(IEnumerable<Objects.Version> history, LogVerbOptions localOptions)
+		{
+			if (!string.IsNullOrEmpty(localOptions.Author))
+				history = history.Where(x => x.Author.Equals(localOptions.Author, StringComparison.OrdinalIgnoreCase));
+
+			var enumeration = history
+				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, FilterAlterations(x)))
+				.Where(x => x.Item2.Any() || (x.Item1.Parent == null && localOptions.Objects.Count == 0));
+
+			if (localOptions.Limit != 0)
+				enumeration = enumeration.Take(localOptions.Limit);
+
+			if (!localOptions.Jrunting)
+				enumeration = enumeration.Reverse();
+
+			return enumeration;
 		}
 
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
@@ -353,25 +371,15 @@ namespace Versionr.Commands
 				}
 			}
 
-			var history = (version == null ? ws.History : ws.GetHistory(version)).AsEnumerable();
-
-			if (!string.IsNullOrEmpty(localOptions.Author))
-				history = history.Where(x => x.Author.Equals(localOptions.Author, StringComparison.OrdinalIgnoreCase));
-
-			var enumeration = history
-				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, FilterAlterations(x)))
-				.Where(x => x.Item2.Any() || (x.Item1.Parent == null && localOptions.Objects.Count == 0));
-
 			if (localOptions.Limit == -1)
 				localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
 
-			if (localOptions.Limit != 0)
-				enumeration = enumeration.Take(localOptions.Limit);
+			var history = (version == null ? ws.History : ws.GetHistory(version)).AsEnumerable();
 
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;
 			m_Branches = new Dictionary<Guid, Objects.Branch>();
-			foreach (var x in (localOptions.Jrunting ? enumeration : enumeration.Reverse()))
+			foreach (var x in ApplyHistoryFilter(history, localOptions))
 			{
 				last = x.Item1;
 				FormatLog(x.Item1, x.Item2, localOptions);
