@@ -29,13 +29,18 @@ namespace Versionr.ObjectStore
         public abstract bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null);
         public abstract System.IO.Stream GetRecordStream(Objects.Record record);
         public abstract long GetTransmissionLength(Record record);
-        public abstract bool HasData(Objects.Record recordInfo);
+        public abstract bool HasData(Objects.Record recordInfo, out List<string> requestedData);
         public abstract bool AbortStorageTransaction(ObjectStoreTransaction transaction);
         public abstract bool FlushStorageTransaction(ObjectStoreTransaction transaction);
         public abstract bool EndStorageTransaction(ObjectStoreTransaction transaction);
         public abstract void WriteRecordStream(Record rec, System.IO.Stream outputStream);
-        public abstract bool HasDataDirect(string x);
+        public abstract bool HasDataDirect(string x, out List<string> requestedData);
         internal abstract RecordInfo GetInfo(Record x);
         internal abstract long GetEntryCount();
+        public virtual bool HasData(Record recordInfo)
+        {
+            List<string> ignored;
+            return HasData(recordInfo, out ignored);
+        }
     }
 }

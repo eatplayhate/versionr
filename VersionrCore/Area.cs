@@ -1522,7 +1522,8 @@ namespace Versionr
 
         internal bool HasObjectDataDirect(string x)
         {
-            return ObjectStore.HasDataDirect(x);
+            List<string> ignored;
+            return ObjectStore.HasDataDirect(x, out ignored);
         }
 
         internal void CommitDatabaseTransaction()
@@ -1579,7 +1580,13 @@ namespace Versionr
 
         internal bool HasObjectData(Record rec)
         {
-            return ObjectStore.HasData(rec);
+            List<string> ignored;
+            return HasObjectData(rec, out ignored);
+        }
+
+        internal bool HasObjectData(Record rec, out List<string> requestedDataIdentifiers)
+        {
+            return ObjectStore.HasData(rec, out requestedDataIdentifiers);
         }
 
         internal void ImportHeadNoCommit(KeyValuePair<Guid, Head> x)
@@ -2718,6 +2725,7 @@ namespace Versionr
                         {
                             transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
                             RestoreRecord(x, newRefTime, transientResult.TemporaryFile.FullName);
+                            transientResult.TemporaryFile = new FileInfo(transientResult.TemporaryFile.FullName);
                         }
                         results.Add(transientResult);
                     }
@@ -2751,6 +2759,7 @@ namespace Versionr
                             {
                                 transientResult.TemporaryFile = GetTemporaryFile(transientResult.Record);
                                 RestoreRecord(x, newRefTime, transientResult.TemporaryFile.FullName);
+                                transientResult.TemporaryFile = new FileInfo(transientResult.TemporaryFile.FullName);
                             }
                             results.Add(transientResult);
                         }
@@ -2770,6 +2779,9 @@ namespace Versionr
 
                             RestoreRecord(x, newRefTime, foreign.FullName);
                             RestoreRecord(localRecord, newRefTime, local.FullName);
+
+                            foreign = new FileInfo(foreign.FullName);
+                            local = new FileInfo(local.FullName);
 
                             FileInfo info = Merge2Way(x, foreign, localRecord, local, transientResult.TemporaryFile, false, ref resolveAll);
                             if (info != transientResult.TemporaryFile)
@@ -2794,12 +2806,16 @@ namespace Versionr
                             {
                                 parentFile = GetTemporaryFile(parentObject.Record);
                                 RestoreRecord(parentObject.Record, newRefTime, parentFile.FullName);
+                                parentFile = new FileInfo(parentFile.FullName);
                             }
                             else
                                 parentFile = parentObject.TemporaryFile;
 
                             RestoreRecord(x, newRefTime, foreign.FullName);
                             RestoreRecord(localRecord, newRefTime, local.FullName);
+
+                            foreign = new FileInfo(foreign.FullName);
+                            local = new FileInfo(local.FullName);
 
                             FileInfo info = Merge3Way(x, foreign, localRecord, local, parentObject.Record, parentFile, transientResult.TemporaryFile, false, ref resolveAll);
                             if (info != transientResult.TemporaryFile)
@@ -2821,7 +2837,8 @@ namespace Versionr
             {
                 Objects.Record foreignRecord = null;
                 foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
-                var localRecord = localRecords.Where(z => x.CanonicalName == z.CanonicalName).FirstOrDefault();
+                Objects.Record localRecord = null;
+                localLookup.TryGetValue(x.CanonicalName, out localRecord);
                 if (foreignRecord == null)
                 {
                     // deleted by branch
@@ -2830,7 +2847,7 @@ namespace Versionr
                         string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
                         if (x.DataEquals(localRecord))
                         {
-                            Printer.PrintMessage("Removing {0}", x.CanonicalName);
+                            Printer.PrintMessage("Removing (virtual) {0}", x.CanonicalName);
                         }
                         else
                         {
@@ -3801,16 +3818,25 @@ namespace Versionr
             HashSet<string> requestedData = new HashSet<string>();
             foreach (var x in targetRecords)
             {
+                List<string> dataRequests = null;
                 if (x.Size == 0)
                     continue;
                 if (x.IsDirectory)
                     continue;
-                if (!HasObjectData(x) && Included(x.CanonicalName))
+                if (Included(x.CanonicalName) && !HasObjectData(x, out dataRequests))
                 {
-                    if (!requestedData.Contains(x.DataIdentifier))
+                    if (dataRequests != null)
                     {
-                        requestedData.Add(x.DataIdentifier);
-                        missingRecords.Add(x);
+                        foreach (var y in dataRequests)
+                        {
+                            if (!requestedData.Contains(y))
+                            {
+                                if (y == x.DataIdentifier)
+                                    missingRecords.Add(x);
+                                else
+                                    missingRecords.Add(GetRecordFromIdentifier(y));
+                            }
+                        }
                     }
                 }
             }
@@ -4206,7 +4232,8 @@ namespace Versionr
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Move;
                                                     }
-                                                    if (!ObjectStore.HasData(record))
+                                                    List<string> ignored;
+                                                    if (!ObjectStore.HasData(record, out ignored))
                                                         ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
 
                                                     if (stream != null)
