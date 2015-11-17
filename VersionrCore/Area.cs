@@ -2869,6 +2869,15 @@ namespace Versionr
                     }
                 }
             }
+            foreach (var x in localLookup)
+            {
+                if (foreignLookup.ContainsKey(x.Key))
+                    continue;
+                if (parentDataLookup.ContainsKey(x.Key))
+                    continue;
+                var transientResult = new TransientMergeObject() { Record = x.Value, CanonicalName = x.Value.CanonicalName };
+                results.Add(transientResult);
+            }
             foreach (var x in parentData)
             {
                 if (x.TemporaryFile != null)
@@ -3277,6 +3286,7 @@ namespace Versionr
 			{
 				if (x.CanonicalName == cannonicalPath)
 				{
+                    GetMissingRecords(new Record[] { x }.ToList());
 					RestoreRecord(x, DateTime.UtcNow, outputPath);
 					return true;
 				}
