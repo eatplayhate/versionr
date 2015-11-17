@@ -2438,8 +2438,12 @@ namespace Versionr
                                     result.MoveTo(ml.FullName);
 								    if (!updateMode)
 								    {
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        TransientMergeObject tmo = new TransientMergeObject() { CanonicalName = x.CanonicalName, Record = x, TemporaryFile = new FileInfo(ml.FullName) };
+                                        if (!tmo.DataEquals(localObject))
+                                        {
+                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        }
 								    }
 							    }
                                 else
@@ -2491,9 +2495,13 @@ namespace Versionr
                                         mb.Delete();
                                     result.MoveTo(ml.FullName);
 								    if (!updateMode)
-								    {
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    {
+                                        TransientMergeObject tmo = new TransientMergeObject() { CanonicalName = x.CanonicalName, Record = x, TemporaryFile = new FileInfo(ml.FullName) };
+                                        if (!tmo.DataEquals(localObject))
+                                        {
+                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                        }
 								    }
 							    }
                                 else
