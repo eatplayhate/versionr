@@ -2847,7 +2847,7 @@ namespace Versionr
                         string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
                         if (x.DataEquals(localRecord))
                         {
-                            Printer.PrintMessage("Removing (virtual) {0}", x.CanonicalName);
+                            // all good, do nothing
                         }
                         else
                         {
