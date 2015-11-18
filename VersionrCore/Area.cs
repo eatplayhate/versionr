@@ -2188,7 +2188,7 @@ namespace Versionr
                     }
                 }
                 
-                possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v && !x.Terminus.HasValue).FirstOrDefault();
+                possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).ToList().Where(x => !x.Terminus.HasValue).FirstOrDefault();
                 if (possibleBranch != null)
                 {
                     Head head = GetBranchHead(possibleBranch);
