@@ -3888,8 +3888,10 @@ namespace Versionr
             }
         }
 
-        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord, bool interactive, Action<Versionr.Status.StatusEntry, StatusCode> callback = null)
+        public void Revert(IList<Status.StatusEntry> targets, bool revertRecord, bool interactive, bool deleteNewFiles, Action<Versionr.Status.StatusEntry, StatusCode> callback = null)
         {
+            List<Status.StatusEntry> directoryDeletionList = new List<Status.StatusEntry>();
+            List<Status.StatusEntry> deletionList = new List<Status.StatusEntry>();
 			foreach (var x in targets)
             {
                 if (!Included(x.CanonicalName))
@@ -3981,8 +3983,26 @@ namespace Versionr
 						Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
 						RestoreRecord(rec, DateTime.UtcNow);
 					}
+                    if (deleteNewFiles &&
+                        (x.Code == StatusCode.Unversioned || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
+                    {
+                        if (x.FilesystemEntry.IsDirectory)
+                            directoryDeletionList.Add(x);
+                        else
+                            deletionList.Add(x);
+                    }
 				}
 			}
+            foreach (var x in deletionList)
+            {
+                Printer.PrintMessage("#e#Deleted:## #b#{0}##", x.CanonicalName);
+                x.FilesystemEntry.Info.Delete();
+            }
+            foreach (var x in directoryDeletionList.OrderByDescending(x => x.CanonicalName.Length))
+            {
+                Printer.PrintMessage("#e#Removed:## #b#{0}##", x.CanonicalName);
+                x.FilesystemEntry.DirectoryInfo.Delete();
+            }
         }
 
         public bool Commit(string message = "", bool force = false)

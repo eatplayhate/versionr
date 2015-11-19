@@ -36,7 +36,7 @@ namespace Versionr.Commands
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			UnrecordVerbOptions localOptions = options as UnrecordVerbOptions;
-			ws.Revert(targets, false, localOptions.Interactive, UnrecordFeedback);
+			ws.Revert(targets, false, localOptions.Interactive, false, UnrecordFeedback);
 			return true;
         }
 
