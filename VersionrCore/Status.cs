@@ -458,8 +458,15 @@ namespace Versionr
                         }
                         if (hashes != null)
                         {
-                            Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
-                            hashes.TryGetValue(x.Value.Hash, out possibleRename);
+                            try
+                            {
+                                Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
+                                hashes.TryGetValue(x.Value.Hash, out possibleRename);
+                            }
+                            catch
+                            {
+                                return new StatusEntry() { Code = StatusCode.Obstructed, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = possibleRename };
+                            }
                         }
                         if (possibleRename != null)
                         {
