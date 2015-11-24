@@ -45,7 +45,7 @@ namespace VersionrUI.Dialogs
 
             PathBrowseCommand = new DelegateCommand(PathBrowse);
             NewRepoCommand = new DelegateCommand(NewRepo, CanExecuteNewRepo);
-            ExistingRepoComm = new DelegateCommand(ExistingRepo, CanExecuteExistingRepo);
+            ExistingRepoCommand = new DelegateCommand(ExistingRepo, CanExecuteExistingRepo);
             CloneRepoCommand = new DelegateCommand(CloneRepo, CanExecuteCloneRepo);
             
             Result = ResultEnum.Cancelled;
@@ -66,12 +66,10 @@ namespace VersionrUI.Dialogs
                         var filteredChars = lastBitOfPath.Where(c => goodChars.IsMatch(c.ToString()));
                         NameString = new string(filteredChars.ToArray());
                     }
-                    else
-                    {
-                        NewRepoCommand.RaiseCanExecuteChanged();
-                        ExistingRepoComm.RaiseCanExecuteChanged();
-                        CloneRepoCommand.RaiseCanExecuteChanged();
-                    }
+
+                    NewRepoCommand.RaiseCanExecuteChanged();
+                    ExistingRepoCommand.RaiseCanExecuteChanged();
+                    CloneRepoCommand.RaiseCanExecuteChanged();
                     NotifyPropertyChanged("PathString");
                     NotifyPropertyChanged("PathStatus");
                 }
@@ -86,7 +84,7 @@ namespace VersionrUI.Dialogs
                 {
                     _nameString = value;
                     NewRepoCommand.RaiseCanExecuteChanged();
-                    ExistingRepoComm.RaiseCanExecuteChanged();
+                    ExistingRepoCommand.RaiseCanExecuteChanged();
                     CloneRepoCommand.RaiseCanExecuteChanged();
                     NotifyPropertyChanged("NameString");
                     NotifyPropertyChanged("NameStatus");
@@ -156,7 +154,7 @@ namespace VersionrUI.Dialogs
         #region Commands
         public DelegateCommand PathBrowseCommand { get; private set; }
         public DelegateCommand NewRepoCommand { get; private set; }
-        public DelegateCommand ExistingRepoComm { get; private set; }
+        public DelegateCommand ExistingRepoCommand { get; private set; }
         public DelegateCommand CloneRepoCommand { get; private set; }
 
         private void PathBrowse()
@@ -191,17 +189,20 @@ namespace VersionrUI.Dialogs
 
         private void NewRepo()
         {
-            throw new NotImplementedException();
+            Result = ResultEnum.InitNew;
+            Close();
         }
 
         private void ExistingRepo()
         {
-            throw new NotImplementedException();
+            Result = ResultEnum.UseExisting;
+            Close();
         }
 
         private void CloneRepo()
         {
-            throw new NotImplementedException();
+            Result = ResultEnum.Clone;
+            Close();
         }
         #endregion
 

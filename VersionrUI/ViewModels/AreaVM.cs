@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
+using System.Linq;
 using Versionr;
 
 namespace VersionrUI.ViewModels
@@ -28,6 +28,9 @@ namespace VersionrUI.ViewModels
             {
                 _branches.Add(new BranchVM(_area, branch));
             }
+
+            if (!_branches.Contains(SelectedBranch))
+                SelectedBranch = _branches.FirstOrDefault();
         }
 
         public string Name
@@ -36,12 +39,11 @@ namespace VersionrUI.ViewModels
             get { return _name; }
         }
 
+        public BranchVM SelectedBranch { get; set; }
+
         public ObservableCollection<BranchVM> Branches
         {
-            get
-            {
-                return _branches;
-            }
+            get { return _branches; }
         }
     }
 }

@@ -5,7 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
         xmlns:local="clr-namespace:VersionrUI.Dialogs"
         mc:Ignorable="d"
-        Width="467" Height="160"
+        Width="467" Height="174"
         WindowStyle="ToolWindow">
     
     <Grid Name="mainGrid">
@@ -36,6 +36,7 @@
                 <Button Margin="4" Command="{Binding NewRepoCommand}" Content="Init a new repo" />
                 <Button Margin="4" Command="{Binding ExistingRepoCommand}" Content="Use existing repo" />
                 <Button Margin="4" Command="{Binding CloneRepoCommand}" Content="Clone an existing repo here" />
+                <Button Margin="4" IsCancel="True" Content="Cancel" />
             </StackPanel>
 
         </StackPanel>

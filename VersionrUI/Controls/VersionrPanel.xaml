@@ -2,14 +2,57 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:VersionrUI.ViewModels"
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="300">
 
+    <UserControl.Resources>
+
+        <DataTemplate DataType="{x:Type vm:AreaVM}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            Orientation="Vertical">
+                    <TextBlock Text="Branches" />
+                    <TreeView ItemsSource="{Binding Branches}"
+                              SelectedItemChanged="BranchesTreeView_SelectedItemChanged">
+                        <TreeView.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:BranchVM}">
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </StackPanel>
+                <GridSplitter Grid.Column="1"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Stretch"
+                              Background="Black" 
+                              ShowsPreview="True"
+                              Width="1"
+                              Margin="2,0" />
+                <ContentPresenter Grid.Column="2" Content="{Binding SelectedBranch}" />
+            </Grid>
+        </DataTemplate>
+        
+        <DataTemplate DataType="{x:Type vm:BranchVM}">
+            <DataGrid ItemsSource="{Binding Versions}" AutoGenerateColumns="False" >
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding Date}" />
+                    <DataGridTextColumn Header="Message"  Binding="{Binding Message}"/>
+                    <DataGridTextColumn Header="Author" Binding="{Binding Author}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </DataTemplate>
+        
+    </UserControl.Resources>
+    
     <Grid x:Name="mainGrid">
-
         <DockPanel>
-
             <!-- Menu bar -->
             <StackPanel DockPanel.Dock="Top"
                         Orientation="Horizontal">
@@ -17,7 +60,8 @@
             </StackPanel>
             
             <!-- Area tabs -->
-            <TabControl ItemsSource="{Binding OpenAreas}">
+            <TabControl ItemsSource="{Binding OpenAreas}"
+                        SelectedItem="{Binding SelectedArea}">
                 <TabControl.ItemTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding Name}" />
@@ -25,7 +69,7 @@
                 </TabControl.ItemTemplate>
                 <TabControl.ContentTemplate>
                     <DataTemplate>
-                        <TextBlock Text="// TODO:"  />
+                        <ContentPresenter Content="{Binding}" />
                     </DataTemplate>
                 </TabControl.ContentTemplate>
             </TabControl>
