@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using Versionr;
 
@@ -45,5 +46,12 @@ namespace VersionrUI.ViewModels
         {
             get { return _branches; }
         }
+        public StatusVM GetStatus()
+        {
+            // Assume the active directory is the root of the Area
+            DirectoryInfo activeDirectory = _area.Root;
+            return new StatusVM(_area.GetStatus(activeDirectory));
+        }
+
     }
 }
