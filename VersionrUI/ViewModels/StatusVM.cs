@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace VersionrUI.ViewModels
+﻿namespace VersionrUI.ViewModels
 {
-    class StatusVM
+    public class StatusVM
     {
     }
 }

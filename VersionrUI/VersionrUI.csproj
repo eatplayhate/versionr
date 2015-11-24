@@ -44,9 +44,6 @@
     <Reference Include="System.Xaml">
       <RequiredTargetFramework>4.0</RequiredTargetFramework>
     </Reference>
-    <Reference Include="VersionrCore">
-      <HintPath>C:\Utilities\Versionr\VersionrCore.dll</HintPath>
-    </Reference>
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
@@ -56,6 +53,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="VersionrPanel.xaml.cs">
+      <DependentUpon>VersionrPanel.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ViewModels\AreaVM.cs" />
     <Compile Include="ViewModels\BranchVM.cs" />
     <Compile Include="ViewModels\StatusEntryVM.cs" />
@@ -73,6 +73,10 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Page Include="VersionrPanel.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs">
@@ -100,6 +104,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VersionrCore\VersionrCore.csproj">
+      <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
+      <Name>VersionrCore</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
