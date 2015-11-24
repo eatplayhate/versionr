@@ -13,6 +13,9 @@ namespace VersionrUI.ViewModels
         // and the view model associated with that object.
         static private Dictionary<DirectoryInfo, AreaVM> _areaVMDictionary = new Dictionary<DirectoryInfo, AreaVM>();
         static private Dictionary<Guid, BranchVM> _branchVMDictionary = new Dictionary<Guid, BranchVM>();
+        static private Dictionary<Guid, VersionVM> _versionVMDictionary = new Dictionary<Guid, VersionVM>();
+        static private Dictionary<Guid, StatusVM> _statusVMDictionary = new Dictionary<Guid, StatusVM>();
+        static private Dictionary<string, StatusEntryVM> _statusEntryVMDictionary = new Dictionary<string, StatusEntryVM>();
 
         static public AreaVM GetAreaVM(Versionr.Area area, string name)
         {
@@ -32,10 +35,47 @@ namespace VersionrUI.ViewModels
         static public BranchVM GetBranchVM(Versionr.Area area, Versionr.Objects.Branch branch)
         {
             BranchVM result = null;
-            if (!_branchVMDictionary.TryGetValue(branch.ID, out result))
+            var key = branch.ID;
+            if (!_branchVMDictionary.TryGetValue(key, out result))
             {
                 result = new BranchVM(area, branch);
-                _branchVMDictionary.Add(branch.ID, result);
+                _branchVMDictionary.Add(key, result);
+            }
+            return result;
+        }
+
+        static public VersionVM GetVersionVM(Versionr.Objects.Version version)
+        {
+            VersionVM result = null;
+            var key = version.ID;
+            if (!_versionVMDictionary.TryGetValue(key, out result))
+            {
+                result = new VersionVM(version);
+                _versionVMDictionary.Add(key, result);
+            }
+            return result;
+        }
+
+        static public StatusVM GetStatusVM(Versionr.Status status)
+        {
+            StatusVM result = null;
+            var key = status.CurrentVersion.ID;
+            if (!_statusVMDictionary.TryGetValue(key, out result))
+            {
+                result = new StatusVM(status);
+                _statusVMDictionary.Add(key, result);
+            }
+            return result;
+        }
+
+        static public StatusEntryVM GetStatusEntryVM(Versionr.Status.StatusEntry statusEntry)
+        {
+            StatusEntryVM result = null;
+            var key = statusEntry.Hash;
+            if (!_statusEntryVMDictionary.TryGetValue(key, out result))
+            {
+                result = new StatusEntryVM(statusEntry);
+                _statusEntryVMDictionary.Add(key, result);
             }
             return result;
         }

@@ -22,7 +22,7 @@ namespace VersionrUI.ViewModels
 
             foreach (Status.StatusEntry statusEntry in _status.Elements)
             {
-                _elements.Add(new StatusEntryVM(statusEntry));
+                _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry));
             }
         }
 

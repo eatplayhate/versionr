@@ -21,7 +21,6 @@ namespace VersionrUI.ViewModels
 
         private void RefreshHistory()
         {
-            // TODO retain instances of VersionVM instead
             _history.Clear();
 
             var headVersion = _area.GetBranchHeadVersion(_branch);
@@ -29,7 +28,7 @@ namespace VersionrUI.ViewModels
             int limit = 50; // TODO: setting?
             foreach (var version in _area.GetHistory(headVersion, limit))
             {
-                _history.Add(new VersionVM(version));
+                _history.Add(VersionrVMFactory.GetVersionVM(version));
             }
         }
 

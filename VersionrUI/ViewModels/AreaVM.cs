@@ -62,7 +62,7 @@ namespace VersionrUI.ViewModels
         {
             // Assume the active directory is the root of the Area
             DirectoryInfo activeDirectory = _area.Root;
-            return new StatusVM(_area.GetStatus(activeDirectory));
+            return VersionrVMFactory.GetStatusVM(_area.GetStatus(activeDirectory));
         }
 
     }
