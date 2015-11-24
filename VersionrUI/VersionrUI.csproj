@@ -36,6 +36,8 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -53,14 +55,23 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="VersionrPanel.xaml.cs">
+    <Compile Include="Commands\DelegateCommand.cs" />
+    <Compile Include="Controls\VersionrPanel.xaml.cs">
       <DependentUpon>VersionrPanel.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Dialogs\CloneNewDialog.xaml.cs">
+      <DependentUpon>CloneNewDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Utilities\Utilities.cs" />
     <Compile Include="ViewModels\AreaVM.cs" />
     <Compile Include="ViewModels\BranchVM.cs" />
     <Compile Include="ViewModels\StatusEntryVM.cs" />
     <Compile Include="ViewModels\StatusVM.cs" />
     <Compile Include="ViewModels\VersionVM.cs" />
+    <Page Include="Dialogs\CloneNewDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -73,7 +84,7 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="VersionrPanel.xaml">
+    <Page Include="Controls\VersionrPanel.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -110,6 +121,10 @@
       <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
       <Name>VersionrCore</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\BadCircle.png" />
+    <Resource Include="Images\GoodTick.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

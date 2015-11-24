@@ -9,7 +9,9 @@ namespace VersionrUI
     {
         public MainWindow()
         {
+            Instance = this;
             InitializeComponent();
         }
+        public static MainWindow Instance { get; private set; }
     }
 }
