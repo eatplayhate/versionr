@@ -19,14 +19,14 @@
                 <StackPanel Grid.Column="0"
                             Orientation="Vertical">
                     <TextBlock Text="Branches" />
-                    <TreeView ItemsSource="{Binding Branches}"
-                              SelectedItemChanged="BranchesTreeView_SelectedItemChanged">
-                        <TreeView.ItemTemplate>
+                    <ListBox ItemsSource="{Binding Branches}"
+                             SelectedItem="{Binding SelectedBranch}">
+                        <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:BranchVM}">
                                 <TextBlock Text="{Binding Name}" />
                             </DataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                 </StackPanel>
                 <GridSplitter Grid.Column="1"
                               HorizontalAlignment="Center"
@@ -40,13 +40,36 @@
         </DataTemplate>
         
         <DataTemplate DataType="{x:Type vm:BranchVM}">
-            <DataGrid ItemsSource="{Binding Versions}" AutoGenerateColumns="False" >
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Date" Binding="{Binding Date}" />
-                    <DataGridTextColumn Header="Message"  Binding="{Binding Message}"/>
-                    <DataGridTextColumn Header="Author" Binding="{Binding Author}" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <DataGrid Grid.Row="0"
+                          ItemsSource="{Binding Versions}"
+                          SelectedItem="{Binding SelectedVersion}"
+                          SelectionMode="Single"
+                          AutoGenerateColumns="False" >
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" />
+                        <DataGridTextColumn Header="Message"  Binding="{Binding Message}"/>
+                        <DataGridTextColumn Header="Author" Binding="{Binding Author}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+                <GridSplitter Grid.Row="1"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Center"
+                              Background="Black" 
+                              ShowsPreview="True"
+                              Height="1"
+                              Margin="0,2" />
+                <ContentPresenter Grid.Row="2" Content="{Binding SelectedVersion}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:VersionVM}">
+            <TextBlock Text="// TODO: VersionVM DataTemplate" />
         </DataTemplate>
         
     </UserControl.Resources>
@@ -60,7 +83,8 @@
             </StackPanel>
             
             <!-- Area tabs -->
-            <TabControl ItemsSource="{Binding OpenAreas}"
+            <TabControl Name="tabControlAreas"
+                        ItemsSource="{Binding OpenAreas}"
                         SelectedItem="{Binding SelectedArea}">
                 <TabControl.ItemTemplate>
                     <DataTemplate>

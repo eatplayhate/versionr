@@ -65,6 +65,7 @@
     <Compile Include="Utilities\Utilities.cs" />
     <Compile Include="ViewModels\AreaVM.cs" />
     <Compile Include="ViewModels\BranchVM.cs" />
+    <Compile Include="ViewModels\NotifyPropertyChangedBase.cs" />
     <Compile Include="ViewModels\StatusEntryVM.cs" />
     <Compile Include="ViewModels\StatusVM.cs" />
     <Compile Include="ViewModels\VersionVM.cs" />

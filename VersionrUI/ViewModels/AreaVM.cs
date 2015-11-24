@@ -4,11 +4,12 @@ using Versionr;
 
 namespace VersionrUI.ViewModels
 {
-    public class AreaVM
+    public class AreaVM : NotifyPropertyChangedBase
     {
         private Area _area;
         private string _name;
         private ObservableCollection<BranchVM> _branches;
+        private BranchVM _selectedBranch = null;
 
         public AreaVM(Area area, string name)
         {
@@ -29,8 +30,8 @@ namespace VersionrUI.ViewModels
                 _branches.Add(new BranchVM(_area, branch));
             }
 
-            if (!_branches.Contains(SelectedBranch))
-                SelectedBranch = _branches.FirstOrDefault();
+            if (!_branches.Contains(_selectedBranch))
+                _selectedBranch = _branches.FirstOrDefault();
         }
 
         public string Name
@@ -39,7 +40,18 @@ namespace VersionrUI.ViewModels
             get { return _name; }
         }
 
-        public BranchVM SelectedBranch { get; set; }
+        public BranchVM SelectedBranch
+        {
+            get { return _selectedBranch; }
+            set
+            {
+                if (_selectedBranch != value)
+                {
+                    _selectedBranch = value;
+                    NotifyPropertyChanged("SelectedBranch");
+                }
+            }
+        }
 
         public ObservableCollection<BranchVM> Branches
         {

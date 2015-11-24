@@ -1,7 +1,7 @@
 ﻿using System.Collections.ObjectModel;
-using System.Windows;
+using System.ComponentModel;
+using System.Linq;
 using System.Windows.Controls;
-using System.Windows.Input;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
 using VersionrUI.ViewModels;
@@ -11,8 +11,10 @@ namespace VersionrUI.Controls
     /// <summary>
     /// Interaction logic for VersionrPanel.xaml
     /// </summary>
-    public partial class VersionrPanel : UserControl
+    public partial class VersionrPanel : UserControl, INotifyPropertyChanged
     {
+        private AreaVM _selectedArea = null;
+
         public VersionrPanel()
         {
             InitializeComponent();
@@ -25,7 +27,18 @@ namespace VersionrUI.Controls
 
         public ObservableCollection<AreaVM> OpenAreas { get; private set; }
 
-        public AreaVM SelectedArea { get; set; }
+        public AreaVM SelectedArea
+        {
+            get { return _selectedArea; }
+            set
+            {
+                if (_selectedArea != value)
+                {
+                    _selectedArea = value;
+                    NotifyPropertyChanged("SelectedArea");
+                }
+            }
+        }
 
         #region Commands
         public DelegateCommand NewAreaCommand {get; private set; }
@@ -42,10 +55,12 @@ namespace VersionrUI.Controls
                 case CloneNewDialog.ResultEnum.InitNew:
                     // Tell versionr to initialize at path
                     OpenAreas.Add(new AreaVM(Versionr.Area.Init(new System.IO.DirectoryInfo(cloneNewDlg.PathString), cloneNewDlg.NameString), cloneNewDlg.NameString));
+                    SelectedArea = OpenAreas.LastOrDefault();
                     break;
                 case CloneNewDialog.ResultEnum.UseExisting:
                     // Add it to settings and refresh UI, get status etc.
                     OpenAreas.Add(new AreaVM(Versionr.Area.Load(new System.IO.DirectoryInfo(cloneNewDlg.PathString)), cloneNewDlg.NameString));
+                    SelectedArea = OpenAreas.LastOrDefault();
                     break;
                 case CloneNewDialog.ResultEnum.Cancelled:
                 default:
@@ -54,13 +69,13 @@ namespace VersionrUI.Controls
         }
         #endregion
 
-        private void BranchesTreeView_SelectedItemChanged(object sender, RoutedEventArgs e)
+        #region INotifyPropertyChanged
+        public event PropertyChangedEventHandler PropertyChanged;
+        public void NotifyPropertyChanged(string info)
         {
-            TreeView treeView = sender as TreeView;
-            if (treeView != null)
-            {
-                SelectedArea.SelectedBranch = treeView.SelectedItem as BranchVM;
-            }
+            if (PropertyChanged != null)
+                PropertyChanged(this, new PropertyChangedEventArgs(info));
         }
+        #endregion
     }
 }
