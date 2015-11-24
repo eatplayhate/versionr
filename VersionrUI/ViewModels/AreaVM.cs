@@ -1,6 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
+using System.Windows.Data;
 using Versionr;
 
 namespace VersionrUI.ViewModels
@@ -10,7 +10,6 @@ namespace VersionrUI.ViewModels
         private Area _area;
         private string _name;
         private ObservableCollection<BranchVM> _branches;
-        private BranchVM _selectedBranch = null;
 
         public AreaVM(Area area, string name)
         {
@@ -29,9 +28,6 @@ namespace VersionrUI.ViewModels
             {
                 _branches.Add(VersionrVMFactory.GetBranchVM(_area, branch));
             }
-
-            if (!_branches.Contains(_selectedBranch))
-                _selectedBranch = _branches.FirstOrDefault();
         }
 
         public string Name
@@ -41,29 +37,27 @@ namespace VersionrUI.ViewModels
             set { _name = value; }
         }
 
-        public BranchVM SelectedBranch
-        {
-            get { return _selectedBranch; }
-            set
-            {
-                if (_selectedBranch != value)
-                {
-                    _selectedBranch = value;
-                    NotifyPropertyChanged("SelectedBranch");
-                }
-            }
-        }
-
         public ObservableCollection<BranchVM> Branches
         {
             get { return _branches; }
         }
+
+        public CompositeCollection Children
+        {
+            get
+            {
+                CompositeCollection collection = new CompositeCollection();
+                collection.Add(GetStatus());
+                collection.Add(new NamedCollection("Branches", Branches));
+                return collection;
+            }
+        }
+
         public StatusVM GetStatus()
         {
             // Assume the active directory is the root of the Area
             DirectoryInfo activeDirectory = _area.Root;
             return VersionrVMFactory.GetStatusVM(_area.GetStatus(activeDirectory));
         }
-
     }
 }
