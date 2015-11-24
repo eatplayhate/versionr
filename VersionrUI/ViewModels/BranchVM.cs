@@ -1,4 +1,5 @@
-﻿using Versionr;
+﻿using System.Collections.ObjectModel;
+using Versionr;
 
 namespace VersionrUI.ViewModels
 {
@@ -7,11 +8,29 @@ namespace VersionrUI.ViewModels
         private Area _area;
         private Versionr.Objects.Branch _branch;
         private VersionVM _selectedVersion = null;
+        private ObservableCollection<VersionVM> _history;
 
         public BranchVM(Area area, Versionr.Objects.Branch branch)
         {
             _area = area;
             _branch = branch;
+            _history = new ObservableCollection<VersionVM>();
+
+            RefreshHistory();
+        }
+
+        private void RefreshHistory()
+        {
+            // TODO retain instances of VersionVM instead
+            _history.Clear();
+
+            var headVersion = _area.GetBranchHeadVersion(_branch);
+
+            int limit = 50; // TODO: setting?
+            foreach (var version in _area.GetHistory(headVersion, limit))
+            {
+                _history.Add(new VersionVM(version));
+            }
         }
 
         public string Name
@@ -23,6 +42,7 @@ namespace VersionrUI.ViewModels
         {
             get { return _area.CurrentBranch == _branch; }
         }
+
         public VersionVM SelectedVersion
         {
             get { return _selectedVersion; }
