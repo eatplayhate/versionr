@@ -7,7 +7,6 @@ namespace VersionrUI.ViewModels
     {
         private Area _area;
         private Versionr.Objects.Branch _branch;
-        private VersionVM _selectedVersion = null;
         private ObservableCollection<VersionVM> _history;
 
         public BranchVM(Area area, Versionr.Objects.Branch branch)
@@ -43,17 +42,6 @@ namespace VersionrUI.ViewModels
             get { return _area.CurrentBranch == _branch; }
         }
 
-        public VersionVM SelectedVersion
-        {
-            get { return _selectedVersion; }
-            set
-            {
-                if (_selectedVersion != value)
-                {
-                    _selectedVersion = value;
-                    NotifyPropertyChanged("SelectedVersion");
-                }
-            }
-        }
+        public ObservableCollection<VersionVM> History { get { return _history; } }
     }
 }
