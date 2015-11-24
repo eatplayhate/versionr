@@ -18,6 +18,8 @@ namespace VersionrUI.ViewModels
 
         private void RefreshElements()
         {
+            _elements.Clear();
+
             foreach (Status.StatusEntry statusEntry in _status.Elements)
             {
                 _elements.Add(new StatusEntryVM(statusEntry));
