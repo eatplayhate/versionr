@@ -54,12 +54,12 @@ namespace VersionrUI.Controls
                     break;
                 case CloneNewDialog.ResultEnum.InitNew:
                     // Tell versionr to initialize at path
-                    OpenAreas.Add(new AreaVM(Versionr.Area.Init(new System.IO.DirectoryInfo(cloneNewDlg.PathString), cloneNewDlg.NameString), cloneNewDlg.NameString));
+                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Init(new System.IO.DirectoryInfo(cloneNewDlg.PathString), cloneNewDlg.NameString), cloneNewDlg.NameString));
                     SelectedArea = OpenAreas.LastOrDefault();
                     break;
                 case CloneNewDialog.ResultEnum.UseExisting:
                     // Add it to settings and refresh UI, get status etc.
-                    OpenAreas.Add(new AreaVM(Versionr.Area.Load(new System.IO.DirectoryInfo(cloneNewDlg.PathString)), cloneNewDlg.NameString));
+                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Load(new System.IO.DirectoryInfo(cloneNewDlg.PathString)), cloneNewDlg.NameString));
                     SelectedArea = OpenAreas.LastOrDefault();
                     break;
                 case CloneNewDialog.ResultEnum.Cancelled:

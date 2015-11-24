@@ -25,10 +25,9 @@ namespace VersionrUI.ViewModels
         {
             _branches.Clear();
 
-            // TODO consider retaining BranchVM instances
             foreach (Versionr.Objects.Branch branch in _area.Branches)
             {
-                _branches.Add(new BranchVM(_area, branch));
+                _branches.Add(VersionrVMFactory.GetBranchVM(_area, branch));
             }
 
             if (!_branches.Contains(_selectedBranch))
@@ -39,6 +38,7 @@ namespace VersionrUI.ViewModels
         {
             // TODO:
             get { return _name; }
+            set { _name = value; }
         }
 
         public BranchVM SelectedBranch
