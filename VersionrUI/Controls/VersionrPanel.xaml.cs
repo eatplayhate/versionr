@@ -1,6 +1,10 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -20,11 +24,28 @@ namespace VersionrUI.Controls
             InitializeComponent();
             mainGrid.DataContext = this;
 
+            CloseCommand = new DelegateCommand(() => MainWindow.Instance.Close());
             NewAreaCommand = new DelegateCommand(AddArea);
+            RemoveAreaCommand = new DelegateCommand<AreaVM>(RemoveArea);
+            RefreshCommand = new DelegateCommand(Refresh);
 
             OpenAreas = new ObservableCollection<AreaVM>();
-        }
 
+            // Load previously opened areas
+            if (Properties.Settings.Default.OpenAreas != null)
+            {
+                foreach(string areaString in Properties.Settings.Default.OpenAreas)
+                {
+                    string[] parts = areaString.Split(';');
+                    DirectoryInfo dir = new DirectoryInfo(parts[0]);
+                    if (dir.Exists)
+                        OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Load(dir), parts[1]));
+                }
+            }
+            OpenAreas.CollectionChanged += OpenAreas_CollectionChanged;
+            SelectedArea = OpenAreas.FirstOrDefault();
+        }
+        
         public ObservableCollection<AreaVM> OpenAreas { get; private set; }
 
         public AreaVM SelectedArea
@@ -41,7 +62,10 @@ namespace VersionrUI.Controls
         }
 
         #region Commands
-        public DelegateCommand NewAreaCommand {get; private set; }
+        public DelegateCommand CloseCommand { get; private set; }
+        public DelegateCommand NewAreaCommand { get; private set; }
+        public DelegateCommand<AreaVM> RemoveAreaCommand { get; private set; }
+        public DelegateCommand RefreshCommand { get; private set; }
 
         private void AddArea()
         {
@@ -54,12 +78,12 @@ namespace VersionrUI.Controls
                     break;
                 case CloneNewDialog.ResultEnum.InitNew:
                     // Tell versionr to initialize at path
-                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Init(new System.IO.DirectoryInfo(cloneNewDlg.PathString), cloneNewDlg.NameString), cloneNewDlg.NameString));
+                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Init(new DirectoryInfo(cloneNewDlg.PathString), cloneNewDlg.NameString), cloneNewDlg.NameString));
                     SelectedArea = OpenAreas.LastOrDefault();
                     break;
                 case CloneNewDialog.ResultEnum.UseExisting:
                     // Add it to settings and refresh UI, get status etc.
-                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Load(new System.IO.DirectoryInfo(cloneNewDlg.PathString)), cloneNewDlg.NameString));
+                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Load(new DirectoryInfo(cloneNewDlg.PathString)), cloneNewDlg.NameString));
                     SelectedArea = OpenAreas.LastOrDefault();
                     break;
                 case CloneNewDialog.ResultEnum.Cancelled:
@@ -67,7 +91,33 @@ namespace VersionrUI.Controls
                     break;
             }
         }
+
+        private void RemoveArea(AreaVM area)
+        {
+            OpenAreas.Remove(area);
+        }
+
+        private void Refresh()
+        {
+            // TODO: refresh all open areas
+            MessageBox.Show("// TODO: refresh all open areas");
+        }
         #endregion
+
+        private void SaveOpenAreas()
+        {
+            Properties.Settings.Default.OpenAreas = new StringCollection();
+            foreach (AreaVM area in OpenAreas)
+            {
+                string areaString = String.Format("{0};{1}", area.Directory.FullName, area.Name);
+                Properties.Settings.Default.OpenAreas.Add(areaString);
+            }
+            Properties.Settings.Default.Save();
+        }
+        private void OpenAreas_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            SaveOpenAreas();
+        }
 
         #region INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;

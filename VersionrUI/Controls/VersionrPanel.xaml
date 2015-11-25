@@ -24,13 +24,13 @@
                     <TreeView Name="treeView" ItemsSource="{Binding Children}">
                         <TreeView.Resources>
                             <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
-                                <TextBlock Text="{Binding Name}" />
+                                <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
                             </HierarchicalDataTemplate>
                             <DataTemplate DataType="{x:Type vm:BranchVM}">
                                 <TextBlock Text="{Binding Name}" />
                             </DataTemplate>
                             <DataTemplate DataType="{x:Type vm:StatusVM}">
-                                <TextBlock Text="Status" />
+                                <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
                             </DataTemplate>
                         </TreeView.Resources>
                         <TreeView.ItemContainerStyle>
@@ -78,7 +78,7 @@
                               ShowsPreview="True"
                               Height="5"
                               Margin="0,2" />
-                <ContentPresenter Grid.Row="2" Content="{Binding SelectedItem, Source={x:Reference listView}}" />
+                <ContentPresenter Grid.Row="2" Content="{Binding SelectedItem, ElementName=listView}" />
             </Grid>
         </DataTemplate>
 
@@ -93,45 +93,71 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <ListView Grid.Row="0"
+                <Grid Grid.Row="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="100" />
+                    </Grid.RowDefinitions>
+                    <ListView Grid.Row="0"
                           Name="listView"
                           ItemsSource="{Binding ModifiedElements}"
                           SelectionMode="Single">
-                    <ListView.View>
-                        <GridView>
-                            <GridViewColumn Header="Code" DisplayMemberBinding="{Binding Code, Mode=OneWay}" />
-                            <GridViewColumn Header="Staged">
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding Staged, Mode=OneWay}" IsEnabled="False" />
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                            <GridViewColumn Header="Name" DisplayMemberBinding="{Binding CanonicalName, Mode=OneWay}" />
-                            <GridViewColumn Header="IsDirectory">
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsDirectory, Mode=OneWay}" IsEnabled="False" />
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                        </GridView>
-                    </ListView.View>
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="ContextMenu">
-                                <Setter.Value>
-                                    <ContextMenu>
-                                        <MenuItem Header="Diff" Command="{Binding DiffCommand}" CommandParameter="{Binding}" />
-                                        <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{Binding}" />
-                                    </ContextMenu>
-                                </Setter.Value>
-                            </Setter>
-                            <Setter Property="commands:ControlDoubleClick.Command" Value="{Binding DiffCommand}" />
-                            <Setter Property="commands:ControlDoubleClick.Parameter" Value="{Binding}" />
-                        </Style>
-                    </ListView.ItemContainerStyle>
-                </ListView>
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Code" DisplayMemberBinding="{Binding Code, Mode=OneWay}" />
+                                <GridViewColumn Header="Staged">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding Staged, Mode=OneWay}" IsEnabled="False" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Name" DisplayMemberBinding="{Binding CanonicalName, Mode=OneWay}" />
+                                <GridViewColumn Header="IsDirectory">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsDirectory, Mode=OneWay}" IsEnabled="False" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="ContextMenu">
+                                    <Setter.Value>
+                                        <ContextMenu>
+                                            <MenuItem Header="Diff" Command="{Binding DiffCommand}" CommandParameter="{Binding}" />
+                                            <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{Binding}" />
+                                        </ContextMenu>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="commands:ControlDoubleClick.Command" Value="{Binding DiffCommand}" />
+                                <Setter Property="commands:ControlDoubleClick.Parameter" Value="{Binding}" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                    </ListView>
+                    <GridSplitter Grid.Row="1"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Center"
+                              Background="Black" 
+                              ShowsPreview="True"
+                              Height="5"
+                              Margin="0,2" />
+                    <DockPanel Grid.Row="2">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                            <Button Margin="4"
+                                    Content="Commit"
+                                    Command="{Binding CommitCommand}"
+                                    CommandParameter="{Binding Text, ElementName=textCommitMessage}" />
+                        </StackPanel>
+                        <DockPanel>
+                            <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
+                            <TextBox Margin="4" Name="textCommitMessage"/>
+                        </DockPanel>
+                    </DockPanel>
+                </Grid>
                 <GridSplitter Grid.Row="1"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Center"
@@ -140,7 +166,7 @@
                               Height="5"
                               Margin="0,2" />
                 <controls:BindableRichTextBox Grid.Row="2"
-                                              Document="{Binding SelectedItem.DiffPreview, Source={x:Reference listView}}"
+                                              Document="{Binding SelectedItem.DiffPreview, ElementName=listView}"
                                               ScrollViewer.CanContentScroll="True"
                                               IsReadOnly="True"
                                               FontFamily="Consolas" />
@@ -157,7 +183,24 @@
             <!-- Menu bar -->
             <StackPanel DockPanel.Dock="Top"
                         Orientation="Horizontal">
-                <Button Content="Clone/New" Command="{Binding NewAreaCommand}" />
+                <Button Margin="4" Content="Clone/New" Command="{Binding NewAreaCommand}" />
+                <Button Margin="4" Content="Refresh" Command="{Binding RefreshCommand}" />
+                <Button Width="50" Height="50"
+                        HorizontalAlignment="Right"
+                        Content="CRASH"
+                        Foreground="Red"
+                        FontWeight="Bold"
+                        FontSize="13"
+                        Command="{Binding CloseCommand}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <Ellipse Fill="Transparent" Stroke="Red" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
             </StackPanel>
             
             <!-- Area tabs -->
@@ -165,7 +208,18 @@
                         SelectedItem="{Binding SelectedArea}">
                 <TabControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding Name}" />
+                        <DockPanel>
+                            <TextBlock Margin="4,2"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding Name}" />
+                            <Button DockPanel.Dock="Right"
+                                    Margin="2"
+                                    Padding="0"
+                                    Width="18" Height="18"
+                                    Content="X"
+                                    Command="{Binding DataContext.RemoveAreaCommand, ElementName=mainGrid}"
+                                    CommandParameter="{Binding}" />
+                        </DockPanel>
                     </DataTemplate>
                 </TabControl.ItemTemplate>
                 <TabControl.ContentTemplate>
