@@ -3976,26 +3976,25 @@ namespace Versionr
                     if (skip)
                         continue;
                 }
+				LocalData.BeginTransaction();
+				try
+				{
+					foreach (var y in LocalData.StageOperations)
+					{
+						if (y.Operand1 == x.CanonicalName)
+						{
+							LocalData.Delete(y);
+						}
+					}
+					LocalData.Commit();
+				}
+				catch (Exception e)
+				{
+					LocalData.Rollback();
+					throw new Exception("Unable to remove stage operations!", e);
+                }
                 if (x.Staged == true)
                 {
-                    //Printer.PrintMessage("Removing {0} from inclusion in next commit", x.CanonicalName);
-					LocalData.BeginTransaction();
-					try
-					{
-						foreach (var y in LocalData.StageOperations)
-						{
-							if (y.Operand1 == x.CanonicalName)
-							{
-								LocalData.Delete(y);
-							}
-						}
-						LocalData.Commit();
-					}
-					catch (Exception e)
-					{
-						LocalData.Rollback();
-						throw new Exception("Unable to remove stage operations!", e);
-                    }
                     if (callback != null)
                     {
                         callback(x,
