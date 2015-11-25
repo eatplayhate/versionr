@@ -34,7 +34,14 @@ namespace VersionrUI.ViewModels
         {
             // TODO:
             get { return _name; }
-            set { _name = value; }
+            set
+            {
+                if (_name != value)
+                {
+                    _name = value;
+                    NotifyPropertyChanged("Name");
+                }
+            }
         }
 
         public ObservableCollection<BranchVM> Branches
@@ -57,7 +64,7 @@ namespace VersionrUI.ViewModels
         {
             // Assume the active directory is the root of the Area
             DirectoryInfo activeDirectory = _area.Root;
-            return VersionrVMFactory.GetStatusVM(_area.GetStatus(activeDirectory));
+            return VersionrVMFactory.GetStatusVM(_area.GetStatus(activeDirectory), _area);
         }
     }
 }

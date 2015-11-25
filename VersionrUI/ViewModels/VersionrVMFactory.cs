@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Versionr;
 
 namespace VersionrUI.ViewModels
 {
@@ -56,25 +54,25 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public StatusVM GetStatusVM(Versionr.Status status)
+        static public StatusVM GetStatusVM(Versionr.Status status, Area area)
         {
             StatusVM result = null;
             var key = status.CurrentVersion.ID;
             if (!_statusVMDictionary.TryGetValue(key, out result))
             {
-                result = new StatusVM(status);
+                result = new StatusVM(status, area);
                 _statusVMDictionary.Add(key, result);
             }
             return result;
         }
 
-        static public StatusEntryVM GetStatusEntryVM(Versionr.Status.StatusEntry statusEntry)
+        static public StatusEntryVM GetStatusEntryVM(Versionr.Status.StatusEntry statusEntry, Area area)
         {
             StatusEntryVM result = null;
             var key = statusEntry.Hash;
             if (!_statusEntryVMDictionary.TryGetValue(key, out result))
             {
-                result = new StatusEntryVM(statusEntry);
+                result = new StatusEntryVM(statusEntry, area);
                 _statusEntryVMDictionary.Add(key, result);
             }
             return result;

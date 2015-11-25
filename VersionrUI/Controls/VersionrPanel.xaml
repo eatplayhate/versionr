@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:VersionrUI.ViewModels"
              xmlns:controls="clr-namespace:VersionrUI.Controls"
+             xmlns:commands="clr-namespace:VersionrUI.Commands"
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="300">
 
@@ -57,18 +58,19 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <DataGrid Grid.Row="0"
-                          Name="dataGrid"
+                <ListView Grid.Row="0"
+                          Name="listView"
                           ItemsSource="{Binding History}"
-                          SelectionMode="Single"
-                          AutoGenerateColumns="False" >
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Revision" Binding="{Binding Revision, Mode=OneWay}" />
-                        <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, Mode=OneWay}" />
-                        <DataGridTextColumn Header="Message"  Binding="{Binding Message, Mode=OneWay}"/>
-                        <DataGridTextColumn Header="Author" Binding="{Binding Author, Mode=OneWay}" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                          SelectionMode="Single">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Revision" DisplayMemberBinding="{Binding Revision, Mode=OneWay}" />
+                            <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
+                            <GridViewColumn Header="Message"  DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
+                            <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
                 <GridSplitter Grid.Row="1"
                               HorizontalAlignment="Stretch"
                               VerticalAlignment="Center"
@@ -76,7 +78,7 @@
                               ShowsPreview="True"
                               Height="5"
                               Margin="0,2" />
-                <ContentPresenter Grid.Row="2" Content="{Binding SelectedItem, Source={x:Reference dataGrid}}" />
+                <ContentPresenter Grid.Row="2" Content="{Binding SelectedItem, Source={x:Reference listView}}" />
             </Grid>
         </DataTemplate>
 
@@ -85,17 +87,64 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:StatusVM}">
-            <DataGrid Grid.Row="0"
-                      ItemsSource="{Binding Elements}"
-                      SelectionMode="Single"
-                      AutoGenerateColumns="False" >
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Code" Binding="{Binding Code, Mode=OneWay}" />
-                    <DataGridCheckBoxColumn Header="Staged"  Binding="{Binding Staged, Mode=OneWay}"/>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=OneWay}" />
-                    <DataGridCheckBoxColumn Header="IsDirectory" Binding="{Binding IsDirectory, Mode=OneWay}" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <ListView Grid.Row="0"
+                          Name="listView"
+                          ItemsSource="{Binding ModifiedElements}"
+                          SelectionMode="Single">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Code" DisplayMemberBinding="{Binding Code, Mode=OneWay}" />
+                            <GridViewColumn Header="Staged">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding Staged, Mode=OneWay}" IsEnabled="False" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Name" DisplayMemberBinding="{Binding CanonicalName, Mode=OneWay}" />
+                            <GridViewColumn Header="IsDirectory">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsDirectory, Mode=OneWay}" IsEnabled="False" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="ContextMenu">
+                                <Setter.Value>
+                                    <ContextMenu>
+                                        <MenuItem Header="Diff" Command="{Binding DiffCommand}" CommandParameter="{Binding}" />
+                                        <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{Binding}" />
+                                    </ContextMenu>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter Property="commands:ControlDoubleClick.Command" Value="{Binding DiffCommand}" />
+                            <Setter Property="commands:ControlDoubleClick.Parameter" Value="{Binding}" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                </ListView>
+                <GridSplitter Grid.Row="1"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Center"
+                              Background="Black" 
+                              ShowsPreview="True"
+                              Height="5"
+                              Margin="0,2" />
+                <controls:BindableRichTextBox Grid.Row="2"
+                                              Document="{Binding SelectedItem.DiffPreview, Source={x:Reference listView}}"
+                                              ScrollViewer.CanContentScroll="True"
+                                              IsReadOnly="True"
+                                              FontFamily="Consolas" />
+            </Grid>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:NamedCollection}">
