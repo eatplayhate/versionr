@@ -70,5 +70,16 @@ namespace VersionrUI.Properties {
                 this["WindowState"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public global::System.Collections.Specialized.StringCollection OpenAreas {
+            get {
+                return ((global::System.Collections.Specialized.StringCollection)(this["OpenAreas"]));
+            }
+            set {
+                this["OpenAreas"] = value;
+            }
+        }
     }
 }

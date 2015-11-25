@@ -30,6 +30,12 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        public DirectoryInfo Directory
+        {
+            // TODO:
+            get { return _area.Root; }
+        }
+
         public string Name
         {
             // TODO:
