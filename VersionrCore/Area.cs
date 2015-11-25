@@ -2177,6 +2177,7 @@ namespace Versionr
             Objects.Version parentVersion = null;
             Versionr.Status status = new Status(this, Database, LocalData, FileSnapshot, null, false, false);
             List<TransientMergeObject> parentData;
+            string postUpdateMerge = null;
             Objects.Branch possibleBranch = null;
             if (!updateMode)
             {
@@ -2239,7 +2240,56 @@ namespace Versionr
             {
                 parentVersion = Version;
                 parentData = Database.GetRecords(parentVersion).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
-                mergeVersion = GetVersion(GetBranchHead(CurrentBranch).Version);
+                List<Objects.Version> updateHeads = new List<Objects.Version>();
+                foreach (var x in GetBranchHeads(CurrentBranch))
+                {
+                    updateHeads.Add(GetVersion(x.Version));
+                }
+
+                if (updateHeads.Count == 1)
+                    mergeVersion = updateHeads[0];
+                else
+                {
+                    if (updateHeads.Count != 2)
+                    {
+                        Printer.PrintMessage("Branch has {0} heads. Merge must be done in several phases.", updateHeads.Count);
+                    }
+                    // choose the best base version
+                    if (updateHeads.Any(x => x.ID == parentVersion.ID))
+                    {
+                        // merge extra head into current version
+                        Merge(updateHeads.First(x => x.ID != parentVersion.ID).ID.ToString(), false, false, true, false);
+                        return;
+                    }
+                    mergeVersion = null;
+                    Objects.Version backup = null;
+                    foreach (var x in updateHeads)
+                    {
+                        if (GetHistory(x).Any(y => y.ID == parentVersion.ID))
+                        {
+                            if (mergeVersion != null && GetHistory(x).Any(y => y.ID == mergeVersion.ID))
+                                mergeVersion = x;
+                            break;
+                        }
+                        if (x.Author == Environment.UserName)
+                        {
+                            backup = x;
+                        }
+                    }
+                    if (mergeVersion == null)
+                        mergeVersion = backup;
+                    if (mergeVersion == null)
+                        mergeVersion = updateHeads[0];
+                    foreach (var x in updateHeads)
+                    {
+                        if (x != mergeVersion)
+                        {
+                            postUpdateMerge = x.ID.ToString();
+                            break;
+                        }
+                    }
+                }
+                
                 if (mergeVersion.ID == parentVersion.ID)
                 {
                     Printer.PrintMessage("Already up-to-date.");
@@ -2645,6 +2695,9 @@ namespace Versionr
                     LocalData.Rollback();
                 }
             }
+
+            if (updateMode && !string.IsNullOrEmpty(postUpdateMerge))
+                Merge(postUpdateMerge, false, false, true, false);
         }
 
         private void RemoveFileTimeCache(string item2)

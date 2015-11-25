@@ -146,7 +146,7 @@ namespace Versionr.Commands
                                 {
                                     try
                                     {
-                                        RunInternalDiff(tmp, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
+                                        RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)));
                                     }
                                     finally
                                     {

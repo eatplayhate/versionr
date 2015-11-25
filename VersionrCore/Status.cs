@@ -427,7 +427,7 @@ namespace Versionr
                     IgnoredObjects++;
                     continue;
                 }
-                if (x.Key == RestrictedPath)
+                if (x.Key == RestrictedPath && x.Key == workspace.PartialPath)
                     continue;
 
                 StageFlags objectFlags;
