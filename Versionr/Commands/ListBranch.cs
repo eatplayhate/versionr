@@ -52,7 +52,10 @@ namespace Versionr.Commands
             var branches = Workspace.GetBranches(localOptions.Name, localOptions.Deleted, localOptions.Partial);
             foreach (var x in branches)
             {
-                Printer.PrintMessage("#b#{1}## - #c#{0}##", x.ID, x.Name);
+                string tipmarker = "";
+                if (x.ID == Workspace.CurrentBranch.ID)
+                    tipmarker = " #w#*<current>##";
+                Printer.PrintMessage("#b#{1}## - #c#{0}##{2}", x.ID, x.Name, tipmarker);
                 string heading = string.Empty;
                 if (x.Terminus.HasValue)
                 {

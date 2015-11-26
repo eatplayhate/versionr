@@ -10,7 +10,8 @@ namespace Versionr.Network
     public enum Rights
     {
         Read = 1,
-        Write = 2
+        Write = 2,
+        Create = 4
     }
     public class AuthEntry
     {
@@ -28,6 +29,16 @@ namespace Versionr.Network
         public SimpleAuth()
         {
             Users = new Dictionary<string, AuthEntry>();
+        }
+
+        internal bool CheckUser(string name, string password)
+        {
+            AuthEntry e = null;
+            if (!Users.TryGetValue(name, out e))
+                e = Users.Where(x => x.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
+            if (e != null)
+                return e.Password == password;
+            return false;
         }
     }
 }

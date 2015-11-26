@@ -21,6 +21,7 @@ namespace Versionr.Objects
         Hidden = 128,
 		Symlink = 256,
     }
+    // NB MAKE SURE YOU CHANGE THE LOCALDB CACHE!!!!
     [ProtoBuf.ProtoContract]
     public class Record
     {
@@ -56,7 +57,7 @@ namespace Versionr.Objects
 		{
 			get
 			{
-				return !IsSymlink && CanonicalName.EndsWith("/");
+				return !IsSymlink && CanonicalName.EndsWith("/", StringComparison.Ordinal);
 			}
 		}
 		[SQLite.Ignore]
@@ -64,7 +65,7 @@ namespace Versionr.Objects
 		{
 			get
 			{
-				return Attributes.HasFlag(Objects.Attributes.Symlink);
+				return ((uint)Attributes & (uint)Objects.Attributes.Symlink) != 0;
 			}
 		}
 

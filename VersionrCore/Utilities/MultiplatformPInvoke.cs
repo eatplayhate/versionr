@@ -6,8 +6,45 @@ using System.Threading.Tasks;
 
 namespace Versionr.Utilities
 {
+    public enum Platform
+    {
+        Windows,
+        Linux,
+        Mac
+    }
     public static class MultiArchPInvoke
     {
+        static Platform? m_Platform;
+        public static Platform RunningPlatform
+        {
+            get
+            {
+                if (!m_Platform.HasValue)
+                {
+                    switch (Environment.OSVersion.Platform)
+                    {
+                        case PlatformID.Unix:
+                            // Well, there are chances MacOSX is reported as Unix instead of MacOSX.
+                            // Instead of platform check, we'll do a feature checks (Mac specific root folders)
+                            if (System.IO.Directory.Exists("/Applications")
+                                & System.IO.Directory.Exists("/System")
+                                & System.IO.Directory.Exists("/Users")
+                                & System.IO.Directory.Exists("/Volumes"))
+                                m_Platform = Platform.Mac;
+                            else
+                                m_Platform = Platform.Linux;
+                            break;
+                        case PlatformID.MacOSX:
+                            m_Platform = Platform.Mac;
+                            break;
+                        default:
+                            m_Platform = Platform.Windows;
+                            break;
+                    }
+                }
+                return m_Platform.Value;
+            }
+        }
         static bool? m_IsRunningOnMono;
         public static bool IsRunningOnMono
         {

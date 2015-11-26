@@ -12,8 +12,17 @@ namespace Versionr.Commands
     {
 		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "filtertype")]
 		public bool All { get; set; }
-		[Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
-		public bool Tracked { get; set; }
+
+        public new static string[] SharedDescription
+        {
+            get
+            {
+                return FileBaseCommandVerbOptions.SharedDescription.Concat(new string[]
+                {
+
+                }).ToArray();
+            }
+        }
 	}
 	abstract class FileCommand : FileBaseCommand
     {
@@ -25,6 +34,16 @@ namespace Versionr.Commands
 			else
 				base.GetInitialList(status, options, out targets);
         }
+
+		protected override void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
+		{
+			base.ApplyFilters(status, localOptions, ref targets);
+
+			if (localOptions.Ignored)
+				targets = targets.Where(x => x.Code != StatusCode.Ignored).ToList();
+			else
+				targets = targets.Where(x => x.Code != StatusCode.Ignored && x.Code != StatusCode.Masked).ToList();
+		}
 
 		protected override IEnumerable<KeyValuePair<bool, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)
 		{
@@ -47,14 +66,6 @@ namespace Versionr.Commands
                 return localOptions.All || localOptions.Tracked;
             }
             return true;
-        }
-
-        protected override void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions options, List<Versionr.Status.StatusEntry> targets)
-        {
-            FileCommandVerbOptions localOptions = options as FileCommandVerbOptions;
-
-            if (localOptions.Tracked)
-                targets = targets.Where(x => x.VersionControlRecord != null).ToList();
         }
 
 		protected override bool RequiresTargets { get { return true; } }

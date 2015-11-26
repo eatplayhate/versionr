@@ -31,33 +31,43 @@ namespace Versionr.Network
         private static System.Security.Cryptography.RSAParameters PrivateKeyData { get; set; }
         private static System.Security.Cryptography.RSAParameters PublicKey { get; set; }
         private static System.Security.Cryptography.RSACryptoServiceProvider PrivateKey { get; set; }
-        public static bool Bare { get; set; }
         public static object SyncObject = new object();
+        class DomainInfo
+        {
+            public System.IO.DirectoryInfo Directory { get; set; }
+            public bool Bare { get; set; }
+            public BackupInfo Backup { get; set; }
+
+            public DomainInfo()
+            {
+                Backup = new BackupInfo();
+            }
+        }
+        class BackupInfo
+        {
+            public string Key;
+            public int Refs;
+            public System.IO.FileInfo Backup;
+        }
+        static Dictionary<string, DomainInfo> Domains = new Dictionary<string, DomainInfo>();
+        public static string ConfigFile;
+        public static System.IO.DirectoryInfo BaseDirectory;
         public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
         {
-            Area ws = Area.Load(info);
-            Bare = false;
-            Config = new ServerConfig();
-            if (!string.IsNullOrEmpty(configFile))
-            {
-                var configInfo = new System.IO.FileInfo(configFile);
-                if (!configInfo.Exists)
-                {
-                    Printer.PrintError("#x#Error:##\n  Can't find config file #b#{0}##! Using default.", configFile);
-                }
-                else
-                {
-                    using (var fs = configInfo.OpenText())
-                    {
-                        Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
-                    }
-                }
-            }
+            BaseDirectory = info;
+            Area ws = Area.Load(info, true);
             if (ws == null)
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
-                Bare = true;
             }
+            Config = new ServerConfig();
+            if (!string.IsNullOrEmpty(configFile))
+            {
+                ConfigFile = configFile;
+                LoadConfig();
+            }
+            if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count == 0))
+                Domains[string.Empty] = new DomainInfo() { Bare = ws == null, Directory = info };
             bool enableEncryption = encryptData.HasValue ? encryptData.Value : Config.Encrypted;
             if (enableEncryption)
             {
@@ -69,30 +79,137 @@ namespace Versionr.Network
                 PublicKey = rsaCSP.ExportParameters(false);
                 Printer.PrintDiagnostics("RSA Fingerprint: {0}", PublicKey.Fingerprint());
             }
-            System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
+            System.Net.Sockets.TcpListener listener = null;
+#if __MonoCS__
+            listener = new TcpListener(System.Net.IPAddress.Any, port);
+#else
+            try
+            {
+                if (System.Net.Sockets.Socket.OSSupportsIPv6)
+                {
+                    listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.IPv6Any, port);
+                    listener.Server.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
+                }
+                else
+                    listener = new TcpListener(System.Net.IPAddress.Any, port);
+            }
+            catch
+            {
+                listener = new TcpListener(System.Net.IPAddress.Any, port);
+            }
+#endif
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
             listener.Start();
+            if (Config.WebService != null && Config.WebService.HttpPort != 0 && false)
+            {
+                Task.Run(() =>
+                {
+                    RunWebServer();
+                });
+            }
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
             while (true)
             {
                 Printer.PrintDiagnostics("Waiting for connection.");
-                var client = listener.AcceptTcpClient();
-                Task.Run(() => {
-                    Printer.PrintMessage("Received connection from {0}.", client.Client.RemoteEndPoint);
-                    if (Bare)
+                var client = listener.AcceptTcpClientAsync();
+                Retry:
+                if (client.Wait(5000))
+                {
+                    Task.Run(() =>
                     {
-                        lock (SyncObject)
-                        {
-                            HandleConnection(info, client);
-                        }
-                    }
-                    else
-                        HandleConnection(info, client);
-                });
+                        Printer.PrintMessage("Received connection from {0}.", client.Result.Client.RemoteEndPoint);
+                        HandleConnection(info, client.Result);
+                    });
+                }
+                else
+                    goto Retry;
             }
             listener.Stop();
 
             return true;
+        }
+
+        private static void RunWebServer()
+        {
+            while (true)
+            {
+                try
+                {
+                    SimpleWebService.WebService service = new SimpleWebService.WebService(Config);
+                    service.Run();
+                }
+                catch (Exception e)
+                {
+                    Printer.PrintError("Error: {0}", e.ToString());
+                    Printer.PrintMessage("Error starting web interface. Restarting in 10s.");
+                    System.Threading.Thread.Sleep(10000);
+                }
+            }
+        }
+
+        private static void LoadConfig()
+        {
+            lock (SyncObject)
+            {
+                Printer.PrintMessage("Loading config...");
+                var configInfo = new System.IO.FileInfo(ConfigFile);
+                if (!configInfo.Exists)
+                {
+                    Printer.PrintError("#x#Error:##\n  Can't find config file #b#{0}##! Using default.", ConfigFile);
+                }
+                else
+                {
+                    using (var fs = configInfo.OpenText())
+                    {
+                        Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
+                    }
+                    List<string> deletedDomains = new List<string>();
+                    foreach (var z in Domains)
+                    {
+                        if (z.Key != string.Empty && !Config.Domains.ContainsKey(z.Key))
+                            deletedDomains.Add(z.Key);
+                    }
+                    foreach (var z in deletedDomains)
+                        Domains.Remove(z);
+                    foreach (var x in Config.Domains)
+                    {
+                        System.IO.DirectoryInfo domInfo = new System.IO.DirectoryInfo(x.Value);
+                        if (domInfo.Exists)
+                        {
+                            Area dm = null;
+                            try
+                            {
+                                dm = Area.Load(domInfo, true, true);
+                            }
+                            catch
+                            {
+                                dm = null;
+                            }
+                            Printer.PrintMessage("Module: {0} => ./{1} {2}", x.Key, domInfo, dm == null ? "bare" : dm.Domain.ToString());
+
+                            DomainInfo info = new DomainInfo() { Bare = dm == null, Directory = domInfo };
+                            Domains[x.Key] = info;
+                            if (dm != null)
+                                dm.Dispose();
+                        }
+                        else
+                            Printer.PrintError("#x#Error:##\n  Can't find domain location {0}!", x.Value);
+                    }
+                    if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count != 0))
+                    {
+                        using (Area a = Area.Load(BaseDirectory))
+                        {
+                            Domains[string.Empty] = new DomainInfo() { Bare = a == null, Directory = BaseDirectory };
+                            Printer.PrintMessage("Root Module {1} {2}", BaseDirectory, a == null ? "bare" : a.Domain.ToString());
+                        }
+                    }
+                    else if (Config.IncludeRoot.HasValue && Config.IncludeRoot.Value == false)
+                        Domains.Remove(string.Empty);
+
+                    if (Config.RequiresAuthentication)
+                        Printer.PrintMessage("Configured to use authentication. Unauthenticated read {0}.", (Config.AllowUnauthenticatedRead ? "allowed" : "disabled"));
+                }
+            }
         }
 
         internal class ClientStateInfo
@@ -110,8 +227,6 @@ namespace Versionr.Network
         static void HandleConnection(System.IO.DirectoryInfo info, TcpClient client)
         {
             Area ws = null;
-            if (!Bare)
-                ws = Area.Load(info);
             ClientStateInfo clientInfo = new ClientStateInfo();
             using (client)
             using (SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo())
@@ -120,6 +235,42 @@ namespace Versionr.Network
                 {
                     var stream = client.GetStream();
                     Handshake hs = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Handshake>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                    DomainInfo domainInfo = null;
+                    lock (SyncObject)
+                    {
+                        if (hs.RequestedModule == null)
+                            hs.RequestedModule = string.Empty;
+                        if (!Domains.TryGetValue(hs.RequestedModule, out domainInfo))
+                        {
+                            domainInfo = Domains.Where(x => x.Key.Equals(hs.RequestedModule, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
+                        }
+                        if (domainInfo == null)
+                        {
+                            if (!Config.AllowVaultCreation || !Config.RequiresAuthentication || string.IsNullOrEmpty(hs.RequestedModule) || System.IO.Directory.Exists(System.IO.Path.Combine(info.FullName, hs.RequestedModule)))
+                            {
+                                Network.StartTransaction startSequence = Network.StartTransaction.CreateRejection();
+                                Printer.PrintDiagnostics("Rejecting client due to invalid domain: \"{0}\".", hs.RequestedModule);
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
+                                return;
+                            }
+                            domainInfo = new DomainInfo()
+                            {
+                                Bare = true,
+                                Directory = null
+                            };
+                        }
+                    }
+                    try
+                    {
+                        ws = Area.Load(domainInfo.Directory, true, true);
+                        if (domainInfo.Bare)
+                            throw new Exception("Domain is bare, but workspace could be loaded!");
+                    }
+                    catch
+                    {
+                        if (!domainInfo.Bare)
+                            throw new Exception("Domain not bare, but couldn't load workspace!");
+                    }
                     Printer.PrintDiagnostics("Received handshake - protocol: {0}", hs.VersionrProtocol);
                     SharedNetwork.Protocol? clientProtocol = hs.CheckProtocol();
                     bool valid = true;
@@ -138,7 +289,7 @@ namespace Versionr.Network
                         clientInfo.Access = Rights.Read | Rights.Write;
                         if (PrivateKey != null)
                         {
-                            startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
+                            startSequence = Network.StartTransaction.Create(domainInfo.Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
                             Printer.PrintDiagnostics("Sending RSA key...");
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             if (!HandleAuthentication(clientInfo, client, sharedInfo))
@@ -156,7 +307,7 @@ namespace Versionr.Network
                         }
                         else
                         {
-                            startSequence = Network.StartTransaction.Create(Bare ? string.Empty : ws.Domain.ToString(), clientProtocol.Value);
+                            startSequence = Network.StartTransaction.Create(domainInfo.Bare ? string.Empty : ws.Domain.ToString(), clientProtocol.Value);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<Network.StartTransaction>(stream, startSequence, ProtoBuf.PrefixStyle.Fixed32);
                             if (!HandleAuthentication(clientInfo, client, sharedInfo))
                                 throw new Exception("Authentication failed.");
@@ -178,11 +329,28 @@ namespace Versionr.Network
                             }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
+                                bool fresh = false;
+                                if (domainInfo.Directory == null)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Create))
+                                        throw new Exception("Access denied.");
+                                    fresh = true;
+                                    System.IO.DirectoryInfo newDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(info.FullName, hs.RequestedModule));
+                                    newDirectory.Create();
+                                    domainInfo.Directory = newDirectory;
+                                    if (!newDirectory.Exists)
+                                        throw new Exception("Access denied.");
+                                }
                                 if (!clientInfo.Access.HasFlag(Rights.Write))
                                     throw new Exception("Access denied.");
-                                ws = Area.InitRemote(info, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
-                                clientInfo.SharedInfo.Workspace = ws;
-                                Bare = false;
+                                lock (SyncObject)
+                                {
+                                    ws = Area.InitRemote(domainInfo.Directory, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
+                                    clientInfo.SharedInfo.Workspace = ws;
+                                    domainInfo.Bare = false;
+                                    if (fresh)
+                                        Domains[hs.RequestedModule] = domainInfo;
+                                }
                             }
                             else if (command.Type == NetCommandType.PushBranchJournal)
                             {
@@ -194,9 +362,9 @@ namespace Versionr.Network
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))
                                     throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client is requesting a branch ID with name \"{0}\"", command.AdditionalPayload);
-                                bool multiple;
-                                var branch = ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
+                                Printer.PrintDiagnostics("Client is requesting a branch info for {0}", string.IsNullOrEmpty(command.AdditionalPayload) ? "<root>" : "\"" + command.AdditionalPayload + "\"");
+                                bool multiple = false;
+                                Objects.Branch branch = string.IsNullOrEmpty(command.AdditionalPayload) ? ws.RootBranch : ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
                                 if (branch != null)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
@@ -336,58 +504,84 @@ namespace Versionr.Network
                                 command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
                                 if (command.Type == NetCommandType.Acknowledge)
                                 {
-                                    System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetTempFileName());
-                                    Printer.PrintDiagnostics("Client requesting full clone, temp file: {0}", fsInfo.FullName);
-                                    try
+                                    bool accept = false;
+                                    BackupInfo backupInfo = null;
+                                    lock (domainInfo)
                                     {
-                                        if (ws.BackupDB(fsInfo))
+                                        string backupKey = ws.LastVersion + "-" + ws.LastBranch + "-" + ws.BranchJournalTipID.ToString();
+                                        backupInfo = domainInfo.Backup;
+                                        if (backupKey != backupInfo.Key)
                                         {
-                                            Printer.PrintDiagnostics("Backup complete. Sending data.");
-                                            byte[] blob = new byte[256 * 1024];
-                                            long filesize = fsInfo.Length;
-                                            long position = 0;
-                                            using (System.IO.FileStream reader = fsInfo.OpenRead())
+                                            Printer.PrintMessage("Backup key out of date for domain DB[{0}] - {1}", domainInfo.Directory, backupKey);
+                                            if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
+                                                backupInfo.Backup.Delete();
+                                            backupInfo = new BackupInfo();
+                                            domainInfo.Backup = backupInfo;
+                                            var directory = new System.IO.DirectoryInfo(System.IO.Path.Combine(ws.AdministrationFolder.FullName, "backups"));
+                                            directory.Create();
+                                            backupInfo.Backup = new System.IO.FileInfo(System.IO.Path.Combine(directory.FullName, System.IO.Path.GetRandomFileName()));
+                                            if (ws.BackupDB(backupInfo.Backup))
                                             {
-                                                while (true)
-                                                {
-                                                    long remainder = filesize - position;
-                                                    int count = blob.Length;
-                                                    if (count > remainder)
-                                                        count = (int)remainder;
-                                                    reader.Read(blob, 0, count);
-                                                    position += count;
-                                                    Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
-                                                    if (count == remainder)
-                                                    {
-                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
-                                                        {
-                                                            Data = blob.Take(count).ToArray(),
-                                                            EndOfStream = true
-                                                        });
-                                                        break;
-                                                    }
-                                                    else
-                                                    {
-                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
-                                                        {
-                                                            Data = blob,
-                                                            EndOfStream = false
-                                                        });
-                                                    }
-                                                }
+                                                System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                                accept = true;
+                                                backupInfo.Key = backupKey;
                                             }
-                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                                         }
                                         else
                                         {
-                                            Printer.PrintDiagnostics("Backup failed. Aborting.");
-                                            Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
-                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                                            accept = true;
+                                        }
+
+                                        if (accept)
+                                            System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                    }
+                                    if (accept)
+                                    {
+                                        Printer.PrintDiagnostics("Backup complete. Sending data.");
+                                        byte[] blob = new byte[256 * 1024];
+                                        long filesize = backupInfo.Backup.Length;
+                                        long position = 0;
+                                        using (System.IO.FileStream reader = backupInfo.Backup.OpenRead())
+                                        {
+                                            while (true)
+                                            {
+                                                long remainder = filesize - position;
+                                                int count = blob.Length;
+                                                if (count > remainder)
+                                                    count = (int)remainder;
+                                                reader.Read(blob, 0, count);
+                                                position += count;
+                                                Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
+                                                if (count == remainder)
+                                                {
+                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                    {
+                                                        Data = blob.Take(count).ToArray(),
+                                                        EndOfStream = true
+                                                    });
+                                                    break;
+                                                }
+                                                else
+                                                {
+                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                    {
+                                                        Data = blob,
+                                                        EndOfStream = false
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                        lock (domainInfo)
+                                        {
+                                            if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
+                                                backupInfo.Backup.Delete();
                                         }
                                     }
-                                    finally
+                                    else
                                     {
-                                        fsInfo.Delete();
+                                        Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
                                     }
                                 }
                             }
@@ -410,7 +604,13 @@ namespace Versionr.Network
                 {
                     Printer.PrintDiagnostics("Client was a terrible person, because: {0}", e);
                 }
+                finally
+                {
+                    if (ws != null)
+                        ws.Dispose();
+                }
             }
+
             Printer.PrintDiagnostics("Ended client processor task!");
         }
 
@@ -418,7 +618,7 @@ namespace Versionr.Network
         {
             if (Config.RequiresAuthentication)
             {
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate }, ProtoBuf.PrefixStyle.Fixed32);
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate, Identifier = Config.AllowUnauthenticatedRead ? 1 : 0 }, ProtoBuf.PrefixStyle.Fixed32);
                 AuthenticationChallenge challenge = new AuthenticationChallenge();
                 challenge.AvailableModes = new List<AuthenticationMode>();
                 if (Config.SupportsSimpleAuthentication)
@@ -462,7 +662,12 @@ namespace Versionr.Network
         private static bool CheckAuthentication(AuthenticationResponse response, string salt, out Rights accessRights)
         {
             accessRights = 0;
-            if (response.Mode == AuthenticationMode.Simple)
+            if (response.Mode == AuthenticationMode.Guest && Config.AllowUnauthenticatedRead)
+            {
+                accessRights = Rights.Read;
+                return true;
+            }
+            else if (response.Mode == AuthenticationMode.Simple)
             {
                 var login = Config.GetSimpleLogin(response.IdentifierToken);
                 if (login == null)

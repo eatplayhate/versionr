@@ -29,6 +29,8 @@ namespace Versionr.Commands
         }
         [Option('i', "interactive", HelpText = "Provides an interactive prompt for each matched file.")]
         public bool Interactive { get; set; }
+        [Option('d', "delete", HelpText = "Delete new files.")]
+        public bool Delete { get; set; }
 
     }
 	class Revert : Unrecord
@@ -36,7 +38,7 @@ namespace Versionr.Commands
 		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
 			RevertVerbOptions localOptions = options as RevertVerbOptions;
-			ws.Revert(targets, true, localOptions.Interactive, UnrecordFeedback);
+			ws.Revert(targets, true, localOptions.Interactive, localOptions.Delete, UnrecordFeedback);
 			return true;
 		}
 

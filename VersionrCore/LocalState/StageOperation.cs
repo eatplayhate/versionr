@@ -25,6 +25,7 @@ namespace Versionr.LocalState
         public string Operand2 { get; set; }
         public int Flags { get; set; }
         public long ReferenceObject { get; set; }
+        public long ReferenceTime { get; set; }
 
         [SQLite.Ignore]
         public bool IsFileOperation

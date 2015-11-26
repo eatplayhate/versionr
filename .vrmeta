@@ -23,14 +23,18 @@
 			[
 				".*/obj/",
 				"^\\.vs/",
+				"^\\.git/",
 				"^ipch",
 				"^Debug/",
 				"/Debug/",
 				"^Release/",
 				"/Release/",
+				"lzham.*/Win32/",
 				".*\\.tlog",
 				"^x64",
-				"^lib/"
+				"^lib/",
+				"^bin/",
+				"^bin_debug"
 			]
 		}
 	}

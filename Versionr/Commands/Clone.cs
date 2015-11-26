@@ -29,10 +29,10 @@ namespace Versionr.Commands
             }
         }
 
-        [Option('f', "fullmeta", DefaultValue = false, HelpText = "Clones entire vault metadata table.")]
-        public bool Full { get; set; }
+        [Option('f', "fullmeta", HelpText = "Clones entire vault metadata table.")]
+        public bool? Full { get; set; }
 
-        [Option('u', "update", HelpText = "Runs pull and checkout after cloning.")]
+        [Option('u', "update", DefaultValue = true, HelpText = "Runs pull and checkout after cloning.")]
         public bool Update { get; set; }
 
         [Option('b', "branch", HelpText = "Selects a branch to pull and checkout after cloning, requires #b#--update##")]
@@ -49,13 +49,30 @@ namespace Versionr.Commands
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
-            bool result = client.Clone(localOptions.Full);
+            bool result = false;
+            try
+            {
+                TargetDirectory.Create();
+            }
+            catch
+            {
+                Printer.PrintError("#e#Error - couldn't create subdirectory \"{0}\"##", TargetDirectory);
+                return false;
+            }
+            if (localOptions.Full.HasValue)
+                result = client.Clone(localOptions.Full.Value);
+            else
+            {
+                result = client.Clone(true);
+                if (!result)
+                    result = client.Clone(false);
+            }
             if (result)
             {
                 Printer.PrintMessage("Successfully cloned from remote vault. Initializing default remote.");
-                string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
+                string remoteName = "default";
                 
-                if (client.Workspace.SetRemote(client.Host, client.Port, remoteName))
+                if (client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName))
                     Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, client.VersionrURL);
 
                 if (localOptions.Partial != null)

@@ -12,7 +12,30 @@ namespace Versionr.Utilities
 	{
 		public static Regex[] SymlinkPatterns { get; internal set; }
 
-		public static bool ApliesTo(string path)
+        public static bool ApliesTo(FileSystemInfo info, string hintPath)
+        {
+            if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
+                return false;
+
+            // Only for windows
+            if (MultiArchPInvoke.IsRunningOnMono)
+                return false;
+
+            if (info.Attributes.HasFlag(FileAttributes.Directory))
+                return false;
+
+            string path = string.IsNullOrEmpty(hintPath) ? info.FullName.Replace('\\', '/') : hintPath;
+            foreach (var x in SymlinkPatterns)
+            {
+                var match = x.Match(path);
+                if (match.Success)
+                    return true;
+            }
+
+            return false;
+        }
+
+        public static bool ApliesTo(string path)
 		{
 			if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
 				return false;

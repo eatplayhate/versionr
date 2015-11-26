@@ -140,7 +140,7 @@ namespace Versionr.Utilities
         private static bool PossiblyUTF16(byte[] data, int v, bool bigEndian)
         {
             int count = 0;
-            for (int i = v; i < data.Length; i += 2)
+            for (int i = v; i < data.Length - 1; i += 2)
             {
                 ushort c = BitConverter.ToUInt16(data, i);
                 if (bigEndian)
@@ -185,7 +185,7 @@ namespace Versionr.Utilities
         private static bool PossiblyUCS4(byte[] data, int v, bool bigEndian)
         {
             int count = 0;
-            for (int i = v; i < data.Length; i += 4)
+            for (int i = v; i < data.Length - 3; i += 4)
             {
                 uint c = BitConverter.ToUInt32(data, i);
                 if (bigEndian)

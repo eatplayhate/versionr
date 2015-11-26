@@ -76,7 +76,7 @@ namespace Versionr.Commands
                 }
             }
             var ss = status;
-            if (ss.RestrictedPath != null)
+            if (!string.IsNullOrEmpty(ss.RestrictedPath))
                 Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
             Printer.WriteLineMessage("");
             int[] codeCount = new int[(int)StatusCode.Count];
@@ -88,19 +88,24 @@ namespace Versionr.Commands
             }
             if (status.MergeInputs.Count > 0)
                 Printer.WriteLineMessage("");
-            foreach (var x in targets)
+            IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return x.Code != StatusCode.Ignored; });
+            if (!localOptions.All)
+                operands = operands.Where(x => x.Code != StatusCode.Unchanged);
+            string localRestrictedPath = null;
+            if (ss.RestrictedPath != null)
+                localRestrictedPath = ws.GetLocalCanonicalName(ss.RestrictedPath);
+            if (!localOptions.NoList)
             {
-				if (x.Code == StatusCode.Unchanged && !localOptions.All)
-                    continue;
-                codeCount[(int)x.Code]++;
-                if (x.Code == StatusCode.Ignored)
-                    continue;
-                if (!localOptions.NoList)
+                foreach (var x in operands.OrderBy(x => x.CanonicalName))
                 {
                     string name = ws.GetLocalCanonicalName(x.CanonicalName);
+                    if (localRestrictedPath != null)
+                        name = name.Substring(localRestrictedPath.Length);
                     int index = name.LastIndexOf('/');
                     if (index != name.Length - 1)
                         name = name.Insert(index + 1, "#b#");
+                    if (name.Length == 0)
+                        name = "#q#<parent directory>##";
 					if (x.IsSymlink)
 						name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
                     Printer.WriteLineMessage("{1}## {0}", name, GetStatus(x));
@@ -118,8 +123,22 @@ namespace Versionr.Commands
 
             foreach (var x in Workspace.Externs)
             {
-                Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
-                new Status().Run(new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location)), options);
+                bool include = true;
+                if (!string.IsNullOrEmpty(ss.RestrictedPath))
+                    include = Workspace.PathContains(ss.RestrictedPath, System.IO.Path.Combine(ws.Root.FullName, x.Value.Location));
+                else
+                    include = Filter(new KeyValuePair<string, object>[] { new KeyValuePair<string, object>(x.Value.Location, new object()) }).FirstOrDefault().Value != null;
+                if (include)
+                {
+                    System.IO.DirectoryInfo directory = new System.IO.DirectoryInfo(System.IO.Path.Combine(Workspace.Root.FullName, x.Value.Location));
+                    if (directory.Exists)
+                    {
+                        Printer.WriteLineMessage("\nExternal #c#{0}## ({1}):", x.Key, x.Value.Location);
+                        new Status() { DirectExtern = true }.Run(directory, options);
+                    }
+                    else
+                        Printer.WriteLineMessage("\nExternal #c#{0}## ({1}): #e#missing##", x.Key, x.Value.Location);
+                }
             }
             return true;
         }
@@ -151,6 +170,14 @@ namespace Versionr.Commands
             return true;
         }
 
+        protected override bool OnNoTargetsAssumeAll
+        {
+            get
+            {
+                return true;
+            }
+        }
+
         public static Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
         {
             return GetStatusText(x.Code, x.Staged);
@@ -166,6 +193,9 @@ namespace Versionr.Commands
                 case StatusCode.Conflict:
                     return staged ? new Tuple<char, string>('e', "conflict")
                         : new Tuple<char, string>('e', "conflict");
+                case StatusCode.Obstructed:
+                    return staged ? new Tuple<char, string>('e', "obstructed")
+                        : new Tuple<char, string>('e', "obstructed");
                 case StatusCode.Copied:
                     return staged ? new Tuple<char, string>('s', "copied")
                         : new Tuple<char, string>('w', "copied");
@@ -175,6 +205,9 @@ namespace Versionr.Commands
                 case StatusCode.Missing:
                     return staged ? new Tuple<char, string>('e', "error")
                         : new Tuple<char, string>('w', "missing");
+                case StatusCode.Masked:
+                    return staged ? new Tuple<char, string>('c', "merged")
+                        : new Tuple<char, string>('w', "ignored");
                 case StatusCode.Modified:
                     return staged ? new Tuple<char, string>('s', "modified")
                         : new Tuple<char, string>('w', "changed");

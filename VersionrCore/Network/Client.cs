@@ -17,6 +17,7 @@ namespace Versionr.Network
         public bool Connected { get; set; }
         public string Host { get; set; }
         public string RemoteDomain { get; set; }
+        public string Module { get; set; }
         public int Port { get; set; }
 
         System.IO.DirectoryInfo BaseDirectory { get; set; }
@@ -45,7 +46,7 @@ namespace Versionr.Network
         {
             get
             {
-                return "vsr://" + Host + ":" + Port;
+                return ToVersionrURL(Host, Port, Module);
             }
         }
 
@@ -66,6 +67,10 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
+        public bool SyncCurrentRecords()
+        {
+            return Workspace.SyncCurrentRecords();
+        }
         public bool SyncRecords()
         {
             List<Record> missingRecords = Workspace.GetAllMissingRecords();
@@ -76,6 +81,12 @@ namespace Versionr.Network
                 return false;
             return true;
         }
+
+        public static string ToVersionrURL(string host, int port, string domain = null)
+        {
+            return "vsr://" + host + ":" + port + (string.IsNullOrEmpty(domain) ? "" : ("/" + domain));
+        }
+
         public void Close()
         {
             if (Connected)
@@ -132,17 +143,25 @@ namespace Versionr.Network
 
                     System.IO.FileInfo fsInfo = new System.IO.FileInfo(System.IO.Path.GetRandomFileName());
                     Printer.PrintMessage("Attempting to import metadata file to temp path {0}", fsInfo.FullName);
+                    var printer = Printer.CreateSimplePrinter("Progress", (obj) =>
+                    {
+                        return string.Format("#b#{0}## received.", Versionr.Utilities.Misc.FormatSizeFriendly((long)obj));
+                    });
                     try
                     {
+                        long total = 0;
                         using (var stream = fsInfo.OpenWrite())
                         {
                             while (true)
                             {
                                 var data = Utilities.ReceiveEncrypted<DataPayload>(SharedInfo);
                                 stream.Write(data.Data, 0, data.Data.Length);
+                                total += data.Data.Length;
+                                printer.Update(total);
                                 if (data.EndOfStream)
                                     break;
                             }
+                            printer.End(total);
                             response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                             if (response.Type == NetCommandType.Error)
                             {
@@ -158,6 +177,7 @@ namespace Versionr.Network
                             if (!area.ImportDB())
                                 throw new Exception("Couldn't import data.");
                             Workspace = Area.Load(BaseDirectory);
+                            SharedInfo.Workspace = Workspace;
                             return true;
                         }
                         catch
@@ -273,8 +293,11 @@ namespace Versionr.Network
             }
         }
 
+        public bool ReceivedData { get; set; }
+
         public bool Pull(bool pullRemoteObjects, string branchName)
         {
+            ReceivedData = false;
             if (Workspace == null)
                 return false;
             if (string.IsNullOrEmpty(RemoteDomain))
@@ -347,7 +370,9 @@ namespace Versionr.Network
                             Printer.PrintDiagnostics("Requesting record data...");
                             SharedNetwork.RequestRecordData(SharedInfo);
                         }
-                        bool result = PullVersions(SharedInfo);
+                        bool gotData = false;
+                        bool result = PullVersions(SharedInfo, out gotData);
+                        ReceivedData = gotData;
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                         return result;
                     }
@@ -361,14 +386,18 @@ namespace Versionr.Network
             }
         }
 
-        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo)
+        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo, out bool receivedData)
         {
             bool importResult = sharedInfo.Workspace.RunLocked(() =>
             {
                 return SharedNetwork.ImportRecords(sharedInfo, true);
             }, false);
+            receivedData = false;
             if (!importResult)
                 return false;
+            if (sharedInfo.PushedVersions.Count == 0 && sharedInfo.ReceivedBranchJournals.Count == 0 && sharedInfo.ReceivedBranches.Count == 0)
+                return true;
+            receivedData = true;
             return sharedInfo.Workspace.RunLocked(() =>
             {
                 lock (sharedInfo.Workspace)
@@ -405,12 +434,14 @@ namespace Versionr.Network
                             {
                                 if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, sharedInfo))
                                 {
-                                    pendingMerges[branch.ID] = Guid.Empty;
+                                    if (!pendingMerges.ContainsKey(branch.ID) || SharedNetwork.IsAncestor(pendingMerges[branch.ID], x.Version.ID, sharedInfo))
+                                        pendingMerges[branch.ID] = Guid.Empty;
                                     head.Version = x.Version.ID;
                                 }
                                 else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, sharedInfo))
                                 {
-                                    pendingMerges[branch.ID] = head.Version;
+                                    if (!pendingMerges.ContainsKey(branch.ID) || pendingMerges[branch.ID] == Guid.Empty)
+                                        pendingMerges[branch.ID] = head.Version;
                                     head.Version = x.Version.ID;
                                 }
                             }
@@ -522,8 +553,11 @@ namespace Versionr.Network
             }, false);
         }
 
-        public bool Connect(string host, int port)
+        public const int VersionrDefaultPort = 5122;
+        public bool Connect(string host, int port, string module, bool requirewrite = false)
         {
+            if (port == -1)
+                port = VersionrDefaultPort;
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
             Retry:
             if (!protocols.MoveNext())
@@ -533,10 +567,16 @@ namespace Versionr.Network
             }
             Host = host;
             Port = port;
+            Module = module;
             Connected = false;
             try
             {
-                Connection = new System.Net.Sockets.TcpClient(host, port);
+                Connection = new System.Net.Sockets.TcpClient();
+                var connectionTask = Connection.ConnectAsync(Host, Port);
+                if (!connectionTask.Wait(5000))
+                {
+                    throw new Exception(string.Format("Couldn't connect to target: {0}", this.VersionrURL));
+                }
             }
             catch (Exception e)
             {
@@ -549,14 +589,25 @@ namespace Versionr.Network
                 {
                     Printer.PrintDiagnostics("Connected to server at {0}:{1}", host, port);
                     Handshake hs = Handshake.Create(protocols.Current);
+                    hs.RequestedModule = Module;
                     Printer.PrintDiagnostics("Sending handshake...");
                     Connection.NoDelay = true;
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<Handshake>(Connection.GetStream(), hs, ProtoBuf.PrefixStyle.Fixed32);
 
                     var startTransaction = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Network.StartTransaction>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                    if (!startTransaction.Accepted)
+                    if (startTransaction == null || !startTransaction.Accepted)
                     {
-                        Printer.PrintMessage("#b#Server rejected connection.##\n Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        Printer.PrintError("#b#Server rejected connection.##");
+                        if (startTransaction != null && hs.VersionrProtocol != startTransaction.ServerHandshake.VersionrProtocol)
+                            Printer.PrintError("## Protocol mismatch - local: {0}, remote: {1}", hs.VersionrProtocol, startTransaction.ServerHandshake.VersionrProtocol);
+                        else
+                        {
+                            if (startTransaction == null)
+                                Printer.PrintError("## Connection terminated unexpectedly.");
+                            else
+                                Printer.PrintError("## Rejected request.");
+                            return false;
+                        }
                         goto Retry;
                     }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
@@ -573,43 +624,64 @@ namespace Versionr.Network
                         var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                         if (command.Type == NetCommandType.Authenticate)
                         {
-                            Printer.PrintMessage("Server requires authentication.");
+                            bool runauth = true;
                             var challenge = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationChallenge>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                            while (true)
+                            if (!requirewrite && command.Identifier == 1) // server supports unauthenticated read
                             {
-                                if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
+                                AuthenticationResponse response = new AuthenticationResponse()
                                 {
-                                    Printer.PrintMessageSingleLine("#b#Username:## ");
-                                    string user = System.Console.ReadLine();
-                                    Printer.PrintMessageSingleLine("#b#Password:## ");
-                                    string pass = GetPassword();
-
-                                    user = user.Trim(new char[] { '\r', '\n', ' ' });
-
-                                    AuthenticationResponse response = new AuthenticationResponse()
+                                    IdentifierToken = string.Empty,
+                                    Mode = AuthenticationMode.Guest
+                                };
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
+                                command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                                if (command.Type == NetCommandType.Acknowledge)
+                                    runauth = false;
+                            }
+                            if (runauth)
+                            {
+                                bool q = Printer.Quiet;
+                                Printer.Quiet = false;
+                                Printer.PrintMessage("Server at #b#{0}## requires authentication.", VersionrURL);
+                                while (true)
+                                {
+                                    if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
                                     {
-                                        IdentifierToken = user,
-                                        Mode = AuthenticationMode.Simple,
-                                        Payload = System.Text.ASCIIEncoding.ASCII.GetBytes(BCrypt.Net.BCrypt.HashPassword(pass, challenge.Salt))
-                                    };
-                                    Printer.PrintMessage("\n");
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
-                                    command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                                    if (command.Type == NetCommandType.AuthRetry)
-                                        Printer.PrintMessage("#e#Authentication failed.## Retry.");
-                                    if (command.Type == NetCommandType.AuthFail)
+                                        System.Console.CursorVisible = true;
+                                        Printer.PrintMessageSingleLine("#b#Username:## ");
+                                        string user = System.Console.ReadLine();
+                                        Printer.PrintMessageSingleLine("#b#Password:## ");
+                                        string pass = GetPassword();
+                                        System.Console.CursorVisible = false;
+
+                                        user = user.Trim(new char[] { '\r', '\n', ' ' });
+
+                                        AuthenticationResponse response = new AuthenticationResponse()
+                                        {
+                                            IdentifierToken = user,
+                                            Mode = AuthenticationMode.Simple,
+                                            Payload = System.Text.ASCIIEncoding.ASCII.GetBytes(BCrypt.Net.BCrypt.HashPassword(pass, challenge.Salt))
+                                        };
+                                        Printer.PrintMessage("\n");
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix(Connection.GetStream(), response, ProtoBuf.PrefixStyle.Fixed32);
+                                        command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                                        if (command.Type == NetCommandType.AuthRetry)
+                                            Printer.PrintError("#e#Authentication failed.## Retry.");
+                                        if (command.Type == NetCommandType.AuthFail)
+                                        {
+                                            Printer.PrintError("#e#Authentication failed.##");
+                                            return false;
+                                        }
+                                        if (command.Type == NetCommandType.Acknowledge)
+                                            break;
+                                    }
+                                    else
                                     {
-                                        Printer.PrintMessage("#e#Authentication failed.##");
+                                        Printer.PrintError("Unsupported authentication requirements!");
                                         return false;
                                     }
-                                    if (command.Type == NetCommandType.Acknowledge)
-                                        break;
                                 }
-                                else
-                                {
-                                    Printer.PrintError("Unsupported authentication requirements!");
-                                    return false;
-                                }
+                                Printer.Quiet = q;
                             }
                         }
                     }

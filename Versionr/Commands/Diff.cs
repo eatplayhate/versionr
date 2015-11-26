@@ -26,7 +26,10 @@ namespace Versionr.Commands
 			{
 				return "diff";
 			}
-		}
+        }
+
+        [Option('d', "direct", HelpText = "Specify two files to compare that may not be under version control.")]
+        public bool Direct { get; set; }
 
         [Option('x', "external", HelpText = "Use external diffing tool")]
         public bool External { get; set; }
@@ -37,7 +40,41 @@ namespace Versionr.Commands
 
 	class Diff : FileCommand
 	{
-		protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
+        public override bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        {
+            DiffVerbOptions localOptions = options as DiffVerbOptions;
+            if (localOptions.Direct)
+            {
+                if (localOptions.Objects.Count != 2)
+                {
+                    Printer.PrintError("Direct diff requires two files to compare.");
+                    return false;
+                }
+                System.IO.FileInfo f1 = new System.IO.FileInfo(localOptions.Objects[0]);
+                System.IO.FileInfo f2 = new System.IO.FileInfo(localOptions.Objects[1]);
+                if (!f1.Exists)
+                {
+                    Printer.PrintError("Can't locate file: \"{0}\".", f1.FullName);
+                    return false;
+                }
+                if (!f2.Exists)
+                {
+                    Printer.PrintError("Can't locate file: \"{0}\".", f2.FullName);
+                    return false;
+                }
+                if (localOptions.External)
+                {
+                    Utilities.DiffTool.Diff(f1.FullName, f1.FullName, f2.FullName, f2.FullName, Workspace.Directives.ExternalDiff, false);
+                }
+                else
+                {
+                    RunInternalDiff(f1.FullName, f2.FullName);
+                }
+                return true;
+            }
+            return base.Run(workingDirectory, options);
+        }
+        protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
 		{
             DiffVerbOptions localOptions = options as DiffVerbOptions;
 
@@ -65,114 +102,138 @@ namespace Versionr.Commands
             bool showUnchangedObjects = localOptions.Objects.Count != 0;
 
 			List<Task> tasks = new List<Task>();
-			if (version == null)
+            List<string> tempFiles = new List<string>();
+            List<System.Diagnostics.Process> diffProcesses = new List<System.Diagnostics.Process>();
+            try
             {
-                foreach (var x in targets)
+                if (version == null)
                 {
-					if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
-					{
-						if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
-						{
-							Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
-							continue;
-						}
-						// Displaying local modifications
-						string tmp = Utilities.DiffTool.GetTempFilename();
-						if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
-						{
-							Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-							if (localOptions.External)
-							{
-								tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
-								{
-									try
-									{
-										Utilities.DiffTool.Diff(tmp, x.Name + "-base", x.CanonicalName, x.Name);
-									}
-									finally
-									{
-										System.IO.File.Delete(tmp);
-									}
-								}));
-							}
-							else
-							{
-								try
-								{
-									RunInternalDiff(tmp, x.CanonicalName);
-								}
-								finally
-								{
-									System.IO.File.Delete(tmp);
-								}
-							}
-						}
-					}
-					else if (x.Code == StatusCode.Unchanged && showUnchangedObjects && !x.IsDirectory)
-					{
-						var filter = Filter(new KeyValuePair<string, Objects.Record>[] { new KeyValuePair<string, Objects.Record>(x.CanonicalName, x.VersionControlRecord) }).FirstOrDefault();
-						if (filter.Value != null && filter.Key == true) // check if the file was really specified
-							Printer.PrintMessage("Object: #b#{0}## is #s#unchanged##.", x.CanonicalName);
-					}
-					else if (x.VersionControlRecord == null && showUnchangedObjects)
-					{
-						var filter = Filter(new KeyValuePair<string, bool>[] { new KeyValuePair<string, bool>(x.CanonicalName, true) }).FirstOrDefault();
-						if (filter.Value != false && filter.Key == true) // check if the file was really specified
-							Printer.PrintMessage("Object: #b#{0}## is #c#unversioned##.", x.CanonicalName);
-					}
+                    foreach (var x in targets)
+                    {
+                        if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
+                        {
+                            if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
+                            {
+                                Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
+                                continue;
+                            }
+                            // Displaying local modifications
+                            string tmp = Utilities.DiffTool.GetTempFilename();
+                            if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
+                            {
+                                Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
+                                if (localOptions.External)
+                                {
+                                    tempFiles.Add(tmp);
+                                    bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
+                                    var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                                    {
+                                        var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name, ws.Directives.ExternalDiff, nonblocking);
+                                        if (diffResult != null)
+                                        {
+                                            lock (diffProcesses)
+                                            {
+                                                diffProcesses.Add(diffResult);
+                                            }
+                                        }
+                                    });
+                                    if (nonblocking)
+                                        tasks.Add(t);
+                                    else
+                                        t.Wait();
+                                }
+                                else
+                                {
+                                    try
+                                    {
+                                        RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)));
+                                    }
+                                    finally
+                                    {
+                                        System.IO.File.Delete(tmp);
+                                    }
+                                }
+                            }
+                        }
+                        else if (x.Code == StatusCode.Unchanged && showUnchangedObjects && !x.IsDirectory)
+                        {
+                            var filter = Filter(new KeyValuePair<string, Objects.Record>[] { new KeyValuePair<string, Objects.Record>(x.CanonicalName, x.VersionControlRecord) }).FirstOrDefault();
+                            if (filter.Value != null && filter.Key == true) // check if the file was really specified
+                                Printer.PrintMessage("Object: #b#{0}## is #s#unchanged##.", x.CanonicalName);
+                        }
+                        else if (x.VersionControlRecord == null && showUnchangedObjects)
+                        {
+                            var filter = Filter(new KeyValuePair<string, bool>[] { new KeyValuePair<string, bool>(x.CanonicalName, true) }).FirstOrDefault();
+                            if (filter.Value != false && filter.Key == true) // check if the file was really specified
+                                Printer.PrintMessage("Object: #b#{0}## is #c#unversioned##.", x.CanonicalName);
+                        }
+                    }
+                }
+                else
+                {
+                    List<KeyValuePair<string, Objects.Record>> updates = ws.GetAlterations(version)
+                        .Where(x => x.Type == Objects.AlterationType.Update)
+                        .Select(x => ws.GetRecord(x.NewRecord.Value))
+                        .Select(x => new KeyValuePair<string, Objects.Record>(x.CanonicalName, x)).ToList();
+                    foreach (var pair in Filter(updates))
+                    {
+                        Objects.Record rec = pair.Value;
+                        string tmpVersion = Utilities.DiffTool.GetTempFilename();
+                        if (!Workspace.ExportRecord(rec.CanonicalName, version, tmpVersion))
+                            continue;
+
+                        string tmpParent = Utilities.DiffTool.GetTempFilename();
+                        if (!Workspace.ExportRecord(rec.CanonicalName, parent, tmpParent))
+                        {
+                            System.IO.File.Delete(tmpVersion);
+                            continue;
+                        }
+
+                        Printer.PrintMessage("Displaying changes for file: #b#{0}", rec.CanonicalName);
+                        if (localOptions.External)
+                        {
+                            tempFiles.Add(tmpVersion);
+                            tempFiles.Add(tmpParent);
+                            bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
+                            var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                            {
+                                var diffResult = Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName, ws.Directives.ExternalDiff, nonblocking);
+                                if (diffResult != null)
+                                {
+                                    lock (diffProcesses)
+                                    {
+                                        diffProcesses.Add(diffResult);
+                                    }
+                                }
+                            });
+                            if (nonblocking)
+                                tasks.Add(t);
+                            else
+                                t.Wait();
+                        }
+                        else
+                        {
+                            try
+                            {
+                                RunInternalDiff(tmpParent, tmpVersion);
+                            }
+                            finally
+                            {
+                                System.IO.File.Delete(tmpVersion);
+                                System.IO.File.Delete(tmpParent);
+                            }
+                        }
+                    }
                 }
             }
-            else
+            finally
             {
-                List<KeyValuePair<string, Objects.Record>> updates = ws.GetAlterations(version)
-                    .Where(x => x.Type == Objects.AlterationType.Update)
-                    .Select(x => ws.GetRecord(x.NewRecord.Value))
-                    .Select(x => new KeyValuePair<string, Objects.Record>(x.CanonicalName, x)).ToList();
-                foreach (var pair in Filter(updates))
-                {
-                    Objects.Record rec = pair.Value;
-                    string tmpVersion = Utilities.DiffTool.GetTempFilename();
-					if (!Workspace.ExportRecord(rec.CanonicalName, version, tmpVersion))
-						continue;
-
-                    string tmpParent = Utilities.DiffTool.GetTempFilename();
-                    if (!Workspace.ExportRecord(rec.CanonicalName, parent, tmpParent))
-					{
-						System.IO.File.Delete(tmpVersion);
-						continue;
-					}
-
-					Printer.PrintMessage("Displaying changes for file: #b#{0}", rec.CanonicalName);
-					if (localOptions.External)
-					{
-						tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
-						{
-							try
-							{
-								Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName);
-							}
-							finally
-							{
-								System.IO.File.Delete(tmpVersion);
-								System.IO.File.Delete(tmpParent);
-							}
-						}));
-					}
-					else
-					{
-						try
-						{
-							RunInternalDiff(tmpParent, tmpVersion);
-						}
-						finally
-						{
-							System.IO.File.Delete(tmpVersion);
-							System.IO.File.Delete(tmpParent);
-						}
-					}
-				}
-			}
-			Task.WaitAll(tasks.ToArray());
+                Task.WaitAll(tasks.ToArray());
+                foreach (var x in diffProcesses)
+                    x.WaitForExit();
+                foreach (var x in tempFiles)
+                    System.IO.File.Delete(x);
+            }
             return true;
         }
 
@@ -230,7 +291,9 @@ namespace Versionr.Commands
             Region openRegion = null;
             Region last = null;
             // cleanup step
-
+            bool doCleanup = true;
+            if (!doCleanup)
+                goto Display;
             for (int i = 1; i < diff.Count - 1; i++)
             {
                 if (diff[i - 1].common == null || diff[i - 1].common.Count == 0)
@@ -298,23 +361,34 @@ namespace Versionr.Commands
                         break;
                     }
                 }
-                if (isShort)
+                if (diff[i + 1].common.Count == 1 || (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}")))
                 {
-                    if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
+                    if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
                         isBrace = true;
                 }
-                if ((isWhitespace || isBrace) && isShort)
+                if ((isWhitespace && isShort) || isShort || isBrace)
                 {
                     var next = diff[i + 1];
-                    diff.RemoveAt(i + 1);
-                    foreach (var x in next.common)
+                    if (isBrace && next.common.Count > 1)
                     {
-                        diff[i].file1.Add(x);
-                        diff[i].file2.Add(x);
+                        // currently disabled
+                        diff[i].file1.Add(next.common[0]);
+                        diff[i].file2.Add(next.common[0]);
+                        next.common.RemoveAt(0);
                     }
-                    i--;
+                    else
+                    {
+                        diff.RemoveAt(i + 1);
+                        foreach (var x in next.common)
+                        {
+                            diff[i].file1.Add(x);
+                            diff[i].file2.Add(x);
+                        }
+                        i--;
+                    }
                 }
             }
+        Display:
             for (int i = 0; i < diff.Count; i++)
             {
                 if (regions.Count > 0)
@@ -353,12 +427,16 @@ namespace Versionr.Commands
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
-                    regions.Add(openRegion);
+                    if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                        regions.Add(openRegion);
                     openRegion = null;
                 }
             }
             if (openRegion != null && openRegion != last)
-                regions.Add(openRegion);
+            {
+                if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                    regions.Add(openRegion);
+            }
             int activeRegion = 0;
             while (activeRegion < regions.Count)
             {

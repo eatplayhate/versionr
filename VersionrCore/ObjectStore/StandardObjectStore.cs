@@ -157,21 +157,25 @@ namespace Versionr.ObjectStore
         private void InitializeDBTypes()
         {
             CompressionMode cmode = CompressionMode.LZHAM;
-            if (!string.IsNullOrEmpty(Owner.Directives?.DefaultCompression))
+            if (Owner.Directives != null && !string.IsNullOrEmpty(Owner.Directives.DefaultCompression))
             {
                 if (!Enum.TryParse<CompressionMode>(Owner.Directives.DefaultCompression, out cmode))
                     cmode = CompressionMode.LZHAM;
             }
             DefaultCompression = cmode;
 
+            ObjectDatabase.BeginTransaction();
             ObjectDatabase.EnableWAL = true;
             ObjectDatabase.CreateTable<FileObjectStoreData>();
             ObjectDatabase.CreateTable<PackfileObject>();
             ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
+            ObjectDatabase.Commit();
 
+            BlobDatabase.BeginTransaction();
             BlobDatabase.EnableWAL = true;
             BlobDatabase.CreateTable<Blobject>();
             BlobDatabase.CreateTable<Blobsize>();
+            BlobDatabase.Commit();
 
             TempFiles = new HashSet<string>();
             TempFolder.Create();
@@ -506,7 +510,8 @@ namespace Versionr.ObjectStore
                 {
                     lock (this)
                     {
-                        if (HasDataDirect(directName))
+                        List<string> ignored;
+                        if (HasDataDirect(directName, out ignored))
                             throw new Exception();
                         do
                         {
@@ -660,23 +665,42 @@ namespace Versionr.ObjectStore
             return new StandardObjectStoreTransaction();
         }
 
-        public override bool HasData(Record recordInfo)
+        public override bool HasData(Record recordInfo, out List<string> requestedData)
         {
+            requestedData = null;
             if (!recordInfo.HasData)
                 return true;
-            return HasDataDirect(GetLookup(recordInfo));
+            return HasDataDirect(GetLookup(recordInfo), out requestedData);
         }
-        public override bool HasDataDirect(string x)
+        public override bool HasDataDirect(string x, out List<string> requestedData)
         {
+            requestedData = null;
             lock (this)
             {
                 var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
                 if (storeData == null)
+                {
+                    requestedData = new List<string>();
+                    requestedData.Add(x);
                     return false;
+                }
+                if (!string.IsNullOrEmpty(storeData.DeltaBase))
+                {
+                    if (!HasDataDirect(storeData.DeltaBase, out requestedData))
+                    {
+                        return false;
+                    }
+                }
 #if SLOW_DATA_CHECK
                 if (storeData.BlobID == null)
                     return GetFileForDataID(x).Exists;
-                return BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
+                bool present = BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
+                if (present == false)
+                {
+                    requestedData = new List<string>();
+                    requestedData.Add(x);
+                }
+                return present;
 #else
                 return true;
 #endif
@@ -842,6 +866,8 @@ namespace Versionr.ObjectStore
                 return 0;
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            if (storeData == null)
+                return -1;
             return GetTransmissionLengthInternal(storeData);
         }
 
@@ -852,18 +878,22 @@ namespace Versionr.ObjectStore
             return GetFileForDataID(storeData.Lookup).Length;
         }
 
-        public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer)
+        public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
             if (!record.HasData)
             {
                 return true;
             }
-            sender(BitConverter.GetBytes(GetTransmissionLength(record)), 8, false);
+            long dataSize = GetTransmissionLength(record);
+            if (dataSize == -1)
+                return false;
             using (System.IO.Stream dataStream = GetDataStream(record))
             {
                 if (dataStream == null)
                     return false;
-
+                if (beginTransmission != null)
+                    beginTransmission();
+                sender(BitConverter.GetBytes(dataSize), 8, false);
                 while (true)
                 {
                     var readCount = dataStream.Read(scratchBuffer, 0, scratchBuffer.Length);

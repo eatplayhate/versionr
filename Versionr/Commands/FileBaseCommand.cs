@@ -19,6 +19,10 @@ namespace Versionr.Commands
         public bool Recursive { get; set; }
         [Option('u', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
         public bool Insensitive { get; set; }
+        [Option('t', "tracked", HelpText = "Matches only files that are tracked by the vault")]
+        public bool Tracked { get; set; }
+        [Option('i', "ignored", HelpText = "Show ignored files")]
+        public bool Ignored { get; set; }
         public override string Usage
         {
             get
@@ -27,11 +31,28 @@ namespace Versionr.Commands
             }
         }
 
+        public static string[] SharedDescription
+        {
+            get
+            {
+                return new string[]
+                {
+                    "",
+                    "#b#Matching Objects in Versionr#q#",
+                    "",
+                    "Versionr uses a mixture of path, wildcard and regex based matching systems to provide arguments to commands that require files.",
+                    "",
+                    "By default, Versionr uses partial matching of names as its primary mechanism. "
+                };
+            }
+        }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Objects { get; set; }
     }
     abstract class FileBaseCommand : BaseWorkspaceCommand
     {
+        bool RemovedOnlyTarget;
         protected override bool RunInternal(object options)
         {
             FileBaseCommandVerbOptions localOptions = options as FileBaseCommandVerbOptions;
@@ -39,6 +60,24 @@ namespace Versionr.Commands
 
 			FilterOptions = localOptions;
 			Start();
+
+            if (FilterOptions.Objects != null && FilterOptions.Objects.Count == 1)
+            {
+                try
+                {
+                    System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(FilterOptions.Objects[0]);
+                    if (info.Exists)
+					{
+						ActiveDirectory = info;
+						FilterOptions.Objects.RemoveAt(0);
+						RemovedOnlyTarget = true;
+					}
+				}
+                catch
+                {
+
+                }
+            }
 
             Versionr.Status status = null;
             List<Versionr.Status.StatusEntry> targets = null;
@@ -51,7 +90,7 @@ namespace Versionr.Commands
                 if (localOptions.Recursive)
                     status.AddRecursiveElements(targets);
 
-                ApplyFilters(status, localOptions, targets);
+                ApplyFilters(status, localOptions, ref targets);
             }
 
             if ((targets != null && targets.Count > 0) || !RequiresTargets)
@@ -70,15 +109,19 @@ namespace Versionr.Commands
             return (localOptions.Objects != null && localOptions.Objects.Count > 0) || OnNoTargetsAssumeAll;
         }
 
-        protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, List<Versionr.Status.StatusEntry> targets)
+        protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
         {
+            if (!localOptions.Ignored)
+                targets = targets.Where(x => x.Code != StatusCode.Masked || x.Staged == true).ToList();
+            if (localOptions.Tracked)
+                targets = targets.Where(x => x.Staged == true || (x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed)).ToList();
         }
 
         protected virtual bool OnNoTargetsAssumeAll
         {
             get
             {
-                return false;
+                return RemovedOnlyTarget;
             }
         }
 
@@ -92,7 +135,7 @@ namespace Versionr.Commands
 
         protected abstract bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options);
 
-        protected virtual bool RequiresTargets { get { return OnNoTargetsAssumeAll; } }
+        protected virtual bool RequiresTargets { get { return !OnNoTargetsAssumeAll; } }
 
 		protected FileBaseCommandVerbOptions FilterOptions { get; set; }
 

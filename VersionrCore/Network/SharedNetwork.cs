@@ -382,9 +382,13 @@ namespace Versionr.Network
                         {
                             var record = sharedInfo.Workspace.GetRecord(x);
                             Printer.PrintDiagnostics("Sending data for: {0}", record.CanonicalName);
-                            sender(BitConverter.GetBytes(x), 8, false);
-                            if (!sharedInfo.Workspace.TransmitRecordData(record, sender, tempBuffer))
-                                return false;
+                            if (!sharedInfo.Workspace.TransmitRecordData(record, sender, tempBuffer, () =>
+                            {
+                                sender(BitConverter.GetBytes(x), 8, false);
+                            }))
+                            {
+                                sender(BitConverter.GetBytes(-x), 8, false);
+                            }
                             if (printer != null)
                                 printer.Update(processed++);
                         }
@@ -668,12 +672,15 @@ namespace Versionr.Network
                             if (printer != null)
                                 printer.Update(status);
                             status.Processed++;
-                            receiverStream.Read(blob, 8, 8);
                             recordIndex = BitConverter.ToInt64(blob, 0);
+                            if (recordIndex < 0)
+                            {
+                                continue;
+                            }
+                            receiverStream.Read(blob, 8, 8);
                             recordSize = BitConverter.ToInt64(blob, 8);
                             Printer.PrintDiagnostics("Unpacking remote record {0}, payload size: {1}", recordIndex, recordSize);
                             var rec = sharedInfo.RemoteRecordMap[recordIndex];
-
                             string dependencies = null;
                             sharedInfo.Workspace.ImportRecordData(transaction, rec.DataIdentifier, new Versionr.Utilities.RestrictedStream(receiverStream, recordSize), out dependencies);
                             if (dependencies != null)
@@ -892,12 +899,17 @@ namespace Versionr.Network
                 }
                 else
                 {
-                    int success = 1;
-                    sender(BitConverter.GetBytes(success), 4, false);
                     Printer.PrintDiagnostics("Sending data for: {0}", record.Fingerprint);
 
-                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender, blockBuffer))
-                        return false;
+                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender, blockBuffer, () =>
+                    {
+                        int success = 1;
+                        sender(BitConverter.GetBytes(success), 4, false);
+                    }))
+                    {
+                        int failure = 0;
+                        sender(BitConverter.GetBytes(failure), 4, false);
+                    }
                 }
             }
             if (!sender(new byte[0], 0, true))

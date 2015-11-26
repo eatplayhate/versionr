@@ -311,8 +311,8 @@ namespace Versionr
                 {
                     Rollback();
                 }
+                PrepareTables();
             }
-            PrepareTables();
         }
 
         private void PrepareTables()
@@ -362,7 +362,7 @@ namespace Versionr
         {
             get
             {
-                return GetRecords(Version);
+                return GetCachedRecords(Version);
             }
         }
         public List<Record> GetRecords(Objects.Version version)
@@ -370,6 +370,16 @@ namespace Versionr
             List<Record> baseList;
             List<Alteration> alterations;
             return GetRecords(version, out baseList, out alterations);
+        }
+
+        public List<Record> GetCachedRecords(Objects.Version version)
+        {
+            List<Record> results;
+            if (LocalDatabase.GetCachedRecords(version.ID, out results))
+                return results;
+            results = GetRecords(version);
+            LocalDatabase.CacheRecords(version.ID, results);
+            return results;
         }
 
         public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations)
@@ -530,7 +540,7 @@ namespace Versionr
             }
 #endif
 
-                List<long> pending = new List<long>();
+            List<long> pending = new List<long>();
 
             CacheRecords(alterations.Select(x => x.NewRecord).Where(x => x.HasValue).Select(x => x.Value));
             foreach (var x in alterations.Select(x => x).Reverse())

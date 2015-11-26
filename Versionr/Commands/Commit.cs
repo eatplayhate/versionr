@@ -26,8 +26,8 @@ namespace Versionr.Commands
                     "",
                     "The `#b#--message#q#` option specifies the message that is associated with the new version. A message is required.",
                     "",
-                    "The commit command also allows recording additional objects for inclusion in the new version, and has the same options and behaviour as the #b#record#q# command.",
-                };
+                    "The commit command also allows recording additional objects for inclusion in the new version, the rules for specifying these options are below.",
+                }.Concat(FileCommandVerbOptions.SharedDescription).ToArray();
             }
         }
         public override string Usage

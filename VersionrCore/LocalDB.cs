@@ -1,19 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.LocalState;
+using Versionr.Objects;
 using Versionr.Utilities;
 
 namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 7;
+        public const int LocalDBVersion = 10;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
+            if ((flags & SQLite.SQLiteOpenFlags.Create) != 0)
+            {
+                PrepareTables();
+            }
+        }
+
+        private void PrepareTables()
+        {
+            BeginTransaction();
             EnableWAL = true;
             CreateTable<LocalState.Workspace>();
             CreateTable<LocalState.Configuration>();
@@ -21,6 +32,8 @@ namespace Versionr
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
             CreateTable<LocalState.LockingObject>();
+            CreateTable<LocalState.CachedRecords>();
+            Commit();
         }
 
         public DateTime WorkspaceReferenceTime
@@ -145,6 +158,7 @@ namespace Versionr
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
                 return true;
+            PrepareTables();
             if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;
@@ -235,21 +249,12 @@ namespace Versionr
                 {
                     BeginTransaction();
 
-                    DropTable<LocalState.FileTimestamp>();
-                    CreateTable<LocalState.FileTimestamp>();
-                    Commit();
-                    BeginTransaction();
-                    //var oldList = LoadFileTimes();
+                    DeleteAll<LocalState.FileTimestamp>();
                     foreach (var x in filetimes)
                     {
                         LocalState.FileTimestamp fst = new FileTimestamp() { DataIdentifier = x.Value.DataIdentifier, CanonicalName = x.Key, LastSeenTime = x.Value.LastSeenTime };
                         Insert(fst);
                     }
-                    //foreach (var x in oldList)
-                    //{
-                    //    if (!filetimes.ContainsKey(x.Key))
-                    //        Delete<LocalState.FileTimestamp>(x.Value.Id);
-                    //}
 
                     Commit();
                     var oldList = LoadFileTimes();
@@ -391,6 +396,87 @@ namespace Versionr
             {
                 return false;
             }
+        }
+
+        const int CachedRecordVersion = 2;
+
+        internal bool GetCachedRecords(Guid iD, out List<Record> results)
+        {
+            var rec = Find<CachedRecords>(iD);
+            if (rec != null && rec.Version == CachedRecordVersion)
+                return DeserializeCachedRecords(rec.Data, out results);
+            results = null;
+            return false;
+        }
+
+        private bool DeserializeCachedRecords(byte[] data, out List<Record> results)
+        {
+            using (System.IO.MemoryStream ms = new System.IO.MemoryStream(data))
+            using (System.IO.BinaryReader br = new System.IO.BinaryReader(ms))
+            {
+                int count = br.ReadInt32();
+                results = new List<Record>(count);
+                for (int i = 0; i < count; i++)
+                    results.Add(DeserializeRecord(br));
+            }
+            return true;
+        }
+
+        private byte[] SerializeCachedRecords(List<Record> results)
+        {
+            System.IO.MemoryStream ms = new System.IO.MemoryStream();
+            using (System.IO.BinaryWriter bw = new System.IO.BinaryWriter(ms))
+            {
+                bw.Write(results.Count);
+                foreach (var x in results)
+                {
+                    SerializeRecord(x, bw);
+                }
+            }
+            return ms.ToArray();
+        }
+
+        private Record DeserializeRecord(BinaryReader br)
+        {
+            Record rec = new Record();
+            rec.Id = br.ReadInt64();
+            long parent = br.ReadInt64();
+            if (parent != -1)
+                rec.Parent = parent;
+            rec.Size = br.ReadInt64();
+            rec.Attributes = (Attributes)br.ReadUInt32();
+            rec.Fingerprint = br.ReadString();
+            rec.CanonicalNameId = br.ReadInt64();
+            rec.ModificationTime = new DateTime(br.ReadInt64());
+            rec.CanonicalName = br.ReadString();
+            return rec;
+        }
+
+        private void SerializeRecord(Record x, BinaryWriter bw)
+        {
+            bw.Write(x.Id);
+            bw.Write(x.Parent.HasValue ? x.Parent.Value : -1L);
+            bw.Write(x.Size);
+            bw.Write((uint)x.Attributes);
+            bw.Write(x.Fingerprint);
+            bw.Write(x.CanonicalNameId);
+            bw.Write(x.ModificationTime.Ticks);
+            bw.Write(x.CanonicalName);
+        }
+
+        internal void CacheRecords(Guid iD, List<Record> results)
+        {
+            BeginTransaction();
+            DeleteAll<CachedRecords>();
+            CachedRecords cr = new CachedRecords()
+            {
+                AssociatedVersion = iD,
+                Data = SerializeCachedRecords(results),
+                Version = CachedRecordVersion
+            };
+            InsertOrReplace(cr);
+            
+            Commit();
         }
     }
 }

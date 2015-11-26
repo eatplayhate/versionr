@@ -29,6 +29,8 @@ namespace Versionr.Commands
                     "",
                     "This command will also initialize the object storage mechanism that the repository will subsequently use. Once initialized, this cannot be changed without cloning or creating a new vault.",
                     "",
+                    "Unless the #b#--novrmeta#q# option is used, a default #b#.vrmeta#q# file wil be generated and configured to ignore SVN, Git and Hg repositories.",
+                    "",
                     "This operation will fail if the current directory is already part of a Versionr repository tree."
                 };
             }
@@ -42,8 +44,14 @@ namespace Versionr.Commands
             }
         }
 
-        [CommandLine.ValueOption(0)]
+        [CommandLine.Option('b', "branch", HelpText = "Name of the initial branch")]
         public string BranchName { get; set; }
+
+        [CommandLine.ValueOption(0)]
+        public string Directory { get; set; }
+
+        [CommandLine.Option("novrmeta", HelpText = "Disables generation of the default .vrmeta file.")]
+        public bool NoVRMeta { get; set; }
     }
     class Init : BaseCommand
     {
@@ -54,9 +62,56 @@ namespace Versionr.Commands
             Printer.Quiet = localOptions.Quiet;
             if (string.IsNullOrEmpty(localOptions.BranchName))
                 localOptions.BranchName = "master";
+            if (!string.IsNullOrEmpty(localOptions.Directory))
+            {
+                try
+                {
+                    System.IO.DirectoryInfo info = new System.IO.DirectoryInfo(localOptions.Directory);
+                    info.Create();
+                    workingDirectory = info;
+                }
+                catch
+                {
+                    Printer.PrintError("#x#Error:##\n  Couldn't create directory '{0}'", localOptions.Directory);
+                    return false;
+                }
+            }
             Area ws = Area.Init(workingDirectory, localOptions.BranchName);
             if (ws == null)
                 return false;
+
+            if (!localOptions.NoVRMeta)
+            {
+                var fileInfo = new System.IO.FileInfo(System.IO.Path.Combine(workingDirectory.FullName, ".vrmeta"));
+                if (fileInfo.Exists)
+                    Printer.WriteLineMessage("#w#Skipped generation of .vrmeta file due to one already existing.##");
+                else
+                {
+                    Printer.WriteLineMessage("Generating default .vrmeta file.");
+                    using (var sw = fileInfo.CreateText())
+                    {
+                        sw.Write(@"
+{
+    ""Versionr"" :
+    {
+        ""Ignore"" :
+        {
+            ""Extensions"" :
+            [
+                "".vruser""
+            ],
+            ""Patterns"" :
+            [
+                ""\\.svn/"",
+                ""\\.git/"",
+                ""\\.hg/""
+            ]
+        }
+    }
+}");
+                    }
+                }
+            }
 
             Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})\n", ws.Version.ID, ws.CurrentBranch.Name, ws.Version.Revision);
 

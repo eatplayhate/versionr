@@ -35,7 +35,9 @@ namespace Versionr.Commands
                     "This command does not do anything for objects that are unchanged.",
                     "",
                     "The `#b#record#q#` command will respect patterns in the #b#.vrmeta#q# directive file.",
-                };
+                    "",
+                    "Full rules for selecting files are below:",
+                }.Concat(FileCommandVerbOptions.SharedDescription).ToArray();
             }
         }
 
@@ -68,12 +70,16 @@ namespace Versionr.Commands
 
         protected void RecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code, bool auto)
         {
+            string name = Workspace.GetLocalCanonicalName(entry.CanonicalName);
+            int index = name.LastIndexOf('/');
+            if (index != name.Length - 1)
+                name = name.Insert(index + 1, "#b#");
             var previous = Status.GetStatusText(entry);
             var now = Status.GetStatusText(code, true);
-            string output = "(#" + now.Item1 + "#" + now.Item2 + "##)#b# ";
+            string output = "#" + now.Item1 + "#(" + now.Item2 + ")## ";
             while (output.Length < 20)
                 output = " " + output;
-            Printer.PrintMessage(output + " " + Workspace.GetLocalCanonicalName(entry.CanonicalName) + (auto ? " #q#(auto)##" : ""));
+            Printer.PrintMessage(output + " " + name + "##" + (auto ? " #q#(auto)##" : ""));
         }
 	}
 }

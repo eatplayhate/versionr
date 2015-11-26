@@ -26,6 +26,10 @@ namespace Versionr
                     return m_Hash;
                 }
             }
+            set
+            {
+                m_Hash = value;
+            }
         }
         public long Length { get; set; }
         public DateTime ModificationTime { get; set; }
@@ -61,7 +65,7 @@ namespace Versionr
 		{
             Parent = parent;
             Area = area;
-            CanonicalName = area.PartialPath + canonicalName;
+            CanonicalName = canonicalName;
             DirectoryInfo = info;
             ModificationTime = DirectoryInfo.LastWriteTimeUtc;
 			Ignored = ignored;
@@ -88,7 +92,7 @@ namespace Versionr
         {
             Parent = parent;
             Area = area;
-            CanonicalName = canonicalName == ".vrmeta" ? canonicalName : area.PartialPath + canonicalName;
+            CanonicalName = info.Name == ".vrmeta" ? info.Name : canonicalName;
             Info = info;
 			Ignored = ignored;
             GetInfo();
@@ -121,7 +125,7 @@ namespace Versionr
             Length = Info.Length;
             ModificationTime = Info.LastWriteTimeUtc;
 
-			if (Utilities.Symlink.Exists(Info))
+			if (Utilities.Symlink.Exists(Info, CanonicalName))
 			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
 				Length = 0;
@@ -148,11 +152,41 @@ namespace Versionr
             }
         }
     }
+    public static class FileSystemInfoExt
+    {
+        public static String GetFullNameWithCorrectCase(this FileSystemInfo fileOrFolder)
+        {
+            //Check whether null to simulate instance method behavior
+            if (Object.ReferenceEquals(fileOrFolder, null)) throw new NullReferenceException();
+            //Initialize common variables
+            String myResult = GetCorrectCaseOfParentFolder(fileOrFolder.FullName);
+            return myResult;
+        }
+
+        private static String GetCorrectCaseOfParentFolder(String fileOrFolder)
+        {
+            String myParentFolder = Path.GetDirectoryName(fileOrFolder);
+            String myChildName = Path.GetFileName(fileOrFolder);
+            if (Object.ReferenceEquals(myParentFolder, null)) return fileOrFolder.TrimEnd(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar });
+            if (Directory.Exists(myParentFolder))
+            {
+                //myParentFolder = GetLongPathName.Invoke(myFullName);
+                String myFileOrFolder = Directory.GetFileSystemEntries(myParentFolder, myChildName).FirstOrDefault();
+                if (!Object.ReferenceEquals(myFileOrFolder, null))
+                {
+                    myChildName = Path.GetFileName(myFileOrFolder);
+                }
+            }
+            return GetCorrectCaseOfParentFolder(myParentFolder) + Path.DirectorySeparatorChar + myChildName;
+        }
+
+    }
     public class FileStatus
     {
         public List<Entry> Entries { get; set; }
         public FileStatus(Area root, DirectoryInfo rootFolder)
         {
+            rootFolder = new DirectoryInfo(rootFolder.GetFullNameWithCorrectCase());
             Entries = GetEntryList(root, rootFolder, root.AdministrationFolder);
             int files = Entries.Where(x => !x.IsDirectory).Count();
             Printer.PrintDiagnostics("Current working directory has {0} file{1} in {2} director{3}.", files, files == 1 ? "" : "s", Entries.Count - files, (Entries.Count - files) == 1 ? "y" : "ies");
@@ -167,38 +201,38 @@ namespace Versionr
         private static List<Entry> PopulateList(Area area, Entry parentEntry, DirectoryInfo info, string subdirectory, DirectoryInfo adminFolder, bool ignoreDirectory)
         {
             List<Entry> result = new List<Entry>();
+            if (area.InExtern(info))
+                return result;
             string slashedSubdirectory = subdirectory;
             if (subdirectory != string.Empty)
             {
                 if (slashedSubdirectory[slashedSubdirectory.Length - 1] != '/')
                     slashedSubdirectory += '/';
-                if (area?.Directives?.Include?.RegexPatterns != null)
+                if (area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexDirectoryPatterns != null)
                 {
                     ignoreDirectory = true;
-                    foreach (var y in area.Directives.Include.RegexPatterns)
+                    foreach (var y in area.Directives.Include.RegexDirectoryPatterns)
                     {
-                        var match = y.Match(slashedSubdirectory);
-                        if (match.Success)
+                        if (y.IsMatch(slashedSubdirectory))
                         {
                             ignoreDirectory = false;
                             break;
                         }
                     }
                 }
-                if (area?.Directives?.Ignore?.RegexPatterns != null)
+                if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexDirectoryPatterns != null)
 				{
-					foreach (var y in area.Directives.Ignore.RegexPatterns)
+                    foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
 					{
-                        var match = y.Match(slashedSubdirectory);
-                        if (match.Success)
+                        if (y.IsMatch(slashedSubdirectory))
 						{
 							ignoreDirectory = true;
 							break;
 						}
 					}
 				}
-
-                if (area?.Directives?.Externals != null)
+                
+                if (area != null && area.Directives != null && area.Directives.Externals != null)
                 {
                     foreach (var x in area.Directives.Externals)
                     {
@@ -228,20 +262,19 @@ namespace Versionr
                     continue;
                 string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
 				bool ignored = ignoreDirectory;
-                if (!ignored && area?.Directives?.Include?.RegexPatterns != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexFilePatterns != null)
                 {
                     ignored = true;
-                    foreach (var y in area.Directives.Include.RegexPatterns)
+                    foreach (var y in area.Directives.Include.RegexFilePatterns)
                     {
-                        var match = y.Match(name);
-                        if (match.Success)
+                        if (y.IsMatch(name))
                         {
                             ignored = false;
                             break;
                         }
                     }
                 }
-                if (!ignored && area?.Directives?.Include?.Extensions != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.Extensions != null)
                 {
                     ignored = true;
                     foreach (var y in area.Directives.Include.Extensions)
@@ -253,7 +286,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!ignored && area?.Directives?.Ignore?.Extensions != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.Extensions != null)
                 {
                     foreach (var y in area.Directives.Ignore.Extensions)
                     {
@@ -264,12 +297,11 @@ namespace Versionr
                         }
                     }
                 }
-                if (!ignored && area?.Directives?.Ignore?.RegexPatterns != null)
+                if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexFilePatterns != null)
                 {
-                    foreach (var y in area.Directives.Ignore.RegexPatterns)
+                    foreach (var y in area.Directives.Ignore.RegexFilePatterns)
                     {
-                        var match = y.Match(name);
-                        if (match.Success)
+                        if (y.IsMatch(name))
                         {
 							ignored = true;
                             break;

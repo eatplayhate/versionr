@@ -46,6 +46,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -58,6 +59,7 @@
     <Compile Include="Directives.cs" />
     <Compile Include="FileStatus.cs" />
     <Compile Include="LocalDB.cs" />
+    <Compile Include="LocalState\CachedRecords.cs" />
     <Compile Include="LocalState\Configuration.cs" />
     <Compile Include="LocalState\FileTimestamp.cs" />
     <Compile Include="LocalState\LockingObject.cs" />
@@ -78,6 +80,8 @@
     <Compile Include="Network\StartClientTransaction.cs" />
     <Compile Include="Network\StartTransaction.cs" />
     <Compile Include="Network\Utilities.cs" />
+    <Compile Include="Network\WebConfig.cs" />
+    <Compile Include="Network\WebService.cs" />
     <Compile Include="ObjectStore\ChunkedChecksum.cs" />
     <Compile Include="ObjectStore\ChunkedCompressionStreamWriter.cs" />
     <Compile Include="ObjectStore\ChunkedDecompressionStream.cs" />

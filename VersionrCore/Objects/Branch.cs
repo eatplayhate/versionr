@@ -29,5 +29,15 @@ namespace Versionr.Objects
             b.Name = name;
             return b;
         }
+
+        [SQLite.Ignore]
+        [ProtoBuf.ProtoIgnore]
+        public string ShortID
+        {
+            get
+            {
+                return ID.ToString().Substring(0, 8);
+            }
+        }
     }
 }

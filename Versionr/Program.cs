@@ -50,7 +50,10 @@ namespace Versionr
         
 		[VerbOption("log", HelpText = "Prints a log of versions.")]
 		public Commands.LogVerbOptions LogVerb { get; set; }
-        
+
+		[VerbOption("lg", HelpText = "Prints a log of versions.")]
+		public Commands.LogVerbOptions LgVerb { get; set; }
+
 		[VerbOption("viewdag", HelpText = "Outputs a directed acyclic graph of version metadata.")]
 		public Commands.ViewDAGVerbOptions ViewDAGVerb { get; set; }
 
@@ -82,7 +85,9 @@ namespace Versionr
 		[VerbOption("deletebranch", HelpText = "Deletes a branch in the vault.")]
 		public Commands.DeleteBranchVerbOptions DeleteBranchVerb { get; set; }
 		[VerbOption("stats", HelpText = "Displays statistics.")]
-		public Commands.StatsVerbOptions StatsVerb { get; set; }
+        public Commands.StatsVerbOptions StatsVerb { get; set; }
+        [VerbOption("expunge", HelpText = "Deletes a version from the vault and rolls back history.")]
+        public Commands.ExpungeVerbOptions ExpungeVerb { get; set; }
 
 		[HelpOption]
         public string GetUsage()
@@ -143,6 +148,8 @@ namespace Versionr
 				return RemoteVerb.GetUsage();
 			else if (verb == "log")
 				return LogVerb.GetUsage();
+			else if (verb == "lg")
+				return LogVerb.GetUsage();
 			else if (verb == "behead")
 				return BeheadVerb.GetUsage();
 			else if (verb == "viewdag")
@@ -169,6 +176,8 @@ namespace Versionr
                 return DeleteBranchVerb.GetUsage();
             else if (verb == "stats")
                 return StatsVerb.GetUsage();
+            else if (verb == "expunge")
+                return ExpungeVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -184,17 +193,6 @@ namespace Versionr
         static void Main(string[] args)
         {
             string workingDirectoryPath = Environment.CurrentDirectory;
-
-            if (args.Length > 0)
-            {
-                if (args[0] == "hax")
-                {
-                    Area ws = Area.Load(new System.IO.DirectoryInfo(workingDirectoryPath));
-                    ws.SetPartialPath(args.Length > 1 ? args[1] : string.Empty);
-                    return;
-                }
-            }
-
             var printerStream = new Printer.PrinterStream();
             VersionOptions initalOpts = new VersionOptions();
             CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
@@ -208,6 +206,7 @@ namespace Versionr
                 foreach (var x in Area.ComponentVersions)
                     Printer.WriteLineMessage("{0}: #b#{1}", x.Item1, x.Item2);
                 Printer.PopIndent();
+                Printer.RestoreDefaults();
                 return;
             }
 
@@ -222,6 +221,7 @@ namespace Versionr
                   }))
             {
                 printerStream.Flush();
+                Printer.RestoreDefaults();
                 Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
             }
 
@@ -236,7 +236,8 @@ namespace Versionr
             commands["push"] = new Commands.Push();
             commands["merge"] = new Commands.Merge();
 			commands["log"] = new Commands.Log();
-            commands["remote"] = new Commands.Remote();
+			commands["lg"] = new Commands.Log(true);
+			commands["remote"] = new Commands.Remote();
             commands["behead"] = new Commands.Behead();
             commands["viewdag"] = new Commands.ViewDAG();
             commands["clone"] = new Commands.Clone();
@@ -250,8 +251,12 @@ namespace Versionr
             commands["listbranch"] = new Commands.ListBranch();
             commands["deletebranch"] = new Commands.DeleteBranch();
             commands["stats"] = new Commands.Stats();
+            commands["expunge"] = new Commands.Expunge();
 
+            Console.CancelKeyPress += Console_CancelKeyPress;
+            
             Commands.BaseCommand command = null;
+            Console.CancelKeyPress += Console_CancelKeyPress;
             if (!commands.TryGetValue(invokedVerb, out command))
             {
                 command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
@@ -259,26 +264,39 @@ namespace Versionr
                 {
                     printerStream.Flush();
                     System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
+                    Printer.RestoreDefaults();
                     Environment.Exit(10);
                 }
             }
             try
             {
+                VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
+                if (baseOptions != null)
+                    Printer.NoColours = baseOptions.NoColours;
                 if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
                 {
+                    Printer.RestoreDefaults();
                     printerStream.Flush();
                     Environment.Exit(2);
                 }
+                Printer.RestoreDefaults();
                 return;
             }
             catch (Exception e)
             {
                 printerStream.Flush();
                 System.Console.WriteLine("Error processing action:\n{0}", e.ToString());
+                Printer.RestoreDefaults();
                 Environment.Exit(20);
             }
+            Printer.RestoreDefaults();
 
             return;
+        }
+
+        private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            Printer.RestoreDefaults();
         }
     }
 }
