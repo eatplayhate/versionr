@@ -28,6 +28,9 @@ namespace Versionr.Commands
             }
         }
 
+        [Option('d', "deleted", DefaultValue = false, HelpText = "Show deleted branch relationships")]
+        public bool Deleted { get; set; }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
     }
@@ -54,8 +57,9 @@ namespace Versionr.Commands
                         directMerges.Add(b.ID);
                         Printer.PrintMessage(" - Merged into #b#{0}## on branch #b#\"{1}\"## ({2})", m.ShortName, b.Name, b.ShortID);
                     }
+                    string deleteMarker = " #e#[deleted]##";
                     Printer.PrintMessage("Branch relationships:");
-                    foreach (var b in ws.GetBranches(false))
+                    foreach (var b in ws.GetBranches(localOptions.Deleted))
                     {
                         string result = "#w#unrelated";
                         int relationshipCode = 0;
@@ -83,7 +87,7 @@ namespace Versionr.Commands
                                 result = "#c#an indirect ancestor";
                             }
                         }
-                        Printer.PrintMessage(" - #b#{0}## ({1}): version is {2}##.", b.Name, b.ShortID, result);
+                        Printer.PrintMessage(" - #b#{0}## ({1}){3}: version is {2}##.", b.Name, b.ShortID, result, b.Terminus.HasValue ? deleteMarker : string.Empty);
                     }
                 }
                 else
