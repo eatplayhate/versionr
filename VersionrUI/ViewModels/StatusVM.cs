@@ -14,6 +14,8 @@ namespace VersionrUI.ViewModels
         private Status _status;
         private AreaVM _areaVM;
         private ObservableCollection<StatusEntryVM> _elements;
+        private bool _pushOnCommit;
+        private string _commitMessage;
 
         public StatusVM(Status status, AreaVM areaVM)
         {
@@ -28,9 +30,31 @@ namespace VersionrUI.ViewModels
 
         public Status Status { get { return _status; } }
 
-        public bool PushOnCommit { get; set; }
+        public bool PushOnCommit
+        {
+            get { return _pushOnCommit; }
+            set
+            {
+                if (_pushOnCommit != value)
+                {
+                    _pushOnCommit = value;
+                    NotifyPropertyChanged("PushOnCommit");
+                }
+            }
+        }
 
-        public string CommitMessage { get; set; }
+        public string CommitMessage
+        {
+            get { return _commitMessage; }
+            set
+            {
+                if (_commitMessage != value)
+                {
+                    _commitMessage = value;
+                    NotifyPropertyChanged("CommitMessage");
+                }
+            }
+        }
 
         public void RefreshElements()
         {
@@ -69,8 +93,7 @@ namespace VersionrUI.ViewModels
 
             if (PushOnCommit)
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
-
-
+            
             RefreshElements();
         }
     }
