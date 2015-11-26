@@ -27,7 +27,7 @@ namespace VersionrUI.ViewModels
             int limit = 50; // TODO: setting?
             foreach (var version in _area.GetHistory(headVersion, limit))
             {
-                _history.Add(VersionrVMFactory.GetVersionVM(version));
+                _history.Add(VersionrVMFactory.GetVersionVM(version, _area));
             }
         }
 

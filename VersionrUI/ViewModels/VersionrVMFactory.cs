@@ -30,7 +30,7 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public BranchVM GetBranchVM(Versionr.Area area, Versionr.Objects.Branch branch)
+        static public BranchVM GetBranchVM(Area area, Versionr.Objects.Branch branch)
         {
             BranchVM result = null;
             var key = branch.ID;
@@ -42,19 +42,19 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public VersionVM GetVersionVM(Versionr.Objects.Version version)
+        static public VersionVM GetVersionVM(Versionr.Objects.Version version, Area area)
         {
             VersionVM result = null;
             var key = version.ID;
             if (!_versionVMDictionary.TryGetValue(key, out result))
             {
-                result = new VersionVM(version);
+                result = new VersionVM(version, area);
                 _versionVMDictionary.Add(key, result);
             }
             return result;
         }
 
-        static public StatusVM GetStatusVM(Versionr.Status status, Area area)
+        static public StatusVM GetStatusVM(Status status, Area area)
         {
             StatusVM result = null;
             var key = status.CurrentVersion.ID;
@@ -66,7 +66,7 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public StatusEntryVM GetStatusEntryVM(Versionr.Status.StatusEntry statusEntry, Area area)
+        static public StatusEntryVM GetStatusEntryVM(Status.StatusEntry statusEntry, Area area)
         {
             StatusEntryVM result = null;
             var key = statusEntry.Hash;

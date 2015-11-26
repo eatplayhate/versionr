@@ -18,28 +18,26 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0"
-                            Orientation="Vertical">
-                    <TextBlock Text="Branches" />
-                    <TreeView Name="treeView" ItemsSource="{Binding Children}">
-                        <TreeView.Resources>
-                            <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
-                                <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
-                            </HierarchicalDataTemplate>
-                            <DataTemplate DataType="{x:Type vm:BranchVM}">
-                                <TextBlock Text="{Binding Name}" />
-                            </DataTemplate>
-                            <DataTemplate DataType="{x:Type vm:StatusVM}">
-                                <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
-                            </DataTemplate>
-                        </TreeView.Resources>
-                        <TreeView.ItemContainerStyle>
-                            <Style TargetType="{x:Type TreeViewItem}">
-                                <Setter Property="IsExpanded" Value="True"/>
-                            </Style>
-                        </TreeView.ItemContainerStyle>
-                    </TreeView>
-                </StackPanel>
+                <TreeView Grid.Column="0"
+                          Name="treeView"
+                          ItemsSource="{Binding Children}">
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
+                        </HierarchicalDataTemplate>
+                        <DataTemplate DataType="{x:Type vm:BranchVM}">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:StatusVM}">
+                            <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
+                        </DataTemplate>
+                    </TreeView.Resources>
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="{x:Type TreeViewItem}">
+                            <Setter Property="IsExpanded" Value="True"/>
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                </TreeView>
                 <GridSplitter Grid.Column="1"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Stretch"
@@ -83,7 +81,23 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:VersionVM}">
-            <TextBlock Text="// TODO: VersionVM DataTemplate" />
+            <ListView Grid.Row="0"
+                      Name="listView"
+                      ItemsSource="{Binding Alterations}"
+                      SelectionMode="Single">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name, Mode=OneWay}" />
+                        <GridViewColumn Header="Type" DisplayMemberBinding="{Binding AlterationType, Mode=OneWay}" />
+                    </GridView>
+                </ListView.View>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="commands:ControlDoubleClick.Command" Value="{Binding DiffCommand}" />
+                        <Setter Property="commands:ControlDoubleClick.Parameter" Value="{Binding}" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+            </ListView>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:StatusVM}">
@@ -181,11 +195,19 @@
     <Grid x:Name="mainGrid">
         <DockPanel>
             <!-- Menu bar -->
-            <StackPanel DockPanel.Dock="Top"
-                        Orientation="Horizontal">
-                <Button Margin="4" Content="Clone/New" Command="{Binding NewAreaCommand}" />
-                <Button Margin="4" Content="Refresh" Command="{Binding RefreshCommand}" />
-                <Button Width="50" Height="50"
+            <Grid DockPanel.Dock="Top">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal">
+                    <Button Margin="4" Content="Clone/New" Command="{Binding NewAreaCommand}" />
+                    <Button Margin="4" Content="Refresh" Command="{Binding RefreshCommand}" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Margin="4"
+                        Width="50" Height="50"
                         HorizontalAlignment="Right"
                         Content="CRASH"
                         Foreground="Red"
@@ -201,7 +223,7 @@
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
-            </StackPanel>
+            </Grid>
             
             <!-- Area tabs -->
             <TabControl ItemsSource="{Binding OpenAreas}"

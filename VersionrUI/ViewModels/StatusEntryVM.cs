@@ -137,7 +137,7 @@ namespace VersionrUI.ViewModels
                         {
                             try
                             {
-                                DiffTool.Diff(tmp, _statusEntry.Name + "-base", System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName), _statusEntry.Name);
+                                DiffTool.Diff(tmp, _statusEntry.Name + "-base", System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName), _statusEntry.Name, _area.Directives.ExternalDiff, false);
                             }
                             finally
                             {

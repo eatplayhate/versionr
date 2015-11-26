@@ -1,14 +1,20 @@
 ﻿using System;
+using System.Collections.Generic;
+using Versionr;
+using Versionr.Objects;
+using Version = Versionr.Objects.Version;
 
 namespace VersionrUI.ViewModels
 {
     public class VersionVM
     {
-        private Versionr.Objects.Version _version;
+        private Version _version;
+        private Area _area;
 
-        public VersionVM(Versionr.Objects.Version version)
+        public VersionVM(Version version, Area area)
         {
             _version = version;
+            _area = area;
         }
 
         public Guid ID
@@ -41,6 +47,17 @@ namespace VersionrUI.ViewModels
             get { return _version.Revision; }
         }
 
-        // TODO list of alterations
+        public List<AlterationVM> Alterations
+        {
+            get
+            {
+                List<AlterationVM> alterations = new List<AlterationVM>();
+
+                foreach (Alteration alteration in _area.GetAlterations(_version))
+                    alterations.Add(new AlterationVM(alteration, _area));
+
+                return alterations;
+            }
+        }
     }
 }
