@@ -9,7 +9,7 @@ namespace VersionrUI.ViewModels
 {
     public class StatusVM : NotifyPropertyChangedBase
     {
-        public DelegateCommand<string> CommitCommand { get; private set; }
+        public DelegateCommand CommitCommand { get; private set; }
 
         private Status _status;
         private AreaVM _areaVM;
@@ -21,7 +21,7 @@ namespace VersionrUI.ViewModels
             _areaVM = areaVM;
             _elements = new ObservableCollection<StatusEntryVM>();
 
-            CommitCommand = new DelegateCommand<string>(Commit);
+            CommitCommand = new DelegateCommand(Commit);
 
             RefreshElements();
         }
@@ -29,6 +29,8 @@ namespace VersionrUI.ViewModels
         public Status Status { get { return _status; } }
 
         public bool PushOnCommit { get; set; }
+
+        public string CommitMessage { get; set; }
 
         public void RefreshElements()
         {
@@ -54,19 +56,20 @@ namespace VersionrUI.ViewModels
             get { return _elements.Where(x => x.Code != StatusCode.Unchanged); }
         }
         
-        private void Commit(string message)
+        private void Commit()
         {
-            if (string.IsNullOrEmpty(message))
+            if (string.IsNullOrEmpty(CommitMessage))
             {
                 MessageBox.Show("Please provide a commit message", "Denied", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            if (!_areaVM.Area.Commit(message, false))
+            if (!_areaVM.Area.Commit(CommitMessage, false))
                 MessageBox.Show("Could not commit as it would create a new head.", "Commit failed", MessageBoxButton.OK, MessageBoxImage.Error);
 
             if (PushOnCommit)
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
+
 
             RefreshElements();
         }

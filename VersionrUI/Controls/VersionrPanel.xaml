@@ -142,15 +142,14 @@
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
                             <Button Margin="4"
                                     Content="Commit"
-                                    Command="{Binding CommitCommand}"
-                                    CommandParameter="{Binding Text, ElementName=textCommitMessage}" />
+                                    Command="{Binding CommitCommand}" />
                             <CheckBox Margin="4"
                                       Content="Push after commit"
                                       IsChecked="{Binding PushOnCommit}" />
                         </StackPanel>
                         <DockPanel>
                             <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
-                            <TextBox Margin="4" Name="textCommitMessage"/>
+                            <TextBox Margin="4" Text="{Binding CommitMessage}"/>
                         </DockPanel>
                     </DockPanel>
                     <GridSplitter Grid.Row="1"
