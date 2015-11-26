@@ -39,6 +39,13 @@ namespace Versionr
         public Newtonsoft.Json.Linq.JObject Configuration { get; set; }
 
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
+
+        public List<Objects.Version> GetMergeList(Guid iD)
+        {
+            List<Objects.MergeInfo> merges = Database.GetMergeInfoFromSource(iD);
+            return merges.Select(x => GetVersion(x.DestinationVersion)).ToList();
+        }
+
         public Guid Domain
         {
             get
