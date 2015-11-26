@@ -79,7 +79,7 @@ namespace VersionrUI.ViewModels
         {
             get { return _elements.Where(x => x.Code != StatusCode.Unchanged); }
         }
-        
+
         private void Commit()
         {
             if (string.IsNullOrEmpty(CommitMessage))
@@ -89,11 +89,15 @@ namespace VersionrUI.ViewModels
             }
 
             if (!_areaVM.Area.Commit(CommitMessage, false))
+            {
                 MessageBox.Show("Could not commit as it would create a new head.", "Commit failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
             if (PushOnCommit)
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
-            
+
+            CommitMessage = string.Empty;
             RefreshElements();
         }
     }
