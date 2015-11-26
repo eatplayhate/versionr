@@ -3119,13 +3119,15 @@ namespace Versionr
                     continue;
                 pruned.Add(shared[i]);
                 var parents = GetParentGraph(GetVersion(shared[i].Key));
-                for (int j = i + 1; j < shared.Count; j++)
+                for (int j = 0; j < shared.Count; j++)
                 {
+                    if (j == i)
+                        continue;
                     if (parents.ContainsKey(shared[j].Key))
                         ignored.Add(shared[j].Key);
                 }
             }
-            return pruned;
+            return pruned.Where(x => !ignored.Contains(x.Key)).ToList();
         }
 
         private Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
