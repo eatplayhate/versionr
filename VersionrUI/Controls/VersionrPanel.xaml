@@ -18,26 +18,51 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TreeView Grid.Column="0"
-                          Name="treeView"
-                          ItemsSource="{Binding Children}">
-                    <TreeView.Resources>
-                        <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
-                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
-                        </HierarchicalDataTemplate>
-                        <DataTemplate DataType="{x:Type vm:BranchVM}">
-                            <TextBlock Text="{Binding Name}" />
-                        </DataTemplate>
-                        <DataTemplate DataType="{x:Type vm:StatusVM}">
-                            <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
-                        </DataTemplate>
-                    </TreeView.Resources>
-                    <TreeView.ItemContainerStyle>
-                        <Style TargetType="{x:Type TreeViewItem}">
-                            <Setter Property="IsExpanded" Value="True"/>
-                        </Style>
-                    </TreeView.ItemContainerStyle>
-                </TreeView>
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Margin="4"
+                               Text="{Binding Directory.FullName}"
+                               FontWeight="Bold" />
+                    <ComboBox Grid.Row="1"
+                              Margin="4"
+                              ItemsSource="{Binding Remotes}"
+                              SelectedItem="{Binding SelectedRemote}"
+                              DisplayMemberPath="Name" />
+                    <StackPanel Grid.Row="2"
+                                Margin="0,4"
+                                Orientation="Horizontal">
+                        <Button Margin="4" Content="Pull" Command="{Binding PullCommand}" />
+                        <Button Margin="4" Content="Push" Command="{Binding PushCommand}" />
+                    </StackPanel>
+                    <TreeView Grid.Row="3"
+                              Margin="0,4"
+                              Name="treeView"
+                              BorderThickness="0"
+                              ItemsSource="{Binding Children}">
+                        <TreeView.Resources>
+                            <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
+                                <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
+                            </HierarchicalDataTemplate>
+                            <DataTemplate DataType="{x:Type vm:BranchVM}">
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:StatusVM}">
+                                <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
+                            </DataTemplate>
+                        </TreeView.Resources>
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="{x:Type TreeViewItem}">
+                                <Setter Property="IsExpanded" Value="True"/>
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                    </TreeView>
+                </Grid>
                 <GridSplitter Grid.Column="1"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Stretch"
@@ -109,24 +134,46 @@
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="80" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="100" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <ListView Grid.Row="0"
-                          Name="listView"
-                          ItemsSource="{Binding ModifiedElements}"
-                          SelectionMode="Single">
+                    <DockPanel Grid.Row="0">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                            <Button Margin="4"
+                                    Content="Commit"
+                                    Command="{Binding CommitCommand}"
+                                    CommandParameter="{Binding Text, ElementName=textCommitMessage}" />
+                            <CheckBox Margin="4"
+                                      Content="Push after commit"
+                                      IsChecked="{Binding PushOnCommit}" />
+                        </StackPanel>
+                        <DockPanel>
+                            <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
+                            <TextBox Margin="4" Name="textCommitMessage"/>
+                        </DockPanel>
+                    </DockPanel>
+                    <GridSplitter Grid.Row="1"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
+                                  Background="Black" 
+                                  ShowsPreview="True"
+                                  Height="5"
+                                  Margin="0,2" />
+                    <ListView Grid.Row="2"
+                              Name="listView"
+                              ItemsSource="{Binding ModifiedElements}"
+                              SelectionMode="Single">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Code" DisplayMemberBinding="{Binding Code, Mode=OneWay}" />
                                 <GridViewColumn Header="Staged">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <CheckBox IsChecked="{Binding Staged, Mode=OneWay}" IsEnabled="False" />
+                                            <CheckBox IsChecked="{Binding IsStaged}" />
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
+                                <GridViewColumn Header="Code" DisplayMemberBinding="{Binding Code, Mode=OneWay}" />
                                 <GridViewColumn Header="Name" DisplayMemberBinding="{Binding CanonicalName, Mode=OneWay}" />
                                 <GridViewColumn Header="IsDirectory">
                                     <GridViewColumn.CellTemplate>
@@ -152,25 +199,6 @@
                             </Style>
                         </ListView.ItemContainerStyle>
                     </ListView>
-                    <GridSplitter Grid.Row="1"
-                              HorizontalAlignment="Stretch"
-                              VerticalAlignment="Center"
-                              Background="Black" 
-                              ShowsPreview="True"
-                              Height="5"
-                              Margin="0,2" />
-                    <DockPanel Grid.Row="2">
-                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-                            <Button Margin="4"
-                                    Content="Commit"
-                                    Command="{Binding CommitCommand}"
-                                    CommandParameter="{Binding Text, ElementName=textCommitMessage}" />
-                        </StackPanel>
-                        <DockPanel>
-                            <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
-                            <TextBox Margin="4" Name="textCommitMessage"/>
-                        </DockPanel>
-                    </DockPanel>
                 </Grid>
                 <GridSplitter Grid.Row="1"
                               HorizontalAlignment="Stretch"

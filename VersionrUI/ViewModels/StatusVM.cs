@@ -1,10 +1,9 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using Versionr;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using VersionrUI.Commands;
+using System.Linq;
 using System.Windows;
+using Versionr;
+using VersionrUI.Commands;
 
 namespace VersionrUI.ViewModels
 {
@@ -13,29 +12,36 @@ namespace VersionrUI.ViewModels
         public DelegateCommand<string> CommitCommand { get; private set; }
 
         private Status _status;
-        private Area _area;
+        private AreaVM _areaVM;
         private ObservableCollection<StatusEntryVM> _elements;
 
-        public StatusVM(Status status, Area area)
+        public StatusVM(Status status, AreaVM areaVM)
         {
             _status = status;
-            _area = area;
+            _areaVM = areaVM;
             _elements = new ObservableCollection<StatusEntryVM>();
-            _elements.CollectionChanged += elements_CollectionChanged;
 
             CommitCommand = new DelegateCommand<string>(Commit);
 
             RefreshElements();
         }
-        
-        private void RefreshElements()
+
+        public Status Status { get { return _status; } }
+
+        public bool PushOnCommit { get; set; }
+
+        public void RefreshElements()
         {
             _elements.Clear();
 
             foreach (Status.StatusEntry statusEntry in _status.Elements)
             {
-                _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, _area));
+                if (statusEntry.Code != StatusCode.Masked && statusEntry.Code != StatusCode.Ignored)
+                    _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area));
             }
+
+            NotifyPropertyChanged("Elements");
+            NotifyPropertyChanged("ModifiedElements");
         }
 
         public ObservableCollection<StatusEntryVM> Elements
@@ -47,12 +53,7 @@ namespace VersionrUI.ViewModels
         {
             get { return _elements.Where(x => x.Code != StatusCode.Unchanged); }
         }
-
-        private void elements_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        {
-            NotifyPropertyChanged("ModifiedElements");
-        }
-
+        
         private void Commit(string message)
         {
             if (string.IsNullOrEmpty(message))
@@ -61,8 +62,13 @@ namespace VersionrUI.ViewModels
                 return;
             }
 
-            // TODO: commit staged changes
-            MessageBox.Show("// TODO: commit staged changes");
+            if (!_areaVM.Area.Commit(message, false))
+                MessageBox.Show("Could not commit as it would create a new head.", "Commit failed", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            if (PushOnCommit)
+                _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
+
+            RefreshElements();
         }
     }
 }

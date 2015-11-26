@@ -10,18 +10,20 @@ using VersionrUI.Commands;
 
 namespace VersionrUI.ViewModels
 {
-    public class StatusEntryVM
+    public class StatusEntryVM : NotifyPropertyChangedBase
     {
         public DelegateCommand<StatusEntryVM> DiffCommand { get; private set; }
         public DelegateCommand<StatusEntryVM> RevertCommand { get; private set; }
 
         private Versionr.Status.StatusEntry _statusEntry;
+        private StatusVM _statusVM;
         private Area _area;
         private FlowDocument _diffPreviewDocument = null;
 
-        public StatusEntryVM(Versionr.Status.StatusEntry statusEntry, Area area)
+        public StatusEntryVM(Versionr.Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
             _statusEntry = statusEntry;
+            _statusVM = statusVM;
             _area = area;
 
             DiffCommand = new DelegateCommand<StatusEntryVM>(Diff);
@@ -33,9 +35,18 @@ namespace VersionrUI.ViewModels
             get { return _statusEntry.Code; }
         }
 
-        public bool Staged
+        public bool IsStaged
         {
             get { return _statusEntry.Staged; }
+            set
+            {
+                if (value)
+                    _area.RecordChanges(_statusVM.Status, new List<Status.StatusEntry>() { _statusEntry }, true, false, (se, code, b) => { _statusEntry.Code = code; _statusEntry.Staged = true; });
+                else
+                    _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
+                NotifyPropertyChanged("IsStaged");
+                NotifyPropertyChanged("Code");
+            }
         }
 
         public string Name
@@ -151,8 +162,17 @@ namespace VersionrUI.ViewModels
 
         public void Revert(StatusEntryVM se)
         {
-            // TODO:
-            MessageBox.Show("Revert " + se.Name);
+            bool deleteNewFile = true;
+            if (Code == StatusCode.Added || Code == StatusCode.Unversioned)
+            {
+                MessageBoxResult result = MessageBox.Show("Do you want to delete this file from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Cancel)
+                    return;
+                else
+                    deleteNewFile = (result == MessageBoxResult.Yes);
+            }
+            _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
+            _statusVM.RefreshElements();
         }
 
         private class Region

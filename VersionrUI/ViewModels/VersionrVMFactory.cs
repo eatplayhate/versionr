@@ -54,25 +54,25 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public StatusVM GetStatusVM(Status status, Area area)
+        static public StatusVM GetStatusVM(Status status, AreaVM areaVM)
         {
             StatusVM result = null;
             var key = status.CurrentVersion.ID;
             if (!_statusVMDictionary.TryGetValue(key, out result))
             {
-                result = new StatusVM(status, area);
+                result = new StatusVM(status, areaVM);
                 _statusVMDictionary.Add(key, result);
             }
             return result;
         }
 
-        static public StatusEntryVM GetStatusEntryVM(Status.StatusEntry statusEntry, Area area)
+        static public StatusEntryVM GetStatusEntryVM(Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
             StatusEntryVM result = null;
             var key = statusEntry.Hash;
             if (!_statusEntryVMDictionary.TryGetValue(key, out result))
             {
-                result = new StatusEntryVM(statusEntry, area);
+                result = new StatusEntryVM(statusEntry, statusVM, area);
                 _statusEntryVMDictionary.Add(key, result);
             }
             return result;
