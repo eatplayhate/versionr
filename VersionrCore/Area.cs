@@ -256,6 +256,14 @@ namespace Versionr
             }
         }
 
+        public IEnumerable<Branch> GetBranches(bool deleted)
+        {
+            if (deleted)
+                return Database.Table<Branch>();
+            else
+                return Database.Table<Branch>().Where(x => x.Terminus == null);
+        }
+
         public bool ExpungeVersion(Objects.Version version)
         {
             try
@@ -3137,7 +3145,7 @@ namespace Versionr
             return pruned.Where(x => !ignored.Contains(x.Key)).ToList();
         }
 
-        private Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
+        public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
         {
             Printer.PrintDiagnostics("Getting parent graph for version {0}", mergeVersion.ID);
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
