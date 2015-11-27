@@ -39,6 +39,13 @@ namespace Versionr
         public Newtonsoft.Json.Linq.JObject Configuration { get; set; }
 
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
+
+        public List<Objects.Version> GetMergeList(Guid iD)
+        {
+            List<Objects.MergeInfo> merges = Database.GetMergeInfoFromSource(iD);
+            return merges.Select(x => GetVersion(x.DestinationVersion)).ToList();
+        }
+
         public Guid Domain
         {
             get
@@ -247,6 +254,14 @@ namespace Versionr
                     x.Item2 * 100.0,
                     churnCount[x.Item1] + 1);
             }
+        }
+
+        public IEnumerable<Branch> GetBranches(bool deleted)
+        {
+            if (deleted)
+                return Database.Table<Branch>();
+            else
+                return Database.Table<Branch>().Where(x => x.Terminus == null);
         }
 
         public bool ExpungeVersion(Objects.Version version)
@@ -3130,7 +3145,7 @@ namespace Versionr
             return pruned.Where(x => !ignored.Contains(x.Key)).ToList();
         }
 
-        private Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
+        public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
         {
             Printer.PrintDiagnostics("Getting parent graph for version {0}", mergeVersion.ID);
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();

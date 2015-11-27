@@ -69,7 +69,7 @@ namespace VersionrUI.ViewModels
         static public StatusEntryVM GetStatusEntryVM(Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
             StatusEntryVM result = null;
-            var key = statusEntry.Hash;
+            var key = statusEntry.CanonicalName;
             if (!_statusEntryVMDictionary.TryGetValue(key, out result))
             {
                 result = new StatusEntryVM(statusEntry, statusVM, area);

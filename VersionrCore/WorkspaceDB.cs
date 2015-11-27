@@ -315,6 +315,11 @@ namespace Versionr
             }
         }
 
+        internal List<MergeInfo> GetMergeInfoFromSource(Guid versionID)
+        {
+            return Table<Objects.MergeInfo>().Where(x => x.SourceVersion == versionID).ToList();
+        }
+
         private void PrepareTables()
         {
             CreateTable<Objects.Record>();

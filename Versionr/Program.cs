@@ -89,7 +89,10 @@ namespace Versionr
         [VerbOption("expunge", HelpText = "Deletes a version from the vault and rolls back history.")]
         public Commands.ExpungeVerbOptions ExpungeVerb { get; set; }
 
-		[HelpOption]
+        [VerbOption("mergeinfo", HelpText = "Identify branches where a commit has been merged into")]
+        public Commands.MergeInfoVerbOptions MergeInfoVerb { get; set; }
+
+        [HelpOption]
         public string GetUsage()
         {
             var help = new HelpText
@@ -178,6 +181,8 @@ namespace Versionr
                 return StatsVerb.GetUsage();
             else if (verb == "expunge")
                 return ExpungeVerb.GetUsage();
+            else if (verb == "mergeinfo")
+                return MergeInfoVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -252,6 +257,7 @@ namespace Versionr
             commands["deletebranch"] = new Commands.DeleteBranch();
             commands["stats"] = new Commands.Stats();
             commands["expunge"] = new Commands.Expunge();
+            commands["mergeinfo"] = new Commands.MergeInfo();
 
             Console.CancelKeyPress += Console_CancelKeyPress;
             
