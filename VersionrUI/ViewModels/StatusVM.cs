@@ -17,18 +17,22 @@ namespace VersionrUI.ViewModels
         private bool _pushOnCommit;
         private string _commitMessage;
 
-        public StatusVM(Status status, AreaVM areaVM)
+        public StatusVM(AreaVM areaVM)
         {
-            _status = status;
             _areaVM = areaVM;
-            _elements = new ObservableCollection<StatusEntryVM>();
 
             CommitCommand = new DelegateCommand(Commit);
-
-            RefreshElements();
         }
 
-        public Status Status { get { return _status; } }
+        public Status Status
+        {
+            get
+            {
+                if (_status == null)
+                    Load(() => Refresh());
+                return _status;
+            }
+        }
 
         public bool PushOnCommit
         {
@@ -56,28 +60,39 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public void RefreshElements()
+        public void Refresh()
         {
-            _elements.Clear();
+            _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
 
-            foreach (Status.StatusEntry statusEntry in _status.Elements)
+            if (_elements == null)
+                _elements = new ObservableCollection<StatusEntryVM>();
+            else
+                _elements.Clear();
+
+            foreach (Status.StatusEntry statusEntry in Status.Elements)
             {
                 if (statusEntry.Code != StatusCode.Masked && statusEntry.Code != StatusCode.Ignored)
                     _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area));
             }
 
+            NotifyPropertyChanged("Status");
             NotifyPropertyChanged("Elements");
             NotifyPropertyChanged("ModifiedElements");
         }
 
         public ObservableCollection<StatusEntryVM> Elements
         {
-            get { return _elements; }
+            get
+            {
+                if (_elements == null)
+                    Load(() => Refresh());
+                return _elements;
+            }
         }
 
         public IEnumerable<StatusEntryVM> ModifiedElements
         {
-            get { return _elements.Where(x => x.Code != StatusCode.Unchanged); }
+            get { return Elements?.Where(x => x.Code != StatusCode.Unchanged); }
         }
 
         private void Commit()
@@ -98,7 +113,7 @@ namespace VersionrUI.ViewModels
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
 
             CommitMessage = string.Empty;
-            RefreshElements();
+            Refresh();
         }
     }
 }

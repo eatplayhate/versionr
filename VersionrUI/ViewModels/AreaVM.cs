@@ -11,45 +11,50 @@ using VersionrUI.Commands;
 
 namespace VersionrUI.ViewModels
 {
+    public enum AreaInitMode
+    {
+        InitNew,
+        UseExisting,
+        Clone,
+    }
+
     public class AreaVM : NotifyPropertyChangedBase
     {
+
         private Area _area;
         private string _name;
+        private ObservableCollection<BranchVM> _branches;
+        private ObservableCollection<RemoteConfig> _remotes;
+        private StatusVM _status;
 
-        public AreaVM(Area area, string name)
+        public AreaVM(string path, string name, AreaInitMode areaInitMode)
         {
-            _area = area;
-            _name = name;
-            Branches = new ObservableCollection<BranchVM>();
-            Remotes = new ObservableCollection<RemoteConfig>();
-
             PullCommand = new DelegateCommand(Pull);
             PushCommand = new DelegateCommand(Push);
 
-            RefreshBranches();
+            _name = name;
 
-            foreach (RemoteConfig remote in _area.GetRemotes())
-                Remotes.Add(remote);
-            SelectedRemote = Remotes.FirstOrDefault();
-        }
-
-        private void RefreshBranches()
-        {
-            Branches.Clear();
-
-            foreach (Versionr.Objects.Branch branch in _area.Branches)
+            switch (areaInitMode)
             {
-                Branches.Add(VersionrVMFactory.GetBranchVM(_area, branch));
+                case AreaInitMode.Clone:
+                    // Spawn another dialog for the source (or put it in the Clone New button)
+                    throw new NotImplementedException("// TODO: AreaInitMode.Clone");
+                // break;
+                case AreaInitMode.InitNew:
+                    // Tell versionr to initialize at path
+                    _area = Area.Init(new DirectoryInfo(path), name);
+                    break;
+                case AreaInitMode.UseExisting:
+                    // Add it to settings and refresh UI, get status etc.
+                    _area = Area.Load(new DirectoryInfo(path));
+                    break;
             }
         }
 
         public Area Area { get { return _area; } }
 
-        public DirectoryInfo Directory
-        {
-            get { return _area.Root; }
-        }
-        
+        public DirectoryInfo Directory { get { return _area.Root; } }
+
         public string Name
         {
             get { return _name; }
@@ -63,9 +68,16 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public ObservableCollection<BranchVM> Branches { get; private set; }
-        public ObservableCollection<RemoteConfig> Remotes { get; private set; }
-        
+        public ObservableCollection<RemoteConfig> Remotes
+        {
+            get
+            {
+                if (_remotes == null)
+                    Load(() => RefreshRemotes());
+                return _remotes;
+            }
+        }
+
         public RemoteConfig SelectedRemote { get; set; }
 
         public CompositeCollection Children
@@ -73,7 +85,7 @@ namespace VersionrUI.ViewModels
             get
             {
                 CompositeCollection collection = new CompositeCollection();
-                collection.Add(GetStatus());
+                collection.Add(Status);
                 collection.Add(new NamedCollection("Branches", Branches));
                 return collection;
             }
@@ -95,11 +107,58 @@ namespace VersionrUI.ViewModels
         }
         #endregion
 
-        public StatusVM GetStatus()
+        private ObservableCollection<BranchVM> Branches
         {
-            // Assume the active directory is the root of the Area
-            DirectoryInfo activeDirectory = _area.Root;
-            return VersionrVMFactory.GetStatusVM(_area.GetStatus(activeDirectory), this);
+            get
+            {
+                if (_branches == null)
+                    Load(() => RefreshStatusAndBranches());
+                return _branches;
+            }
+        }
+
+        private StatusVM Status
+        {
+            get
+            {
+                if (_status == null)
+                    Load(() => RefreshStatusAndBranches());
+                return _status;
+            }
+        }
+
+        private void RefreshStatusAndBranches()
+        {
+            if (_status == null)
+            {
+                // Assume the active directory is the root of the Area
+                _status = VersionrVMFactory.GetStatusVM(this);
+            }
+
+            if (_branches == null)
+                _branches = new ObservableCollection<BranchVM>();
+            else
+                _branches.Clear();
+            foreach (Versionr.Objects.Branch branch in _area.Branches)
+                _branches.Add(VersionrVMFactory.GetBranchVM(_area, branch));
+
+            NotifyPropertyChanged("Children");
+        }
+
+        private void RefreshRemotes()
+        {
+            if (_remotes == null)
+                _remotes = new ObservableCollection<RemoteConfig>();
+            else
+                _remotes.Clear();
+            foreach (RemoteConfig remote in _area.GetRemotes())
+                _remotes.Add(remote);
+
+            if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
+                SelectedRemote = _remotes.FirstOrDefault();
+
+            NotifyPropertyChanged("Remotes");
+            NotifyPropertyChanged("SelectedRemote");
         }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)

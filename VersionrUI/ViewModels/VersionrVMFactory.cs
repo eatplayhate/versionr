@@ -9,19 +9,19 @@ namespace VersionrUI.ViewModels
     {
         // Weary traveler, find here dictionaries of something unique to each versionr type
         // and the view model associated with that object.
-        static private Dictionary<DirectoryInfo, AreaVM> _areaVMDictionary = new Dictionary<DirectoryInfo, AreaVM>();
+        static private Dictionary<string, AreaVM> _areaVMDictionary = new Dictionary<string, AreaVM>();
         static private Dictionary<Guid, BranchVM> _branchVMDictionary = new Dictionary<Guid, BranchVM>();
         static private Dictionary<Guid, VersionVM> _versionVMDictionary = new Dictionary<Guid, VersionVM>();
         static private Dictionary<Guid, StatusVM> _statusVMDictionary = new Dictionary<Guid, StatusVM>();
         static private Dictionary<string, StatusEntryVM> _statusEntryVMDictionary = new Dictionary<string, StatusEntryVM>();
 
-        static public AreaVM GetAreaVM(Versionr.Area area, string name)
+        static public AreaVM GetAreaVM(string path, string name, AreaInitMode areaInitMode)
         {
             AreaVM result = null;
-            if (!_areaVMDictionary.TryGetValue(area.AdministrationFolder, out result))
+            if (!_areaVMDictionary.TryGetValue(path, out result))
             {
-                result = new AreaVM(area, name);
-                _areaVMDictionary.Add(area.AdministrationFolder, result);
+                result = new AreaVM(path, name, areaInitMode);
+                _areaVMDictionary.Add(path, result);
             }
             else
             {
@@ -54,13 +54,13 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public StatusVM GetStatusVM(Status status, AreaVM areaVM)
+        static public StatusVM GetStatusVM(AreaVM areaVM)
         {
             StatusVM result = null;
-            var key = status.CurrentVersion.ID;
+            var key = areaVM.Area.Version.ID;
             if (!_statusVMDictionary.TryGetValue(key, out result))
             {
-                result = new StatusVM(status, areaVM);
+                result = new StatusVM(areaVM);
                 _statusVMDictionary.Add(key, result);
             }
             return result;

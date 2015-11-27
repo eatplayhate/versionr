@@ -15,12 +15,12 @@ namespace VersionrUI.ViewModels
         public DelegateCommand<StatusEntryVM> DiffCommand { get; private set; }
         public DelegateCommand<StatusEntryVM> RevertCommand { get; private set; }
 
-        private Versionr.Status.StatusEntry _statusEntry;
+        private Status.StatusEntry _statusEntry;
         private StatusVM _statusVM;
         private Area _area;
         private FlowDocument _diffPreviewDocument = null;
 
-        public StatusEntryVM(Versionr.Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
+        public StatusEntryVM(Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
             _statusEntry = statusEntry;
             _statusVM = statusVM;
@@ -172,7 +172,7 @@ namespace VersionrUI.ViewModels
                     deleteNewFile = (result == MessageBoxResult.Yes);
             }
             _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
-            _statusVM.RefreshElements();
+            _statusVM.Refresh();
         }
 
         private class Region

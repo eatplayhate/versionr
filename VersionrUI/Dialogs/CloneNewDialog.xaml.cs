@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using VersionrUI.Commands;
+using VersionrUI.ViewModels;
 using FolderBrowserDialog = System.Windows.Forms.FolderBrowserDialog;
 
 namespace VersionrUI.Dialogs
@@ -17,14 +18,6 @@ namespace VersionrUI.Dialogs
     /// </summary>
     public partial class CloneNewDialog : Window, INotifyPropertyChanged
     {
-        public enum ResultEnum
-        {
-            Cancelled,
-            InitNew,
-            UseExisting,
-            Clone
-        };
-
         private bool _userTypedName = false;
         private string _pathString = "";
         private string _nameString = "";
@@ -47,8 +40,6 @@ namespace VersionrUI.Dialogs
             NewRepoCommand = new DelegateCommand(NewRepo, CanExecuteNewRepo);
             ExistingRepoCommand = new DelegateCommand(ExistingRepo, CanExecuteExistingRepo);
             CloneRepoCommand = new DelegateCommand(CloneRepo, CanExecuteCloneRepo);
-            
-            Result = ResultEnum.Cancelled;
         }
 
         public string PathString
@@ -92,7 +83,7 @@ namespace VersionrUI.Dialogs
             }
         }
         
-        public ResultEnum Result { get; private set; }
+        public AreaInitMode Result { get; private set; }
 
         public ImageSource PathStatus
         {
@@ -189,19 +180,22 @@ namespace VersionrUI.Dialogs
 
         private void NewRepo()
         {
-            Result = ResultEnum.InitNew;
+            Result = AreaInitMode.InitNew;
+            DialogResult = true;
             Close();
         }
 
         private void ExistingRepo()
         {
-            Result = ResultEnum.UseExisting;
+            Result = AreaInitMode.UseExisting;
+            DialogResult = true;
             Close();
         }
 
         private void CloneRepo()
         {
-            Result = ResultEnum.Clone;
+            Result = AreaInitMode.Clone;
+            DialogResult = true;
             Close();
         }
         #endregion

@@ -1,15 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Versionr;
 using Versionr.Objects;
 using Version = Versionr.Objects.Version;
 
 namespace VersionrUI.ViewModels
 {
-    public class VersionVM
+    public class VersionVM : NotifyPropertyChangedBase
     {
         private Version _version;
         private Area _area;
+        private ObservableCollection<AlterationVM> _alterations;
 
         public VersionVM(Version version, Area area)
         {
@@ -47,17 +48,27 @@ namespace VersionrUI.ViewModels
             get { return _version.Revision; }
         }
 
-        public List<AlterationVM> Alterations
+        public ObservableCollection<AlterationVM> Alterations
         {
             get
             {
-                List<AlterationVM> alterations = new List<AlterationVM>();
-
-                foreach (Alteration alteration in _area.GetAlterations(_version))
-                    alterations.Add(new AlterationVM(alteration, _area));
-
-                return alterations;
+                if (_alterations == null)
+                    Load(() => Refresh());
+                return _alterations;
             }
+        }
+
+        private void Refresh()
+        {
+            if (_alterations == null)
+                _alterations = new ObservableCollection<AlterationVM>();
+            else
+                _alterations.Clear();
+
+            foreach (Alteration alteration in _area.GetAlterations(_version))
+                _alterations.Add(new AlterationVM(alteration, _area));
+
+            NotifyPropertyChanged("Alterations");
         }
     }
 }

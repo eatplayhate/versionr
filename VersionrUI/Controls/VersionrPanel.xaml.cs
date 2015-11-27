@@ -2,7 +2,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -34,12 +33,12 @@ namespace VersionrUI.Controls
             // Load previously opened areas
             if (Properties.Settings.Default.OpenAreas != null)
             {
-                foreach(string areaString in Properties.Settings.Default.OpenAreas)
+                foreach (string areaString in Properties.Settings.Default.OpenAreas)
                 {
                     string[] parts = areaString.Split(';');
-                    DirectoryInfo dir = new DirectoryInfo(parts[0]);
-                    if (dir.Exists)
-                        OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Load(dir), parts[1]));
+                    AreaVM areaVM = VersionrVMFactory.GetAreaVM(parts[0], parts[1], AreaInitMode.UseExisting);
+                    if (areaVM != null)
+                        OpenAreas.Add(areaVM);
                 }
             }
             OpenAreas.CollectionChanged += OpenAreas_CollectionChanged;
@@ -70,25 +69,14 @@ namespace VersionrUI.Controls
         private void AddArea()
         {
             CloneNewDialog cloneNewDlg = new CloneNewDialog(MainWindow.Instance);
-            cloneNewDlg.ShowDialog();
-            switch (cloneNewDlg.Result)
+            if (cloneNewDlg.ShowDialog() == true)
             {
-                case CloneNewDialog.ResultEnum.Clone:
-                    // Spawn another dialog for the source (or put it in the Clone New button)
-                    break;
-                case CloneNewDialog.ResultEnum.InitNew:
-                    // Tell versionr to initialize at path
-                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Init(new DirectoryInfo(cloneNewDlg.PathString), cloneNewDlg.NameString), cloneNewDlg.NameString));
+                AreaVM areaVM = VersionrVMFactory.GetAreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result);
+                if (areaVM != null)
+                {
+                    OpenAreas.Add(areaVM);
                     SelectedArea = OpenAreas.LastOrDefault();
-                    break;
-                case CloneNewDialog.ResultEnum.UseExisting:
-                    // Add it to settings and refresh UI, get status etc.
-                    OpenAreas.Add(VersionrVMFactory.GetAreaVM(Versionr.Area.Load(new DirectoryInfo(cloneNewDlg.PathString)), cloneNewDlg.NameString));
-                    SelectedArea = OpenAreas.LastOrDefault();
-                    break;
-                case CloneNewDialog.ResultEnum.Cancelled:
-                default:
-                    break;
+                }
             }
         }
 
