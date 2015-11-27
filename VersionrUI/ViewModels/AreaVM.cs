@@ -167,7 +167,7 @@ namespace VersionrUI.ViewModels
             {
                 Client client = new Client(_area);
                 if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
-                    client.Pull(true, null);
+                    action.Invoke(client);
                 else
                     MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 client.Close();
