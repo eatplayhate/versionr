@@ -118,7 +118,15 @@
                 </ListView.View>
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
-                        <Setter Property="commands:ControlDoubleClick.Command" Value="{Binding DiffCommand}" />
+                        <Setter Property="ContextMenu">
+                            <Setter.Value>
+                                <ContextMenu>
+                                    <MenuItem Header="Diff with previous version" FontWeight="Bold" Command="{Binding DiffWithPreviousCommand}" CommandParameter="{Binding}" />
+                                    <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" CommandParameter="{Binding}" />
+                                </ContextMenu>
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="commands:ControlDoubleClick.Command" Value="{Binding DiffWithPreviousCommand}" />
                         <Setter Property="commands:ControlDoubleClick.Parameter" Value="{Binding}" />
                     </Style>
                 </ListView.ItemContainerStyle>
@@ -188,7 +196,7 @@
                                 <Setter Property="ContextMenu">
                                     <Setter.Value>
                                         <ContextMenu>
-                                            <MenuItem Header="Diff" Command="{Binding DiffCommand}" CommandParameter="{Binding}" />
+                                            <MenuItem Header="Diff" FontWeight="Bold" Command="{Binding DiffCommand}" CommandParameter="{Binding}" />
                                             <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{Binding}" />
                                         </ContextMenu>
                                     </Setter.Value>
