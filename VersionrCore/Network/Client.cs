@@ -319,7 +319,10 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = string.IsNullOrEmpty(branchID) ? branchName : branchID }, ProtoBuf.PrefixStyle.Fixed32);
                     var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
                     if (queryResult.Type == NetCommandType.Error)
+                    {
                         Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
+                        return false;
+                    }
                     branchID = queryResult.AdditionalPayload;
                     Printer.PrintMessage(" - Matched query to remote branch ID {0}", branchID);
                 }
