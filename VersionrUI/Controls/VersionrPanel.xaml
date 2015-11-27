@@ -158,6 +158,9 @@
                         <DockPanel Grid.Row="0">
                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
                                 <Button Margin="4"
+                                        Content="Refresh"
+                                        Command="{Binding RefreshCommand}" />
+                                <Button Margin="4"
                                         Content="Commit"
                                         Command="{Binding CommitCommand}" />
                                 <CheckBox Margin="4"
@@ -178,7 +181,7 @@
                                       Margin="0,2" />
                         <ListView Grid.Row="2"
                                   Name="listView"
-                                  ItemsSource="{Binding ModifiedElements}"
+                                  ItemsSource="{Binding Elements}"
                                   SelectionMode="Single">
                             <ListView.View>
                                 <GridView>
@@ -250,7 +253,6 @@
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal">
                     <Button Margin="4" Content="Clone/New" Command="{Binding NewAreaCommand}" />
-                    <Button Margin="4" Content="Refresh" Command="{Binding RefreshCommand}" />
                 </StackPanel>
                 <Button Grid.Column="1"
                         Margin="4"

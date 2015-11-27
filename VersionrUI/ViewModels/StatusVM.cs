@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
@@ -9,6 +8,7 @@ namespace VersionrUI.ViewModels
 {
     public class StatusVM : NotifyPropertyChangedBase
     {
+        public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand CommitCommand { get; private set; }
 
         private Status _status;
@@ -21,6 +21,7 @@ namespace VersionrUI.ViewModels
         {
             _areaVM = areaVM;
 
+            RefreshCommand = new DelegateCommand(Refresh);
             CommitCommand = new DelegateCommand(Commit);
         }
 
@@ -71,13 +72,14 @@ namespace VersionrUI.ViewModels
 
             foreach (Status.StatusEntry statusEntry in Status.Elements)
             {
-                if (statusEntry.Code != StatusCode.Masked && statusEntry.Code != StatusCode.Ignored)
+                if (statusEntry.Code != StatusCode.Masked &&
+                    statusEntry.Code != StatusCode.Ignored &&
+                    statusEntry.Code != StatusCode.Unchanged)
                     _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area));
             }
 
             NotifyPropertyChanged("Status");
             NotifyPropertyChanged("Elements");
-            NotifyPropertyChanged("ModifiedElements");
         }
 
         public ObservableCollection<StatusEntryVM> Elements
@@ -88,11 +90,6 @@ namespace VersionrUI.ViewModels
                     Load(() => Refresh());
                 return _elements;
             }
-        }
-
-        public IEnumerable<StatusEntryVM> ModifiedElements
-        {
-            get { return Elements?.Where(x => x.Code != StatusCode.Unchanged); }
         }
 
         private void Commit()
@@ -111,7 +108,7 @@ namespace VersionrUI.ViewModels
 
             if (PushOnCommit)
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
-
+            
             CommitMessage = string.Empty;
             Refresh();
         }

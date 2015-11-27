@@ -26,7 +26,6 @@ namespace VersionrUI.Controls
             CloseCommand = new DelegateCommand(() => MainWindow.Instance.Close());
             NewAreaCommand = new DelegateCommand(AddArea);
             RemoveAreaCommand = new DelegateCommand<AreaVM>(RemoveArea);
-            RefreshCommand = new DelegateCommand(Refresh);
 
             OpenAreas = new ObservableCollection<AreaVM>();
 
@@ -64,7 +63,6 @@ namespace VersionrUI.Controls
         public DelegateCommand CloseCommand { get; private set; }
         public DelegateCommand NewAreaCommand { get; private set; }
         public DelegateCommand<AreaVM> RemoveAreaCommand { get; private set; }
-        public DelegateCommand RefreshCommand { get; private set; }
 
         private void AddArea()
         {
@@ -83,12 +81,6 @@ namespace VersionrUI.Controls
         private void RemoveArea(AreaVM area)
         {
             OpenAreas.Remove(area);
-        }
-
-        private void Refresh()
-        {
-            // TODO: refresh all open areas
-            MessageBox.Show("// TODO: refresh all open areas");
         }
         #endregion
 
