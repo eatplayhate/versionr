@@ -3514,6 +3514,14 @@ namespace Versionr
 			}
 		}
 
+        enum RecordUpdateType
+        {
+            Created,
+            Updated,
+            AlreadyPresent,
+            Deleted
+        }
+
 		private void CheckoutInternal(Objects.Version tipVersion, bool verbose)
         {
             List<Record> records = Database.Records;
@@ -3558,14 +3566,14 @@ namespace Versionr
                 49);
             }
             long count = 0;
-            Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
+            Action<RecordUpdateType, string, Objects.Record> feedback = (type, name, rec) =>
             {
-                if (created)
+                if (type == RecordUpdateType.Created)
                     additions++;
-                else
+                else if (type == RecordUpdateType.Updated)
                     updates++;
-                if (verbose)
-                    Printer.PrintMessage("#b#{0}{2}##: {1}", created ? "Created" : "Updated", name, rec.IsDirectory ? " directory" : "");
+                if (verbose && type != RecordUpdateType.AlreadyPresent)
+                    Printer.PrintMessage("#b#{0}{2}##: {1}", type == RecordUpdateType.Created ? "Created" : "Updated", name, rec.IsDirectory ? " directory" : "");
                 if (printer != null)
                     printer.Update(System.Threading.Interlocked.Add(ref count, rec.Size));
             };
@@ -3583,10 +3591,18 @@ namespace Versionr
                 recordsToDelete.Add(x);
             }
 
+            Printer.InteractivePrinter spinner = null;
+            int deletionCount = 0;
             foreach (var x in DeletionOrder(recordsToDelete))
             {
                 if (canonicalNames.Contains(x.CanonicalName))
                     continue;
+
+                if (spinner == null)
+                {
+                    spinner = Printer.CreateSpinnerBarPrinter(string.Empty, "Deleting ", (obj) => { return string.Format("{0} objects.", (int)obj); }, 60);
+                }
+                spinner.Update(deletionCount++);
 
                 if (x.IsFile)
                 {
@@ -3643,6 +3659,8 @@ namespace Versionr
                     }
                 }
             }
+            if (spinner != null)
+                spinner.End(deletionCount);
             foreach (var x in CheckoutOrder(targetRecords))
 			{
 				canonicalNames.Add(x.CanonicalName);
@@ -4548,7 +4566,7 @@ namespace Versionr
             }
         }
 
-        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<bool, string, Objects.Record> feedback = null)
+        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
         {
 			if (rec.IsSymlink)
 			{
@@ -4572,7 +4590,7 @@ namespace Versionr
                     if (feedback == null)
                         Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
                     else
-                        feedback(true, GetLocalCanonicalName(rec), rec);
+                        feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
                     directory.Create();
                     ApplyAttributes(directory, referenceTime, rec);
                 }
@@ -4584,7 +4602,11 @@ namespace Versionr
                 FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
 
                 if (dest.LastWriteTimeUtc == fst.LastSeenTime && dest.Length == rec.Size && rec.DataIdentifier == fst.DataIdentifier)
+                {
+                    if (feedback != null)
+                        feedback(RecordUpdateType.AlreadyPresent, GetLocalCanonicalName(rec), rec);
                     return;
+                }
                 if (dest.Length == rec.Size)
                 {
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
@@ -4594,6 +4616,8 @@ namespace Versionr
                             UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
                         else
                             updatedTimestamps.Enqueue(new FileTimestamp() { CanonicalName = rec.CanonicalName, DataIdentifier = rec.DataIdentifier, LastSeenTime = dest.LastWriteTimeUtc });
+                        if (feedback != null)
+                            feedback(RecordUpdateType.AlreadyPresent, GetLocalCanonicalName(rec), rec);
                         return;
                     }
                 }
@@ -4602,7 +4626,7 @@ namespace Versionr
                     if (feedback == null)
                         Printer.PrintMessage("Updating {0}", GetLocalCanonicalName(rec));
                     else
-                        feedback(false, GetLocalCanonicalName(rec), rec);
+                        feedback(RecordUpdateType.Updated, GetLocalCanonicalName(rec), rec);
                 }
             }
             else if (overridePath == null)
@@ -4610,7 +4634,7 @@ namespace Versionr
                 if (feedback == null)
                     Printer.PrintMessage("Creating {0}", GetLocalCanonicalName(rec));
                 else
-                    feedback(true, GetLocalCanonicalName(rec), rec);
+                    feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
             }
             int retries = 0;
         Retry:
