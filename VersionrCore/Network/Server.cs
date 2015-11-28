@@ -384,7 +384,33 @@ namespace Versionr.Network
                                     throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client is requesting a branch list.");
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, new BranchList() { Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray() });
+                                if (command.Identifier == 1) // send extra data
+                                {
+                                    BranchList bl = new BranchList();
+                                    bl.Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray();
+                                    Dictionary<Guid, Objects.Version> importantVersions = new Dictionary<Guid, Objects.Version>();
+                                    List<KeyValuePair<Guid, Guid>> allHeads = new List<KeyValuePair<Guid, Guid>>();
+                                    foreach (var x in bl.Branches)
+                                    {
+                                        if (x.Terminus.HasValue && !importantVersions.ContainsKey(x.Terminus.Value))
+                                        {
+                                            importantVersions[x.Terminus.Value] = clientInfo.SharedInfo.Workspace.GetVersion(x.Terminus.Value);
+                                            continue;
+                                        }
+                                        var heads = clientInfo.SharedInfo.Workspace.GetBranchHeads(x);
+                                        foreach (var head in heads)
+                                        {
+                                            if (!importantVersions.ContainsKey(head.Version))
+                                                importantVersions[head.Version] = clientInfo.SharedInfo.Workspace.GetVersion(head.Version);
+                                        }
+                                        allHeads.AddRange(heads.Select(y => new KeyValuePair<Guid, Guid>(y.Branch, y.Version)));
+                                    }
+                                    bl.Heads = allHeads.ToArray();
+                                    bl.ImportantVersions = importantVersions.Values.ToArray();
+                                    Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
+                                }
+                                else
+                                    Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, new BranchList() { Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray() });
                             }
                             else if (command.Type == NetCommandType.RequestRecordUnmapped)
                             {

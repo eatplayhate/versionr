@@ -314,6 +314,44 @@ namespace Versionr.Network
 
         public bool ReceivedData { get; set; }
 
+        public Tuple<List<Objects.Branch>, List<KeyValuePair<Guid, Guid>>, Dictionary<Guid, Objects.Version>> ListBranches()
+        {
+            ReceivedData = false;
+            if (Workspace == null)
+                return null;
+            if (string.IsNullOrEmpty(RemoteDomain))
+            {
+                Printer.PrintError("#x#Error:##\n  Remote vault is not yet initialized. No branches on server.");
+                return null;
+            }
+            try
+            {
+                if (SharedInfo.CommunicationProtocol < SharedNetwork.Protocol.Versionr32)
+                {
+                    Printer.PrintError("#e#Server does not support multi-branch queries.");
+                    return null;
+                }
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.ListBranches, Identifier = 1 }, ProtoBuf.PrefixStyle.Fixed32);
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type == NetCommandType.Error)
+                {
+                    Printer.PrintError("Couldn't get branch list - error: {0}", queryResult.AdditionalPayload);
+                    return null;
+                }
+                BranchList list = Utilities.ReceiveEncrypted<BranchList>(SharedInfo);
+                Dictionary<Guid, Objects.Version> importantVersions = new Dictionary<Guid, Objects.Version>();
+                foreach (var x in list.ImportantVersions)
+                    importantVersions[x.ID] = x;
+                return new Tuple<List<Branch>, List<KeyValuePair<Guid, Guid>>, Dictionary<Guid, Objects.Version>>(list.Branches.ToList(), list.Heads.ToList(), importantVersions);
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                Close();
+                return null;
+            }
+        }
+
         public bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false)
         {
             ReceivedData = false;

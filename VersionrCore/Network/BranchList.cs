@@ -11,5 +11,9 @@ namespace Versionr.Network
     {
         [ProtoBuf.ProtoMember(1)]
         public Objects.Branch[] Branches { get; set; }
+        [ProtoBuf.ProtoMember(2)]
+        public Objects.Version[] ImportantVersions { get; set; }
+        [ProtoBuf.ProtoMember(3)]
+        public KeyValuePair<Guid, Guid>[] Heads { get; set; }
     }
 }
