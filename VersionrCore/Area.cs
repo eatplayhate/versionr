@@ -3556,7 +3556,7 @@ namespace Versionr
 			}
 		}
 
-        enum RecordUpdateType
+        public enum RecordUpdateType
         {
             Created,
             Updated,
