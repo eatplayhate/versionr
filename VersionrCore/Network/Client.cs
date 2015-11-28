@@ -365,6 +365,7 @@ namespace Versionr.Network
             try
             {
                 List<string> branches = new List<string>();
+                BranchList branchList = null;
                 if (branchName == null && allBranches == false)
                 {
                     Printer.PrintMessage("Getting remote version information for branch \"{0}\"", Workspace.CurrentBranch.Name);
@@ -393,6 +394,7 @@ namespace Versionr.Network
                         Printer.PrintMessage(" - {0} (#b#\"{1}\"##)", b.ShortID, b.Name);
                         branches.Add(b.ID.ToString());
                     }
+                    branchList = list;
                 }
                 else
                 {
@@ -409,6 +411,35 @@ namespace Versionr.Network
                 }
                 foreach (var branchID in branches)
                 {
+                    if (branchList != null)
+                    {
+                        var remoteData = branchList.Branches.Where(x => x.ID.ToString() == branchID).FirstOrDefault();
+                        if (remoteData != null)
+                        {
+                            Objects.Branch localData = Workspace.GetBranch(new Guid(branchID));
+                            if (localData.Terminus.HasValue && remoteData.Terminus.HasValue && localData.Terminus.Value == remoteData.Terminus.Value)
+                                continue;
+                            bool skip = false;
+                            foreach (var x in branchList.Heads)
+                            {
+                                if (x.Key == localData.ID)
+                                {
+                                    var localHeads = Workspace.GetBranchHeads(localData);
+                                    foreach (var y in localHeads)
+                                    {
+                                        if (y.Version == x.Value)
+                                        {
+                                            skip = true;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                            if (skip)
+                                continue;
+                        }
+                    }
                     Printer.InteractivePrinter printer = Printer.CreateSpinnerPrinter(string.Empty, (object obj) =>
                     {
                         NetCommandType type = (NetCommandType)obj;

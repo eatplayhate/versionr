@@ -410,7 +410,21 @@ namespace Versionr.Network
                                     Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
                                 }
                                 else
-                                    Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, new BranchList() { Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray() });
+                                {
+                                    BranchList bl = new BranchList();
+                                    bl.Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray();
+                                    List<KeyValuePair<Guid, Guid>> allHeads = new List<KeyValuePair<Guid, Guid>>();
+                                    foreach (var x in bl.Branches)
+                                    {
+                                        if (x.Terminus.HasValue)
+                                            continue;
+                                        var heads = clientInfo.SharedInfo.Workspace.GetBranchHeads(x);
+                                        if (heads.Count == 1)
+                                            allHeads.Add(new KeyValuePair<Guid, Guid>(x.ID, heads[0].Version));
+                                    }
+                                    bl.Heads = allHeads.ToArray();
+                                    Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
+                                }
                             }
                             else if (command.Type == NetCommandType.RequestRecordUnmapped)
                             {
