@@ -331,6 +331,8 @@ namespace Versionr.Network
                     BranchList list = Utilities.ReceiveEncrypted<BranchList>(SharedInfo);
                     foreach (var b in list.Branches)
                     {
+                        if (b.Terminus.HasValue)
+                            continue;
                         Printer.PrintMessage(" - {0} (#b#\"{1}\"##)", b.ShortID, b.Name);
                         branches.Add(b.ID.ToString());
                     }
