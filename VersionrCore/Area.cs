@@ -1024,7 +1024,7 @@ namespace Versionr
 
         public List<Objects.Branch> GetBranchByName(string name)
         {
-            return Database.Table<Objects.Branch>().Where(x.Terminus == null).Where(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)).ToList();
+            return Database.Table<Objects.Branch>().Where(x => x.Terminus == null).Where(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)).ToList();
         }
 
         public Objects.Branch CurrentBranch
@@ -3218,8 +3218,7 @@ namespace Versionr
             if (!System.Text.RegularExpressions.Regex.IsMatch(v, "^\\w+$"))
                 throw new Exception("Invalid branch name.");
             Printer.PrintDiagnostics("Checking for existing branch \"{0}\".", v);
-            var branches = Database.Table<Branch>().Where(x => x.Terminus == null);
-            var branch = branches.Where(x => x.Name.Equals(v, StringComparison.CurrentCultureIgnoreCase)).FirstOrDefault();
+            var branch = GetBranchByName(v).FirstOrDefault();
             if (branch != null)
                 throw new Exception(string.Format("Branch \"{0}\" already exists!", v));
 
