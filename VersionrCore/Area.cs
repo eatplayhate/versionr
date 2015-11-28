@@ -3600,9 +3600,9 @@ namespace Versionr
 
                 if (spinner == null)
                 {
-                    spinner = Printer.CreateSpinnerPrinter("Deleting ", (obj) => { return string.Format("{0} objects.", (int)obj); });
+                    spinner = Printer.CreateSpinnerPrinter("Deleting", (obj) => { return string.Format("{0} objects.", (int)obj); });
                 }
-                spinner.Update(deletionCount++);
+                spinner.Update(++deletionCount);
 
                 if (x.IsFile)
                 {
