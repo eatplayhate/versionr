@@ -3114,17 +3114,7 @@ namespace Versionr
         private List<KeyValuePair<Guid, int>> GetCommonParents(Objects.Version version, Objects.Version mergeVersion)
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion);
-            Dictionary<Guid, int> localGraph = GetParentGraph(version);
-            List<KeyValuePair<Guid, int>> shared = new List<KeyValuePair<Guid, int>>();
-            foreach (var x in foreignGraph)
-            {
-                int distance;
-                if (localGraph.TryGetValue(x.Key, out distance))
-                {
-                    distance = System.Math.Max(x.Value, distance);
-                    shared.Add(new KeyValuePair<Guid, int>(x.Key, distance));
-                }
-            }
+            List<KeyValuePair<Guid, int>> shared = GetSharedParentGraphMinimal(version, foreignGraph);
             shared = shared.OrderBy(x => x.Value).ToList();
             if (shared.Count == 0)
                 return null;
@@ -3145,6 +3135,57 @@ namespace Versionr
                 }
             }
             return pruned.Where(x => !ignored.Contains(x.Key)).ToList();
+        }
+
+        private List<KeyValuePair<Guid, int>> GetSharedParentGraphMinimal(Objects.Version version, Dictionary<Guid, int> foreignGraph)
+        {
+            Printer.PrintDiagnostics("Getting minimal parent graph for version {0}", version.ID);
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
+            Stack<Tuple<Objects.Version, int>> openNodes = new Stack<Tuple<Objects.Version, int>>();
+            openNodes.Push(new Tuple<Objects.Version, int>(version, 0));
+            Dictionary<Guid, int> visited = new Dictionary<Guid, int>();
+            HashSet<Guid> sharedNodes = new HashSet<Guid>();
+            while (openNodes.Count > 0)
+            {
+                var currentNodeData = openNodes.Pop();
+                Objects.Version currentNode = currentNodeData.Item1;
+
+                int distance = 0;
+                if (visited.TryGetValue(currentNode.ID, out distance))
+                {
+                    if (distance > currentNodeData.Item2)
+                        visited[currentNode.ID] = currentNodeData.Item2;
+                    continue;
+                }
+
+                visited[currentNode.ID] = currentNodeData.Item2;
+                if (foreignGraph.ContainsKey(currentNode.ID))
+                {
+                    sharedNodes.Add(currentNode.ID);
+                }
+                else
+                {
+                    if (currentNode.Parent.HasValue && !visited.ContainsKey(currentNode.Parent.Value))
+                        openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(currentNode.Parent), currentNodeData.Item2 + 1));
+                    foreach (var x in Database.GetMergeInfo(currentNode.ID))
+                    {
+                        if (!visited.ContainsKey(x.SourceVersion))
+                            openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                    }
+                }
+            }
+
+            List<KeyValuePair<Guid, int>> shared = new List<KeyValuePair<Guid, int>>();
+            foreach (var x in sharedNodes)
+            {
+                int distance = System.Math.Max(visited[x], foreignGraph[x]);
+                shared.Add(new KeyValuePair<Guid, int>(x, distance));
+            }
+            shared = shared.OrderBy(x => x.Value).ToList();
+            sw.Stop();
+            Printer.PrintDiagnostics("Determined shared node hierarchy in {0} ms.", sw.ElapsedMilliseconds);
+            return shared;
         }
 
         public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
