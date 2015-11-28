@@ -64,15 +64,39 @@ namespace Versionr.Commands
                         tipmarker = " #w#*<current>##";
                     Printer.PrintMessage("#b#{1}## - #c#{0}##{2}", x.ID, x.Name, tipmarker);
                     string heading = string.Empty;
+                    var localBranch = client.Workspace.GetBranch(x.ID);
                     if (x.Terminus.HasValue)
                     {
                         var terminus = branches.Item3[x.Terminus.Value];
-                        Printer.PrintMessage("  #e#(deleted)## - Last version: #b#{0}##, #q#{2} {1}##", terminus.ShortName, terminus.Timestamp.ToLocalTime(), terminus.Author);
+                        bool present = client.Workspace.GetVersion(x.Terminus.Value) != null;
+                        string presentMarker = present ? "" : " #w#(behind)##";
+                        if (present && localBranch != null)
+                        {
+                            if (localBranch.Terminus.Value != x.Terminus.Value)
+                                presentMarker += " #w#(ahead)##";
+                        }
+                        if (localBranch != null && !localBranch.Terminus.HasValue)
+                            presentMarker += " #w#(not locally deleted)##";
+                        if (localBranch == null)
+                            presentMarker += " #w#(not synchronized)##";
+                        Printer.PrintMessage("  #e#(deleted)## - Last version: #b#{0}##{3}, #q#{2} {1}##", terminus.ShortName, terminus.Timestamp.ToLocalTime(), terminus.Author, presentMarker);
                     }
                     foreach (var z in branches.Item2.Where(y => y.Key == x.ID))
                     {
+                        bool present = client.Workspace.GetVersion(z.Value) != null;
+                        string presentMarker = present ? "" : " #w#(behind)##";
+                        if (present && localBranch != null)
+                        {
+                            var localHeads = client.Workspace.GetBranchHeads(localBranch);
+                            if (localHeads.Count == 1 && localHeads[0].Version != z.Value)
+                                presentMarker += " #w#(ahead)##";
+                        }
+                        if (localBranch != null && localBranch.Terminus.HasValue)
+                            presentMarker += " #e#(locally deleted)##";
+                        if (localBranch == null)
+                            presentMarker += " #w#(not synchronized)##";
                         var head = branches.Item3[z.Value];
-                        Printer.PrintMessage("  #s#(head)## - Version: #b#{0}##, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author);
+                        Printer.PrintMessage("  #s#(head)## - Version: #b#{0}##{3}, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author, presentMarker);
                     }
                 }
                 return true;
