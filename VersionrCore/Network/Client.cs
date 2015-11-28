@@ -243,7 +243,7 @@ namespace Versionr.Network
             return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
         }
 
-        public bool Push()
+        public bool Push(string branchName = null)
         {
             if (Workspace == null)
                 return false;
@@ -262,7 +262,26 @@ namespace Versionr.Network
                 Printer.PrintMessage("Determining data to send...");
                 if (!SharedNetwork.SendBranchJournal(SharedInfo))
                     return false;
-                if (!SharedNetwork.GetVersionList(SharedInfo, Workspace.Version, out branchesToSend, out versionsToSend))
+                Objects.Version version = Workspace.Version;
+                if (branchName != null)
+                {
+                    bool multiple;
+                    var branch = Workspace.GetBranchByPartialName(branchName, out multiple);
+                    if (branch == null)
+                    {
+                        Printer.PrintError("#e#Can't identify branch with name \"{0}\" to send!##", branchName);
+                        return false;
+                    }
+                    if (multiple)
+                    {
+                        Printer.PrintError("#e#Can't identify object to send - multiple branches with partial name \"{0}\"!##", branchName);
+                        return false;
+                    }
+                    var head = Workspace.GetBranchHead(branch);
+                    version = Workspace.GetVersion(head.Version);
+                    Printer.PrintMessage("Sending branch #c#{0}## (#b#\"{1}\"##).", branch.ID, branch.Name);
+                }
+                if (!SharedNetwork.GetVersionList(SharedInfo, version, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
                 if (!SharedNetwork.SendBranches(SharedInfo, branchesToSend))
