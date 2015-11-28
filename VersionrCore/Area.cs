@@ -1024,7 +1024,7 @@ namespace Versionr
 
         public List<Objects.Branch> GetBranchByName(string name)
         {
-            return Database.Table<Objects.Branch>().Where(x => x.Terminus == null).Where(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)).ToList();
+            return Database.Table<Objects.Branch>().Where(x => x.Terminus == null).ToList().Where(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)).ToList();
         }
 
         public Objects.Branch CurrentBranch
