@@ -2716,10 +2716,11 @@ namespace Versionr
                 Merge(postUpdateMerge, false, false, true, false);
         }
 
-        private void RemoveFileTimeCache(string item2)
+        private void RemoveFileTimeCache(string item2, bool updateDB = true)
         {
             FileTimeCache.Remove(item2);
-            LocalData.RemoveFileTime(item2);
+            if (updateDB)
+                LocalData.RemoveFileTime(item2);
         }
 
         class MergeResult
@@ -3602,7 +3603,8 @@ namespace Versionr
                 {
                     spinner = Printer.CreateSpinnerPrinter("Deleting", (obj) => { return string.Format("{0} objects.", (int)obj); });
                 }
-                spinner.Update(++deletionCount);
+                if ((deletionCount++ & 15) == 0)
+                    spinner.Update(deletionCount);
 
                 if (x.IsFile)
                 {
@@ -3611,7 +3613,7 @@ namespace Versionr
                     {
                         try
                         {
-                            RemoveFileTimeCache(x.CanonicalName);
+                            RemoveFileTimeCache(x.CanonicalName, false);
                             System.IO.File.Delete(path);
                             if (verbose)
                                 Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
@@ -3648,7 +3650,7 @@ namespace Versionr
                     {
                         try
                         {
-                            RemoveFileTimeCache(x.CanonicalName);
+                            RemoveFileTimeCache(x.CanonicalName, false);
                             System.IO.Directory.Delete(path);
                             deletions++;
                         }
