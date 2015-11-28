@@ -28,13 +28,15 @@ namespace Versionr.Commands
                 return "push";
             }
         }
+        [Option('b', "branch", HelpText = "The name of the branch to push.")]
+        public string Branch { get; set; }
     }
     class Push : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PushVerbOptions localOptions = options as PushVerbOptions;
-            return client.Push();
+            return client.Push(localOptions.Branch);
         }
 
         protected override bool RequiresWriteAccess

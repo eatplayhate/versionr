@@ -17,7 +17,9 @@
 				".suo",
 				".user",
 				".cache",
-				".DS_Store"
+				".DS_Store",
+				".db",
+				".opendb"
 			],
 			"Patterns" :
 			[

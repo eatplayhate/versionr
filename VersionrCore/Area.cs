@@ -1024,7 +1024,7 @@ namespace Versionr
 
         public List<Objects.Branch> GetBranchByName(string name)
         {
-            return Database.Table<Objects.Branch>().Where(x => x.Name == name && x.Terminus == null).ToList();
+            return Database.Table<Objects.Branch>().Where(x => x.Terminus == null).ToList().Where(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)).ToList();
         }
 
         public Objects.Branch CurrentBranch
@@ -2203,9 +2203,10 @@ namespace Versionr
                         throw new Exception("Please commit data before merging again.");
                     }
                 }
-                
-                possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).ToList().Where(x => !x.Terminus.HasValue).FirstOrDefault();
-                if (possibleBranch != null)
+
+                bool multiple;
+                possibleBranch = GetBranchByPartialName(v, out multiple);
+                if (possibleBranch != null && !multiple)
                 {
                     Head head = GetBranchHead(possibleBranch);
                     mergeVersion = Database.Find<Objects.Version>(head.Version);
@@ -2715,10 +2716,11 @@ namespace Versionr
                 Merge(postUpdateMerge, false, false, true, false);
         }
 
-        private void RemoveFileTimeCache(string item2)
+        private void RemoveFileTimeCache(string item2, bool updateDB = true)
         {
             FileTimeCache.Remove(item2);
-            LocalData.RemoveFileTime(item2);
+            if (updateDB)
+                LocalData.RemoveFileTime(item2);
         }
 
         class MergeResult
@@ -3112,17 +3114,7 @@ namespace Versionr
         private List<KeyValuePair<Guid, int>> GetCommonParents(Objects.Version version, Objects.Version mergeVersion)
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion);
-            Dictionary<Guid, int> localGraph = GetParentGraph(version);
-            List<KeyValuePair<Guid, int>> shared = new List<KeyValuePair<Guid, int>>();
-            foreach (var x in foreignGraph)
-            {
-                int distance;
-                if (localGraph.TryGetValue(x.Key, out distance))
-                {
-                    distance = System.Math.Max(x.Value, distance);
-                    shared.Add(new KeyValuePair<Guid, int>(x.Key, distance));
-                }
-            }
+            List<KeyValuePair<Guid, int>> shared = GetSharedParentGraphMinimal(version, foreignGraph);
             shared = shared.OrderBy(x => x.Value).ToList();
             if (shared.Count == 0)
                 return null;
@@ -3143,6 +3135,57 @@ namespace Versionr
                 }
             }
             return pruned.Where(x => !ignored.Contains(x.Key)).ToList();
+        }
+
+        private List<KeyValuePair<Guid, int>> GetSharedParentGraphMinimal(Objects.Version version, Dictionary<Guid, int> foreignGraph)
+        {
+            Printer.PrintDiagnostics("Getting minimal parent graph for version {0}", version.ID);
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
+            Stack<Tuple<Objects.Version, int>> openNodes = new Stack<Tuple<Objects.Version, int>>();
+            openNodes.Push(new Tuple<Objects.Version, int>(version, 0));
+            Dictionary<Guid, int> visited = new Dictionary<Guid, int>();
+            HashSet<Guid> sharedNodes = new HashSet<Guid>();
+            while (openNodes.Count > 0)
+            {
+                var currentNodeData = openNodes.Pop();
+                Objects.Version currentNode = currentNodeData.Item1;
+
+                int distance = 0;
+                if (visited.TryGetValue(currentNode.ID, out distance))
+                {
+                    if (distance > currentNodeData.Item2)
+                        visited[currentNode.ID] = currentNodeData.Item2;
+                    continue;
+                }
+
+                visited[currentNode.ID] = currentNodeData.Item2;
+                if (foreignGraph.ContainsKey(currentNode.ID))
+                {
+                    sharedNodes.Add(currentNode.ID);
+                }
+                else
+                {
+                    if (currentNode.Parent.HasValue && !visited.ContainsKey(currentNode.Parent.Value))
+                        openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(currentNode.Parent), currentNodeData.Item2 + 1));
+                    foreach (var x in Database.GetMergeInfo(currentNode.ID))
+                    {
+                        if (!visited.ContainsKey(x.SourceVersion))
+                            openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                    }
+                }
+            }
+
+            List<KeyValuePair<Guid, int>> shared = new List<KeyValuePair<Guid, int>>();
+            foreach (var x in sharedNodes)
+            {
+                int distance = System.Math.Max(visited[x], foreignGraph[x]);
+                shared.Add(new KeyValuePair<Guid, int>(x, distance));
+            }
+            shared = shared.OrderBy(x => x.Value).ToList();
+            sw.Stop();
+            Printer.PrintDiagnostics("Determined shared node hierarchy in {0} ms.", sw.ElapsedMilliseconds);
+            return shared;
         }
 
         public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
@@ -3215,8 +3258,10 @@ namespace Versionr
 
         public void Branch(string v)
         {
+            if (!System.Text.RegularExpressions.Regex.IsMatch(v, "^\\w+$"))
+                throw new Exception("Invalid branch name.");
             Printer.PrintDiagnostics("Checking for existing branch \"{0}\".", v);
-            var branch = Database.Find<Branch>(x => x.Name == v && x.Terminus == null);
+            var branch = GetBranchByName(v).FirstOrDefault();
             if (branch != null)
                 throw new Exception(string.Format("Branch \"{0}\" already exists!", v));
 
@@ -3511,6 +3556,14 @@ namespace Versionr
 			}
 		}
 
+        enum RecordUpdateType
+        {
+            Created,
+            Updated,
+            AlreadyPresent,
+            Deleted
+        }
+
 		private void CheckoutInternal(Objects.Version tipVersion, bool verbose)
         {
             List<Record> records = Database.Records;
@@ -3555,14 +3608,14 @@ namespace Versionr
                 49);
             }
             long count = 0;
-            Action<bool, string, Objects.Record> feedback = (created, name, rec) =>
+            Action<RecordUpdateType, string, Objects.Record> feedback = (type, name, rec) =>
             {
-                if (created)
+                if (type == RecordUpdateType.Created)
                     additions++;
-                else
+                else if (type == RecordUpdateType.Updated)
                     updates++;
-                if (verbose)
-                    Printer.PrintMessage("#b#{0}{2}##: {1}", created ? "Created" : "Updated", name, rec.IsDirectory ? " directory" : "");
+                if (verbose && type != RecordUpdateType.AlreadyPresent)
+                    Printer.PrintMessage("#b#{0}{2}##: {1}", type == RecordUpdateType.Created ? "Created" : "Updated", name, rec.IsDirectory ? " directory" : "");
                 if (printer != null)
                     printer.Update(System.Threading.Interlocked.Add(ref count, rec.Size));
             };
@@ -3580,10 +3633,19 @@ namespace Versionr
                 recordsToDelete.Add(x);
             }
 
+            Printer.InteractivePrinter spinner = null;
+            int deletionCount = 0;
             foreach (var x in DeletionOrder(recordsToDelete))
             {
                 if (canonicalNames.Contains(x.CanonicalName))
                     continue;
+
+                if (spinner == null)
+                {
+                    spinner = Printer.CreateSpinnerPrinter("Deleting", (obj) => { return string.Format("{0} objects.", (int)obj); });
+                }
+                if ((deletionCount++ & 15) == 0)
+                    spinner.Update(deletionCount);
 
                 if (x.IsFile)
                 {
@@ -3592,7 +3654,7 @@ namespace Versionr
                     {
                         try
                         {
-                            RemoveFileTimeCache(x.CanonicalName);
+                            RemoveFileTimeCache(x.CanonicalName, false);
                             System.IO.File.Delete(path);
                             if (verbose)
                                 Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
@@ -3629,7 +3691,7 @@ namespace Versionr
                     {
                         try
                         {
-                            RemoveFileTimeCache(x.CanonicalName);
+                            RemoveFileTimeCache(x.CanonicalName, false);
                             System.IO.Directory.Delete(path);
                             deletions++;
                         }
@@ -3640,6 +3702,8 @@ namespace Versionr
                     }
                 }
             }
+            if (spinner != null)
+                spinner.End(deletionCount);
             foreach (var x in CheckoutOrder(targetRecords))
 			{
 				canonicalNames.Add(x.CanonicalName);
@@ -4545,7 +4609,7 @@ namespace Versionr
             }
         }
 
-        public void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<bool, string, Objects.Record> feedback = null)
+        public void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
         {
 			if (rec.IsSymlink)
 			{
@@ -4569,7 +4633,7 @@ namespace Versionr
                     if (feedback == null)
                         Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
                     else
-                        feedback(true, GetLocalCanonicalName(rec), rec);
+                        feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
                     directory.Create();
                     ApplyAttributes(directory, referenceTime, rec);
                 }
@@ -4581,7 +4645,11 @@ namespace Versionr
                 FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
 
                 if (dest.LastWriteTimeUtc == fst.LastSeenTime && dest.Length == rec.Size && rec.DataIdentifier == fst.DataIdentifier)
+                {
+                    if (feedback != null)
+                        feedback(RecordUpdateType.AlreadyPresent, GetLocalCanonicalName(rec), rec);
                     return;
+                }
                 if (dest.Length == rec.Size)
                 {
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
@@ -4591,6 +4659,8 @@ namespace Versionr
                             UpdateFileTimeCache(rec.CanonicalName, rec, dest.LastWriteTimeUtc);
                         else
                             updatedTimestamps.Enqueue(new FileTimestamp() { CanonicalName = rec.CanonicalName, DataIdentifier = rec.DataIdentifier, LastSeenTime = dest.LastWriteTimeUtc });
+                        if (feedback != null)
+                            feedback(RecordUpdateType.AlreadyPresent, GetLocalCanonicalName(rec), rec);
                         return;
                     }
                 }
@@ -4599,7 +4669,7 @@ namespace Versionr
                     if (feedback == null)
                         Printer.PrintMessage("Updating {0}", GetLocalCanonicalName(rec));
                     else
-                        feedback(false, GetLocalCanonicalName(rec), rec);
+                        feedback(RecordUpdateType.Updated, GetLocalCanonicalName(rec), rec);
                 }
             }
             else if (overridePath == null)
@@ -4607,7 +4677,7 @@ namespace Versionr
                 if (feedback == null)
                     Printer.PrintMessage("Creating {0}", GetLocalCanonicalName(rec));
                 else
-                    feedback(true, GetLocalCanonicalName(rec), rec);
+                    feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
             }
             int retries = 0;
         Retry:
