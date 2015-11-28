@@ -2203,9 +2203,10 @@ namespace Versionr
                         throw new Exception("Please commit data before merging again.");
                     }
                 }
-                
-                possibleBranch = Database.Table<Objects.Branch>().Where(x => x.Name == v).ToList().Where(x => !x.Terminus.HasValue).FirstOrDefault();
-                if (possibleBranch != null)
+
+                bool multiple;
+                possibleBranch = GetBranchByPartialName(v, out multiple);
+                if (possibleBranch != null && !multiple)
                 {
                     Head head = GetBranchHead(possibleBranch);
                     mergeVersion = Database.Find<Objects.Version>(head.Version);
