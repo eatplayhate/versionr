@@ -593,9 +593,6 @@ namespace Versionr.Network
                                     }
                                 }
                             }
-                            else if (command.Type == NetCommandType.Synchronized)
-                            {
-                            }
                             else
                             {
                                 Printer.PrintDiagnostics("Client sent invalid command: {0}", command.Type);

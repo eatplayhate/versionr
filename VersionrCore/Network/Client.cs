@@ -352,12 +352,6 @@ namespace Versionr.Network
                 }
                 foreach (var branchID in branches)
                 {
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = branchID }, ProtoBuf.PrefixStyle.Fixed32);
-
-                    var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                    if (command.Type == NetCommandType.Error)
-                        throw new Exception("Remote error: " + command.AdditionalPayload);
-
                     Printer.InteractivePrinter printer = Printer.CreateSpinnerPrinter(string.Empty, (object obj) =>
                     {
                         NetCommandType type = (NetCommandType)obj;
@@ -371,6 +365,13 @@ namespace Versionr.Network
                             return "Processing";
                         return "Communicating";
                     });
+                    if (allBranches)
+                        Printer.PrintMessage("Target branch: #c#{0}##.", branchID);
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = branchID }, ProtoBuf.PrefixStyle.Fixed32);
+
+                    var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                    if (command.Type == NetCommandType.Error)
+                        throw new Exception("Remote error: " + command.AdditionalPayload);
 
                     while (true)
                     {
@@ -405,6 +406,7 @@ namespace Versionr.Network
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                             if (result == false)
                                 return result;
+                            break;
                         }
                     }
                 }
