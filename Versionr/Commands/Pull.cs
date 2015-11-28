@@ -30,8 +30,10 @@ namespace Versionr.Commands
         }
         [Option('b', "branch", HelpText="The name of the branch to pull.")]
         public string RemoteBranch { get; set; }
-        [Option('o', "objects", DefaultValue = true, HelpText = "Retreive remote object payloads as well as metadata.")]
-        public bool PullObjects { get; set; }
+        [Option('o', "objects", HelpText = "Retrieve remote object payloads as well as metadata.")]
+        public bool? PullObjects { get; set; }
+        [Option('a', "all", DefaultValue = true, HelpText = "Pull all branches on the server.")]
+        public bool PullAll { get; set; }
         [Option('u', "update", DefaultValue = false, HelpText = "Update the local revision after pulling data.")]
         public bool Update { get; set; }
     }
@@ -40,7 +42,10 @@ namespace Versionr.Commands
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             PullVerbOptions localOptions = options as PullVerbOptions;
-            if (!client.Pull(localOptions.PullObjects, localOptions.RemoteBranch))
+            bool objects = true;
+            if (localOptions.PullAll)
+                objects = false;
+            if (!client.Pull(localOptions.PullObjects.HasValue ? localOptions.PullObjects.Value : objects, localOptions.RemoteBranch, localOptions.PullAll))
                 return false;
             if (localOptions.Update)
             {

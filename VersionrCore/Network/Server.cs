@@ -378,6 +378,14 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
                                 }
                             }
+                            else if (command.Type == NetCommandType.ListBranches)
+                            {
+                                if (!clientInfo.Access.HasFlag(Rights.Read))
+                                    throw new Exception("Access denied.");
+                                Printer.PrintDiagnostics("Client is requesting a branch list.");
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, new BranchList() { Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray() });
+                            }
                             else if (command.Type == NetCommandType.RequestRecordUnmapped)
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))

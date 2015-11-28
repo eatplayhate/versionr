@@ -16,7 +16,8 @@ namespace Versionr.Network
             Versionr281,
             Versionr29,
             Versionr3,
-            Versionr31
+            Versionr31,
+            Versionr32
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -24,7 +25,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get

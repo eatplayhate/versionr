@@ -67,6 +67,7 @@
     <Compile Include="LocalState\StageOperation.cs" />
     <Compile Include="LocalState\Workspace.cs" />
     <Compile Include="Network\Authentication.cs" />
+    <Compile Include="Network\BranchList.cs" />
     <Compile Include="Network\Client.cs" />
     <Compile Include="Network\ClonePayload.cs" />
     <Compile Include="Network\CompressibleAttribute.cs" />
