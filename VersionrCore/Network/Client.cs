@@ -457,7 +457,16 @@ namespace Versionr.Network
                         return "Communicating";
                     });
                     if (allBranches)
-                        Printer.PrintMessage("Target branch: #c#{0}##.", branchID);
+                    {
+                        string branchname = "";
+                        if (branchList != null)
+                        {
+                            var remoteData = branchList.Branches.Where(x => x.ID.ToString() == branchID).FirstOrDefault();
+                            if (remoteData != null)
+                                branchname = "\"#b#" + remoteData.Name + "## ";
+                        }
+                        Printer.PrintMessage("Target branch: {1}#c#{0}##.", branchID, branchname);
+                    }
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PullVersions, AdditionalPayload = branchID }, ProtoBuf.PrefixStyle.Fixed32);
 
                     var command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
