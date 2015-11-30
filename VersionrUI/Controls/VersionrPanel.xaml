@@ -51,7 +51,17 @@
                                     <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
                                 </HierarchicalDataTemplate>
                                 <DataTemplate DataType="{x:Type vm:BranchVM}">
-                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Text="{Binding Name}">
+                                        <TextBlock.Resources>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="TextBlock.FontWeight" Value="Bold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Resources>
+                                    </TextBlock>
                                 </DataTemplate>
                                 <DataTemplate DataType="{x:Type vm:StatusVM}">
                                     <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />

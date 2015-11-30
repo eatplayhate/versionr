@@ -22,7 +22,7 @@ namespace VersionrUI.ViewModels
 
         public bool IsCurrent
         {
-            get { return _area.CurrentBranch == _branch; }
+            get { return _area.CurrentBranch.ID == _branch.ID; }
         }
 
         public ObservableCollection<VersionVM> History
