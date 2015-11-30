@@ -34,10 +34,7 @@ namespace VersionrUI.ViewModels
             BackgroundWorker worker = new BackgroundWorker();
             worker.DoWork += new DoWorkEventHandler((obj, args) =>
             {
-                MainWindow.Instance.Dispatcher.Invoke(() =>
-                {
-                    action.Invoke();
-                });
+                action.Invoke();
                 IsLoading = false;
             });
             worker.RunWorkerAsync();

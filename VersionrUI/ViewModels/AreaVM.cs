@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -127,38 +128,53 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        private object refreshLock = new object();
         public void RefreshStatusAndBranches()
         {
-            if (_status == null)
+            lock (refreshLock)
             {
-                // Assume the active directory is the root of the Area
-                _status = VersionrVMFactory.GetStatusVM(this);
+                if (_status == null)
+                {
+                    // Assume the active directory is the root of the Area
+                    _status = VersionrVMFactory.GetStatusVM(this);
+                }
+
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    if (_branches == null)
+                        _branches = new ObservableCollection<BranchVM>();
+                    else
+                        _branches.Clear();
+                    foreach (Versionr.Objects.Branch branch in _area.Branches)
+                        _branches.Add(VersionrVMFactory.GetBranchVM(this, branch));
+
+                    NotifyPropertyChanged("Children");
+                });
             }
-
-            if (_branches == null)
-                _branches = new ObservableCollection<BranchVM>();
-            else
-                _branches.Clear();
-            foreach (Versionr.Objects.Branch branch in _area.Branches)
-                _branches.Add(VersionrVMFactory.GetBranchVM(this, branch));
-
-            NotifyPropertyChanged("Children");
         }
 
         private void RefreshRemotes()
         {
-            if (_remotes == null)
-                _remotes = new ObservableCollection<RemoteConfig>();
-            else
-                _remotes.Clear();
-            foreach (RemoteConfig remote in _area.GetRemotes())
-                _remotes.Add(remote);
+            lock (refreshLock)
+            {
+                List<RemoteConfig> remotes = _area.GetRemotes();
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    if (_remotes == null)
+                        _remotes = new ObservableCollection<RemoteConfig>();
+                    else
+                        _remotes.Clear();
 
-            if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
-                SelectedRemote = _remotes.FirstOrDefault();
+                    foreach (RemoteConfig remote in remotes)
+                        _remotes.Add(remote);
 
-            NotifyPropertyChanged("Remotes");
-            NotifyPropertyChanged("SelectedRemote");
+                    if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
+                        SelectedRemote = _remotes.FirstOrDefault();
+
+                    NotifyPropertyChanged("Remotes");
+                    NotifyPropertyChanged("SelectedRemote");
+                });
+            }
         }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)

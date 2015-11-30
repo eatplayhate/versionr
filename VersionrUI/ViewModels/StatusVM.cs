@@ -61,25 +61,32 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        private object refreshLock = new object();
         public void Refresh()
         {
-            _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
-
-            if (_elements == null)
-                _elements = new ObservableCollection<StatusEntryVM>();
-            else
-                _elements.Clear();
-
-            foreach (Status.StatusEntry statusEntry in Status.Elements)
+            lock (refreshLock)
             {
-                if (statusEntry.Code != StatusCode.Masked &&
-                    statusEntry.Code != StatusCode.Ignored &&
-                    statusEntry.Code != StatusCode.Unchanged)
-                    _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area));
-            }
+                _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
 
-            NotifyPropertyChanged("Status");
-            NotifyPropertyChanged("Elements");
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    if (_elements == null)
+                        _elements = new ObservableCollection<StatusEntryVM>();
+                    else
+                        _elements.Clear();
+
+                    foreach (Status.StatusEntry statusEntry in Status.Elements)
+                    {
+                        if (statusEntry.Code != StatusCode.Masked &&
+                            statusEntry.Code != StatusCode.Ignored &&
+                            statusEntry.Code != StatusCode.Unchanged)
+                            _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area));
+                    }
+
+                    NotifyPropertyChanged("Status");
+                    NotifyPropertyChanged("Elements");
+                });
+            }
         }
 
         public ObservableCollection<StatusEntryVM> Elements

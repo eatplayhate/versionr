@@ -18,14 +18,17 @@ namespace VersionrUI.ViewModels
         static public AreaVM GetAreaVM(string path, string name, AreaInitMode areaInitMode)
         {
             AreaVM result = null;
-            if (!_areaVMDictionary.TryGetValue(path, out result))
+            lock (_areaVMDictionary)
             {
-                result = new AreaVM(path, name, areaInitMode);
-                _areaVMDictionary.Add(path, result);
-            }
-            else
-            {
-                result.Name = name;     // update name
+                if (!_areaVMDictionary.TryGetValue(path, out result))
+                {
+                    result = new AreaVM(path, name, areaInitMode);
+                    _areaVMDictionary.Add(path, result);
+                }
+                else
+                {
+                    result.Name = name;     // update name
+                }
             }
             return result;
         }
@@ -33,11 +36,14 @@ namespace VersionrUI.ViewModels
         static public BranchVM GetBranchVM(AreaVM areaVM, Versionr.Objects.Branch branch)
         {
             BranchVM result = null;
-            var key = branch.ID;
-            if (!_branchVMDictionary.TryGetValue(key, out result))
+            lock (_branchVMDictionary)
             {
-                result = new BranchVM(areaVM, branch);
-                _branchVMDictionary.Add(key, result);
+                var key = branch.ID;
+                if (!_branchVMDictionary.TryGetValue(key, out result))
+                {
+                    result = new BranchVM(areaVM, branch);
+                    _branchVMDictionary.Add(key, result);
+                }
             }
             return result;
         }
@@ -45,11 +51,14 @@ namespace VersionrUI.ViewModels
         static public VersionVM GetVersionVM(Versionr.Objects.Version version, Area area)
         {
             VersionVM result = null;
-            var key = version.ID;
-            if (!_versionVMDictionary.TryGetValue(key, out result))
+            lock (_versionVMDictionary)
             {
-                result = new VersionVM(version, area);
-                _versionVMDictionary.Add(key, result);
+                var key = version.ID;
+                if (!_versionVMDictionary.TryGetValue(key, out result))
+                {
+                    result = new VersionVM(version, area);
+                    _versionVMDictionary.Add(key, result);
+                }
             }
             return result;
         }
@@ -57,10 +66,13 @@ namespace VersionrUI.ViewModels
         static public StatusVM GetStatusVM(AreaVM areaVM)
         {
             StatusVM result = null;
-            if (!_statusVMDictionary.TryGetValue(areaVM, out result))
+            lock (_statusVMDictionary)
             {
-                result = new StatusVM(areaVM);
-                _statusVMDictionary.Add(areaVM, result);
+                if (!_statusVMDictionary.TryGetValue(areaVM, out result))
+                {
+                    result = new StatusVM(areaVM);
+                    _statusVMDictionary.Add(areaVM, result);
+                }
             }
             return result;
         }
@@ -68,11 +80,14 @@ namespace VersionrUI.ViewModels
         static public StatusEntryVM GetStatusEntryVM(Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
             StatusEntryVM result = null;
-            var key = statusEntry.CanonicalName;
-            if (!_statusEntryVMDictionary.TryGetValue(key, out result))
+            lock (_statusEntryVMDictionary)
             {
-                result = new StatusEntryVM(statusEntry, statusVM, area);
-                _statusEntryVMDictionary.Add(key, result);
+                var key = statusEntry.CanonicalName;
+                if (!_statusEntryVMDictionary.TryGetValue(key, out result))
+                {
+                    result = new StatusEntryVM(statusEntry, statusVM, area);
+                    _statusEntryVMDictionary.Add(key, result);
+                }
             }
             return result;
         }

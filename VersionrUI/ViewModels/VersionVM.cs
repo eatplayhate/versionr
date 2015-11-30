@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Versionr;
 using Versionr.Objects;
@@ -58,17 +59,25 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        private object refreshLock = new object();
         private void Refresh()
         {
-            if (_alterations == null)
-                _alterations = new ObservableCollection<AlterationVM>();
-            else
-                _alterations.Clear();
+            lock (refreshLock)
+            {
+                List<Alteration> alterations = _area.GetAlterations(_version);
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    if (_alterations == null)
+                        _alterations = new ObservableCollection<AlterationVM>();
+                    else
+                        _alterations.Clear();
 
-            foreach (Alteration alteration in _area.GetAlterations(_version))
-                _alterations.Add(new AlterationVM(alteration, _area));
+                    foreach (Alteration alteration in alterations)
+                        _alterations.Add(new AlterationVM(alteration, _area));
 
-            NotifyPropertyChanged("Alterations");
+                    NotifyPropertyChanged("Alterations");
+                });
+            }
         }
     }
 }

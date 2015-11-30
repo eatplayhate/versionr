@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
+using Version = Versionr.Objects.Version;
 
 namespace VersionrUI.ViewModels
 {
@@ -17,6 +19,7 @@ namespace VersionrUI.ViewModels
         {
             _areaVM = areaVM;
             _branch = branch;
+
             CheckoutCommand = new DelegateCommand(Checkout);
         }
 
@@ -40,52 +43,64 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        private object refreshLock = new object();
         private void RefreshHistory()
         {
-            if (_history == null)
-                _history = new ObservableCollection<VersionVM>();
-            else
-                _history.Clear();
+            lock (refreshLock)
+            {
+                var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
+                int limit = 50; // TODO: setting?
+                List<Version> versions = _areaVM.Area.GetHistory(headVersion, limit);
 
-            var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
-            int limit = 50; // TODO: setting?
-            foreach (var version in _areaVM.Area.GetHistory(headVersion, limit))
-                _history.Add(VersionrVMFactory.GetVersionVM(version, _areaVM.Area));
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    if (_history == null)
+                        _history = new ObservableCollection<VersionVM>();
+                    else
+                        _history.Clear();
 
-            NotifyPropertyChanged("History");
+                    foreach (Version version in versions)
+                        _history.Add(VersionrVMFactory.GetVersionVM(version, _areaVM.Area));
+                    NotifyPropertyChanged("History");
+                });
+            }
         }
 
         private void Checkout()
         {
-            Load(() =>
+            if (_areaVM.Area.Status.HasModifications(false))
             {
-                if (_areaVM.Area.Status.HasModifications(false))
-                {
-                    int result = CustomMessageBox.Show("Vault contains uncommitted changes.\nDo you want to force the checkout operation?",
-                                                       "Checkout",
-                                                       new string[] { "Checkout (keep unversioned files)",
+                int result = CustomMessageBox.Show("Vault contains uncommitted changes.\nDo you want to force the checkout operation?",
+                                                   "Checkout",
+                                                   new string[] { "Checkout (keep unversioned files)",
                                                                   "Checkout (purge unversioned files)",
                                                                   "Cancel" },
-                                                       2);
+                                                   2);
 
-                    switch (result)
-                    {
-                        case 0:
-                            _areaVM.Area.Checkout(Name, false, true, false);
-                            break;
-                        case 1:
-                            _areaVM.Area.Checkout(Name, true, true, false);
-                            break;
-                        case 2:
-                        default:
-                            return;
-                    }
-                }
-                else
+                switch (result)
                 {
-                    _areaVM.Area.Checkout(Name, false, true, false);
+                    case 0:
+                        CheckoutAsync(false);
+                        break;
+                    case 1:
+                        CheckoutAsync(true);
+                        break;
+                    case 2:
+                    default:
+                        return;
                 }
+            }
+            else
+            {
+                CheckoutAsync(false);
+            }
+        }
 
+        private void CheckoutAsync(bool purge)
+        {
+            Load(() =>
+            {
+                _areaVM.Area.Checkout(Name, purge, false, false);
                 _areaVM.RefreshStatusAndBranches();
             });
         }
