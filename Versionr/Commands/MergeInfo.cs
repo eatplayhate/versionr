@@ -24,7 +24,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return "merge";
+                return "mergeinfo";
             }
         }
 

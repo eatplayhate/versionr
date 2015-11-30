@@ -417,30 +417,33 @@ namespace Versionr.Network
                         if (remoteData != null)
                         {
                             Objects.Branch localData = Workspace.GetBranch(new Guid(branchID));
-                            if (localData.Terminus.HasValue && remoteData.Terminus.HasValue && localData.Terminus.Value == remoteData.Terminus.Value)
-                                continue;
-                            bool skip = false;
-                            if (branchList.Heads != null)
+                            if (localData != null)
                             {
-                                foreach (var x in branchList.Heads)
+                                if (localData.Terminus.HasValue && remoteData.Terminus.HasValue && localData.Terminus.Value == remoteData.Terminus.Value)
+                                    continue;
+                                bool skip = false;
+                                if (branchList.Heads != null)
                                 {
-                                    if (x.Key == localData.ID)
+                                    foreach (var x in branchList.Heads)
                                     {
-                                        var localHeads = Workspace.GetBranchHeads(localData);
-                                        foreach (var y in localHeads)
+                                        if (x.Key == localData.ID)
                                         {
-                                            if (y.Version == x.Value)
+                                            var localHeads = Workspace.GetBranchHeads(localData);
+                                            foreach (var y in localHeads)
                                             {
-                                                skip = true;
-                                                break;
+                                                if (y.Version == x.Value)
+                                                {
+                                                    skip = true;
+                                                    break;
+                                                }
                                             }
+                                            break;
                                         }
-                                        break;
                                     }
                                 }
+                                if (skip)
+                                    continue;
                             }
-                            if (skip)
-                                continue;
                         }
                     }
                     Printer.InteractivePrinter printer = Printer.CreateSpinnerPrinter(string.Empty, (object obj) =>
