@@ -127,7 +127,7 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private void RefreshStatusAndBranches()
+        public void RefreshStatusAndBranches()
         {
             if (_status == null)
             {
@@ -140,7 +140,7 @@ namespace VersionrUI.ViewModels
             else
                 _branches.Clear();
             foreach (Versionr.Objects.Branch branch in _area.Branches)
-                _branches.Add(VersionrVMFactory.GetBranchVM(_area, branch));
+                _branches.Add(VersionrVMFactory.GetBranchVM(this, branch));
 
             NotifyPropertyChanged("Children");
         }

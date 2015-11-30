@@ -52,6 +52,11 @@
                                 </HierarchicalDataTemplate>
                                 <DataTemplate DataType="{x:Type vm:BranchVM}">
                                     <TextBlock Text="{Binding Name}">
+                                        <TextBlock.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
+                                            </ContextMenu>
+                                        </TextBlock.ContextMenu>
                                         <TextBlock.Resources>
                                             <Style TargetType="{x:Type TextBlock}">
                                                 <Style.Triggers>
