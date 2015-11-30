@@ -12,7 +12,7 @@ namespace VersionrUI.ViewModels
         static private Dictionary<string, AreaVM> _areaVMDictionary = new Dictionary<string, AreaVM>();
         static private Dictionary<Guid, BranchVM> _branchVMDictionary = new Dictionary<Guid, BranchVM>();
         static private Dictionary<Guid, VersionVM> _versionVMDictionary = new Dictionary<Guid, VersionVM>();
-        static private Dictionary<Guid, StatusVM> _statusVMDictionary = new Dictionary<Guid, StatusVM>();
+        static private Dictionary<AreaVM, StatusVM> _statusVMDictionary = new Dictionary<AreaVM, StatusVM>();
         static private Dictionary<string, StatusEntryVM> _statusEntryVMDictionary = new Dictionary<string, StatusEntryVM>();
 
         static public AreaVM GetAreaVM(string path, string name, AreaInitMode areaInitMode)
@@ -57,11 +57,10 @@ namespace VersionrUI.ViewModels
         static public StatusVM GetStatusVM(AreaVM areaVM)
         {
             StatusVM result = null;
-            var key = areaVM.Area.Version.ID;
-            if (!_statusVMDictionary.TryGetValue(key, out result))
+            if (!_statusVMDictionary.TryGetValue(areaVM, out result))
             {
                 result = new StatusVM(areaVM);
-                _statusVMDictionary.Add(key, result);
+                _statusVMDictionary.Add(areaVM, result);
             }
             return result;
         }
