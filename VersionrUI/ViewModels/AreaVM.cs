@@ -28,31 +28,63 @@ namespace VersionrUI.ViewModels
         private ObservableCollection<RemoteConfig> _remotes;
         private StatusVM _status;
 
-        public AreaVM(string path, string name, AreaInitMode areaInitMode)
+        public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
             PullCommand = new DelegateCommand(Pull);
             PushCommand = new DelegateCommand(Push);
 
             _name = name;
 
+            DirectoryInfo dir = new DirectoryInfo(path);
             switch (areaInitMode)
             {
                 case AreaInitMode.Clone:
                     // Spawn another dialog for the source (or put it in the Clone New button)
-                    throw new NotImplementedException("// TODO: AreaInitMode.Clone");
-                // break;
+                    Client client = new Client(dir);
+                    if (client.Connect(host, port, null, true))
+                    {
+                        bool result = client.Clone(true);
+                        if (!result)
+                            result = client.Clone(false);
+                        if (result)
+                        {
+                            string remoteName = "default";
+                            client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName);
+                            client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
+                            _area = Area.Load(client.Workspace.Root);
+                            _area.Checkout(null, false, false);
+                            client.SyncRecords();
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show(string.Format("Couldn't connect to {0}:{1}", host, port), "Clone Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                    client.Close();
+                    break;
                 case AreaInitMode.InitNew:
                     // Tell versionr to initialize at path
-                    _area = Area.Init(new DirectoryInfo(path), name);
+                    try
+                    {
+                        dir.Create();
+                    }
+                    catch
+                    {
+                        MessageBox.Show("Error - couldn't create subdirectory \"{0}\"", dir.FullName);
+                        break;
+                    }
+                    _area = Area.Init(dir, name);
                     break;
                 case AreaInitMode.UseExisting:
                     // Add it to settings and refresh UI, get status etc.
-                    _area = Area.Load(new DirectoryInfo(path));
+                    _area = Area.Load(dir);
                     break;
             }
         }
 
         public Area Area { get { return _area; } }
+
+        public bool IsValid { get { return _area != null; } }
 
         public DirectoryInfo Directory { get { return _area.Root; } }
 
@@ -87,7 +119,7 @@ namespace VersionrUI.ViewModels
             {
                 CompositeCollection collection = new CompositeCollection();
                 collection.Add(Status);
-                collection.Add(new NamedCollection("Branches", Branches));
+                collection.Add(new NamedCollection("Branches", Branches?.OrderBy(x => x.Name)));
                 return collection;
             }
         }
@@ -176,7 +208,7 @@ namespace VersionrUI.ViewModels
                 });
             }
         }
-
+        
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
         {
             if (SelectedRemote != null)

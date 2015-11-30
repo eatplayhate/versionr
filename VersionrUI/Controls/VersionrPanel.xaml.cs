@@ -36,7 +36,7 @@ namespace VersionrUI.Controls
                 {
                     string[] parts = areaString.Split(';');
                     AreaVM areaVM = VersionrVMFactory.GetAreaVM(parts[0], parts[1], AreaInitMode.UseExisting);
-                    if (areaVM != null)
+                    if (areaVM != null && areaVM.IsValid)
                         OpenAreas.Add(areaVM);
                 }
             }
@@ -69,8 +69,10 @@ namespace VersionrUI.Controls
             CloneNewDialog cloneNewDlg = new CloneNewDialog(MainWindow.Instance);
             if (cloneNewDlg.ShowDialog() == true)
             {
-                AreaVM areaVM = VersionrVMFactory.GetAreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result);
-                if (areaVM != null)
+                int port = 0;
+                int.TryParse(cloneNewDlg.Port, out port);
+                AreaVM areaVM = VersionrVMFactory.GetAreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result, cloneNewDlg.Host, port);
+                if (areaVM != null && areaVM.IsValid)
                 {
                     OpenAreas.Add(areaVM);
                     SelectedArea = OpenAreas.LastOrDefault();
@@ -94,6 +96,7 @@ namespace VersionrUI.Controls
             }
             Properties.Settings.Default.Save();
         }
+
         private void OpenAreas_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
             SaveOpenAreas();

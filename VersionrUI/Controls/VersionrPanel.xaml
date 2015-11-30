@@ -268,7 +268,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal">
-                    <Button Margin="4" Content="Clone/New" Command="{Binding NewAreaCommand}" />
+                    <Button Margin="4" Content="Clone/Init" Command="{Binding NewAreaCommand}" />
                 </StackPanel>
                 <Button Grid.Column="1"
                         Margin="4"

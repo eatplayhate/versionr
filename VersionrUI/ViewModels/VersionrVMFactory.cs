@@ -15,15 +15,16 @@ namespace VersionrUI.ViewModels
         static private Dictionary<AreaVM, StatusVM> _statusVMDictionary = new Dictionary<AreaVM, StatusVM>();
         static private Dictionary<string, StatusEntryVM> _statusEntryVMDictionary = new Dictionary<string, StatusEntryVM>();
 
-        static public AreaVM GetAreaVM(string path, string name, AreaInitMode areaInitMode)
+        static public AreaVM GetAreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
             AreaVM result = null;
             lock (_areaVMDictionary)
             {
                 if (!_areaVMDictionary.TryGetValue(path, out result))
                 {
-                    result = new AreaVM(path, name, areaInitMode);
-                    _areaVMDictionary.Add(path, result);
+                    result = new AreaVM(path, name, areaInitMode, host, port);
+                    if(result != null && result.IsValid)
+                        _areaVMDictionary.Add(path, result);
                 }
                 else
                 {

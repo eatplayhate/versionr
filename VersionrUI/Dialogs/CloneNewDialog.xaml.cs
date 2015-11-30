@@ -21,6 +21,8 @@ namespace VersionrUI.Dialogs
         private bool _userTypedName = false;
         private string _pathString = "";
         private string _nameString = "";
+        private string _host = "";
+        private string _port = "";
         private ImageSource _imageGoodTick;
         private ImageSource _imageBadCircle;
 
@@ -37,9 +39,9 @@ namespace VersionrUI.Dialogs
             catch { }
 
             PathBrowseCommand = new DelegateCommand(PathBrowse);
-            NewRepoCommand = new DelegateCommand(NewRepo, CanExecuteNewRepo);
-            ExistingRepoCommand = new DelegateCommand(ExistingRepo, CanExecuteExistingRepo);
-            CloneRepoCommand = new DelegateCommand(CloneRepo, CanExecuteCloneRepo);
+            OptionChangedCommand = new DelegateCommand<AreaInitMode>(OptionChanged);
+            OkCommand = new DelegateCommand(Ok, CanOk);
+            RefreshRadioButtons();
         }
 
         public string PathString
@@ -58,14 +60,13 @@ namespace VersionrUI.Dialogs
                         NameString = new string(filteredChars.ToArray());
                     }
 
-                    NewRepoCommand.RaiseCanExecuteChanged();
-                    ExistingRepoCommand.RaiseCanExecuteChanged();
-                    CloneRepoCommand.RaiseCanExecuteChanged();
+                    RefreshRadioButtons();
                     NotifyPropertyChanged("PathString");
                     NotifyPropertyChanged("PathStatus");
                 }
             }
         }
+
         public string NameString
         {
             get { return _nameString; }
@@ -74,15 +75,39 @@ namespace VersionrUI.Dialogs
                 if (_nameString != value)
                 {
                     _nameString = value;
-                    NewRepoCommand.RaiseCanExecuteChanged();
-                    ExistingRepoCommand.RaiseCanExecuteChanged();
-                    CloneRepoCommand.RaiseCanExecuteChanged();
+                    RefreshRadioButtons();
                     NotifyPropertyChanged("NameString");
                     NotifyPropertyChanged("NameStatus");
                 }
             }
         }
-        
+
+        public string Host
+        {
+            get { return _host; }
+            set
+            {
+                if (_host != value)
+                {
+                    _host = value;
+                    NotifyPropertyChanged("Host");
+                }
+            }
+        }
+
+        public string Port
+        {
+            get { return _port; }
+            set
+            {
+                if (_port != value)
+                {
+                    _port = value;
+                    NotifyPropertyChanged("Port");
+                }
+            }
+        }
+
         public AreaInitMode Result { get; private set; }
 
         public ImageSource PathStatus
@@ -110,6 +135,8 @@ namespace VersionrUI.Dialogs
                     return _imageBadCircle;
             }
         }
+
+        public Visibility HostFieldVisibility { get { return (Result == AreaInitMode.Clone) ? Visibility.Visible : Visibility.Hidden; } }
 
         private bool IsPathGood
         {
@@ -144,10 +171,17 @@ namespace VersionrUI.Dialogs
 
         #region Commands
         public DelegateCommand PathBrowseCommand { get; private set; }
-        public DelegateCommand NewRepoCommand { get; private set; }
-        public DelegateCommand ExistingRepoCommand { get; private set; }
-        public DelegateCommand CloneRepoCommand { get; private set; }
+        public DelegateCommand<AreaInitMode> OptionChangedCommand { get; private set; }
+        public DelegateCommand OkCommand { get; private set; }
 
+        private void OptionChanged(AreaInitMode newOption)
+        {
+            Result = newOption;
+
+            NotifyPropertyChanged("HostFieldVisibility");
+            OkCommand.RaiseCanExecuteChanged();
+        }
+        
         private void PathBrowse()
         {
             FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
@@ -164,6 +198,35 @@ namespace VersionrUI.Dialogs
             }
         }
 
+        private bool CanOk()
+        {
+            switch (Result)
+            {
+                case AreaInitMode.InitNew:
+                    return CanExecuteNewRepo();
+                case AreaInitMode.UseExisting:
+                    return CanExecuteExistingRepo();
+                case AreaInitMode.Clone:
+                    return CanExecuteCloneRepo();
+                default:
+                    return false;
+            }
+        }
+        
+        private void Ok()
+        {
+            DialogResult = true;
+            Close();
+        }
+        #endregion
+
+        private void RefreshRadioButtons()
+        {
+            radioNewRepo.IsEnabled = CanExecuteNewRepo();
+            radioExistingRepo.IsEnabled = CanExecuteExistingRepo();
+            radioCloneRepo.IsEnabled = CanExecuteCloneRepo();
+        }
+
         private bool CanExecuteNewRepo()
         {
             return IsPathGood && !IsVersionrRepo && IsNameValid;
@@ -177,28 +240,6 @@ namespace VersionrUI.Dialogs
         {
             return IsPathGood && !IsVersionrRepo && IsNameValid;
         }
-
-        private void NewRepo()
-        {
-            Result = AreaInitMode.InitNew;
-            DialogResult = true;
-            Close();
-        }
-
-        private void ExistingRepo()
-        {
-            Result = AreaInitMode.UseExisting;
-            DialogResult = true;
-            Close();
-        }
-
-        private void CloneRepo()
-        {
-            Result = AreaInitMode.Clone;
-            DialogResult = true;
-            Close();
-        }
-        #endregion
 
         #region INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;

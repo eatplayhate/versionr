@@ -2,14 +2,22 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:local="clr-namespace:VersionrUI.Dialogs"
+        xmlns:vm="clr-namespace:VersionrUI.ViewModels"
         mc:Ignorable="d"
-        Width="467" Height="174"
+        Title="Clone/Init Repo"
+        Width="467" Height="247"
         WindowStyle="ToolWindow">
-    
+
     <Grid Name="mainGrid">
-        <StackPanel Orientation="Vertical">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <StackPanel Grid.Row="0"
+                    Orientation="Vertical">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -31,15 +39,31 @@
                 <TextBox Grid.Column="1" Grid.Row="1" Margin="4" Text="{Binding NameString}" KeyDown="TextBox_Name_KeyDown" />
                 <Image Grid.Column="3" Grid.Row="1" Margin="4" Source="{Binding NameStatus}" Width="20" />
             </Grid>
-            
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Height="60">
-                <Button Margin="4" Command="{Binding NewRepoCommand}" Content="Init a new repo" />
-                <Button Margin="4" Command="{Binding ExistingRepoCommand}" Content="Use existing repo" />
-                <Button Margin="4" Command="{Binding CloneRepoCommand}" Content="Clone an existing repo here" />
-                <Button Margin="4" IsCancel="True" Content="Cancel" />
-            </StackPanel>
 
+            <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                <RadioButton Margin="4" Name="radioNewRepo" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:AreaInitMode.InitNew}" Content="Init a new repo" />
+                <RadioButton Margin="4" Name="radioExistingRepo" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:AreaInitMode.UseExisting}" Content="Use existing repo" />
+                <RadioButton Margin="4" Name="radioCloneRepo" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:AreaInitMode.Clone}" Content="Clone an existing repo here" />
+                <StackPanel Margin="4"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding HostFieldVisibility}">
+                    <Label Content="Host:" />
+                    <TextBox Width="180" Text="{Binding Host}" />
+                    <Label Content="Port:" />
+                    <TextBox Width="60" Text="{Binding Port}" />
+                </StackPanel>
+            </StackPanel>
         </StackPanel>
+        
+        <StackPanel Grid.Row="1"
+                    Margin="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center">
+            <Button Margin="4" Width="60" Command="{Binding OkCommand}" IsDefault="True" Content="Ok" />
+            <Button Margin="4" Width="60" IsCancel="True" Content="Cancel" />
+        </StackPanel>
+        
     </Grid>
     
 </Window>
