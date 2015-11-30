@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.IO;
 using System.Windows;
 using Versionr;
@@ -12,6 +13,7 @@ namespace VersionrUI.ViewModels
     {
         public DelegateCommand DiffWithPreviousCommand { get; private set; }
         public DelegateCommand DiffWithCurrentCommand { get; private set; }
+        public DelegateCommand SaveVersionAsCommand { get; private set; }
 
         private Alteration _alteration;
         private Area _area;
@@ -29,6 +31,7 @@ namespace VersionrUI.ViewModels
 
             DiffWithPreviousCommand = new DelegateCommand(DiffWithPrevious, CanDiffWithPrevious);
             DiffWithCurrentCommand = new DelegateCommand(DiffWithCurrent, CanDiffWithCurrent);
+            SaveVersionAsCommand = new DelegateCommand(SaveVersionAs, CanSaveVersionAs);
         }
 
         public AlterationType AlterationType { get { return _alteration.Type; } }
@@ -44,7 +47,7 @@ namespace VersionrUI.ViewModels
                    _alteration.Type == AlterationType.Update;
         }
 
-        public bool CanDiffWithCurrent()
+        private bool CanDiffWithCurrent()
         {
             return _newRecord != null &&
                    !_newRecord.IsDirectory &&
@@ -52,7 +55,14 @@ namespace VersionrUI.ViewModels
                    File.Exists(Path.Combine(_area.Root.FullName, _newRecord.CanonicalName));
         }
 
-        public void DiffWithPrevious()
+        private bool CanSaveVersionAs()
+        {
+            return _newRecord != null &&
+                   !_newRecord.IsDirectory &&
+                   _alteration.Type != AlterationType.Delete;
+        }
+
+        private void DiffWithPrevious()
         {
             if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
                 (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
@@ -84,7 +94,7 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public void DiffWithCurrent()
+        private void DiffWithCurrent()
         {
             if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
@@ -108,6 +118,25 @@ namespace VersionrUI.ViewModels
                         File.Delete(tmpNew);
                     }
                 });
+            }
+        }
+
+        private void SaveVersionAs()
+        {
+            if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
+            {
+                MessageBox.Show(string.Format("File: {0} is binary different.", _newRecord.CanonicalName));
+            }
+            else
+            {
+                SaveFileDialog dialog = new SaveFileDialog();
+                dialog.FileName = _newRecord.Name;
+                dialog.CheckPathExists = true;
+                if (dialog.ShowDialog() == true)
+                {
+                    _area.GetMissingRecords(new Record[] { _newRecord });
+                    _area.RestoreRecord(_newRecord, DateTime.UtcNow, dialog.FileName);
+                }
             }
         }
     }
