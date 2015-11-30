@@ -971,7 +971,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.1.33";
+                return "v1.1.34";
             }
         }
 
