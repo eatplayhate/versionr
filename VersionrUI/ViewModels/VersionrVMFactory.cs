@@ -30,13 +30,13 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
-        static public BranchVM GetBranchVM(Area area, Versionr.Objects.Branch branch)
+        static public BranchVM GetBranchVM(AreaVM areaVM, Versionr.Objects.Branch branch)
         {
             BranchVM result = null;
             var key = branch.ID;
             if (!_branchVMDictionary.TryGetValue(key, out result))
             {
-                result = new BranchVM(area, branch);
+                result = new BranchVM(areaVM, branch);
                 _branchVMDictionary.Add(key, result);
             }
             return result;
