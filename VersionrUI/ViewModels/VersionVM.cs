@@ -41,7 +41,7 @@ namespace VersionrUI.ViewModels
 
         public DateTime Timestamp
         {
-            get { return _version.Timestamp; }
+            get { return _version.Timestamp.ToLocalTime(); }
         }
 
         public uint Revision
