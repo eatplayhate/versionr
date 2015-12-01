@@ -10,6 +10,7 @@ namespace VersionrUI.ViewModels
     public class BranchVM : NotifyPropertyChangedBase
     {
         public DelegateCommand CheckoutCommand { get; private set; }
+        public DelegateCommand LogCommand { get; private set; }
 
         private AreaVM _areaVM;
         private Branch _branch;
@@ -21,6 +22,7 @@ namespace VersionrUI.ViewModels
             _branch = branch;
 
             CheckoutCommand = new DelegateCommand(Checkout);
+            LogCommand = new DelegateCommand(Log);
         }
 
         public Branch Branch
@@ -113,6 +115,12 @@ namespace VersionrUI.ViewModels
                 _areaVM.Area.Checkout(Name, purge, false, false);
                 _areaVM.RefreshStatusAndBranches();
             });
+        }
+
+        private void Log()
+        {
+            Version headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
+            new LogDialog(headVersion, _areaVM.Area).ShowDialog();
         }
     }
 }

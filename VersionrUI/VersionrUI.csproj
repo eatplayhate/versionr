@@ -75,6 +75,9 @@
     <Compile Include="Dialogs\CloneNewDialog.xaml.cs">
       <DependentUpon>CloneNewDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Dialogs\LogDialog.xaml.cs">
+      <DependentUpon>LogDialog.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Utilities\Utilities.cs" />
     <Compile Include="ViewModels\AreaVM.cs" />
     <Compile Include="ViewModels\BranchVM.cs" />
@@ -94,6 +97,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Dialogs\CloneNewDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Dialogs\LogDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

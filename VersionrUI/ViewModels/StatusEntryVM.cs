@@ -7,13 +7,15 @@ using System.Windows.Media;
 using Versionr;
 using Versionr.Utilities;
 using VersionrUI.Commands;
+using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
 {
     public class StatusEntryVM : NotifyPropertyChangedBase
     {
-        public DelegateCommand<StatusEntryVM> DiffCommand { get; private set; }
-        public DelegateCommand<StatusEntryVM> RevertCommand { get; private set; }
+        public DelegateCommand DiffCommand { get; private set; }
+        public DelegateCommand LogCommand { get; private set; }
+        public DelegateCommand RevertCommand { get; private set; }
 
         private Status.StatusEntry _statusEntry;
         private StatusVM _statusVM;
@@ -26,8 +28,9 @@ namespace VersionrUI.ViewModels
             _statusVM = statusVM;
             _area = area;
 
-            DiffCommand = new DelegateCommand<StatusEntryVM>(Diff);
-            RevertCommand = new DelegateCommand<StatusEntryVM>(Revert);
+            DiffCommand = new DelegateCommand(Diff);
+            LogCommand = new DelegateCommand(Log);
+            RevertCommand = new DelegateCommand(Revert);
         }
 
         public Versionr.StatusCode Code
@@ -95,7 +98,7 @@ namespace VersionrUI.ViewModels
                                 _diffPreviewDocument.Blocks.Add(text);
                                 try
                                 {
-                                    RunInternalDiff(tmp, System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName));
+                                    RunInternalDiff(_diffPreviewDocument, tmp, System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName));
                                 }
                                 finally
                                 {
@@ -130,7 +133,7 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public void Diff(StatusEntryVM se)
+        public void Diff()
         {
             if (_statusEntry.VersionControlRecord != null && !_statusEntry.IsDirectory && _statusEntry.FilesystemEntry != null && _statusEntry.Code == Versionr.StatusCode.Modified)
             {
@@ -160,7 +163,12 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public void Revert(StatusEntryVM se)
+        private void Log()
+        {
+            new LogDialog(_area.Version, _area, _statusEntry.CanonicalName).ShowDialog();
+        }
+
+        public void Revert()
         {
             bool deleteNewFile = true;
             if (Code == StatusCode.Added || Code == StatusCode.Unversioned)
@@ -182,19 +190,19 @@ namespace VersionrUI.ViewModels
             public int Start2;
             public int End2;
         }
-        private void RunInternalDiff(string file1, string file2, bool processTabs = true)
+        internal static void RunInternalDiff(FlowDocument document, string file1, string file2, bool processTabs = true)
         {
             List<string> lines1 = new List<string>();
             List<string> lines2 = new List<string>();
             
             if (!System.IO.File.Exists(file1))
             {
-                _diffPreviewDocument.Blocks.Add(new Paragraph(new Run(string.Format("{0} could not be opened", file1)) { Foreground = Brushes.Red }));
+                document.Blocks.Add(new Paragraph(new Run(string.Format("{0} could not be opened", file1)) { Foreground = Brushes.Red }));
                 return;
             }
             if (!System.IO.File.Exists(file2))
             {
-                _diffPreviewDocument.Blocks.Add(new Paragraph(new Run(string.Format("{0} could not be opened", file2)) { Foreground = Brushes.Red }));
+                document.Blocks.Add(new Paragraph(new Run(string.Format("{0} could not be opened", file2)) { Foreground = Brushes.Red }));
                 return;
             }
 
@@ -230,7 +238,7 @@ namespace VersionrUI.ViewModels
             Paragraph header = new Paragraph();
             header.Inlines.Add(new Run(string.Format("--- a/{0}" + Environment.NewLine, file1)));
             header.Inlines.Add(new Run(string.Format("+++ b/{0}" + Environment.NewLine, file2)));
-            _diffPreviewDocument.Blocks.Add(header);
+            document.Blocks.Add(header);
             List<Region> regions = new List<Region>();
             Region openRegion = null;
             Region last = null;
@@ -403,7 +411,7 @@ namespace VersionrUI.ViewModels
                             region.Inlines.Add(new Run(string.Format("+{0}" + Environment.NewLine, diff[i].file2[j - 1])) { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(220, 255, 220)) });
                     }
                 }
-                _diffPreviewDocument.Blocks.Add(region);
+                document.Blocks.Add(region);
                 activeRegion++;
             }
         }

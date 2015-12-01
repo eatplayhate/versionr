@@ -73,7 +73,7 @@ namespace VersionrUI.ViewModels
                         _alterations.Clear();
 
                     foreach (Alteration alteration in alterations)
-                        _alterations.Add(new AlterationVM(alteration, _area));
+                        _alterations.Add(new AlterationVM(alteration, _area, _version));
 
                     NotifyPropertyChanged("Alterations");
                 });

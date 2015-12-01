@@ -55,6 +55,7 @@
                                         <TextBlock.ContextMenu>
                                             <ContextMenu>
                                                 <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
+                                                <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                             </ContextMenu>
                                         </TextBlock.ContextMenu>
                                         <TextBlock.Resources>
@@ -112,7 +113,7 @@
                             <GridView>
                                 <GridViewColumn Header="Revision" DisplayMemberBinding="{Binding Revision, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
-                                <GridViewColumn Header="Message"  DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
+                                <GridViewColumn Header="Message" DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                             </GridView>
                         </ListView.View>
@@ -147,9 +148,10 @@
                         <Setter Property="ContextMenu">
                             <Setter.Value>
                                 <ContextMenu>
-                                    <MenuItem Header="Diff with previous version" FontWeight="Bold" Command="{Binding DiffWithPreviousCommand}" CommandParameter="{Binding}" />
-                                    <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" CommandParameter="{Binding}" />
-                                    <MenuItem Header="Save this version as..." Command="{Binding SaveVersionAsCommand}" CommandParameter="{Binding}" />
+                                    <MenuItem Header="Diff with previous version" FontWeight="Bold" Command="{Binding DiffWithPreviousCommand}" />
+                                    <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" />
+                                    <MenuItem Header="View log..." Command="{Binding LogCommand}" />
+                                    <MenuItem Header="Save this version as..." Command="{Binding SaveVersionAsCommand}" />
                                 </ContextMenu>
                             </Setter.Value>
                         </Setter>
@@ -227,8 +229,9 @@
                                     <Setter Property="ContextMenu">
                                         <Setter.Value>
                                             <ContextMenu>
-                                                <MenuItem Header="Diff" FontWeight="Bold" Command="{Binding DiffCommand}" CommandParameter="{Binding}" />
-                                                <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{Binding}" />
+                                                <MenuItem Header="Diff" FontWeight="Bold" Command="{Binding DiffCommand}" />
+                                                <MenuItem Header="View log..." Command="{Binding LogCommand}" />
+                                                <MenuItem Header="Revert" Command="{Binding RevertCommand}" />
                                             </ContextMenu>
                                         </Setter.Value>
                                     </Setter>
