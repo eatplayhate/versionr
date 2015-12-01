@@ -63,6 +63,9 @@
                                                     <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                         <Setter Property="TextBlock.FontWeight" Value="Bold"/>
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+                                                        <Setter Property="TextBlock.Foreground" Value="Gray"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Resources>

@@ -8,6 +8,7 @@ using System.Windows.Data;
 using Versionr;
 using Versionr.LocalState;
 using Versionr.Network;
+using Versionr.Objects;
 using VersionrUI.Commands;
 
 namespace VersionrUI.ViewModels
@@ -119,7 +120,7 @@ namespace VersionrUI.ViewModels
             {
                 CompositeCollection collection = new CompositeCollection();
                 collection.Add(Status);
-                collection.Add(new NamedCollection("Branches", Branches?.OrderBy(x => x.Name)));
+                collection.Add(new NamedCollection("Branches", Branches));
                 return collection;
             }
         }
@@ -171,13 +172,15 @@ namespace VersionrUI.ViewModels
                     _status = VersionrVMFactory.GetStatusVM(this);
                 }
 
+                IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
+
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
                     if (_branches == null)
                         _branches = new ObservableCollection<BranchVM>();
                     else
                         _branches.Clear();
-                    foreach (Versionr.Objects.Branch branch in _area.Branches)
+                    foreach (Branch branch in branches)
                         _branches.Add(VersionrVMFactory.GetBranchVM(this, branch));
 
                     NotifyPropertyChanged("Children");

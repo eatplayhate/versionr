@@ -1,6 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
 using Version = Versionr.Objects.Version;
@@ -12,10 +12,10 @@ namespace VersionrUI.ViewModels
         public DelegateCommand CheckoutCommand { get; private set; }
 
         private AreaVM _areaVM;
-        private Versionr.Objects.Branch _branch;
+        private Branch _branch;
         private ObservableCollection<VersionVM> _history = null;
 
-        public BranchVM(AreaVM areaVM, Versionr.Objects.Branch branch)
+        public BranchVM(AreaVM areaVM, Branch branch)
         {
             _areaVM = areaVM;
             _branch = branch;
@@ -23,9 +23,19 @@ namespace VersionrUI.ViewModels
             CheckoutCommand = new DelegateCommand(Checkout);
         }
 
+        public Branch Branch
+        {
+            get { return _branch; }
+        }
+
         public string Name
         {
             get { return _branch.Name; }
+        }
+
+        public bool IsDeleted
+        {
+            get { return _branch.Terminus.HasValue; }
         }
 
         public bool IsCurrent
