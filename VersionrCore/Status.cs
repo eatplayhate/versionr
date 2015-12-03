@@ -89,6 +89,8 @@ namespace Versionr
                 {
                     if (Code == StatusCode.Unchanged)
                         return VersionControlRecord.Fingerprint;
+                    else if (FilesystemEntry == null)
+                        return String.Empty;
                     return FilesystemEntry.Hash;
                 }
             }

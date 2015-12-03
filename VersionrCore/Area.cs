@@ -962,6 +962,43 @@ namespace Versionr
             }
         }
 
+        public List<Objects.Version> GetLogicalHistory(Objects.Version version, int? limit = null)
+        {
+            var versions = Database.GetHistory(version, limit);
+            List<Objects.Version> results = new List<Objects.Version>();
+            HashSet<Guid> primaryLine = new HashSet<Guid>();
+            foreach (var x in versions)
+            {
+                primaryLine.Add(x.ID);
+            }
+            foreach (var x in versions)
+            {
+                var merges = Database.GetMergeInfo(x.ID);
+                if (!x.Message.StartsWith("Automatic merge of"))
+                    results.Add(x);
+                foreach (var y in merges)
+                {
+                    var mergedVersion = GetVersion(y.SourceVersion);
+                    if (mergedVersion.Branch == x.Branch)
+                    {
+                        // automerge or manual reconcile
+                        var mergedHistory = GetLogicalHistory(mergedVersion, limit);
+                        foreach (var z in mergedHistory)
+                        {
+                            if (!primaryLine.Contains(z.ID))
+                                results.Add(z);
+                            else
+                                break;
+                        }
+                    }
+                }
+            }
+            var ordered = results.OrderByDescending(x => x.Timestamp);
+            if (limit == null)
+                return ordered.ToList();
+            else return ordered.Take(limit.Value).ToList();
+        }
+
         public List<Objects.Version> GetHistory(Objects.Version version, int? limit = null)
         {
             return Database.GetHistory(version, limit);
@@ -3556,7 +3593,7 @@ namespace Versionr
 			}
 		}
 
-        enum RecordUpdateType
+        public enum RecordUpdateType
         {
             Created,
             Updated,
@@ -3925,7 +3962,7 @@ namespace Versionr
             return false;
         }
 
-        private bool GetMissingRecords(List<Record> targetRecords)
+        public bool GetMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
             if (missingRecords.Count > 0)
@@ -4609,7 +4646,7 @@ namespace Versionr
             }
         }
 
-        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
+        public void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
         {
 			if (rec.IsSymlink)
 			{

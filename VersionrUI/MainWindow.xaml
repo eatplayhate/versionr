@@ -1,0 +1,14 @@
+﻿<Window x:Class="VersionrUI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:VersionrUI.Controls"
+        Loaded="MainWindow_Loaded"
+        SizeChanged="Window_SizeChanged"
+        LocationChanged="Window_LocationChanged"
+        StateChanged="Window_StateChanged"
+        Title="Versionr"
+        Width="825" Height="650">
+    <Grid>
+        <controls:VersionrPanel />
+    </Grid>
+</Window>
