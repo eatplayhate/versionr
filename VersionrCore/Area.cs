@@ -3593,7 +3593,7 @@ namespace Versionr
 			}
 		}
 
-        enum RecordUpdateType
+        public enum RecordUpdateType
         {
             Created,
             Updated,
@@ -3962,7 +3962,7 @@ namespace Versionr
             return false;
         }
 
-        private bool GetMissingRecords(List<Record> targetRecords)
+        public bool GetMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
             if (missingRecords.Count > 0)
@@ -4646,7 +4646,7 @@ namespace Versionr
             }
         }
 
-        private void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
+        public void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
         {
 			if (rec.IsSymlink)
 			{
