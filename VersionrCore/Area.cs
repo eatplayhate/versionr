@@ -2716,6 +2716,10 @@ namespace Versionr
                 if (x.TemporaryFile != null)
                     x.TemporaryFile.Delete();
             }
+            LocalData.BeginTransaction();
+            foreach (var x in filetimesToRemove)
+                RemoveFileTimeCache(x);
+            LocalData.Commit();
             if (reintegrate)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
             if (!updateMode)
@@ -2736,10 +2740,6 @@ namespace Versionr
             }
             else
             {
-                LocalData.BeginTransaction();
-                foreach (var x in filetimesToRemove)
-                    RemoveFileTimeCache(x);
-                LocalData.Commit();
                 LocalData.BeginTransaction();
                 try
                 {
