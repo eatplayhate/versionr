@@ -2233,14 +2233,6 @@ namespace Versionr
             Objects.Branch possibleBranch = null;
             if (!updateMode)
             {
-                foreach (var x in LocalData.StageOperations)
-                {
-                    if (x.Type == StageOperationType.Merge)
-                    {
-                        throw new Exception("Please commit data before merging again.");
-                    }
-                }
-
                 bool multiple;
                 possibleBranch = GetBranchByPartialName(v, out multiple);
                 if (possibleBranch != null && !multiple)
@@ -2257,7 +2249,7 @@ namespace Versionr
                 if (possibleBranch == null && reintegrate)
                     throw new Exception("Can't reintegrate when merging a version and not a branch.");
 
-                var parents = GetCommonParents(Database.Version, mergeVersion);
+                var parents = GetCommonParents(null, mergeVersion);
                 if (parents == null || parents.Count == 0)
                     throw new Exception("No common parent!");
 
@@ -2727,7 +2719,21 @@ namespace Versionr
             if (reintegrate)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
             if (!updateMode)
+            {
+                Dictionary<Guid, int> mergeVersionGraph = null;
+                foreach (var x in LocalData.StageOperations)
+                {
+                    if (x.Type == StageOperationType.Merge)
+                    {
+                        if (mergeVersionGraph == null)
+                            mergeVersionGraph = GetParentGraph(mergeVersion);
+                        Objects.Version stagedMergeVersion = GetVersion(new Guid(x.Operand1));
+                        if (mergeVersionGraph.ContainsKey(stagedMergeVersion.ID))
+                            LocalData.RemoveStageOperation(x);
+                    }
+                }
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
+            }
             else
             {
                 LocalData.BeginTransaction();
@@ -3176,11 +3182,25 @@ namespace Versionr
 
         private List<KeyValuePair<Guid, int>> GetSharedParentGraphMinimal(Objects.Version version, Dictionary<Guid, int> foreignGraph)
         {
+            bool includePendingMerge = false;
+            if (version == null)
+            {
+                includePendingMerge = true;
+                version = Version;
+            }
             Printer.PrintDiagnostics("Getting minimal parent graph for version {0}", version.ID);
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
             Stack<Tuple<Objects.Version, int>> openNodes = new Stack<Tuple<Objects.Version, int>>();
             openNodes.Push(new Tuple<Objects.Version, int>(version, 0));
+            if (includePendingMerge)
+            {
+                foreach (var x in LocalData.StageOperations)
+                {
+                    if (x.Type == StageOperationType.Merge)
+                        openNodes.Push(new Tuple<Objects.Version, int>(GetVersion(new Guid(x.Operand1)), 1));
+                }
+            }
             Dictionary<Guid, int> visited = new Dictionary<Guid, int>();
             HashSet<Guid> sharedNodes = new HashSet<Guid>();
             while (openNodes.Count > 0)

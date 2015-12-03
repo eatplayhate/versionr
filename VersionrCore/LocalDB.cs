@@ -267,6 +267,24 @@ namespace Versionr
             }
         }
 
+        internal void RemoveStageOperation(LocalState.StageOperation ss)
+        {
+            lock (this)
+            {
+                BeginTransaction();
+                try
+                {
+                    Delete(ss);
+                    Commit();
+                }
+                catch (Exception e)
+                {
+                    Rollback();
+                    throw new Exception("Unable to remove stage operation!", e);
+                }
+            }
+        }
+
         internal void AddStageOperation(LocalState.StageOperation ss)
         {
             lock (this)
