@@ -12,8 +12,10 @@ namespace Versionr.Commands
 	{
 		[Option('l', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
+        [Option('m', "shormerged", DefaultValue = true, HelpText = "Show logical history (cleans up automatic merge data).")]
+        public bool ShowMerged { get; set; }
 
-		public enum DetailMode
+        public enum DetailMode
 		{
 			Normal,
 			N = Normal,
@@ -291,33 +293,33 @@ namespace Versionr.Commands
 				}
 
 				// Same-branch merge revisions. This only sort-of respects the limit :(
-				foreach (var y in mergeInfo)
-				{
-					var mergeParent = Workspace.GetVersion(y.SourceVersion);
-					if (mergeParent.Branch == v.Branch)
-					{
-						Printer.PushIndent();
-						Printer.PrintMessage("---- Merged versions ----");
+				//foreach (var y in mergeInfo)
+				//{
+				//	var mergeParent = Workspace.GetVersion(y.SourceVersion);
+				//	if (mergeParent.Branch == v.Branch)
+				//	{
+				//		Printer.PushIndent();
+				//		Printer.PrintMessage("---- Merged versions ----");
 
-						List<Objects.Version> mergedVersions = new List<Objects.Version>();
+				//		List<Objects.Version> mergedVersions = new List<Objects.Version>();
 
-						var p = mergeParent;
-						do
-						{
-							mergedVersions.Add(p);
-							if (p.Parent.HasValue && !m_LoggedVersions.Contains(p.Parent.Value))
-								p = Workspace.GetVersion(p.Parent.Value);
-							else
-								p = null;
-						} while (p != null);
+				//		var p = mergeParent;
+				//		do
+				//		{
+				//			mergedVersions.Add(p);
+				//			if (p.Parent.HasValue && !m_LoggedVersions.Contains(p.Parent.Value))
+				//				p = Workspace.GetVersion(p.Parent.Value);
+				//			else
+				//				p = null;
+				//		} while (p != null);
 
-						foreach (var a in ApplyHistoryFilter(mergedVersions, localOptions))
-							FormatLog(a.Item1, a.Item2, localOptions);
+				//		foreach (var a in ApplyHistoryFilter(mergedVersions, localOptions))
+				//			FormatLog(a.Item1, a.Item2, localOptions);
 
-						Printer.PrintMessage("-------------------------");
-						Printer.PopIndent();
-					}
-				}
+				//		Printer.PrintMessage("-------------------------");
+				//		Printer.PopIndent();
+				//	}
+				//}
 			}
 		}
 
@@ -373,8 +375,10 @@ namespace Versionr.Commands
 
 			if (localOptions.Limit == -1)
 				localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
+            if (version == null)
+                version = ws.Version;
 
-			var history = (version == null ? ws.History : ws.GetHistory(version)).AsEnumerable();
+			var history = (localOptions.ShowMerged ? ws.GetLogicalHistory(version, localOptions.Limit) : ws.GetHistory(version, localOptions.Limit)).AsEnumerable();
 
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;
