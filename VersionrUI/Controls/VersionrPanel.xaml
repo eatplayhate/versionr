@@ -172,7 +172,7 @@
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="80" />
+                            <RowDefinition Height="120" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
@@ -188,6 +188,9 @@
                                           Content="Push after commit"
                                           IsChecked="{Binding PushOnCommit}" />
                             </StackPanel>
+                            <DockPanel DockPanel.Dock="Bottom">
+                                <CheckBox Margin="4" Content="Select all" IsThreeState="True" IsChecked="{Binding AllStaged}" />
+                            </DockPanel>
                             <DockPanel>
                                 <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
                                 <TextBox Margin="4" Text="{Binding CommitMessage}"/>

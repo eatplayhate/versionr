@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
+using System.Linq;
 
 namespace VersionrUI.ViewModels
 {
@@ -71,7 +72,10 @@ namespace VersionrUI.ViewModels
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
                     if (_elements == null)
+                    {
                         _elements = new ObservableCollection<StatusEntryVM>();
+                        _elements.CollectionChanged += _elements_CollectionChanged;
+                    }
                     else
                         _elements.Clear();
 
@@ -80,13 +84,31 @@ namespace VersionrUI.ViewModels
                         if (statusEntry.Code != StatusCode.Masked &&
                             statusEntry.Code != StatusCode.Ignored &&
                             statusEntry.Code != StatusCode.Unchanged)
-                            _elements.Add(VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area));
+                        {
+                            var statusEntryVM = VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area);
+                            if (statusEntryVM != null)
+                            {
+                                _elements.Add(statusEntryVM);
+                                statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
+                            }
+                        }
                     }
 
                     NotifyPropertyChanged("Status");
                     NotifyPropertyChanged("Elements");
                 });
             }
+        }
+
+        private void StatusVM_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "IsStaged")
+                NotifyPropertyChanged("AllStaged");
+        }
+
+        private void _elements_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+           NotifyPropertyChanged("AllStaged");
         }
 
         public ObservableCollection<StatusEntryVM> Elements
@@ -96,6 +118,36 @@ namespace VersionrUI.ViewModels
                 if (_elements == null)
                     Load(() => Refresh());
                 return _elements;
+            }
+        }
+
+        public bool? AllStaged
+        {
+            get
+            {
+                if (Elements == null)
+                    return false;   // whatever
+                int stagedCount = Elements.Count(x => x.IsStaged);
+                if (stagedCount == 0)
+                    return false;
+                else if (stagedCount == Elements.Count)
+                    return true;
+                else
+                    return null;
+            }
+            set
+            {
+                bool useValue = true;
+                if (!value.HasValue || value == false)
+                    useValue = false;
+                if (AllStaged != useValue)
+                {
+                    foreach (var st in Elements)
+                    {
+                        st.IsStaged = useValue;
+                    }
+                    NotifyPropertyChanged("AllStaged");
+                }
             }
         }
 
