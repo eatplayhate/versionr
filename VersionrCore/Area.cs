@@ -1910,7 +1910,7 @@ namespace Versionr
             return Database.Find<Objects.Version>(value);
         }
 
-        internal VersionInfo MergeRemote(Objects.Version localVersion, Guid remoteVersionID, SharedNetwork.SharedNetworkInfo clientInfo, out string error)
+        internal VersionInfo MergeRemote(Objects.Version localVersion, Guid remoteVersionID, SharedNetwork.SharedNetworkInfo clientInfo, out string error, bool clientMode = false)
         {
             Objects.Version remoteVersion = GetLocalOrRemoteVersion(remoteVersionID, clientInfo);
             Objects.Version parent = GetCommonParentForRemote(localVersion, remoteVersionID, clientInfo);
@@ -2018,7 +2018,7 @@ namespace Versionr
             Objects.Version resultVersion = new Objects.Version()
             {
                 ID = Guid.NewGuid(),
-                Author = remoteVersion.Author,
+                Author = clientMode ? localVersion.Author : remoteVersion.Author,
                 Branch = localVersion.Branch,
                 Message = string.Format("Automatic merge of {0}.", remoteVersion.ID),
                 Parent = localVersion.ID,
@@ -2028,7 +2028,7 @@ namespace Versionr
             return new VersionInfo()
             {
                 Alterations = alterations.ToArray(),
-                MergeInfos = new MergeInfo[1] { new MergeInfo() { DestinationVersion = resultVersion.ID, SourceVersion = remoteVersionID } },
+                MergeInfos = new MergeInfo[1] { new MergeInfo() { DestinationVersion = resultVersion.ID, SourceVersion = remoteVersionID, Type = MergeType.Automatic } },
                 Version = resultVersion
             };
         }

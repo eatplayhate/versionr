@@ -596,7 +596,7 @@ namespace Versionr.Network
                             Branch branch = Workspace.GetBranch(x.Key);
                             VersionInfo result;
                             string error;
-                            result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(x.Value, sharedInfo), temporaryHeads[x.Key].Version, sharedInfo, out error);
+                            result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(x.Value, sharedInfo), temporaryHeads[x.Key].Version, sharedInfo, out error, true);
                             if (result == null)
                             {
                                 if (x.Value != Workspace.Version.ID && temporaryHeads[x.Key].Branch == Workspace.CurrentBranch.ID)
