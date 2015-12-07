@@ -9,6 +9,8 @@ namespace Versionr.Objects
     public enum MergeType
     {
         Normal = 0,
+        Automatic = 1,
+        Rebase = 2
     }
 
     [ProtoBuf.ProtoContract]

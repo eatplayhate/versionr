@@ -13,9 +13,9 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 31;
+        public const int InternalDBVersion = 32;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 31;
+        public const int MaximumDBVersion = 32;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -103,6 +103,24 @@ namespace Versionr
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
+                    }
+                    if (priorFormat < 32)
+                    {
+                        int count = 0;
+                        foreach (var x in Table<Objects.Version>())
+                        {
+                            if (x.Message != null && x.Message.StartsWith("Automatic merge of"))
+                            {
+                                var mergeInfos = Table<MergeInfo>().Where(y => y.DestinationVersion == x.ID).ToList();
+                                if (mergeInfos.Count == 1)
+                                {
+                                    mergeInfos[0].Type = MergeType.Automatic;
+                                    Update(mergeInfos[0]);
+                                    count++;
+                                }
+                            }
+                        }
+                        Printer.PrintMessage("Updated #b#{0}## merge info records.", count);
                     }
                     if (priorFormat < 31)
                     {
@@ -307,9 +325,10 @@ namespace Versionr
 
                     ExecuteDirect("VACUUM");
                 }
-                catch
+                catch (Exception e)
                 {
                     Rollback();
+                    Printer.PrintError("Couldn't update DB: {0}", e.ToString());
                 }
                 PrepareTables();
             }
