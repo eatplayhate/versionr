@@ -974,10 +974,11 @@ namespace Versionr
             foreach (var x in versions)
             {
                 var merges = Database.GetMergeInfo(x.ID);
-                if (!x.Message.StartsWith("Automatic merge of"))
-                    results.Add(x);
+                bool automerged = false;
                 foreach (var y in merges)
                 {
+                    if (y.Type == MergeType.Automatic)
+                        automerged = true;
                     var mergedVersion = GetVersion(y.SourceVersion);
                     if (mergedVersion.Branch == x.Branch)
                     {
@@ -992,6 +993,8 @@ namespace Versionr
                         }
                     }
                 }
+                if (!automerged)
+                    results.Add(x);
             }
             var ordered = results.OrderByDescending(x => x.Timestamp);
             if (limit == null)
@@ -3501,10 +3504,13 @@ namespace Versionr
                 Lookup = new Dictionary<U, Tuple<T, int>>();
             }
         }
-        public DAG<Objects.Version, Guid> GetDAG()
+        public DAG<Objects.Version, Guid> GetDAG(int? limit)
         {
-            var allVersions = Database.Table<Objects.Version>().ToList();
-            DAG<Objects.Version, Guid> result = new DAG<Objects.Version, Guid>();
+            var allVersionsList = Database.Table<Objects.Version>().ToList();
+            List<Objects.Version> allVersions = null;
+            if (limit.HasValue && limit.Value > 0)
+                allVersions = allVersionsList.Reverse<Objects.Version>().Take(limit.Value).ToList();
+            DAG <Objects.Version, Guid> result = new DAG<Objects.Version, Guid>();
             foreach (var x in allVersions)
             {
                 result.Lookup[x.ID] = new Tuple<Objects.Version, int>(x, result.Objects.Count);

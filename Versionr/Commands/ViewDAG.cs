@@ -9,6 +9,8 @@ namespace Versionr.Commands
 {
     class ViewDAGVerbOptions : VerbOptionBase
     {
+        [Option('l', "limit", HelpText = "Limit number of versions to include in the node graph; use 0 for all.")]
+        public int? Limit { get; set; }
         public override string[] Description
         {
             get
@@ -37,14 +39,15 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            var result = ws.GetDAG();
+            int limit = !localOptions.Limit.HasValue ? 50 : localOptions.Limit.Value;
+            var result = ws.GetDAG(limit);
             System.Console.WriteLine("digraph {");
             int index = 0;
 
 			int nextColourIndex = 0;
 			string[] colours = new string[] { "red2", "green3", "blue", "cyan4", "darkorange1", "magenta4" };
 			Dictionary<Guid, Tuple<string, string>> branchInfoMap = new Dictionary<Guid, Tuple<string, string>>();
-
+            
             foreach (var x in result.Objects)
             {
                 string nodename = "node" + (index++).ToString();
@@ -81,15 +84,21 @@ namespace Versionr.Commands
 				nodeattribs += string.Format("label = \"{0}\"", name);
 
 				System.Console.WriteLine("  {0} [{1}];", nodename, nodeattribs);
-                foreach (var y in x.Links)
+                if (x != null)
                 {
-                    string sourceNode = "node" + result.Lookup[y.Source].Item2.ToString();
-					string attribs = string.Format("color = {0};fontcolor = {0};penwidth = 2;", branchInfo.Item1);
-					attribs += string.Format("taillabel = \"{0}\";", branchInfo.Item2);
-					if (y.Merge)
-						attribs += "style = dotted";
+                    foreach (var y in x.Links)
+                    {
+                        if (result.Lookup.ContainsKey(y.Source))
+                        {
+                            string sourceNode = "node" + result.Lookup[y.Source].Item2.ToString();
+                            string attribs = string.Format("color = {0};fontcolor = {0};penwidth = 2;", branchInfo.Item1);
+                            attribs += string.Format("taillabel = \"{0}\";", branchInfo.Item2);
+                            if (y.Merge)
+                                attribs += "style = dotted";
 
-					System.Console.WriteLine("  {0} -> {1} [{2}];", sourceNode, nodename, attribs);
+                            System.Console.WriteLine("  {0} -> {1} [{2}];", sourceNode, nodename, attribs);
+                        }
+                    }
                 }
             }
             System.Console.WriteLine("}");

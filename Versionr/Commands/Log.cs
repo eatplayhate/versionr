@@ -14,6 +14,8 @@ namespace Versionr.Commands
 		public int Limit { get; set; }
         [Option('m', "shormerged", DefaultValue = true, HelpText = "Show logical history (cleans up automatic merge data).")]
         public bool ShowMerged { get; set; }
+        [Option('e', "reverse", HelpText = "Reverses the order of versions in the log.")]
+        public bool Reverse { get; set; }
 
         public enum DetailMode
 		{
@@ -335,7 +337,7 @@ namespace Versionr.Commands
 			if (localOptions.Limit != 0)
 				enumeration = enumeration.Take(localOptions.Limit);
 
-			if (!localOptions.Jrunting)
+			if (!(localOptions.Jrunting ^ localOptions.Reverse))
 				enumeration = enumeration.Reverse();
 
 			return enumeration;
