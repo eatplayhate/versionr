@@ -28,8 +28,8 @@ namespace Versionr.Commands
             }
         }
 
-		[Option('f', "force", HelpText = "Force the merge even if the repository isn't clean" )]
-		public bool Force { get; set; }
+        [Option('f', "force", HelpText = "Force the merge even if the repository isn't clean")]
+        public bool Force { get; set; }
 
         [Option('s', "simple", HelpText = "Disable recursive merge engine")]
         public bool Simple { get; set; }

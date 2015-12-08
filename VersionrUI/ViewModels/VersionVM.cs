@@ -24,6 +24,11 @@ namespace VersionrUI.ViewModels
             get { return _version.ID; }
         }
 
+        public string ShortName
+        {
+            get { return _version.ShortName; }
+        }
+
         public string Author
         {
             get { return _version.Author; }
@@ -42,6 +47,11 @@ namespace VersionrUI.ViewModels
         public DateTime Timestamp
         {
             get { return _version.Timestamp.ToLocalTime(); }
+        }
+
+        public bool IsCurrent
+        {
+            get { return _version.ID == _area.Version.ID; }
         }
 
         public uint Revision

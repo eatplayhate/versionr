@@ -92,6 +92,9 @@ namespace Versionr
         [VerbOption("mergeinfo", HelpText = "Identify branches where a commit has been merged into")]
         public Commands.MergeInfoVerbOptions MergeInfoVerb { get; set; }
 
+        [VerbOption("rebase", HelpText = "Rebase the current node in the history to a new branch of the version DAG")]
+        public Commands.RebaseVerbOptions RebaseVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -183,6 +186,8 @@ namespace Versionr
                 return ExpungeVerb.GetUsage();
             else if (verb == "mergeinfo")
                 return MergeInfoVerb.GetUsage();
+            else if (verb == "rebase")
+                return RebaseVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -258,6 +263,7 @@ namespace Versionr
             commands["stats"] = new Commands.Stats();
             commands["expunge"] = new Commands.Expunge();
             commands["mergeinfo"] = new Commands.MergeInfo();
+            commands["rebase"] = new Commands.Rebase();
 
             Console.CancelKeyPress += Console_CancelKeyPress;
             

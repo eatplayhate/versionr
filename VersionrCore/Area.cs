@@ -256,6 +256,201 @@ namespace Versionr
             }
         }
 
+        public bool RebaseCollapse(Objects.Version currentVersion, Objects.Version parentVersion, string message)
+        {
+            List<Objects.Version> rebaseOperations = new List<Objects.Version>();
+            bool success = false;
+            foreach (var x in GetHistory(currentVersion))
+            {
+                if (x.ID == parentVersion.ID)
+                {
+                    success = true;
+                    break;
+                }
+                rebaseOperations.Add(x);
+            }
+            if (!success)
+            {
+                Printer.PrintError("#e#Error: Rebase parent #b#{0}#e# is not part of the local version's history.", parentVersion.ID);
+                return false;
+            }
+            rebaseOperations.Reverse();
+            Dictionary<long, Objects.Alteration> alterationKeys = new Dictionary<long, Objects.Alteration>();
+            int totalAlterationCount = 0;
+            foreach (var x in rebaseOperations)
+            {
+                var alterations = GetAlterations(x);
+                foreach (var y in alterations)
+                {
+                    totalAlterationCount++;
+                    Objects.Alteration priorAlteration = null;
+                    if (y.PriorRecord.HasValue)
+                        alterationKeys.TryGetValue(y.PriorRecord.Value, out priorAlteration);
+
+                    if (y.Type == Objects.AlterationType.Add)
+                    {
+                        alterationKeys[y.NewRecord.Value] = y;
+                        if (priorAlteration != null)
+                            throw new Exception("Unable to reconcile alterations for rebase.");
+                    }
+                    else if (y.Type == Objects.AlterationType.Copy)
+                    {
+                        // if the object was added or updated in the prior ops, this should be an "add"
+                        alterationKeys[y.NewRecord.Value] = y;
+                        if (priorAlteration != null)
+                        {
+                            if (priorAlteration.Type == Objects.AlterationType.Add || priorAlteration.Type == Objects.AlterationType.Update)
+                            {
+                                y.Type = Objects.AlterationType.Add;
+                                y.PriorRecord = null;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Copy)
+                            {
+                                y.PriorRecord = priorAlteration.PriorRecord.Value;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Move)
+                            {
+                                y.Type = Objects.AlterationType.Add;
+                                y.PriorRecord = null;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Delete)
+                                throw new Exception("Unable to reconcile alterations for rebase.");
+                        }
+                    }
+                    else if (y.Type == Objects.AlterationType.Move)
+                    {
+                        alterationKeys[y.NewRecord.Value] = y;
+                        if (priorAlteration != null)
+                        {
+                            if (priorAlteration.Type == Objects.AlterationType.Add || priorAlteration.Type == Objects.AlterationType.Update || priorAlteration.Type == Objects.AlterationType.Copy)
+                            {
+                                alterationKeys.Remove(y.PriorRecord.Value);
+                                y.Type = Objects.AlterationType.Add;
+                                y.PriorRecord = null;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Move)
+                            {
+                                alterationKeys.Remove(y.PriorRecord.Value);
+                                y.PriorRecord = priorAlteration.PriorRecord.Value;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Delete)
+                                throw new Exception("Unable to reconcile alterations for rebase.");
+                        }
+                    }
+                    else if (y.Type == Objects.AlterationType.Delete)
+                    {
+                        // no prior ops - normal, update/move - alter prior record, add/copy - remove all
+                        if (priorAlteration != null)
+                        {
+                            if (priorAlteration.Type == Objects.AlterationType.Add || priorAlteration.Type == Objects.AlterationType.Copy)
+                                alterationKeys.Remove(y.PriorRecord.Value);
+                            else if (priorAlteration.Type == Objects.AlterationType.Update || priorAlteration.Type == Objects.AlterationType.Move)
+                            {
+                                alterationKeys.Remove(y.PriorRecord.Value);
+                                y.PriorRecord = priorAlteration.PriorRecord.Value;
+                                alterationKeys[y.PriorRecord.Value] = y;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Delete)
+                                throw new Exception("Unable to reconcile alterations for rebase.");
+                        }
+                        else
+                            alterationKeys[y.PriorRecord.Value] = y;
+                    }
+                    else if (y.Type == Objects.AlterationType.Update)
+                    {
+                        // no prior ops - normal, update - alter prior record, move - becomes add/delete, add/copy - becomes add
+                        if (priorAlteration != null)
+                        {
+                            if (priorAlteration.Type == Objects.AlterationType.Add || priorAlteration.Type == Objects.AlterationType.Copy)
+                            {
+                                alterationKeys.Remove(y.PriorRecord.Value);
+                                y.PriorRecord = null;
+                                y.Type = Objects.AlterationType.Add;
+                                alterationKeys[y.NewRecord.Value] = y;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Update)
+                            {
+                                alterationKeys.Remove(y.PriorRecord.Value);
+                                y.PriorRecord = priorAlteration.PriorRecord.Value;
+                                alterationKeys[y.NewRecord.Value] = y;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Move)
+                            {
+                                priorAlteration.NewRecord = null;
+                                priorAlteration.Type = Objects.AlterationType.Delete;
+                                y.PriorRecord = null;
+                                y.Type = Objects.AlterationType.Add;
+                                alterationKeys[y.NewRecord.Value] = y;
+                            }
+                            else if (priorAlteration.Type == Objects.AlterationType.Delete)
+                                throw new Exception("Unable to reconcile alterations for rebase.");
+                        }
+                        else
+                            alterationKeys[y.NewRecord.Value] = y;
+                    }
+                }
+            }
+            Objects.Version rebaseVersion = Objects.Version.Create();
+            rebaseVersion.Message = message;
+            rebaseVersion.Parent = parentVersion.ID;
+            rebaseVersion.Published = false;
+            rebaseVersion.Author = Environment.UserName;
+            rebaseVersion.Branch = parentVersion.Branch;
+            rebaseVersion.Timestamp = DateTime.UtcNow;
+            MergeInfo mergeInfo = new MergeInfo();
+            mergeInfo.DestinationVersion = rebaseVersion.ID;
+            mergeInfo.SourceVersion = currentVersion.ID;
+            mergeInfo.Type = MergeType.Rebase;
+            Database.BeginExclusive();
+            try
+            {
+                List<Objects.Alteration> mergedAlterations = alterationKeys.Values.ToList();
+                Objects.Snapshot snapshot = new Snapshot();
+                Database.Insert(snapshot);
+                Printer.PrintMessage("Rebasing commit with #b#{0}## operations ({1} source operations).", mergedAlterations.Count, totalAlterationCount);
+                foreach (var x in mergedAlterations)
+                {
+                    x.Owner = snapshot.Id;
+                    Database.Insert(x);
+                }
+                rebaseVersion.AlterationList = snapshot.Id;
+                Database.Insert(rebaseVersion);
+                Database.Insert(mergeInfo);
+                var otherHeads = GetHeads(currentVersion.ID).Concat(GetHeads(parentVersion.ID));
+                foreach (var x in otherHeads)
+                {
+                    if (x.Branch == rebaseVersion.Branch)
+                    {
+                        Database.Delete(x);
+                        Printer.PrintMessage(" - Deleted prior head record: #b#{0}##.", x.Version);
+                    }
+                }
+                Database.Insert(new Head() { Branch = rebaseVersion.Branch, Version = rebaseVersion.ID });
+                LocalData.BeginTransaction();
+                try
+                {
+                    var ws = LocalData.Workspace;
+                    ws.Branch = rebaseVersion.Branch;
+                    ws.Tip = rebaseVersion.ID;
+                    LocalData.Update(ws);
+                    LocalData.Commit();
+                    Database.Commit();
+                    Printer.PrintMessage("Rebase complete. Now on #b#{0}## in branch #b#\"{1}\"##.", rebaseVersion.ID, GetBranch(rebaseVersion.Branch).Name);
+                    return true;
+                }
+                catch
+                {
+                    LocalData.Rollback();
+                    throw;
+                }
+            }
+            catch
+            {
+                Database.Rollback();
+            }
+            return false;
+        }
+
         public IEnumerable<Branch> GetBranches(bool deleted)
         {
             if (deleted)
@@ -980,7 +1175,7 @@ namespace Versionr
                     if (y.Type == MergeType.Automatic)
                         automerged = true;
                     var mergedVersion = GetVersion(y.SourceVersion);
-                    if (mergedVersion.Branch == x.Branch)
+                    if (mergedVersion.Branch == x.Branch && automerged)
                     {
                         // automerge or manual reconcile
                         var mergedHistory = GetLogicalHistory(mergedVersion, limit);

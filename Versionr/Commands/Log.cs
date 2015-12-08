@@ -380,7 +380,11 @@ namespace Versionr.Commands
             if (version == null)
                 version = ws.Version;
 
-			var history = (localOptions.ShowMerged ? ws.GetLogicalHistory(version, localOptions.Limit) : ws.GetHistory(version, localOptions.Limit)).AsEnumerable();
+            int? nullableLimit = localOptions.Limit;
+            if (nullableLimit.Value <= 0)
+                nullableLimit = null;
+            
+            var history = (localOptions.ShowMerged ? ws.GetLogicalHistory(version, nullableLimit) : ws.GetHistory(version, nullableLimit)).AsEnumerable();
 
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;

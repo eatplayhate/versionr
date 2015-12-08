@@ -111,12 +111,22 @@
                               SelectionMode="Single">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Revision" DisplayMemberBinding="{Binding Revision, Mode=OneWay}" />
+                                <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
                                 <GridViewColumn Header="Message" DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                             </GridView>
                         </ListView.View>
+
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="{x:Type ListViewItem}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=IsCurrent}" Value="True">
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListView.ItemContainerStyle>
                     </ListView>
                     <GridSplitter Grid.Row="1"
                                   HorizontalAlignment="Stretch"

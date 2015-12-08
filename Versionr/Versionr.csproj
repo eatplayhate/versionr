@@ -58,6 +58,7 @@
     <Compile Include="Commands\MergeInfo.cs" />
     <Compile Include="Commands\Pull.cs" />
     <Compile Include="Commands\Push.cs" />
+    <Compile Include="Commands\Rebase.cs" />
     <Compile Include="Commands\Record.cs" />
     <Compile Include="Commands\BaseCommand.cs" />
     <Compile Include="Commands\Branch.cs" />
