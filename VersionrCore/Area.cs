@@ -2453,8 +2453,8 @@ namespace Versionr
 
                 Objects.Version parent = null;
                 Printer.PrintMessage("Starting merge:");
-                Printer.PrintMessage(" - Local: {0}", Database.Version.ID);
-                Printer.PrintMessage(" - Remote: {0}", mergeVersion.ID);
+                Printer.PrintMessage(" - Local: {0} #b#\"{1}\"##", Database.Version.ID, GetBranch(Database.Version.Branch).Name);
+                Printer.PrintMessage(" - Remote: {0} #b#\"{1}\"##", mergeVersion.ID, GetBranch(mergeVersion.Branch).Name);
                 if (parents.Count == 1 || !allowrecursiveMerge)
                 {
                     parent = GetVersion(parents[0].Key);
@@ -2463,7 +2463,7 @@ namespace Versionr
                         Printer.PrintMessage("Merge information is already up to date.");
                         return;
                     }
-                    Printer.PrintMessage(" - Parent: {0}", parent.ID);
+                    Printer.PrintMessage(" - Parent: {0} #b#\"{1}\"##", parent.ID, GetBranch(parent.Branch).Name);
                     parentData = Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
                 else if (parents.Count == 2)
@@ -2988,9 +2988,9 @@ namespace Versionr
                     return Database.GetRecords(parent.ID == v1.ID ? v2 : v1).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
                 }
                 Printer.PrintMessage("Starting recursive merge:");
-                Printer.PrintMessage(" - Left: {0}", v1.ID);
-                Printer.PrintMessage(" - Right: {0}", v2.ID);
-                Printer.PrintMessage(" - Parent: {0}", parent.ID);
+                Printer.PrintMessage(" - Left: {0} #b#\"{1}\"##", v1.ID, GetBranch(v1.Branch).Name);
+                Printer.PrintMessage(" - Right: {0} #b#\"{1}\"##", v2.ID, GetBranch(v2.Branch).Name);
+                Printer.PrintMessage(" - Parent: {0} #b#\"{1}\"##", parent.ID, GetBranch(parent.Branch).Name);
                 parentData = Database.GetRecords(parent).Select(x => new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName }).ToList();
             }
             else if (parents.Count == 2)

@@ -395,7 +395,7 @@ namespace Versionr.Commands
 				FormatLog(x.Item1, x.Item2, localOptions);
 			}
 
-			if (!localOptions.Jrunting && last.ID == m_Tip.ID && version == null)
+			if (!localOptions.Jrunting && last != null && last.ID == m_Tip.ID && version == null)
 			{
 				var branch = Workspace.CurrentBranch;
 				var heads = Workspace.GetBranchHeads(branch);
