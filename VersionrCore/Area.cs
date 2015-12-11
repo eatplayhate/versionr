@@ -1169,13 +1169,13 @@ namespace Versionr
             foreach (var x in versions)
             {
                 var merges = Database.GetMergeInfo(x.ID);
-                bool automerged = false;
+                bool rebased = false;
                 foreach (var y in merges)
                 {
-                    if (y.Type == MergeType.Automatic)
-                        automerged = true;
+                    if (y.Type == MergeType.Rebase)
+                        rebased = true;
                     var mergedVersion = GetVersion(y.SourceVersion);
-                    if (mergedVersion.Branch == x.Branch && automerged)
+                    if (mergedVersion.Branch == x.Branch && !rebased)
                     {
                         // automerge or manual reconcile
                         var mergedHistory = GetLogicalHistory(mergedVersion, limit);
@@ -1188,7 +1188,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!automerged)
+                if (!rebased)
                     results.Add(x);
             }
             var ordered = results.OrderByDescending(x => x.Timestamp);

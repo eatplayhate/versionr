@@ -11,15 +11,22 @@ namespace Logr
 
         public static void Main(string[] args)
         {
-            if (args.Length != 2)
+            try
             {
-                Console.WriteLine("Usage: Logr.exe [repo path] [log destination path]");
+                if (args.Length != 2)
+                {
+                    Console.WriteLine("Usage: Logr.exe [repo path] [log destination path]");
+                    return;
+                }
+
+                Log log = new Log(args[0], args[1]);
+                log.Update();
+                log.Serialize();
+            }
+            catch
+            {
                 return;
             }
-
-            Log log = new Log(args[0], args[1]);
-            log.Update();
-            log.Serialize();
         }
     }
 }
