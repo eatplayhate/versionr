@@ -1170,10 +1170,13 @@ namespace Versionr
             {
                 var merges = Database.GetMergeInfo(x.ID);
                 bool rebased = false;
+                bool automerged = false;
                 foreach (var y in merges)
                 {
                     if (y.Type == MergeType.Rebase)
                         rebased = true;
+                    if (y.Type == MergeType.Automatic)
+                        automerged = true;
                     var mergedVersion = GetVersion(y.SourceVersion);
                     if (mergedVersion.Branch == x.Branch && !rebased)
                     {
@@ -1188,7 +1191,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!rebased)
+                if (!automerged)
                     results.Add(x);
             }
             var ordered = results.OrderByDescending(x => x.Timestamp);
