@@ -1157,20 +1157,25 @@ namespace Versionr
             }
         }
 
-        public List<Objects.Version> GetLogicalHistory(Objects.Version version, int? limit = null)
+        public List<Objects.Version> GetLogicalHistory(Objects.Version version, int? limit = null, HashSet<Guid> excludes = null)
         {
             var versions = Database.GetHistory(version, limit);
             List<Objects.Version> results = new List<Objects.Version>();
             HashSet<Guid> primaryLine = new HashSet<Guid>();
             foreach (var x in versions)
             {
-                primaryLine.Add(x.ID);
+                if (excludes == null || !excludes.Contains(x.ID))
+                    primaryLine.Add(x.ID);
             }
             foreach (var x in versions)
             {
+                if (excludes != null && excludes.Contains(x.ID))
+                    continue;
                 var merges = Database.GetMergeInfo(x.ID);
                 bool rebased = false;
                 bool automerged = false;
+                if (excludes != null)
+                    excludes.Add(x.ID);
                 foreach (var y in merges)
                 {
                     if (y.Type == MergeType.Rebase)
@@ -1181,7 +1186,7 @@ namespace Versionr
                     if (mergedVersion.Branch == x.Branch && !rebased)
                     {
                         // automerge or manual reconcile
-                        var mergedHistory = GetLogicalHistory(mergedVersion, limit);
+                        var mergedHistory = GetLogicalHistory(mergedVersion, limit, excludes != null ? excludes : primaryLine);
                         foreach (var z in mergedHistory)
                         {
                             if (!primaryLine.Contains(z.ID))
