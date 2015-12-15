@@ -547,7 +547,8 @@ namespace Versionr.Network
                         SharedNetwork.ImportBranches(sharedInfo);
                         Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
                         Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
-                        foreach (var x in sharedInfo.PushedVersions)
+                        Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
+                        foreach (var x in ((IEnumerable<VersionInfo>)sharedInfo.PushedVersions).Reverse())
                         {
                             Branch branch = sharedInfo.Workspace.GetBranch(x.Version.Branch);
                             if (branch.Terminus.HasValue)
@@ -569,16 +570,28 @@ namespace Versionr.Network
                             }
                             if (head.Version != x.Version.ID)
                             {
-                                if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, sharedInfo))
+                                HashSet<Guid> headAncestors = null;
+                                if (!headAncestry.TryGetValue(head.Version, out headAncestors))
+                                {
+                                    headAncestors = SharedNetwork.GetAncestry(head.Version, sharedInfo);
+                                    headAncestry[head.Version] = headAncestors;
+                                }
+                                if (headAncestors.Contains(x.Version.ID))
+                                {
+                                    // all best
+                                }
+                                else if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, sharedInfo))
                                 {
                                     if (!pendingMerges.ContainsKey(branch.ID) || SharedNetwork.IsAncestor(pendingMerges[branch.ID], x.Version.ID, sharedInfo))
                                         pendingMerges[branch.ID] = Guid.Empty;
+                                    headAncestry.Remove(head.Version);
                                     head.Version = x.Version.ID;
                                 }
-                                else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, sharedInfo))
+                                else
                                 {
                                     if (!pendingMerges.ContainsKey(branch.ID) || pendingMerges[branch.ID] == Guid.Empty)
                                         pendingMerges[branch.ID] = head.Version;
+                                    headAncestry.Remove(head.Version);
                                     head.Version = x.Version.ID;
                                 }
                             }
