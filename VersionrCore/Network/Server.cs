@@ -742,6 +742,7 @@ namespace Versionr.Network
             SharedNetwork.ImportBranches(clientInfo.SharedInfo);
             Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
             Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
+            Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
             foreach (var x in clientInfo.SharedInfo.PushedVersions)
             {
                 Branch branch = ws.GetBranch(x.Version.Branch);
@@ -764,13 +765,25 @@ namespace Versionr.Network
                 }
                 if (head.Version != x.Version.ID)
                 {
-                    if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                    HashSet<Guid> headAncestors = null;
+                    if (!headAncestry.TryGetValue(head.Version, out headAncestors))
                     {
+                        headAncestors = SharedNetwork.GetAncestry(head.Version, clientInfo.SharedInfo);
+                        headAncestry[head.Version] = headAncestors;
+                    }
+                    if (headAncestors.Contains(x.Version.ID))
+                    {
+                        // all best
+                    }
+                    else if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                    {
+                        headAncestry.Remove(head.Version);
                         pendingMerges[branch.ID] = Guid.Empty;
                         head.Version = x.Version.ID;
                     }
                     else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, clientInfo.SharedInfo))
                     {
+                        headAncestry.Remove(head.Version);
                         pendingMerges[branch.ID] = head.Version;
                         head.Version = x.Version.ID;
                     }
