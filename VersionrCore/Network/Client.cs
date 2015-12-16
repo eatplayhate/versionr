@@ -131,7 +131,7 @@ namespace Versionr.Network
                     if (response.Type == NetCommandType.Acknowledge)
                     {
                         int dbVersion = (int)response.Identifier;
-                        if (!WorkspaceDB.AcceptDBVersion(dbVersion))
+                        if (!WorkspaceDB.AcceptRemoteDBVersion(dbVersion))
                         {
                             Printer.PrintError("Server database version is incompatible (v{0}). Use non-full clone to perform the operation.", dbVersion);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);

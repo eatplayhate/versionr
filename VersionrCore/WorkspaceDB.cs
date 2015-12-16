@@ -15,6 +15,7 @@ namespace Versionr
     {
         public const int InternalDBVersion = 32;
         public const int MinimumDBVersion = 3;
+        public const int MinimumRemoteDBVersion = 29;
         public const int MaximumDBVersion = 32;
 
         public LocalDB LocalDatabase { get; set; }
@@ -705,6 +706,12 @@ namespace Versionr
         {
             return dbVersion <= MaximumDBVersion
              && dbVersion >= InternalDBVersion;
+        }
+
+        internal static bool AcceptRemoteDBVersion(int dbVersion)
+        {
+            return dbVersion <= MaximumDBVersion
+             && dbVersion >= MinimumRemoteDBVersion;
         }
 
         private List<Alteration> GetAlterations(Objects.Version version)

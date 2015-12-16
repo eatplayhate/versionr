@@ -210,7 +210,7 @@ namespace Versionr.Commands
                         : new Tuple<char, string>('w', "ignored");
                 case StatusCode.Modified:
                     return staged ? new Tuple<char, string>('s', "modified")
-                        : new Tuple<char, string>('g', "changed");
+                        : new Tuple<char, string>('M', "changed");
                 case StatusCode.Renamed:
                     return staged ? new Tuple<char, string>('s', "renamed")
                         : new Tuple<char, string>('w', "renamed");
