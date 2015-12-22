@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Versionr;
 using Versionr.Objects;
 using Version = Versionr.Objects.Version;
@@ -82,8 +83,12 @@ namespace VersionrUI.ViewModels
                     else
                         _alterations.Clear();
 
+                    List<AlterationVM> unordered = new List<AlterationVM>(alterations.Count);
                     foreach (Alteration alteration in alterations)
-                        _alterations.Add(new AlterationVM(alteration, _area, _version));
+                        unordered.Add(new AlterationVM(alteration, _area, _version));
+
+                    foreach (AlterationVM vm in unordered.OrderBy(x => x.Name))
+                        _alterations.Add(vm);
 
                     NotifyPropertyChanged("Alterations");
                 });

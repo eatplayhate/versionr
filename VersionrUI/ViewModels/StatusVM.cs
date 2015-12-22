@@ -79,7 +79,7 @@ namespace VersionrUI.ViewModels
                     else
                         _elements.Clear();
 
-                    foreach (Status.StatusEntry statusEntry in Status.Elements)
+                    foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
                     {
                         if (statusEntry.Code != StatusCode.Masked &&
                             statusEntry.Code != StatusCode.Ignored &&
