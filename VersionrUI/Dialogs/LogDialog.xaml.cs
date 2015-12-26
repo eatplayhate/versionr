@@ -148,7 +148,7 @@ namespace VersionrUI.Dialogs
                         else
                             _history.Clear();
                         foreach (Version ver in versions)
-                            _history.Add(VersionrVMFactory.GetVersionVM(ver, _area));
+                            _history.Add(new VersionVM(ver, _area));
                         NotifyPropertyChanged("History");
                     });
                 }

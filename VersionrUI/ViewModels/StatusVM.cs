@@ -85,7 +85,7 @@ namespace VersionrUI.ViewModels
                             statusEntry.Code != StatusCode.Ignored &&
                             statusEntry.Code != StatusCode.Unchanged)
                         {
-                            var statusEntryVM = VersionrVMFactory.GetStatusEntryVM(statusEntry, this, _areaVM.Area);
+                            StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
                             if (statusEntryVM != null)
                             {
                                 _elements.Add(statusEntryVM);

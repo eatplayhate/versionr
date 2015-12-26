@@ -169,7 +169,7 @@ namespace VersionrUI.ViewModels
                 if (_status == null)
                 {
                     // Assume the active directory is the root of the Area
-                    _status = VersionrVMFactory.GetStatusVM(this);
+                    _status = new StatusVM(this);
                 }
 
                 IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
@@ -181,7 +181,7 @@ namespace VersionrUI.ViewModels
                     else
                         _branches.Clear();
                     foreach (Branch branch in branches)
-                        _branches.Add(VersionrVMFactory.GetBranchVM(this, branch));
+                        _branches.Add(new BranchVM(this, branch));
 
                     NotifyPropertyChanged("Children");
                 });

@@ -35,7 +35,7 @@ namespace VersionrUI.Controls
                 foreach (string areaString in Properties.Settings.Default.OpenAreas)
                 {
                     string[] parts = areaString.Split(';');
-                    AreaVM areaVM = VersionrVMFactory.GetAreaVM(parts[0], parts[1], AreaInitMode.UseExisting);
+                    AreaVM areaVM = new AreaVM(parts[0], parts[1], AreaInitMode.UseExisting);
                     if (areaVM != null && areaVM.IsValid)
                         OpenAreas.Add(areaVM);
                 }
@@ -71,7 +71,7 @@ namespace VersionrUI.Controls
             {
                 int port = 0;
                 int.TryParse(cloneNewDlg.Port, out port);
-                AreaVM areaVM = VersionrVMFactory.GetAreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result, cloneNewDlg.Host, port);
+                AreaVM areaVM = new AreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result, cloneNewDlg.Host, port);
                 if (areaVM != null && areaVM.IsValid)
                 {
                     OpenAreas.Add(areaVM);

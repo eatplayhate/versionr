@@ -72,7 +72,7 @@ namespace VersionrUI.ViewModels
                         _history.Clear();
 
                     foreach (Version version in versions)
-                        _history.Add(VersionrVMFactory.GetVersionVM(version, _areaVM.Area));
+                        _history.Add(new VersionVM(version, _areaVM.Area));
                     NotifyPropertyChanged("History");
                 });
             }
