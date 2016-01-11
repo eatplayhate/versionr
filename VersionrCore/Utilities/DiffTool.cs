@@ -169,12 +169,13 @@ namespace Versionr.Utilities
                 xtool = xtool.Replace("%file2name", "\"{3}\"");
                 xtool = xtool.Replace("%file1", "\"{0}\"");
                 xtool = xtool.Replace("%file2", "\"{1}\"");
+                xtool = xtool.Replace("%output", "\"{4}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
                     {
                         FileName = filename,
-                        Arguments = string.Format(xtool, baseFile, file, baseAlias, fileAlias),
+                        Arguments = string.Format(xtool, baseFile, file, baseAlias, fileAlias, output),
                         UseShellExecute = true
                     };
                     var proc = System.Diagnostics.Process.Start(psi);
@@ -189,6 +190,7 @@ namespace Versionr.Utilities
                     Printer.PrintMessage("  #b#%file2## - Second changed filename.");
                     Printer.PrintMessage("  #b#%file1name## - Alias for first file.");
                     Printer.PrintMessage("  #b#%file2name## - Alias for second file.");
+                    Printer.PrintMessage("  #b#%output## - Output filename.");
                     Printer.PrintMessage("Example:");
                     Printer.PrintMessage("  merge #b#%file1## #b#%file2##");
                     return false;
@@ -268,12 +270,13 @@ namespace Versionr.Utilities
                 xtool = xtool.Replace("%base", "\"{0}\"");
                 xtool = xtool.Replace("%file1", "\"{1}\"");
                 xtool = xtool.Replace("%file2", "\"{2}\"");
+                xtool = xtool.Replace("%output", "\"{6}\"");
                 try
                 {
                     psi = new System.Diagnostics.ProcessStartInfo()
                     {
                         FileName = filename,
-                        Arguments = string.Format(xtool, baseFile, file1, file2, baseAlias, file1Alias, file2Alias),
+                        Arguments = string.Format(xtool, baseFile, file1, file2, baseAlias, file1Alias, file2Alias, output),
                         UseShellExecute = true
                     };
                     var proc = System.Diagnostics.Process.Start(psi);
@@ -290,6 +293,7 @@ namespace Versionr.Utilities
                     Printer.PrintMessage("  #b#%basename## - Alias for base file.");
                     Printer.PrintMessage("  #b#%file1name## - Alias for first file.");
                     Printer.PrintMessage("  #b#%file2name## - Alias for second file.");
+                    Printer.PrintMessage("  #b#%output## - Output filename.");
                     Printer.PrintMessage("Example:");
                     Printer.PrintMessage("  merge #b#%file1## #b#%base## #b#%file2##");
                     return false;
