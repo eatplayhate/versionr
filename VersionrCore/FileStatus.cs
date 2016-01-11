@@ -221,6 +221,11 @@ namespace Versionr
                             ignoreDirectory = false;
                             break;
                         }
+                        else if (slashedSubdirectory.StartsWith(y))
+                        {
+                            ignoreDirectory = false;
+                            break;
+                        }
                     }
                     if (area.Directives.Include.RegexDirectoryPatterns != null)
                     {
