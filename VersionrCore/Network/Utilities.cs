@@ -130,6 +130,8 @@ namespace Versionr.Network
                 decompressedSize = result.Length;
                 result = compressedBuffer;
             }
+            else
+                codec = PacketCompressionCodec.None;
 
             int payload = result.Length;
             if (info.EncryptorFunction != null)
