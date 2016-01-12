@@ -13,9 +13,11 @@ namespace Versionr.Network
         public bool Encrypted { get; set; }
         public int AuthenticationAttempts { get; set; }
         public bool AllowUnauthenticatedRead { get; set; }
+        public bool AllowUnauthenticatedWrite { get; set; }
         public Dictionary<string, string> Domains { get; set; }
         public bool? IncludeRoot { get; set; }
         public bool AllowVaultCreation { get; set; }
+        public string AutoDomains { get; set; }
         public WebConfig WebService { get; set; }
         public bool RequiresAuthentication
         {
@@ -38,6 +40,7 @@ namespace Versionr.Network
             ChecksumType = Utilities.ChecksumCodec.Default;
             Encrypted = true;
             AuthenticationAttempts = 3;
+            Domains = new Dictionary<string, string>();
         }
 
         internal AuthEntry GetSimpleLogin(string identifierToken)
