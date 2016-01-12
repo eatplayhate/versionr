@@ -117,14 +117,14 @@ namespace Versionr.Network
                 compressedBuffer = LZ4.LZ4Codec.Encode(result, 0, result.Length);
                 codec = PacketCompressionCodec.LZ4;
             }
-            else
-            {
-                compressedBuffer = new byte[result.Length * 2];
-                Versionr.Utilities.LZHL.ResetCompressor(info.LZHLCompressor);
-                int compressedSize = (int)Versionr.Utilities.LZHL.Compress(info.LZHLCompressor, result, (uint)result.Length, compressedBuffer);
-                Array.Resize(ref compressedBuffer, compressedSize);
-                codec = PacketCompressionCodec.LZH;
-            }
+            //else
+            //{
+            //    compressedBuffer = new byte[result.Length * 2];
+            //    Versionr.Utilities.LZHL.ResetCompressor(info.LZHLCompressor);
+            //    int compressedSize = (int)Versionr.Utilities.LZHL.Compress(info.LZHLCompressor, result, (uint)result.Length, compressedBuffer);
+            //    Array.Resize(ref compressedBuffer, compressedSize);
+            //    codec = PacketCompressionCodec.LZH;
+            //}
             if (compressedBuffer.Length < result.Length)
             {
                 decompressedSize = result.Length;
