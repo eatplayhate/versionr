@@ -283,15 +283,35 @@ namespace Versionr
 			if (Utilities.Symlink.Exists(info))
 				return result;
 
-            string parentFullName = info.FullName;
-            if (!ignoreContents)
+            List<Task<List<Entry>>> tasks = new List<Task<List<Entry>>>();
+            string prefix = string.IsNullOrEmpty(subdirectory) ? string.Empty : slashedSubdirectory;
+            foreach (var x in info.GetFileSystemInfos())
             {
-                foreach (var fn1 in Directory.EnumerateFiles(parentFullName))
+                string fn = x.Name;
+                string name = prefix + fn;
+                if (x.Attributes.HasFlag(FileAttributes.Directory))
                 {
-                    string fn = fn1.Substring(parentFullName.Length + 1);
                     if (fn == "." || fn == "..")
                         continue;
-                    string name = subdirectory == string.Empty ? fn : slashedSubdirectory + fn;
+                    
+                    if (name == adminFolder.Name)
+                        continue;
+
+#if DEBUG
+                    if (true)
+#else
+                    if (Utilities.MultiArchPInvoke.IsRunningOnMono)
+#endif
+                    {
+                        result.AddRange(PopulateList(area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory));
+                    }
+                    else
+                    {
+                        tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { return PopulateList(area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory); }));
+                    }
+                }
+                else if (!ignoreContents)
+                {
                     bool ignored = ignoreDirectory;
                     if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexFilePatterns != null)
                     {
@@ -344,28 +364,7 @@ namespace Versionr
                             }
                         }
                     }
-                    result.Add(new Entry(area, parentEntry, new FileInfo(Path.Combine(parentFullName, fn)), name, ignored));
-                }
-            }
-            List<Task<List<Entry>>> tasks = new List<Task<List<Entry>>>();
-            foreach (var fn1 in Directory.EnumerateDirectories(parentFullName))
-            {
-                string fn = fn1.Substring(parentFullName.Length + 1);
-                string name = subdirectory == string.Empty ? fn : slashedSubdirectory + fn;
-                if (name == adminFolder.Name)
-                    continue;
-
-#if DEBUG
-                if (true)
-#else
-                if (Utilities.MultiArchPInvoke.IsRunningOnMono)
-#endif
-                {
-                        result.AddRange(PopulateList(area, parentEntry, new DirectoryInfo(System.IO.Path.Combine(parentFullName, fn)), name, adminFolder, ignoreDirectory));
-                }
-                else
-                {
-                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { return PopulateList(area, parentEntry, new DirectoryInfo(System.IO.Path.Combine(parentFullName, fn)), name, adminFolder, ignoreDirectory); }));
+                    result.Add(new Entry(area, parentEntry, x as FileInfo, name, ignored));
                 }
             }
             if (tasks.Count > 0)
