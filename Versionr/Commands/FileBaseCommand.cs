@@ -23,6 +23,8 @@ namespace Versionr.Commands
         public bool Tracked { get; set; }
         [Option('i', "ignored", HelpText = "Show ignored files")]
         public bool Ignored { get; set; }
+        [Option('e', "skipempty", HelpText = "Remove all empty directories.")]
+        public bool SkipEmpty { get; set; }
         public override string Usage
         {
             get
@@ -115,6 +117,32 @@ namespace Versionr.Commands
                 targets = targets.Where(x => x.Code != StatusCode.Masked || x.Staged == true).ToList();
             if (localOptions.Tracked)
                 targets = targets.Where(x => x.Staged == true || (x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed)).ToList();
+            if (localOptions.SkipEmpty)
+            {
+                Dictionary<Versionr.Status.StatusEntry, bool> allow = new Dictionary<Versionr.Status.StatusEntry, bool>();
+                Dictionary<string, Versionr.Status.StatusEntry> mapper = new Dictionary<string, Versionr.Status.StatusEntry>();
+                foreach (var x in targets)
+                {
+                    if (x.IsDirectory)
+                    {
+                        allow[x] = false;
+                        mapper[x.CanonicalName] = x;
+                    }
+                }
+                foreach (var x in targets)
+                {
+                    if (x.IsDirectory)
+                        continue;
+                    string s = x.CanonicalName;
+                    int index = s.LastIndexOf('/');
+                    if (index != -1)
+                    {
+                        string dir = s.Substring(0, index + 1);
+                        allow[mapper[dir]] = true;
+                    }
+                }
+                targets = targets.Where(x => !x.IsDirectory || allow[x]).ToList();
+            }
         }
 
         protected virtual bool OnNoTargetsAssumeAll

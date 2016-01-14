@@ -11,6 +11,7 @@ namespace Versionr.Commands
         public bool DirectExtern { get; set; }
         public Area Workspace { get; set; }
         public System.IO.DirectoryInfo ActiveDirectory { get; set; }
+        public virtual bool Headless { get { return false; } }
         public virtual bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
             ActiveDirectory = workingDirectory;
@@ -18,7 +19,7 @@ namespace Versionr.Commands
             Printer.EnableDiagnostics = localOptions.Verbose;
             Printer.Quiet = localOptions.Quiet;
 
-            using (Workspace = Area.Load(workingDirectory, false, DirectExtern))
+            using (Workspace = Area.Load(workingDirectory, Headless, DirectExtern))
             {
                 if (Workspace == null)
                 {

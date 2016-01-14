@@ -2096,7 +2096,8 @@ namespace Versionr
 
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
-				LoadDirectives();
+                if (!headless)
+                    LoadDirectives();
 
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
