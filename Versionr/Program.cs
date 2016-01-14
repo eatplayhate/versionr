@@ -96,7 +96,7 @@ namespace Versionr
         public Commands.RebaseVerbOptions RebaseVerb { get; set; }
 
         [VerbOption("info", HelpText = "Shows the current version and branch information.")]
-        public Commands.MergeInfoVerbOptions InfoVerb { get; set; }
+        public Commands.InfoVerbOptions InfoVerb { get; set; }
 
         [HelpOption]
         public string GetUsage()
