@@ -2355,7 +2355,7 @@ namespace Versionr
         {
             Objects.Version v = Database.Find<Objects.Version>(x => x.ID == versionID);
             if (v == null)
-                v = clientInfo.PushedVersions.Where(x => x.Version.ID == versionID).Select(x => x.Version).First();
+                v = clientInfo.PushedVersions.Where(x => x.Version.ID == versionID).Select(x => x.Version).FirstOrDefault();
             return v;
         }
 
@@ -3777,6 +3777,11 @@ namespace Versionr
                     LocalData.Rollback();
                 throw;
             }
+        }
+
+        public List<Record> GetRecords(Objects.Version v)
+        {
+            return Database.GetRecords(v);
         }
 
 		private static IEnumerable<Record> CheckoutOrder(List<Record> targetRecords)
