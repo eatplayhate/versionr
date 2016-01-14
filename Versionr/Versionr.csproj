@@ -53,6 +53,7 @@
     <Compile Include="Commands\Expunge.cs" />
     <Compile Include="Commands\FileBaseCommand.cs" />
     <Compile Include="Commands\FileCommand.cs" />
+    <Compile Include="Commands\Info.cs" />
     <Compile Include="Commands\ListBranch.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
