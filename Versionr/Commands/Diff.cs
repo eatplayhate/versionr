@@ -185,6 +185,8 @@ namespace Versionr.Commands
                             Objects.Record otherRecord = null;
                             if (recordMap.TryGetValue(x.CanonicalName, out otherRecord))
                             {
+                                if (x.VersionControlRecord != null && x.VersionControlRecord.DataIdentifier == otherRecord.DataIdentifier)
+                                    continue;
                                 if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
                                 {
                                     Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
