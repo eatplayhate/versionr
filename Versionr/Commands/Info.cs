@@ -41,10 +41,15 @@ namespace Versionr.Commands
         public override bool Headless { get { return true; } }
         protected override bool RunInternal(object options)
         {
-            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
-            Printer.WriteLineMessage(" - Committed at: #b#{0}##", Workspace.Version.Timestamp.ToLocalTime().ToString());
-            Printer.WriteLineMessage(" - Branch ID: #c#{0}##", Workspace.CurrentBranch.ShortID);
+            DisplayInfo(Workspace);
             return true;
+        }
+
+        internal static void DisplayInfo(Area workspace)
+        {
+            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", workspace.Version.ID, workspace.CurrentBranch.Name, workspace.Version.Revision);
+            Printer.WriteLineMessage(" - Committed at: #b#{0}##", workspace.Version.Timestamp.ToLocalTime().ToString());
+            Printer.WriteLineMessage(" - Branch ID: #c#{0}##", workspace.CurrentBranch.ShortID);
         }
     }
 }

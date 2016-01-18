@@ -36,6 +36,7 @@ namespace Versionr.Commands
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             AheadVerbOptions localOptions = options as AheadVerbOptions;
+            Info.DisplayInfo(client.Workspace);
             Objects.Branch localBranch = client.Workspace.CurrentBranch;
             if (!string.IsNullOrEmpty(localOptions.Branch))
             {
@@ -67,6 +68,8 @@ namespace Versionr.Commands
                     {
                         if (localBranch.Terminus.Value != x.Terminus.Value)
                             presentMarker += " #w#(ahead)##";
+                        else
+                            presentMarker += " #s#(up-to-date)##";
                     }
                     if (localBranch != null && !localBranch.Terminus.HasValue)
                         presentMarker += " #w#(not locally deleted)##";
@@ -83,16 +86,26 @@ namespace Versionr.Commands
                         var localHeads = client.Workspace.GetBranchHeads(localBranch);
                         if (localHeads.Count == 1 && localHeads[0].Version != z.Value)
                             presentMarker += " #w#(ahead)##";
+                        else
+                            presentMarker += " #s#(up-to-date)##";
                     }
                     if (localBranch != null && localBranch.Terminus.HasValue)
                         presentMarker += " #e#(locally deleted)##";
                     if (localBranch == null)
                         presentMarker += " #w#(not synchronized)##";
                     var head = branches.Item3[z.Value];
-                    Printer.PrintMessage("Remote - #s#(head)## - Version: #b#{0}##{3}, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author, presentMarker);
+                    Printer.PrintMessage("Remote - #s#(active)## - Version: #b#{0}##{3}, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author, presentMarker);
                 }
             }
             return true;
+        }
+
+        protected override bool Headless
+        {
+            get
+            {
+                return true;
+            }
         }
 
         protected override bool UpdateRemoteTimestamp
