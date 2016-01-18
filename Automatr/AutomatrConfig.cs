@@ -23,8 +23,6 @@ namespace Automatr
     [XmlRoot(ElementName = "AutomatrConfig")]
     public class AutomatrConfig
     {
-        private const string FileName = "config.xml";
-
         [XmlElement]
         public string Path { get; set; }
 
@@ -41,7 +39,7 @@ namespace Automatr
             Tasks = new List<AutomatrTask>();
         }
 
-        public static AutomatrConfig Load(string path = FileName)
+        public static AutomatrConfig Load(string path)
         {
             XmlSerializer serializer = new XmlSerializer(typeof(AutomatrConfig));
 
@@ -52,6 +50,7 @@ namespace Automatr
                 {
                     result = (AutomatrConfig)serializer.Deserialize(reader);
                 }
+                AutomatrLog.Log("Loaded config " + path, AutomatrLog.LogLevel.Verbose);
             }
             catch
             {
@@ -61,13 +60,14 @@ namespace Automatr
             return result;
         }
 
-        public void Write(string path = FileName)
+        public void Write(string path)
         {
             XmlSerializer seralizer = new XmlSerializer(GetType());
             using (StreamWriter writer = new StreamWriter(path))
             {
                 seralizer.Serialize(writer, this);
             }
+            AutomatrLog.Log("Wrote config " + path, AutomatrLog.LogLevel.Verbose);
         }
     }
 
