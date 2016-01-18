@@ -45,6 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Commands\Ahead.cs" />
     <Compile Include="Commands\BaseWorkspaceCommand.cs" />
     <Compile Include="Commands\Behead.cs" />
     <Compile Include="Commands\Clone.cs" />

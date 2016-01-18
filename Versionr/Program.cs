@@ -98,6 +98,9 @@ namespace Versionr
         [VerbOption("info", HelpText = "Shows the current version and branch information.")]
         public Commands.InfoVerbOptions InfoVerb { get; set; }
 
+        [VerbOption("ahead", HelpText = "Checks if you are ahead or behind a particular remote.")]
+        public Commands.AheadVerbOptions AheadVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -193,6 +196,8 @@ namespace Versionr
                 return RebaseVerb.GetUsage();
             else if (verb == "info")
                 return InfoVerb.GetUsage();
+            else if (verb == "ahead")
+                return AheadVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -270,6 +275,7 @@ namespace Versionr
             commands["expunge"] = new Commands.Expunge();
             commands["mergeinfo"] = new Commands.MergeInfo();
             commands["rebase"] = new Commands.Rebase();
+            commands["ahead"] = new Commands.Ahead();
 
             Console.CancelKeyPress += Console_CancelKeyPress;
             

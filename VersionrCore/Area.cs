@@ -785,18 +785,15 @@ namespace Versionr
                     Printer.PrintDiagnostics("Prior terminus: {0}", id);
                     branch.Terminus = null;
                     Database.UpdateSafe(branch);
-                    Head head = new Head()
-                    {
-                        Branch = branch.ID,
-                        Version = id
-                    };
-                    Database.InsertSafe(head);
                     Objects.Version v = sharedInfo == null ? GetVersion(id) : GetLocalOrRemoteVersion(id, sharedInfo);
-                    if (v == null)
+                    if (v != null)
                     {
-                        if (interactive)
-                            Printer.PrintMessage("Can't undelete branch - version #b#{0}## not found.", id);
-                        return false;
+                        Head head = new Head()
+                        {
+                            Branch = branch.ID,
+                            Version = id
+                        };
+                        Database.InsertSafe(head);
                     }
                 }
                 else
@@ -807,9 +804,9 @@ namespace Versionr
                     Objects.Version v = sharedInfo == null ? GetVersion(targetID) : GetLocalOrRemoteVersion(targetID, sharedInfo);
                     if (v == null)
                     {
-                        if (interactive)
-                            Printer.PrintMessage("Can't delete branch - terminus #b#{0}## not found.", targetID);
-                        return false;
+                        branch.Terminus = targetID;
+                        Database.UpdateSafe(branch);
+                        return true;
                     }
                     if (branch.Terminus.HasValue)
                     {
