@@ -1159,6 +1159,7 @@ namespace Versionr
             var versions = Database.GetHistory(version, limit);
             List<Objects.Version> results = new List<Objects.Version>();
             HashSet<Guid> primaryLine = new HashSet<Guid>();
+            HashSet<Guid> addedLine = new HashSet<Guid>();
             foreach (var x in versions)
             {
                 if (excludes == null || !excludes.Contains(x.ID))
@@ -1186,15 +1187,21 @@ namespace Versionr
                         var mergedHistory = GetLogicalHistory(mergedVersion, limit, excludes != null ? excludes : primaryLine);
                         foreach (var z in mergedHistory)
                         {
-                            if (!primaryLine.Contains(z.ID))
+                            if (!addedLine.Contains(z.ID))
+                            {
+                                addedLine.Add(z.ID);
                                 results.Add(z);
+                            }
                             else
                                 break;
                         }
                     }
                 }
                 if (!automerged)
+                {
+                    addedLine.Add(x.ID);
                     results.Add(x);
+                }
             }
             var ordered = results.OrderByDescending(x => x.Timestamp);
             if (limit == null)

@@ -332,7 +332,7 @@ namespace Versionr.Commands
 
 			var enumeration = history
 				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, FilterAlterations(x)))
-				.Where(x => x.Item2.Any() || (x.Item1.Parent == null && localOptions.Objects.Count == 0));
+				.Where(x => x.Item2.Any() || (x.Item1.Parent == null || localOptions.Objects.Count == 0));
 
 			if (localOptions.Limit != 0)
 				enumeration = enumeration.Take(localOptions.Limit);

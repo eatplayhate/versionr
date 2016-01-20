@@ -23,8 +23,11 @@ namespace Versionr.Commands
         public bool Tracked { get; set; }
         [Option('i', "ignored", HelpText = "Show ignored files")]
         public bool Ignored { get; set; }
+        [Option('w', "windows", HelpText = "Use backslashes in path display")]
+        public bool WindowsPaths { get; set; }
         [Option('e', "skipempty", HelpText = "Remove all empty directories.")]
         public bool SkipEmpty { get; set; }
+
         public override string Usage
         {
             get

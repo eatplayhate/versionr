@@ -1,32 +1,34 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
+using System.Security.Permissions;
 
 namespace Logr
 {
     public class Program
     {
+        static void ExceptionHandler(object sender, UnhandledExceptionEventArgs e)
+        {
+            using (StreamWriter writer = File.AppendText(@"C:\Versionr\logr.log"))
+            {
+                writer.WriteLine("{0} {1}: {2}", DateTime.Now.ToLongTimeString(), DateTime.Now.ToLongDateString(), ((Exception)e.ExceptionObject).Message);
+            }
+            Environment.Exit(0);
+        }
 
+        [SecurityPermission(SecurityAction.Demand, Flags = SecurityPermissionFlag.ControlAppDomain)]
         public static void Main(string[] args)
         {
-            try
-            {
-                if (args.Length != 2)
-                {
-                    Console.WriteLine("Usage: Logr.exe [repo path] [log destination path]");
-                    return;
-                }
+            AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(ExceptionHandler);
 
-                Log log = new Log(args[0], args[1]);
-                log.Update();
-                log.Serialize();
-            }
-            catch
+            if (args.Length != 2)
             {
+                Console.WriteLine("Usage: Logr.exe [repo path] [log destination path]");
                 return;
             }
+
+            Log log = new Log(args[0], args[1]);
+            log.Update();
+            log.Serialize();
         }
     }
 }

@@ -68,6 +68,7 @@ namespace Versionr.Commands
                     var head = Workspace.GetVersion(z.Version);
                     Printer.PrintMessage("  #s#(head)## - Version: #b#{0}##, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author);
                 }
+				Printer.PrintMessage("");
             }
             return true;
         }
