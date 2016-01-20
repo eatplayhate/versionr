@@ -225,7 +225,7 @@ namespace Versionr.Commands
 			{
 				var info = GetStatusText(x);
 				string format = (flat) ? "    {0}{1, 12} " : "    {0}{1, -11} ";
-                return String.Format(format, "#" + info.Item1 + "#", info.Item2 + ":");
+                return String.Format(format, "#" + info.Item1 + "#", info.Item2 + (x.Staged ? "*" : ":"));
 			}
 		}
 
