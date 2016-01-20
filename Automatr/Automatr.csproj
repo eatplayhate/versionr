@@ -4,24 +4,25 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{9AF5BB18-ACE3-400D-AFFE-8DD9ADD453FB}</ProjectGuid>
+    <ProjectGuid>{26C523A2-76E9-4D7C-B19C-C0594970DB7D}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Versionr</RootNamespace>
-    <AssemblyName>Versionr</AssemblyName>
+    <RootNamespace>Automatr</RootNamespace>
+    <AssemblyName>Automatr</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\bin_debug\</OutputPath>
+    <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -31,8 +32,26 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-    <UseVSHostingProcess>true</UseVSHostingProcess>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>..\bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -45,43 +64,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Commands\Ahead.cs" />
-    <Compile Include="Commands\BaseWorkspaceCommand.cs" />
-    <Compile Include="Commands\Behead.cs" />
-    <Compile Include="Commands\Clone.cs" />
-    <Compile Include="Commands\DeleteBranch.cs" />
-    <Compile Include="Commands\Diff.cs" />
-    <Compile Include="Commands\Expunge.cs" />
-    <Compile Include="Commands\FileBaseCommand.cs" />
-    <Compile Include="Commands\FileCommand.cs" />
-    <Compile Include="Commands\Info.cs" />
-    <Compile Include="Commands\ListBranch.cs" />
-    <Compile Include="Commands\Log.cs" />
-    <Compile Include="Commands\Merge.cs" />
-    <Compile Include="Commands\MergeInfo.cs" />
-    <Compile Include="Commands\Pull.cs" />
-    <Compile Include="Commands\Push.cs" />
-    <Compile Include="Commands\Rebase.cs" />
-    <Compile Include="Commands\Record.cs" />
-    <Compile Include="Commands\BaseCommand.cs" />
-    <Compile Include="Commands\Branch.cs" />
-    <Compile Include="Commands\Checkout.cs" />
-    <Compile Include="Commands\Commit.cs" />
-    <Compile Include="Commands\Init.cs" />
-    <Compile Include="Commands\Remote.cs" />
-    <Compile Include="Commands\RemoteCommand.cs" />
-    <Compile Include="Commands\RenameBranch.cs" />
-    <Compile Include="Commands\Revert.cs" />
-    <Compile Include="Commands\Server.cs" />
-    <Compile Include="Commands\Stats.cs" />
-    <Compile Include="Commands\Status.cs" />
-    <Compile Include="Commands\SyncRecords.cs" />
-    <Compile Include="Commands\Unrecord.cs" />
-    <Compile Include="Commands\Update.cs" />
-    <Compile Include="Commands\ViewDAG.cs" />
+    <Compile Include="Automatr.cs" />
+    <Compile Include="AutomatrConfig.cs" />
+    <Compile Include="AutomatrLog.cs" />
+    <Compile Include="AutomatrOptions.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="VerbOptionsBase.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -95,11 +83,12 @@
       <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
       <Name>VersionrCore</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Versionr\Versionr.csproj">
+      <Project>{9af5bb18-ace3-400d-affe-8dd9add453fb}</Project>
+      <Name>Versionr</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>cp Versionr.exe vsr.exe</PostBuildEvent>
-  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

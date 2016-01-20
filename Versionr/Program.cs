@@ -89,11 +89,17 @@ namespace Versionr
         [VerbOption("expunge", HelpText = "Deletes a version from the vault and rolls back history.")]
         public Commands.ExpungeVerbOptions ExpungeVerb { get; set; }
 
-        [VerbOption("mergeinfo", HelpText = "Identify branches where a commit has been merged into")]
+        [VerbOption("mergeinfo", HelpText = "Identify branches where a commit has been merged into.")]
         public Commands.MergeInfoVerbOptions MergeInfoVerb { get; set; }
 
-        [VerbOption("rebase", HelpText = "Rebase the current node in the history to a new branch of the version DAG")]
+        [VerbOption("rebase", HelpText = "Rebase the current node in the history to a new branch of the version DAG.")]
         public Commands.RebaseVerbOptions RebaseVerb { get; set; }
+
+        [VerbOption("info", HelpText = "Shows the current version and branch information.")]
+        public Commands.InfoVerbOptions InfoVerb { get; set; }
+
+        [VerbOption("ahead", HelpText = "Checks if you are ahead or behind a particular remote.")]
+        public Commands.AheadVerbOptions AheadVerb { get; set; }
 
         [HelpOption]
         public string GetUsage()
@@ -188,6 +194,10 @@ namespace Versionr
                 return MergeInfoVerb.GetUsage();
             else if (verb == "rebase")
                 return RebaseVerb.GetUsage();
+            else if (verb == "info")
+                return InfoVerb.GetUsage();
+            else if (verb == "ahead")
+                return AheadVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -250,6 +260,7 @@ namespace Versionr
 			commands["remote"] = new Commands.Remote();
             commands["behead"] = new Commands.Behead();
             commands["viewdag"] = new Commands.ViewDAG();
+            commands["info"] = new Commands.Info();
             commands["clone"] = new Commands.Clone();
             commands["pull"] = new Commands.Pull();
             commands["syncrecords"] = new Commands.SyncRecords();
@@ -264,6 +275,7 @@ namespace Versionr
             commands["expunge"] = new Commands.Expunge();
             commands["mergeinfo"] = new Commands.MergeInfo();
             commands["rebase"] = new Commands.Rebase();
+            commands["ahead"] = new Commands.Ahead();
 
             Console.CancelKeyPress += Console_CancelKeyPress;
             

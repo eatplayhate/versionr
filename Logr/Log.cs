@@ -53,7 +53,7 @@ namespace Logr
 
         public string ToJavascriptTimestamp(DateTime timestamp)
         {
-            return timestamp.ToString("yyyy-MM-ddThh:mm:ssZ");
+            return timestamp.ToString("yyyy-MM-ddTHH:mm:ssZ");
         }
 
         public void Serialize()

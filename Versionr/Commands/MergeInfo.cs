@@ -61,6 +61,8 @@ namespace Versionr.Commands
                     Printer.PrintMessage("Branch relationships:");
                     foreach (var b in ws.GetBranches(localOptions.Deleted))
                     {
+                        HashSet<Guid> inputMerges = new HashSet<Guid>();
+                        HashSet<Guid> visitedMerges = new HashSet<Guid>();
                         string result = "#w#unrelated";
                         int relationshipCode = 0;
                         foreach (var h in ws.GetBranchHeads(b))

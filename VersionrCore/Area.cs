@@ -785,18 +785,15 @@ namespace Versionr
                     Printer.PrintDiagnostics("Prior terminus: {0}", id);
                     branch.Terminus = null;
                     Database.UpdateSafe(branch);
-                    Head head = new Head()
-                    {
-                        Branch = branch.ID,
-                        Version = id
-                    };
-                    Database.InsertSafe(head);
                     Objects.Version v = sharedInfo == null ? GetVersion(id) : GetLocalOrRemoteVersion(id, sharedInfo);
-                    if (v == null)
+                    if (v != null)
                     {
-                        if (interactive)
-                            Printer.PrintMessage("Can't undelete branch - version #b#{0}## not found.", id);
-                        return false;
+                        Head head = new Head()
+                        {
+                            Branch = branch.ID,
+                            Version = id
+                        };
+                        Database.InsertSafe(head);
                     }
                 }
                 else
@@ -807,9 +804,9 @@ namespace Versionr
                     Objects.Version v = sharedInfo == null ? GetVersion(targetID) : GetLocalOrRemoteVersion(targetID, sharedInfo);
                     if (v == null)
                     {
-                        if (interactive)
-                            Printer.PrintMessage("Can't delete branch - terminus #b#{0}## not found.", targetID);
-                        return false;
+                        branch.Terminus = targetID;
+                        Database.UpdateSafe(branch);
+                        return true;
                     }
                     if (branch.Terminus.HasValue)
                     {
@@ -1162,6 +1159,7 @@ namespace Versionr
             var versions = Database.GetHistory(version, limit);
             List<Objects.Version> results = new List<Objects.Version>();
             HashSet<Guid> primaryLine = new HashSet<Guid>();
+            HashSet<Guid> addedLine = new HashSet<Guid>();
             foreach (var x in versions)
             {
                 if (excludes == null || !excludes.Contains(x.ID))
@@ -1189,15 +1187,21 @@ namespace Versionr
                         var mergedHistory = GetLogicalHistory(mergedVersion, limit, excludes != null ? excludes : primaryLine);
                         foreach (var z in mergedHistory)
                         {
-                            if (!primaryLine.Contains(z.ID))
+                            if (!addedLine.Contains(z.ID))
+                            {
+                                addedLine.Add(z.ID);
                                 results.Add(z);
+                            }
                             else
                                 break;
                         }
                     }
                 }
                 if (!automerged)
+                {
+                    addedLine.Add(x.ID);
                     results.Add(x);
+                }
             }
             var ordered = results.OrderByDescending(x => x.Timestamp);
             if (limit == null)
@@ -2096,7 +2100,8 @@ namespace Versionr
 
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
-				LoadDirectives();
+                if (!headless)
+                    LoadDirectives();
 
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
@@ -2354,7 +2359,7 @@ namespace Versionr
         {
             Objects.Version v = Database.Find<Objects.Version>(x => x.ID == versionID);
             if (v == null)
-                v = clientInfo.PushedVersions.Where(x => x.Version.ID == versionID).Select(x => x.Version).First();
+                v = clientInfo.PushedVersions.Where(x => x.Version.ID == versionID).Select(x => x.Version).FirstOrDefault();
             return v;
         }
 
@@ -3776,6 +3781,11 @@ namespace Versionr
                     LocalData.Rollback();
                 throw;
             }
+        }
+
+        public List<Record> GetRecords(Objects.Version v)
+        {
+            return Database.GetRecords(v);
         }
 
 		private static IEnumerable<Record> CheckoutOrder(List<Record> targetRecords)

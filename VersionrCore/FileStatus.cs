@@ -283,13 +283,35 @@ namespace Versionr
 			if (Utilities.Symlink.Exists(info))
 				return result;
 
-            if (!ignoreContents)
+            List<Task<List<Entry>>> tasks = new List<Task<List<Entry>>>();
+            string prefix = string.IsNullOrEmpty(subdirectory) ? string.Empty : slashedSubdirectory;
+            foreach (var x in info.GetFileSystemInfos())
             {
-                foreach (var x in info.GetFiles())
+                string fn = x.Name;
+                string name = prefix + fn;
+                if (x.Attributes.HasFlag(FileAttributes.Directory))
                 {
-                    if (x.Name == "." || x.Name == "..")
+                    if (fn == "." || fn == "..")
                         continue;
-                    string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
+                    
+                    if (name == adminFolder.Name)
+                        continue;
+
+#if DEBUG
+                    if (true)
+#else
+                    if (Utilities.MultiArchPInvoke.IsRunningOnMono)
+#endif
+                    {
+                        result.AddRange(PopulateList(area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory));
+                    }
+                    else
+                    {
+                        tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { return PopulateList(area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory); }));
+                    }
+                }
+                else if (!ignoreContents)
+                {
                     bool ignored = ignoreDirectory;
                     if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexFilePatterns != null)
                     {
@@ -303,26 +325,31 @@ namespace Versionr
                             }
                         }
                     }
-                    if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.Extensions != null)
+                    int lastIndex = fn.LastIndexOf('.');
+                    if (lastIndex > 0)
                     {
-                        ignored = true;
-                        foreach (var y in area.Directives.Include.Extensions)
+                        string ext = fn.Substring(lastIndex);
+                        if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.Extensions != null)
                         {
-                            if (x.Extension.Equals(y, StringComparison.OrdinalIgnoreCase))
+                            ignored = true;
+                            foreach (var y in area.Directives.Include.Extensions)
                             {
-                                ignored = false;
-                                break;
+                                if (ext.Equals(y, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    ignored = false;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.Extensions != null)
-                    {
-                        foreach (var y in area.Directives.Ignore.Extensions)
+                        if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.Extensions != null)
                         {
-                            if (x.Extension.Equals(y, StringComparison.OrdinalIgnoreCase))
+                            foreach (var y in area.Directives.Ignore.Extensions)
                             {
-                                ignored = true;
-                                break;
+                                if (ext.Equals(y, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    ignored = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -337,27 +364,7 @@ namespace Versionr
                             }
                         }
                     }
-                    result.Add(new Entry(area, parentEntry, x, name, ignored));
-                }
-            }
-            List<Task<List<Entry>>> tasks = new List<Task<List<Entry>>>();
-            foreach (var x in info.GetDirectories())
-            {
-                if (x.FullName == adminFolder.FullName)
-                    continue;
-                string name = subdirectory == string.Empty ? x.Name : slashedSubdirectory + x.Name;
-
-#if DEBUG
-                if (true)
-#else
-                if (Utilities.MultiArchPInvoke.IsRunningOnMono)
-#endif
-                {
-                        result.AddRange(PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory));
-                }
-                else
-                {
-                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { return PopulateList(area, parentEntry, x, name, adminFolder, ignoreDirectory); }));
+                    result.Add(new Entry(area, parentEntry, x as FileInfo, name, ignored));
                 }
             }
             if (tasks.Count > 0)

@@ -777,7 +777,8 @@ namespace Versionr.Network
                         {
                             bool runauth = true;
                             var challenge = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationChallenge>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                            if (!requirewrite && command.Identifier == 1) // server supports unauthenticated read
+                            if ((!requirewrite && (command.Identifier & 1) != 0) ||
+                                (requirewrite && (command.Identifier & 2) != 0)) // server supports unauthenticated access
                             {
                                 AuthenticationResponse response = new AuthenticationResponse()
                                 {
