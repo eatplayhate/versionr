@@ -64,7 +64,7 @@ namespace Versionr.Commands
         protected override void Start()
         {
 			//Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
-			Printer.WriteLineMessage("Branch #g#{1}## ({2}) #b#{0}##", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
+			Printer.WriteLineMessage("Branch #b#{1}## ({2}) #b#{0}##", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
 		}
 
         protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
@@ -105,6 +105,7 @@ namespace Versionr.Commands
 			{
 				if (localOptions.Flat)
 				{
+                    Printer.PrintMessage("");
 					foreach (var x in operands.OrderBy(x => x.CanonicalName))
 					{
 						PrintFile(ws, localRestrictedPath, x, true);
@@ -224,8 +225,8 @@ namespace Versionr.Commands
 			else
 			{
 				var info = GetStatusText(x);
-				string format = (flat) ? "    {0}{1, 12} " : "    {0}{1, -11} ";
-                return String.Format(format, "#" + info.Item1 + "#", info.Item2 + (x.Staged ? "*" : ":"));
+				string format = (flat) ? "    {0}{1, 16} " : "    {0}{1, -4} ";
+                return String.Format(format, "#" + info.Item1 + "#", info.Item2 + (x.Staged ? "#b#*##" : "#" + info.Item1 + "#" + ":##"));
 			}
 		}
 

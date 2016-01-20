@@ -49,7 +49,7 @@ namespace Versionr.Commands
         {
             Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", workspace.Version.ID, workspace.CurrentBranch.Name, workspace.Version.Revision);
             Printer.WriteLineMessage(" - Committed at: #b#{0}##", workspace.Version.Timestamp.ToLocalTime().ToString());
-            Printer.WriteLineMessage(" - Branch ID: #c#{0}##", workspace.CurrentBranch.ShortID);
+            Printer.WriteLineMessage(" - Branch ID: #b#{1}## #c#({0})##", workspace.CurrentBranch.ShortID, workspace.CurrentBranch.Name);
         }
     }
 }
