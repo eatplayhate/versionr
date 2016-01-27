@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
 using VersionrUI.ViewModels;
@@ -17,6 +18,9 @@ namespace VersionrUI.Controls
     public partial class VersionrPanel : UserControl, INotifyPropertyChanged
     {
         private AreaVM _selectedArea = null;
+
+        GridViewColumnHeader _lastHeaderClicked = null;
+        ListSortDirection _lastDirection = ListSortDirection.Ascending;
 
         public VersionrPanel()
         {
@@ -101,14 +105,67 @@ namespace VersionrUI.Controls
         {
             SaveOpenAreas();
         }
-        
-        #region INotifyPropertyChanged
+
+        private void listViewHeader_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is ListView))
+                return;
+
+            GridViewColumnHeader headerClicked = e.OriginalSource as GridViewColumnHeader;
+            ListSortDirection direction;
+            if (headerClicked != null)
+            {
+                if (headerClicked.Role != GridViewColumnHeaderRole.Padding)
+                {
+                    if (headerClicked != _lastHeaderClicked)
+                    {
+                        direction = ListSortDirection.Ascending;
+                    }
+                    else
+                    {
+                        if (_lastDirection == ListSortDirection.Ascending)
+                            direction = ListSortDirection.Descending;
+                        else
+                            direction = ListSortDirection.Ascending;
+                    }
+
+                    string header = headerClicked.Column.Header as string;
+                    Sort(CollectionViewSource.GetDefaultView(((ListView)sender).ItemsSource), header, direction);
+
+                    if (direction == ListSortDirection.Ascending)
+                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowUp"] as DataTemplate;
+                    else
+                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
+
+                    // Remove arrow from previously sorted header
+                    if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
+                        _lastHeaderClicked.Column.HeaderTemplate = null;
+
+                    _lastHeaderClicked = headerClicked;
+                    _lastDirection = direction;
+                }
+            }
+        }
+
+        private void Sort(ICollectionView dataView, string sortBy, ListSortDirection direction)
+        {
+            // TODO(Yan): Temp fix for status headers
+            if (sortBy == "Name")
+                sortBy = "CanonicalName";
+
+            dataView.SortDescriptions.Clear();
+            SortDescription sd = new SortDescription(sortBy, direction);
+            dataView.SortDescriptions.Add(sd);
+            dataView.Refresh();
+        }
+
+#region INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;
         public void NotifyPropertyChanged(string info)
         {
             if (PropertyChanged != null)
                 PropertyChanged(this, new PropertyChangedEventArgs(info));
         }
-        #endregion
+#endregion
     }
 }
