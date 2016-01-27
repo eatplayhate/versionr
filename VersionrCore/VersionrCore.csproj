@@ -58,6 +58,7 @@
     <Compile Include="Area.cs" />
     <Compile Include="Directives.cs" />
     <Compile Include="FileStatus.cs" />
+    <Compile Include="ICheckoutOrderable.cs" />
     <Compile Include="LocalDB.cs" />
     <Compile Include="LocalState\CachedRecords.cs" />
     <Compile Include="LocalState\Configuration.cs" />

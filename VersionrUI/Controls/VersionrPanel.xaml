@@ -108,7 +108,8 @@
                     <ListView Grid.Row="0"
                               Name="listView"
                               ItemsSource="{Binding History}"
-                              SelectionMode="Single">
+                              SelectionMode="Single"
+                              GridViewColumnHeader.Click="listViewHeader_Click">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
@@ -219,7 +220,8 @@
                         <ListView Grid.Row="2"
                                   Name="listView"
                                   ItemsSource="{Binding Elements}"
-                                  SelectionMode="Single">
+                                  SelectionMode="Single"
+                                  GridViewColumnHeader.Click="listViewHeader_Click">
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="Staged">
@@ -277,7 +279,21 @@
 
         <DataTemplate DataType="{x:Type vm:NamedCollection}">
         </DataTemplate>
-        
+
+        <DataTemplate x:Key="HeaderTemplateArrowUp">
+            <DockPanel LastChildFill="True" Width="{Binding ActualWidth, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type GridViewColumnHeader}}}">
+                <Path x:Name="arrowUp" StrokeThickness="1" Fill="Gray" Data="M 5,10 L 15,10 L 10,5 L 5,10" DockPanel.Dock="Right" Width="20" HorizontalAlignment="Right" Margin="5,0,5,0" SnapsToDevicePixels="True"/>
+                <TextBlock Text="{Binding }" />
+            </DockPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="HeaderTemplateArrowDown">
+            <DockPanel LastChildFill="True" Width="{Binding ActualWidth, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type GridViewColumnHeader}}}">
+                <Path x:Name="arrowDown" StrokeThickness="1" Fill="Gray"  Data="M 5,5 L 10,10 L 15,5 L 5,5" DockPanel.Dock="Right" Width="20" HorizontalAlignment="Right" Margin="5,0,5,0" SnapsToDevicePixels="True"/>
+                <TextBlock Text="{Binding }" />
+            </DockPanel>
+        </DataTemplate>
+
     </UserControl.Resources>
     
     <Grid x:Name="mainGrid">
