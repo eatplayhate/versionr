@@ -3787,8 +3787,9 @@ namespace Versionr
         {
             return Database.GetRecords(v);
         }
-
-		private static IEnumerable<Record> CheckoutOrder(List<Record> targetRecords)
+        
+        private static IEnumerable<T> CheckoutOrder<T>(IList<T> targetRecords)
+            where T : ICheckoutOrderable
 		{
 			// TODO: .vrmeta first.
 			foreach (var x in targetRecords.Where(x => x.IsDirective))
@@ -4302,7 +4303,8 @@ namespace Versionr
         {
             List<Status.StatusEntry> directoryDeletionList = new List<Status.StatusEntry>();
             List<Status.StatusEntry> deletionList = new List<Status.StatusEntry>();
-			foreach (var x in targets)
+            
+			foreach (var x in CheckoutOrder(targets))
             {
                 if (!Included(x.CanonicalName))
                     continue;

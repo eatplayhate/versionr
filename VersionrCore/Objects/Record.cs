@@ -23,7 +23,7 @@ namespace Versionr.Objects
     }
     // NB MAKE SURE YOU CHANGE THE LOCALDB CACHE!!!!
     [ProtoBuf.ProtoContract]
-    public class Record
+    public class Record : ICheckoutOrderable
     {
         [ProtoBuf.ProtoMember(1)]
         [SQLite.PrimaryKey, SQLite.Unique, SQLite.AutoIncrement]

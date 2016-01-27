@@ -28,7 +28,7 @@ namespace Versionr
     }
     public class Status
     {
-        public class StatusEntry
+        public class StatusEntry : ICheckoutOrderable
         {
             public StatusCode Code { get; set; }
             public bool Staged { get; set; }
@@ -66,7 +66,15 @@ namespace Versionr
 				{
 					return FilesystemEntry != null ? FilesystemEntry.Attributes.HasFlag(Objects.Attributes.Symlink) : VersionControlRecord.Attributes.HasFlag(Objects.Attributes.Symlink);
 				}
-			}
+            }
+            public bool IsFile
+            {
+                get { return !IsDirectory && !IsSymlink; }
+            }
+            public bool IsDirective
+            {
+                get { return IsFile && CanonicalName == ".vrmeta";}
+            }
 
             public bool DataEquals(Record x)
             {
