@@ -64,12 +64,17 @@ namespace Versionr
 
             try
             {
-                System.Console.CursorLeft += 1;
-                System.Console.CursorLeft -= 1;
-                AllowInteractivePrinting = true;
-                System.Console.CursorVisible = false;
-                DefaultBGColour = System.Console.BackgroundColor;
-                DefaultColour = System.Console.ForegroundColor;
+                if (System.Console.IsOutputRedirected)
+                    AllowInteractivePrinting = false;
+                else
+                {
+                    System.Console.CursorLeft += 1;
+                    System.Console.CursorLeft -= 1;
+                    AllowInteractivePrinting = true;
+                    System.Console.CursorVisible = false;
+                    DefaultBGColour = System.Console.BackgroundColor;
+                    DefaultColour = System.Console.ForegroundColor;
+                }
             }
             catch
             {
