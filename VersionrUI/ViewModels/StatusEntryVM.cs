@@ -29,7 +29,7 @@ namespace VersionrUI.ViewModels
 
             DiffCommand = new DelegateCommand(Diff);
             LogCommand = new DelegateCommand(Log);
-            RevertCommand = new DelegateCommand(Revert);
+            RevertCommand = new DelegateCommand(RevertSelected);
         }
 
         public Versionr.StatusCode Code
@@ -164,6 +164,14 @@ namespace VersionrUI.ViewModels
             new LogDialog(_area.Version, _area, _statusEntry.CanonicalName).ShowDialog();
         }
 
+        public void RevertSelected()
+        {
+            foreach (StatusEntryVM entry in VersionrUI.Controls.VersionrPanel.SelectedItems)
+                entry.Revert();
+
+            _statusVM.Refresh();
+        }
+
         public void Revert()
         {
             bool deleteNewFile = true;
@@ -176,7 +184,6 @@ namespace VersionrUI.ViewModels
                     deleteNewFile = (result == MessageBoxResult.Yes);
             }
             _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
-            _statusVM.Refresh();
         }
 
         private class Region

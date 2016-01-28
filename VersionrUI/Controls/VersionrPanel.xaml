@@ -220,14 +220,16 @@
                         <ListView Grid.Row="2"
                                   Name="listView"
                                   ItemsSource="{Binding Elements}"
-                                  SelectionMode="Single"
+                                  SelectionMode="Extended"
                                   GridViewColumnHeader.Click="listViewHeader_Click">
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="Staged">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <CheckBox IsChecked="{Binding IsStaged}" />
+                                                <CheckBox IsChecked="{Binding IsStaged}"
+                                                          Checked="CheckBox_Checked"
+                                                          Unchecked="CheckBox_Unchecked"/>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
