@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -9,6 +10,8 @@ using System.Windows.Data;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
 using VersionrUI.ViewModels;
+
+using System.Windows.Media;
 
 namespace VersionrUI.Controls
 {
@@ -62,6 +65,18 @@ namespace VersionrUI.Controls
                 }
             }
         }
+
+         public static IList SelectedItems
+         {
+            get
+            {
+                ListView lv = FindChild<ListView>(Application.Current.MainWindow, "listView");
+                if (lv != null)
+                    return lv.SelectedItems;
+
+                return null;
+            }
+         }
         
         #region Commands
         public DelegateCommand CloseCommand { get; private set; }
@@ -166,6 +181,86 @@ namespace VersionrUI.Controls
             if (PropertyChanged != null)
                 PropertyChanged(this, new PropertyChangedEventArgs(info));
         }
-#endregion
+        #endregion
+
+        #region Utility Methods
+        public static T FindParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            DependencyObject parentObject = VisualTreeHelper.GetParent(child);
+            if (parentObject == null)
+                return null;
+
+            T parent = parentObject as T;
+            if (parent != null)
+                return parent;
+            else
+                return FindParent<T>(parentObject);
+        }
+
+        public static T FindChild<T>(DependencyObject parent, string childName) where T : DependencyObject
+        {
+            // Confirm parent and childName are valid. 
+            if (parent == null)
+                return null;
+
+            T foundChild = null;
+
+            int childrenCount = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < childrenCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                // If the child is not of the request child type child
+                T childType = child as T;
+                if (childType == null)
+                {
+                    // recursively drill down the tree
+                    foundChild = FindChild<T>(child, childName);
+
+                    // If the child is found, break so we do not overwrite the found child. 
+                    if (foundChild != null)
+                        break;
+                }
+                else if (!string.IsNullOrEmpty(childName))
+                {
+                    var frameworkElement = child as FrameworkElement;
+                    // If the child's name is set for search
+                    if (frameworkElement != null && frameworkElement.Name == childName)
+                    {
+                        // if the child's name is of the request name
+                        foundChild = (T)child;
+                        break;
+                    }
+                }
+                else
+                {
+                    // child element found.
+                    foundChild = (T)child;
+                    break;
+                }
+            }
+
+            return foundChild;
+        }
+        #endregion
+
+        private void CheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            foreach (StatusEntryVM item in SelectedItems)
+            {
+                if (item == sender)
+                    continue;
+                item.IsStaged = true;
+            }
+        }
+
+        private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            foreach (StatusEntryVM item in SelectedItems)
+            {
+                if (item == sender)
+                    continue;
+                item.IsStaged = false;
+            }
+        }
     }
 }
