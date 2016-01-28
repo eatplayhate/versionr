@@ -80,6 +80,12 @@ namespace Versionr.Commands
                         ws = Area.Load(workingDirectory, Headless);
                         if (ws != null)
                         {
+                            CloneVerbOptions cloneOptions = options as CloneVerbOptions;
+                            if (cloneOptions != null && cloneOptions.QuietFail)
+                            {
+                                Printer.PrintMessage("Directory already contains a vault. Skipping.");
+                                return false;
+                            }
                             Printer.PrintError("This command cannot function with an active Versionr vault.");
                             return false;
                         }
