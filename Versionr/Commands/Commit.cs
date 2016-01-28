@@ -46,8 +46,11 @@ namespace Versionr.Commands
             }
         }
 
-        [Option('m', "message", Required = true, HelpText="Commit message.")]
+        [Option('m', "message", HelpText="Commit message.")]
         public string Message { get; set; }
+
+        [Option("message-file", HelpText = "Commit message.")]
+        public string MessageFile { get; set; }
 
     }
     class Commit : Record
@@ -56,14 +59,30 @@ namespace Versionr.Commands
 		{
             CommitVerbOptions localOptions = options as CommitVerbOptions;
 
+            if (localOptions.Message == null && localOptions.MessageFile == null)
+            {
+                Printer.PrintError("#x#Error:## A commit message must be specified with the --message or --message-file options.");
+                return false;
+            }
+
             if (targets != null && targets.Count > 0)
             {
                 ws.RecordChanges(status, targets, localOptions.Missing, false, RecordFeedback);
             }
             string message = localOptions.Message;
-            message = message.Replace("\\\"", "\"");
-            message = message.Replace("\\n", "\n");
-            message = message.Replace("\\t", "\t");
+            if (localOptions.MessageFile != null)
+            {
+                using (var fs = System.IO.File.OpenText(localOptions.MessageFile))
+                {
+                    message = fs.ReadToEnd();
+                }
+            }
+            else
+            {
+                message = message.Replace("\\\"", "\"");
+                message = message.Replace("\\n", "\n");
+                message = message.Replace("\\t", "\t");
+            }
             if (!ws.Commit(message, localOptions.Force))
                 return false;
             return true;

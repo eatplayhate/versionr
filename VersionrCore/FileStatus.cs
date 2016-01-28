@@ -294,7 +294,7 @@ namespace Versionr
                     if (fn == "." || fn == "..")
                         continue;
                     
-                    if (name == adminFolder.Name)
+                    if (x.Name == ".versionr")
                         continue;
 
 #if DEBUG

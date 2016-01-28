@@ -212,108 +212,115 @@ namespace Versionr
         }
         static void Main(string[] args)
         {
-            string workingDirectoryPath = Environment.CurrentDirectory;
-            var printerStream = new Printer.PrinterStream();
-            VersionOptions initalOpts = new VersionOptions();
-            CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
-                (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
-            if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
-            {
-                Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
-                Printer.WriteLineMessage("#q#  - A less hateful version control system.");
-                Printer.PushIndent();
-                Printer.WriteLineMessage("\n#b#Core version: {0}\n", Area.CoreVersion);
-                foreach (var x in Area.ComponentVersions)
-                    Printer.WriteLineMessage("{0}: #b#{1}", x.Item1, x.Item2);
-                Printer.PopIndent();
-                Printer.RestoreDefaults();
-                return;
-            }
-
-            var options = new Options();
-            string invokedVerb = string.Empty;
-            object invokedVerbInstance = null;
-            if (!parser.ParseArguments(args, options,
-                  (verb, subOptions) =>
-                  {
-                      invokedVerb = verb;
-                      invokedVerbInstance = subOptions;
-                  }))
-            {
-                printerStream.Flush();
-                Printer.RestoreDefaults();
-                Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
-            }
-
-            Dictionary<string, Commands.BaseCommand> commands = new Dictionary<string, Commands.BaseCommand>();
-            commands["init"] = new Commands.Init();
-            commands["commit"] = new Commands.Commit();
-            commands["status"] = new Commands.Status();
-            commands["record"] = new Commands.Record();
-            commands["checkout"] = new Commands.Checkout();
-            commands["branch"] = new Commands.Branch();
-            commands["server"] = new Commands.Server();
-            commands["push"] = new Commands.Push();
-            commands["merge"] = new Commands.Merge();
-			commands["log"] = new Commands.Log();
-			commands["lg"] = new Commands.Log(true);
-			commands["remote"] = new Commands.Remote();
-            commands["behead"] = new Commands.Behead();
-            commands["viewdag"] = new Commands.ViewDAG();
-            commands["info"] = new Commands.Info();
-            commands["clone"] = new Commands.Clone();
-            commands["pull"] = new Commands.Pull();
-            commands["syncrecords"] = new Commands.SyncRecords();
-			commands["diff"] = new Commands.Diff();
-			commands["revert"] = new Commands.Revert();
-			commands["unrecord"] = new Commands.Unrecord();
-            commands["update"] = new Commands.Update();
-            commands["renamebranch"] = new Commands.RenameBranch();
-            commands["listbranch"] = new Commands.ListBranch();
-            commands["deletebranch"] = new Commands.DeleteBranch();
-            commands["stats"] = new Commands.Stats();
-            commands["expunge"] = new Commands.Expunge();
-            commands["mergeinfo"] = new Commands.MergeInfo();
-            commands["rebase"] = new Commands.Rebase();
-            commands["ahead"] = new Commands.Ahead();
-
-            Console.CancelKeyPress += Console_CancelKeyPress;
-            
-            Commands.BaseCommand command = null;
-            Console.CancelKeyPress += Console_CancelKeyPress;
-            if (!commands.TryGetValue(invokedVerb, out command))
-            {
-                command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
-                if (command == null)
-                {
-                    printerStream.Flush();
-                    System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
-                    Printer.RestoreDefaults();
-                    Environment.Exit(10);
-                }
-            }
             try
             {
-                VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
-                if (baseOptions != null)
-                    Printer.NoColours = baseOptions.NoColours;
-                if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                string workingDirectoryPath = Environment.CurrentDirectory;
+                var printerStream = new Printer.PrinterStream();
+                VersionOptions initalOpts = new VersionOptions();
+                CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
+                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
+                if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
+                    Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
+                    Printer.WriteLineMessage("#q#  - A less hateful version control system.");
+                    Printer.PushIndent();
+                    Printer.WriteLineMessage("\n#b#Core version: {0}\n", Area.CoreVersion);
+                    foreach (var x in Area.ComponentVersions)
+                        Printer.WriteLineMessage("{0}: #b#{1}", x.Item1, x.Item2);
+                    Printer.PopIndent();
                     Printer.RestoreDefaults();
+                    return;
+                }
+
+                var options = new Options();
+                string invokedVerb = string.Empty;
+                object invokedVerbInstance = null;
+                if (!parser.ParseArguments(args, options,
+                      (verb, subOptions) =>
+                      {
+                          invokedVerb = verb;
+                          invokedVerbInstance = subOptions;
+                      }))
+                {
                     printerStream.Flush();
-                    Environment.Exit(2);
+                    Printer.RestoreDefaults();
+                    Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
+                }
+
+                Dictionary<string, Commands.BaseCommand> commands = new Dictionary<string, Commands.BaseCommand>();
+                commands["init"] = new Commands.Init();
+                commands["commit"] = new Commands.Commit();
+                commands["status"] = new Commands.Status();
+                commands["record"] = new Commands.Record();
+                commands["checkout"] = new Commands.Checkout();
+                commands["branch"] = new Commands.Branch();
+                commands["server"] = new Commands.Server();
+                commands["push"] = new Commands.Push();
+                commands["merge"] = new Commands.Merge();
+                commands["log"] = new Commands.Log();
+                commands["lg"] = new Commands.Log(true);
+                commands["remote"] = new Commands.Remote();
+                commands["behead"] = new Commands.Behead();
+                commands["viewdag"] = new Commands.ViewDAG();
+                commands["info"] = new Commands.Info();
+                commands["clone"] = new Commands.Clone();
+                commands["pull"] = new Commands.Pull();
+                commands["syncrecords"] = new Commands.SyncRecords();
+                commands["diff"] = new Commands.Diff();
+                commands["revert"] = new Commands.Revert();
+                commands["unrecord"] = new Commands.Unrecord();
+                commands["update"] = new Commands.Update();
+                commands["renamebranch"] = new Commands.RenameBranch();
+                commands["listbranch"] = new Commands.ListBranch();
+                commands["deletebranch"] = new Commands.DeleteBranch();
+                commands["stats"] = new Commands.Stats();
+                commands["expunge"] = new Commands.Expunge();
+                commands["mergeinfo"] = new Commands.MergeInfo();
+                commands["rebase"] = new Commands.Rebase();
+                commands["ahead"] = new Commands.Ahead();
+
+                Console.CancelKeyPress += Console_CancelKeyPress;
+
+                Commands.BaseCommand command = null;
+                Console.CancelKeyPress += Console_CancelKeyPress;
+                if (!commands.TryGetValue(invokedVerb, out command))
+                {
+                    command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
+                    if (command == null)
+                    {
+                        printerStream.Flush();
+                        System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
+                        Printer.RestoreDefaults();
+                        Environment.Exit(10);
+                    }
+                }
+                try
+                {
+                    VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
+                    if (baseOptions != null)
+                        Printer.NoColours = baseOptions.NoColours;
+                    if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                    {
+                        Printer.RestoreDefaults();
+                        printerStream.Flush();
+                        Environment.Exit(2);
+                    }
+                    Printer.RestoreDefaults();
+                    return;
+                }
+                catch (Exception e)
+                {
+                    printerStream.Flush();
+                    System.Console.WriteLine("Error processing action:\n{0}", e.ToString());
+                    Printer.RestoreDefaults();
+                    Environment.Exit(20);
                 }
                 Printer.RestoreDefaults();
-                return;
             }
-            catch (Exception e)
+            catch
             {
-                printerStream.Flush();
-                System.Console.WriteLine("Error processing action:\n{0}", e.ToString());
-                Printer.RestoreDefaults();
-                Environment.Exit(20);
+                Environment.Exit(100);
             }
-            Printer.RestoreDefaults();
 
             return;
         }

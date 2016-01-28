@@ -1294,7 +1294,7 @@ namespace Versionr
         {
             Utilities.MultiArchPInvoke.BindDLLs();
             AdministrationFolder = adminFolder;
-            RootDirectory = AdministrationFolder.Parent;
+            RootDirectory = new System.IO.DirectoryInfo(AdministrationFolder.Parent.GetFullNameWithCorrectCase());
             AdministrationFolder.Create();
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
         }
@@ -3914,6 +3914,8 @@ namespace Versionr
             int deletionCount = 0;
             foreach (var x in DeletionOrder(recordsToDelete))
             {
+                if (!Included(x.CanonicalName))
+                    continue;
                 if (canonicalNames.Contains(x.CanonicalName))
                     continue;
 
@@ -4303,71 +4305,65 @@ namespace Versionr
         {
             List<Status.StatusEntry> directoryDeletionList = new List<Status.StatusEntry>();
             List<Status.StatusEntry> deletionList = new List<Status.StatusEntry>();
-            
-			foreach (var x in CheckoutOrder(targets))
-            {
-                if (!Included(x.CanonicalName))
-                    continue;
-                if (interactive && (x.Staged || (revertRecord && x.Code != StatusCode.Unchanged)))
+
+            Dictionary<string, Record> recordMap = new Dictionary<string, Record>();
+            foreach (var x in Database.Records)
+                recordMap[x.CanonicalName] = x;
+
+            LocalData.BeginTransaction();
+			try
+			{
+                foreach (var x in CheckoutOrder(targets))
                 {
-                    Printer.PrintMessageSingleLine("{1} object #b#{0}##", x.CanonicalName, (revertRecord && x.Code == StatusCode.Modified) ? "#e#Revert##" : "#b#Unrecord##");
-                    bool skip = false;
-                    bool stop = false;
-                    while (true)
-                    {
-                        Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
-                        string input = System.Console.ReadLine();
-                        if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
-                            break;
-                        if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
-                        {
-                            stop = true;
-                            break;
-                        }
-                        if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
-                        {
-                            skip = true;
-                            break;
-                        }
-                    }
-                    if (stop)
-                        break;
-                    if (skip)
+                    if (!Included(x.CanonicalName))
                         continue;
-                }
-				LocalData.BeginTransaction();
-				try
-				{
-					foreach (var y in LocalData.StageOperations)
-					{
-						if (y.Operand1 == x.CanonicalName)
-						{
-							LocalData.Delete(y);
-						}
-					}
-					LocalData.Commit();
-				}
-				catch (Exception e)
-				{
-					LocalData.Rollback();
-					throw new Exception("Unable to remove stage operations!", e);
-                }
-                if (x.Staged == true)
-                {
-                    if (callback != null)
+                    if (interactive && (x.Staged || (revertRecord && x.Code != StatusCode.Unchanged)))
                     {
-                        callback(x,
-                            (x.Code == StatusCode.Deleted ? StatusCode.Missing :
-                            (x.Code == StatusCode.Added ? StatusCode.Unversioned :
-                            x.Code)));
+                        Printer.PrintMessageSingleLine("{1} object #b#{0}##", x.CanonicalName, (revertRecord && x.Code == StatusCode.Modified) ? "#e#Revert##" : "#b#Unrecord##");
+                        bool skip = false;
+                        bool stop = false;
+                        while (true)
+                        {
+                            Printer.PrintMessageSingleLine(" [(y)es, (n)o, (s)top]? ");
+                            string input = System.Console.ReadLine();
+                            if (input.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                                break;
+                            if (input.StartsWith("s", StringComparison.OrdinalIgnoreCase))
+                            {
+                                stop = true;
+                                break;
+                            }
+                            if (input.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                            {
+                                skip = true;
+                                break;
+                            }
+                        }
+                        if (stop)
+                            break;
+                        if (skip)
+                            continue;
                     }
-                }
-                else if (x.Code == StatusCode.Conflict)
-                {
-                    //Printer.PrintMessage("Marking {0} as resolved.", x.CanonicalName);
-                    LocalData.BeginTransaction();
-                    try
+                    foreach (var y in LocalData.StageOperations)
                     {
+                        if (y.Operand1 == x.CanonicalName)
+                        {
+                            LocalData.Delete(y);
+                        }
+                    }
+                    if (x.Staged == true)
+                    {
+                        if (callback != null)
+                        {
+                            callback(x,
+                                (x.Code == StatusCode.Deleted ? StatusCode.Missing :
+                                (x.Code == StatusCode.Added ? StatusCode.Unversioned :
+                                x.Code)));
+                        }
+                    }
+                    else if (x.Code == StatusCode.Conflict)
+                    {
+                        //Printer.PrintMessage("Marking {0} as resolved.", x.CanonicalName);
                         foreach (var y in LocalData.StageOperations)
                         {
                             if (y.Type == StageOperationType.Conflict && y.Operand1 == x.CanonicalName)
@@ -4375,35 +4371,36 @@ namespace Versionr
                                 LocalData.Delete(y);
                             }
                         }
-                        LocalData.Commit();
+                        if (callback != null)
+                            callback(x, StatusCode.Modified);
                     }
-                    catch (Exception e)
-                    {
-                        LocalData.Rollback();
-                        throw new Exception("Unable to remove stage operations!", e);
-                    }
-                    if (callback != null)
-                        callback(x, StatusCode.Modified);
-                }
 
-				if (revertRecord && x.Code != StatusCode.Unchanged)
-				{
-					Record rec = Database.Records.Where(z => z.CanonicalName == x.CanonicalName).FirstOrDefault();
-					if (rec != null)
-					{
-						Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
-						RestoreRecord(rec, DateTime.UtcNow);
-					}
-                    if (deleteNewFiles &&
-                        (x.Code == StatusCode.Unversioned || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
+                    if (revertRecord && x.Code != StatusCode.Unchanged)
                     {
-                        if (x.FilesystemEntry.IsDirectory)
-                            directoryDeletionList.Add(x);
-                        else
-                            deletionList.Add(x);
+                        Record rec = null;
+                        recordMap.TryGetValue(x.CanonicalName, out rec);
+                        if (rec != null)
+                        {
+                            Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
+                            RestoreRecord(rec, DateTime.UtcNow);
+                        }
+                        if (deleteNewFiles &&
+                            (x.Code == StatusCode.Unversioned || x.Code == StatusCode.Added || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
+                        {
+                            if (x.FilesystemEntry.IsDirectory)
+                                directoryDeletionList.Add(x);
+                            else
+                                deletionList.Add(x);
+                        }
                     }
-				}
-			}
+                }
+                LocalData.Commit();
+            }
+            catch (Exception e)
+            {
+                LocalData.Rollback();
+                throw new Exception("Unable to remove stage operations!", e);
+            }
             foreach (var x in deletionList)
             {
                 Printer.PrintMessage("#e#Deleted:## #b#{0}##", x.CanonicalName);
