@@ -163,6 +163,18 @@ namespace Versionr
             return myResult;
         }
 
+        public static FileInfo GetCorrectCase(this FileInfo file)
+        {
+            if (Object.ReferenceEquals(file, null)) throw new NullReferenceException();
+            //myParentFolder = GetLongPathName.Invoke(myFullName);
+            String myFileName = Directory.GetFileSystemEntries(file.Directory.FullName, file.Name).FirstOrDefault();
+            if (!Object.ReferenceEquals(myFileName, null))
+            {
+                return new FileInfo(Path.Combine(file.Directory.FullName, Path.GetFileName(myFileName)));
+            }
+            return file;
+        }
+
         private static String GetCorrectCaseOfParentFolder(String fileOrFolder)
         {
             String myParentFolder = Path.GetDirectoryName(fileOrFolder);

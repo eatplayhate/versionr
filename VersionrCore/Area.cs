@@ -4886,7 +4886,7 @@ namespace Versionr
 
         public void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
         {
-			if (rec.IsSymlink)
+            if (rec.IsSymlink)
 			{
                 string path = GetRecordPath(rec);
 				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
@@ -4902,7 +4902,30 @@ namespace Versionr
 
 			if (rec.IsDirectory)
             {
-                DirectoryInfo directory = new DirectoryInfo(GetRecordPath(rec));
+                string recPath = GetRecordPath(rec);
+                DirectoryInfo directory = new DirectoryInfo(recPath);
+                string fullCasedPath = directory.GetFullNameWithCorrectCase();
+                if (MultiArchPInvoke.RunningPlatform == Platform.Windows)
+                    recPath = recPath.Replace('/', '\\');
+                if (fullCasedPath != recPath)
+                {
+                    // Fix for possible parent renames being broken too
+                    System.IO.DirectoryInfo casedInfo = new DirectoryInfo(fullCasedPath);
+                    System.IO.DirectoryInfo currentDirectory = directory;
+                    while (true)
+                    {
+                        if (string.Equals(casedInfo.FullName, Root.FullName, StringComparison.OrdinalIgnoreCase))
+                            break;
+                        if (casedInfo.Name != currentDirectory.Name)
+                        {
+                            string tempName = Path.Combine(casedInfo.Parent.FullName, currentDirectory.Name + "_" + System.IO.Path.GetRandomFileName());
+                            System.IO.Directory.Move(casedInfo.FullName, tempName);
+                            System.IO.Directory.Move(tempName, currentDirectory.FullName);
+                        }
+                        currentDirectory = currentDirectory.Parent;
+                        casedInfo = casedInfo.Parent;
+                    }
+                }
                 if (!directory.Exists)
                 {
                     if (feedback == null)
@@ -4917,6 +4940,12 @@ namespace Versionr
             FileInfo dest = overridePath == null ? new FileInfo(GetRecordPath(rec)) : new FileInfo(overridePath);
             if (overridePath == null && dest.Exists)
             {
+                FileInfo caseCheck = dest.GetCorrectCase();
+                if (caseCheck.Name != dest.Name)
+                {
+                    caseCheck.MoveTo(Path.GetRandomFileName());
+                    caseCheck.MoveTo(dest.Name);
+                }
                 FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
 
                 if (dest.LastWriteTimeUtc == fst.LastSeenTime && dest.Length == rec.Size && rec.DataIdentifier == fst.DataIdentifier)

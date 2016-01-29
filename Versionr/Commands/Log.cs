@@ -263,9 +263,21 @@ namespace Versionr.Commands
 						Printer.PrintMessage("#b#Alterations:##");
 						foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
 						{
-							Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
-						}
-					}
+                            if (y.Alteration.Type == Objects.AlterationType.Move || y.Alteration.Type == Objects.AlterationType.Copy)
+                            {
+                                string operationName = y.Alteration.Type.ToString().ToLower();
+                                Objects.Record prior = Workspace.GetRecord(y.Alteration.PriorRecord.Value);
+                                Objects.Record next = Workspace.GetRecord(y.Alteration.NewRecord.Value);
+                                if (y.Alteration.Type == Objects.AlterationType.Move && !next.IsDirectory && prior.DataIdentifier != next.DataIdentifier)
+                                    operationName = "refactor";
+                                Printer.PrintMessage("#{2}#({0})## {1}\n  <- #q#{3}##", operationName, y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type), prior.CanonicalName);
+                            }
+                            else
+                            {
+                                Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
+                            }
+                        }
+                    }
 					else
 					{
 						int[] alterationCounts = new int[5];
