@@ -17,6 +17,7 @@ namespace VersionrUI.ViewModels
         private Branch _branch;
         private ObservableCollection<VersionVM> _history = null;
         private string _searchText;
+        private VersionVM _selectedVersion;
         
         public string SearchText
         {
@@ -24,6 +25,7 @@ namespace VersionrUI.ViewModels
             private set
             {
                 _searchText = value;
+                NotifyPropertyChanged("SearchText");
                 NotifyPropertyChanged("History");
             }
         }
@@ -66,6 +68,16 @@ namespace VersionrUI.ViewModels
                 if (!string.IsNullOrEmpty(SearchText))
                     return FilterHistory(_history, SearchText);
                 return _history;
+            }
+        }
+
+        public VersionVM SelectedVersion
+        {
+            get { return _selectedVersion; }
+            private set
+            {
+                _selectedVersion = value;
+                NotifyPropertyChanged("SelectedVersion");
             }
         }
 
