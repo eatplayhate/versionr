@@ -101,11 +101,17 @@
             <Grid>
                 <Grid Visibility="{Binding Visibility}">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="20" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <ListView Grid.Row="0"
+
+                    <TextBox Grid.Row="0"
+                             Name="logSearch"
+                             Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}">
+                    </TextBox>
+                    <ListView Grid.Row="1"
                               Name="listView"
                               ItemsSource="{Binding History}"
                               SelectionMode="Single"
@@ -129,14 +135,14 @@
                             </Style>
                         </ListView.ItemContainerStyle>
                     </ListView>
-                    <GridSplitter Grid.Row="1"
+                    <GridSplitter Grid.Row="2"
                                   HorizontalAlignment="Stretch"
                                   VerticalAlignment="Center"
                                   Background="Black" 
                                   ShowsPreview="True"
                                   Height="5"
                                   Margin="0,2" />
-                    <ContentPresenter Grid.Row="2" Content="{Binding SelectedItem, ElementName=listView}" />
+                    <ContentPresenter Grid.Row="3" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>
                 <controls:LoadingPanel IsLoading="{Binding IsLoading}"
                                        Message="Loading Branch" />
