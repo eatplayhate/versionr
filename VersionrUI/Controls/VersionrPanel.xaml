@@ -105,6 +105,8 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <TextBox Grid.Row="0"
@@ -114,6 +116,7 @@
                     <ListView Grid.Row="1"
                               Name="listView"
                               ItemsSource="{Binding History}"
+                              SelectedItem="{Binding SelectedVersion}"
                               SelectionMode="Single"
                               GridViewColumnHeader.Click="listViewHeader_Click">
                         <ListView.View>
@@ -121,7 +124,15 @@
                                 <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
-                                <GridViewColumn Header="Message" DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
+                                <GridViewColumn Header="Message">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Message, Mode=OneWay}"
+                                                LineHeight="16" MaxHeight="16"
+                                                TextWrapping="NoWrap"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
                             </GridView>
                         </ListView.View>
 
@@ -135,6 +146,7 @@
                             </Style>
                         </ListView.ItemContainerStyle>
                     </ListView>
+                    
                     <GridSplitter Grid.Row="2"
                                   HorizontalAlignment="Stretch"
                                   VerticalAlignment="Center"
@@ -142,7 +154,22 @@
                                   ShowsPreview="True"
                                   Height="5"
                                   Margin="0,2" />
-                    <ContentPresenter Grid.Row="3" Content="{Binding SelectedItem, ElementName=listView}" />
+                    
+                    <TextBox Grid.Row="3"
+                             Text="{Binding Path=SelectedVersion.Message, Mode=OneWay}"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             IsReadOnly="True"/>
+                    
+                    <GridSplitter Grid.Row="4"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
+                                  Background="Black" 
+                                  ShowsPreview="True"
+                                  Height="5"
+                                  Margin="0,2" />
+                    
+                    <ContentPresenter Grid.Row="5" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>
                 <controls:LoadingPanel IsLoading="{Binding IsLoading}"
                                        Message="Loading Branch" />
