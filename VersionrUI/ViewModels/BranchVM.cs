@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Versionr.Objects;
 using VersionrUI.Commands;
@@ -15,6 +16,17 @@ namespace VersionrUI.ViewModels
         private AreaVM _areaVM;
         private Branch _branch;
         private ObservableCollection<VersionVM> _history = null;
+        private string _searchText;
+        
+        public string SearchText
+        {
+            get { return _searchText; }
+            private set
+            {
+                _searchText = value;
+                NotifyPropertyChanged("History");
+            }
+        }
 
         public BranchVM(AreaVM areaVM, Branch branch)
         {
@@ -51,8 +63,27 @@ namespace VersionrUI.ViewModels
             {
                 if (_history == null)
                     Load(() => RefreshHistory());
+                if (!string.IsNullOrEmpty(SearchText))
+                    return FilterHistory(_history, SearchText);
                 return _history;
             }
+        }
+
+        private ObservableCollection<VersionVM> FilterHistory(ObservableCollection<VersionVM> history, string searchtext)
+        {
+            searchtext = searchtext.ToLower();
+            ObservableCollection<VersionVM> results = new ObservableCollection<VersionVM>();
+            foreach (VersionVM version in history)
+            {
+                if (version.Message.ToLower().Contains(searchtext) ||
+                    version.ID.ToString().ToLower().Contains(searchtext) ||
+                    version.Author.ToLower().Contains(searchtext) ||
+                    version.Timestamp.ToString().ToLower().Contains(searchtext))
+                {
+                    results.Add(version);
+                }
+            }
+            return results;
         }
 
         private object refreshLock = new object();
