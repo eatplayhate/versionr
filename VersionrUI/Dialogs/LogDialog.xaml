@@ -65,15 +65,14 @@
                     <GridSplitter Grid.Column="1"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Stretch"
-                                  Background="Black"
                                   ShowsPreview="True"
-                                  Width="5"
-                                  Margin="2,0" />
+                                  Width="5" />
                     <controls:BindableRichTextBox Grid.Column="2"
                                                   Document="{Binding SelectedItem.DiffPreview, ElementName=listView}"
-                                                  ScrollViewer.CanContentScroll="True"
                                                   IsReadOnly="True"
-                                                  FontFamily="Consolas" />
+                                                  FontFamily="Consolas"
+                                                  HorizontalScrollBarVisibility="Auto"
+                                                  VerticalScrollBarVisibility="Auto" />
                 </Grid>
                 <controls:LoadingPanel IsLoading="{Binding IsLoading}"
                                        Message="Loading Log" />
@@ -112,19 +111,17 @@
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Revision" DisplayMemberBinding="{Binding Revision, Mode=OneWay}" />
+                        <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                         <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
                         <GridViewColumn Header="Message" DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
-                        <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                     </GridView>
                 </ListView.View>
             </ListView>
             <GridSplitter Grid.Row="2"
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Center"
-                          Background="Black" 
                           ShowsPreview="True"
-                          Height="5"
-                          Margin="0,2" />
+                          Height="5" />
             <ContentPresenter Grid.Row="3" Content="{Binding SelectedItem, ElementName=listView}" />
         </Grid>
         <controls:LoadingPanel IsLoading="{Binding IsLoading}"

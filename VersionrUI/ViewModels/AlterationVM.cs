@@ -161,6 +161,7 @@ namespace VersionrUI.ViewModels
             get
             {
                 FlowDocument diffPreviewDocument = new FlowDocument();
+                diffPreviewDocument.PageWidth = 10000;
 
                 if (CanDiffWithPrevious())
                 {
@@ -207,6 +208,31 @@ namespace VersionrUI.ViewModels
                     text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
                     text.Inlines.Add(new Run("."));
                     diffPreviewDocument.Blocks.Add(text);
+
+                    string tmpNew = DiffTool.GetTempFilename();
+                    _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
+                    if (File.Exists(tmpNew))
+                    {
+                        try
+                        {
+                            using (var fs = new System.IO.FileInfo(tmpNew).OpenText())
+                            {
+                                Paragraph content = new Paragraph();
+                                while (true)
+                                {
+                                    if (fs.EndOfStream)
+                                        break;
+                                    string line = fs.ReadLine().Replace("\t", "    ");
+                                    content.Inlines.Add(new Run(line + Environment.NewLine));
+                                }
+                                diffPreviewDocument.Blocks.Add(content);
+                            }
+                        }
+                        finally
+                        {
+                            File.Delete(tmpNew);
+                        }
+                    }
                 }
 
                 return diffPreviewDocument;

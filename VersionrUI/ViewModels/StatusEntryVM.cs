@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Documents;
@@ -71,6 +72,7 @@ namespace VersionrUI.ViewModels
             get
             {
                 FlowDocument diffPreviewDocument = new FlowDocument();
+                diffPreviewDocument.PageWidth = 10000;
 
                 if (_statusEntry.VersionControlRecord != null && !_statusEntry.IsDirectory && _statusEntry.FilesystemEntry != null && _statusEntry.Code == Versionr.StatusCode.Modified)
                 {
@@ -123,6 +125,23 @@ namespace VersionrUI.ViewModels
                     text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
                     text.Inlines.Add(new Run("."));
                     diffPreviewDocument.Blocks.Add(text);
+
+                    string fileName = System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName);
+                    if (File.Exists(fileName))
+                    {
+                        using (var fs = new FileInfo(fileName).OpenText())
+                        {
+                            Paragraph content = new Paragraph();
+                            while (true)
+                            {
+                                if (fs.EndOfStream)
+                                    break;
+                                string line = fs.ReadLine().Replace("\t", "    ");
+                                content.Inlines.Add(new Run(line + Environment.NewLine));
+                            }
+                            diffPreviewDocument.Blocks.Add(content);
+                        }
+                    }
                 }
 
                 return diffPreviewDocument;

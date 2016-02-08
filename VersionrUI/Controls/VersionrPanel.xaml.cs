@@ -164,10 +164,16 @@ namespace VersionrUI.Controls
 
         private void Sort(ICollectionView dataView, string sortBy, ListSortDirection direction)
         {
-            // TODO(Yan): Temp fix for status headers
             if (sortBy == "Name")
-                sortBy = "CanonicalName";
-
+            {
+                foreach (object obj in dataView.SourceCollection)
+                {
+                    if (obj.GetType().GetProperty("CanonicalName") != null)
+                        sortBy = "CanonicalName";
+                    break; // Only test one item
+                }
+            }
+            
             dataView.SortDescriptions.Clear();
             SortDescription sd = new SortDescription(sortBy, direction);
             dataView.SortDescriptions.Add(sd);
