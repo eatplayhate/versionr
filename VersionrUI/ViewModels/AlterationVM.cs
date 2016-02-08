@@ -25,7 +25,6 @@ namespace VersionrUI.ViewModels
         private Version _version;
         private Record _priorRecord;
         private Record _newRecord;
-        private FlowDocument _diffPreviewDocument = null;
 
         public AlterationVM(Alteration alteration, Area area, Version version)
         {
@@ -161,59 +160,56 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_diffPreviewDocument == null)
+                FlowDocument diffPreviewDocument = new FlowDocument();
+
+                if (CanDiffWithPrevious())
                 {
-                    _diffPreviewDocument = new FlowDocument();
-
-                    if (CanDiffWithPrevious())
-                    {
-                        if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
-                            (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
-                        {
-                            Paragraph text = new Paragraph();
-                            text.Inlines.Add(new Run("File: "));
-                            text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
-                            text.Inlines.Add(new Run(" is binary "));
-                            text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
-                            text.Inlines.Add(new Run("."));
-                        }
-                        else
-                        {
-                            // Displaying modifications
-                            string tmpPrior = DiffTool.GetTempFilename();
-                            string tmpNew = DiffTool.GetTempFilename();
-                            _area.GetMissingRecords(new Record[] { _priorRecord, _newRecord });
-                            _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
-                            _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
-
-                            Paragraph text = new Paragraph();
-                            text.Inlines.Add(new Run("Displaying changes for file: "));
-                            text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
-                            _diffPreviewDocument.Blocks.Add(text);
-                            try
-                            {
-                                StatusEntryVM.RunInternalDiff(_diffPreviewDocument, tmpPrior, tmpNew);
-                            }
-                            finally
-                            {
-                                File.Delete(tmpPrior);
-                                File.Delete(tmpNew);
-                            }
-                        }
-                    }
-                    else if (_priorRecord == null)
+                    if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
+                        (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
                     {
                         Paragraph text = new Paragraph();
-                        text.Inlines.Add(new Run("Object: "));
+                        text.Inlines.Add(new Run("File: "));
                         text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
-                        text.Inlines.Add(new Run(" was previously "));
-                        text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
+                        text.Inlines.Add(new Run(" is binary "));
+                        text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
                         text.Inlines.Add(new Run("."));
-                        _diffPreviewDocument.Blocks.Add(text);
+                    }
+                    else
+                    {
+                        // Displaying modifications
+                        string tmpPrior = DiffTool.GetTempFilename();
+                        string tmpNew = DiffTool.GetTempFilename();
+                        _area.GetMissingRecords(new Record[] { _priorRecord, _newRecord });
+                        _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
+                        _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
+
+                        Paragraph text = new Paragraph();
+                        text.Inlines.Add(new Run("Displaying changes for file: "));
+                        text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
+                        diffPreviewDocument.Blocks.Add(text);
+                        try
+                        {
+                            StatusEntryVM.RunInternalDiff(diffPreviewDocument, tmpPrior, tmpNew);
+                        }
+                        finally
+                        {
+                            File.Delete(tmpPrior);
+                            File.Delete(tmpNew);
+                        }
                     }
                 }
+                else if (_priorRecord == null)
+                {
+                    Paragraph text = new Paragraph();
+                    text.Inlines.Add(new Run("Object: "));
+                    text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
+                    text.Inlines.Add(new Run(" was previously "));
+                    text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
+                    text.Inlines.Add(new Run("."));
+                    diffPreviewDocument.Blocks.Add(text);
+                }
 
-                return _diffPreviewDocument;
+                return diffPreviewDocument;
             }
         }
     }

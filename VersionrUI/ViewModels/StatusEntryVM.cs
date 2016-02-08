@@ -247,7 +247,9 @@ namespace VersionrUI.ViewModels
             Region openRegion = null;
             Region last = null;
             // cleanup step
-
+            bool doCleanup = true;
+            if (!doCleanup)
+                goto Display;
             for (int i = 1; i < diff.Count - 1; i++)
             {
                 if (diff[i - 1].common == null || diff[i - 1].common.Count == 0)
@@ -315,23 +317,34 @@ namespace VersionrUI.ViewModels
                         break;
                     }
                 }
-                if (isShort)
+                if (diff[i + 1].common.Count == 1 || (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}")))
                 {
-                    if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
+                    if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
                         isBrace = true;
                 }
-                if ((isWhitespace || isBrace) && isShort)
+                if ((isWhitespace && isShort) || isShort || isBrace)
                 {
                     var next = diff[i + 1];
-                    diff.RemoveAt(i + 1);
-                    foreach (var x in next.common)
+                    if (isBrace && next.common.Count > 1)
                     {
-                        diff[i].file1.Add(x);
-                        diff[i].file2.Add(x);
+                        // currently disabled
+                        diff[i].file1.Add(next.common[0]);
+                        diff[i].file2.Add(next.common[0]);
+                        next.common.RemoveAt(0);
                     }
-                    i--;
+                    else
+                    {
+                        diff.RemoveAt(i + 1);
+                        foreach (var x in next.common)
+                        {
+                            diff[i].file1.Add(x);
+                            diff[i].file2.Add(x);
+                        }
+                        i--;
+                    }
                 }
             }
+        Display:
             for (int i = 0; i < diff.Count; i++)
             {
                 if (regions.Count > 0)
@@ -370,12 +383,16 @@ namespace VersionrUI.ViewModels
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
-                    regions.Add(openRegion);
+                    if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                        regions.Add(openRegion);
                     openRegion = null;
                 }
             }
             if (openRegion != null && openRegion != last)
-                regions.Add(openRegion);
+            {
+                if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                    regions.Add(openRegion);
+            }
             int activeRegion = 0;
             while (activeRegion < regions.Count)
             {
