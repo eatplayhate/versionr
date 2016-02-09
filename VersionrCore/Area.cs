@@ -4413,6 +4413,89 @@ namespace Versionr
             }
         }
 
+        public void Resolve(IList<Status.StatusEntry> targets, Action<Versionr.Status.StatusEntry, StatusCode> callback = null)
+        {
+            List<Status.StatusEntry> directoryDeletionList = new List<Status.StatusEntry>();
+            List<Status.StatusEntry> deletionList = new List<Status.StatusEntry>();
+
+            Dictionary<string, Record> recordMap = new Dictionary<string, Record>();
+            foreach (var x in Database.Records)
+                recordMap[x.CanonicalName] = x;
+
+            LocalData.BeginTransaction();
+            try
+            {
+                foreach (var x in CheckoutOrder(targets))
+                {
+                    if (!Included(x.CanonicalName))
+                        continue;
+                    foreach (var y in LocalData.StageOperations)
+                    {
+                        if (y.Operand1 == x.CanonicalName && y.Type == StageOperationType.Conflict)
+                        {
+                            LocalData.Delete(y);
+                            Printer.PrintMessage("#g#Resolved:## {0}", x.CanonicalName);
+                            FileInfo mineFile = new FileInfo(GetRecordPath(x.CanonicalName + ".mine"));
+                            FileInfo theirsFile = new FileInfo(GetRecordPath(x.CanonicalName + ".theirs"));
+                            FileInfo baseFile = new FileInfo(GetRecordPath(x.CanonicalName + ".base"));
+                            if (mineFile.Exists)
+                            {
+                                Printer.PrintMessage("#w#Deleting:## {0}", GetLocalCanonicalName(mineFile.FullName));
+                                try
+                                {
+                                    mineFile.Delete();
+                                }
+                                catch (Exception e)
+                                {
+                                    Printer.PrintMessage("Couldn't delete: {0}", mineFile.FullName);
+                                }
+                            }
+                            if (theirsFile.Exists)
+                            {
+                                Printer.PrintMessage("#w#Deleting:## {0}", GetLocalCanonicalName(theirsFile.FullName));
+                                try
+                                {
+                                    theirsFile.Delete();
+                                }
+                                catch (Exception e)
+                                {
+                                    Printer.PrintMessage("Couldn't delete: {0}", theirsFile.FullName);
+                                }
+                            }
+                            if (baseFile.Exists)
+                            {
+                                Printer.PrintMessage("#w#Deleting:## {0}", GetLocalCanonicalName(baseFile.FullName));
+                                try
+                                {
+                                    baseFile.Delete();
+                                }
+                                catch (Exception e)
+                                {
+                                    Printer.PrintMessage("Couldn't delete: {0}", baseFile.FullName);
+                                }
+                            }
+                        }
+                    }
+                }
+                LocalData.Commit();
+            }
+            catch (Exception e)
+            {
+                LocalData.Rollback();
+                throw new Exception("Unable to remove stage operations!", e);
+            }
+            foreach (var x in deletionList)
+            {
+                Printer.PrintMessage("#e#Deleted:## #b#{0}##", x.CanonicalName);
+                x.FilesystemEntry.Info.Delete();
+            }
+            foreach (var x in directoryDeletionList.OrderByDescending(x => x.CanonicalName.Length))
+            {
+                Printer.PrintMessage("#e#Removed:## #b#{0}##", x.CanonicalName);
+                x.FilesystemEntry.DirectoryInfo.Delete();
+            }
+        }
+
         public bool Commit(string message = "", bool force = false)
         {
             List<Guid> mergeIDs = new List<Guid>();

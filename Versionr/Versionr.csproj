@@ -86,6 +86,7 @@
     <Compile Include="Commands\Remote.cs" />
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\RenameBranch.cs" />
+    <Compile Include="Commands\Resolve.cs" />
     <Compile Include="Commands\Revert.cs" />
     <Compile Include="Commands\Server.cs" />
     <Compile Include="Commands\Stats.cs" />

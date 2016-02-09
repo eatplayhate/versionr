@@ -101,6 +101,9 @@ namespace Versionr
         [VerbOption("ahead", HelpText = "Checks if you are ahead or behind a particular remote.")]
         public Commands.AheadVerbOptions AheadVerb { get; set; }
 
+        [VerbOption("resolve", HelpText = "Resolves conflicts by removing conlict markers on files.")]
+        public Commands.ResolveVerbOptions ResolveVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -198,6 +201,8 @@ namespace Versionr
                 return InfoVerb.GetUsage();
             else if (verb == "ahead")
                 return AheadVerb.GetUsage();
+            else if (verb == "resolve")
+                return ResolveVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -278,6 +283,7 @@ namespace Versionr
                 commands["mergeinfo"] = new Commands.MergeInfo();
                 commands["rebase"] = new Commands.Rebase();
                 commands["ahead"] = new Commands.Ahead();
+                commands["resolve"] = new Commands.Resolve();
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 
