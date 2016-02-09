@@ -4987,6 +4987,7 @@ namespace Versionr
         Retry:
             try
             {
+                dest.Directory.Create();
                 if (rec.Size == 0)
                 {
                     using (var fs = dest.Create()) { }
