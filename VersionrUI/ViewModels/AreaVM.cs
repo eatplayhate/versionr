@@ -28,6 +28,9 @@ namespace VersionrUI.ViewModels
         private ObservableCollection<BranchVM> _branches;
         private ObservableCollection<RemoteConfig> _remotes;
         private StatusVM _status;
+        private bool _statusRefreshing = false;
+        private bool _branchesRefreshing = false;
+        private bool _remotesRefreshing = false;
 
         public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
@@ -145,7 +148,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_branches == null)
+                if (!_branchesRefreshing)
                     Load(() => RefreshStatusAndBranches());
                 return _branches;
             }
@@ -155,7 +158,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_status == null)
+                if (!_statusRefreshing)
                     Load(() => RefreshStatusAndBranches());
                 return _status;
             }
@@ -166,6 +169,8 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
+                _branchesRefreshing = true;
+                _statusRefreshing = true;
                 if (_status == null)
                 {
                     // Assume the active directory is the root of the Area
@@ -184,6 +189,8 @@ namespace VersionrUI.ViewModels
                         _branches.Add(new BranchVM(this, branch));
 
                     NotifyPropertyChanged("Children");
+                    _branchesRefreshing = false;
+                    _statusRefreshing = false;
                 });
             }
         }
@@ -192,6 +199,7 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
+                _remotesRefreshing = true;
                 List<RemoteConfig> remotes = _area.GetRemotes();
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
@@ -208,6 +216,7 @@ namespace VersionrUI.ViewModels
 
                     NotifyPropertyChanged("Remotes");
                     NotifyPropertyChanged("SelectedRemote");
+                    _remotesRefreshing = false;
                 });
             }
         }

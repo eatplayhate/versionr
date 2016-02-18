@@ -6,6 +6,7 @@
              xmlns:vm="clr-namespace:VersionrUI.ViewModels"
              xmlns:controls="clr-namespace:VersionrUI.Controls"
              xmlns:commands="clr-namespace:VersionrUI.Commands"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="300">
 
@@ -99,18 +100,33 @@
             <Grid>
                 <Grid Visibility="{Binding Visibility}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="20" />
-                        <RowDefinition Height="250" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="400" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="80" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <TextBox Grid.Row="0"
-                             Name="logSearch"
-                             Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}">
-                    </TextBox>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0">Search:</Label>
+                        <TextBox Grid.Column="1"
+                                 Name="logSearch"
+                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}">
+                        </TextBox>
+                        <Label Grid.Column="2">Limit:</Label>
+                        <ComboBox Grid.Column="3"
+                                  SelectedValuePath="Key"
+                                  DisplayMemberPath="Value"
+                                  ItemsSource="{Binding RevisionLimitOptions}"
+                                  SelectedValue="{Binding RevisionLimit}" />
+                    </Grid>
                     <ListView Grid.Row="1"
                               Name="listView"
                               ItemsSource="{Binding History}"

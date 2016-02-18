@@ -17,6 +17,8 @@ namespace VersionrUI.ViewModels
         private ObservableCollection<StatusEntryVM> _elements;
         private bool _pushOnCommit;
         private string _commitMessage;
+        private bool _statusRefreshing = false;
+        private bool _elementsRefreshing = false;
 
         public StatusVM(AreaVM areaVM)
         {
@@ -30,7 +32,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_status == null)
+                if (!_statusRefreshing)
                     Load(() => Refresh());
                 return _status;
             }
@@ -67,6 +69,8 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
+                _statusRefreshing = true;
+                _elementsRefreshing = true;
                 _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
 
                 MainWindow.Instance.Dispatcher.Invoke(() =>
@@ -96,6 +100,9 @@ namespace VersionrUI.ViewModels
 
                     NotifyPropertyChanged("Status");
                     NotifyPropertyChanged("Elements");
+
+                    _statusRefreshing = false;
+                    _elementsRefreshing = false;
                 });
             }
         }
@@ -115,7 +122,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_elements == null)
+                if (!_elementsRefreshing)
                     Load(() => Refresh());
                 return _elements;
             }
