@@ -68,9 +68,9 @@ namespace VersionrUI.ViewModels
 
         private bool CanSaveVersionAs()
         {
-            return _newRecord != null &&
-                   !_newRecord.IsDirectory &&
-                   _alteration.Type != AlterationType.Delete;
+            Record rec = _newRecord ?? _priorRecord;
+            return rec != null &&
+                   !rec.IsDirectory;
         }
 
         private void DiffWithPrevious()
@@ -134,20 +134,14 @@ namespace VersionrUI.ViewModels
 
         private void SaveVersionAs()
         {
-            if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
+            Record rec = _newRecord ?? _priorRecord;
+            SaveFileDialog dialog = new SaveFileDialog();
+            dialog.FileName = rec.Name;
+            dialog.CheckPathExists = true;
+            if (dialog.ShowDialog() == true)
             {
-                MessageBox.Show(string.Format("File: {0} is binary different.", _newRecord.CanonicalName));
-            }
-            else
-            {
-                SaveFileDialog dialog = new SaveFileDialog();
-                dialog.FileName = _newRecord.Name;
-                dialog.CheckPathExists = true;
-                if (dialog.ShowDialog() == true)
-                {
-                    _area.GetMissingRecords(new Record[] { _newRecord });
-                    _area.RestoreRecord(_newRecord, DateTime.UtcNow, dialog.FileName);
-                }
+                _area.GetMissingRecords(new Record[] { rec });
+                _area.RestoreRecord(rec, DateTime.UtcNow, dialog.FileName);
             }
         }
 

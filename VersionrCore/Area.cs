@@ -902,6 +902,32 @@ namespace Versionr
                 throw new Exception();
         }
 
+        internal void ReplaceHeads(Guid key, List<Head> value)
+        {
+            Objects.Branch branch = Database.Get<Branch>(key);
+            var heads = GetBranchHeads(branch);
+
+            for (int i = value.Count; i < heads.Count; i++)
+                Database.DeleteSafe(heads[i]);
+            while (heads.Count > value.Count)
+                heads.RemoveAt(heads.Count - 1);
+
+            for (int i = 0; i < heads.Count; i++)
+            {
+                if (heads[i].Version != value[i].Version)
+                {
+                    Printer.PrintDiagnostics("Updating head of branch {0} to version {1}", branch.Name, value[i].Version);
+                    heads[i].Version = value[i].Version;
+                    Database.UpdateSafe(heads[i]);
+                }
+            }
+            for (int i = heads.Count; i < value.Count; i++)
+            {
+                Printer.PrintDiagnostics("Adding new head of branch {0}, version {1}", branch.Name, value[i].Version);
+                Database.InsertSafe(value[i]);
+            }
+        }
+
         public DirectoryInfo Root
         {
             get
@@ -3718,6 +3744,8 @@ namespace Versionr
             List<Objects.Version> allVersions = null;
             if (limit.HasValue && limit.Value > 0)
                 allVersions = allVersionsList.Reverse<Objects.Version>().Take(limit.Value).ToList();
+            else
+                allVersions = allVersionsList;
             DAG <Objects.Version, Guid> result = new DAG<Objects.Version, Guid>();
             foreach (var x in allVersions)
             {
@@ -4667,11 +4695,14 @@ namespace Versionr
                                                     {
                                                         if (record == null)
                                                         {
-                                                            Printer.PrintMessage("Removed (ignored locally): #b#{0}##", x.CanonicalName);
-                                                            Alteration localAlteration = new Alteration();
-                                                            localAlteration.Type = AlterationType.Delete;
-                                                            localAlteration.PriorRecord = x.VersionControlRecord.Id;
-                                                            alterations.Add(localAlteration);
+                                                            if (x.VersionControlRecord != null)
+                                                            {
+                                                                Printer.PrintMessage("Removed (ignored locally): #b#{0}##", x.CanonicalName);
+                                                                Alteration localAlteration = new Alteration();
+                                                                localAlteration.Type = AlterationType.Delete;
+                                                                localAlteration.PriorRecord = x.VersionControlRecord.Id;
+                                                                alterations.Add(localAlteration);
+                                                            }
                                                             break;
                                                         }
                                                         else
