@@ -124,6 +124,10 @@ namespace Logr
                 // Version previously passed or failed.
                 if (oldEntry.Status == BuildStatus.Passed || oldEntry.Status == BuildStatus.Failed)
                     return oldEntry.Status;
+                
+                // Once it's building, it can only go to pass or fail
+                if (oldEntry.Status == BuildStatus.Building && Program.Options.Status != BuildStatus.Passed && Program.Options.Status != BuildStatus.Failed)
+                    return oldEntry.Status;
 
                 // Don't change entries on a different branch
                 if (buildVersion != null && version.Branch != buildVersion.Branch)
