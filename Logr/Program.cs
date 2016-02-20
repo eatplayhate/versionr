@@ -1,11 +1,15 @@
-﻿using System;
+﻿using CommandLine;
+using System;
 using System.IO;
 using System.Security.Permissions;
+using Versionr;
 
 namespace Logr
 {
     public class Program
     {
+        public static LogrOptions Options { get; private set; }
+
         static void ExceptionHandler(object sender, UnhandledExceptionEventArgs e)
         {
             using (StreamWriter writer = File.AppendText(@"C:\Versionr\logr.log"))
@@ -20,13 +24,19 @@ namespace Logr
         {
             AppDomain.CurrentDomain.UnhandledException += new UnhandledExceptionEventHandler(ExceptionHandler);
 
-            if (args.Length != 2)
-            {
-                Console.WriteLine("Usage: Logr.exe [repo path] [log destination path]");
-                return;
-            }
+            Printer.PrinterStream printerStream = new Printer.PrinterStream();
+            Parser parser = new Parser(new Action<ParserSettings>(
+                (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
 
-            Log log = new Log(args[0], args[1]);
+            Options = new LogrOptions();
+            if (!parser.ParseArguments(args, Options))
+            {
+                printerStream.Flush();
+                Printer.RestoreDefaults();
+                Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
+            }
+            
+            Log log = new Log(Options.Repo, Options.LogFile, (Options.Limit > 0) ? Options.Limit : (int?)null);
             log.Update();
             log.Serialize();
         }

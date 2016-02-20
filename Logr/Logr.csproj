@@ -66,6 +66,7 @@
   <ItemGroup>
     <Compile Include="Log.cs" />
     <Compile Include="LogEntry.cs" />
+    <Compile Include="LogrOptions.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -73,6 +74,10 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\commandline-stable-1.9.71.2\src\libcmdline\CommandLine.csproj">
+      <Project>{5dea2811-2ffa-4959-830b-cad3acacabeb}</Project>
+      <Name>CommandLine</Name>
+    </ProjectReference>
     <ProjectReference Include="..\VersionrCore\VersionrCore.csproj">
       <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
       <Name>VersionrCore</Name>
