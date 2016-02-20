@@ -35,7 +35,9 @@ namespace VersionrUI.ViewModels
             {
                 _searchText = value;
                 NotifyPropertyChanged("SearchText");
+                _historyRefreshing = true;
                 NotifyPropertyChanged("History");
+                _historyRefreshing = false;
             }
         }
 

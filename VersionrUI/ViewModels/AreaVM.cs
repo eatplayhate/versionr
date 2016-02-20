@@ -109,7 +109,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_remotes == null)
+                if (!_remotesRefreshing)
                     Load(() => RefreshRemotes());
                 return _remotes;
             }
