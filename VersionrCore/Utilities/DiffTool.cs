@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Versionr.Utilities
@@ -312,10 +313,15 @@ namespace Versionr.Utilities
                 }
                 else
                 {
-                    psi = new System.Diagnostics.ProcessStartInfo()
-                    {
-                        FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
-                        Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" --auto --L1 \"{4}\" --L2 \"{5}\"", baseFile, file1, file2, output, baseAlias, file1Alias, file2Alias),
+					Match match = Regex.Match(file1, @"\.vrmeta$");
+					string autostr = match.Success ? "" : "--auto";
+					if (match.Success)
+						Printer.PrintMessage("performing explicit merge .vrmeta");
+
+					psi = new System.Diagnostics.ProcessStartInfo()
+					{
+						FileName = "C:\\Program Files\\KDiff3\\kdiff3.exe",
+                        Arguments = string.Format("\"{0}\" \"{1}\" \"{2}\" -o \"{3}\" {6} --L1 \"{4}\" --L2 \"{5}\"", baseFile, file1, file2, output, baseAlias, file1Alias, file2Alias, autostr),
                         UseShellExecute = true
                     };
                 }
