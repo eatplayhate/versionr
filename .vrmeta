@@ -19,7 +19,7 @@
 				".cache",
 				".DS_Store",
 				".db",
-				".opendb"
+				".opendb",
 			],
 			"Patterns" :
 			[
