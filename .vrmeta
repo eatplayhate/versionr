@@ -19,7 +19,8 @@
 				".cache",
 				".DS_Store",
 				".db",
-				".opendb"
+				".opendb",
+				"your_face"
 			],
 			"Patterns" :
 			[
