@@ -186,16 +186,24 @@ namespace VersionrUI.ViewModels
         public void RevertSelected()
         {
             bool deleteNewFile = true;
-            MessageBoxResult result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-            if (result == MessageBoxResult.Cancel)
-                return;
+
+            if (VersionrUI.Controls.VersionrPanel.SelectedItems.OfType<StatusEntryVM>().Any(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned))
+            {
+                MessageBoxResult result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Cancel)
+                    return;
+                else
+                {
+                    deleteNewFile = (result == MessageBoxResult.Yes);
+                    foreach (StatusEntryVM entry in VersionrUI.Controls.VersionrPanel.SelectedItems)
+                        _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
+                }
+            }
             else
             {
-                deleteNewFile = (result == MessageBoxResult.Yes);
                 foreach (StatusEntryVM entry in VersionrUI.Controls.VersionrPanel.SelectedItems)
-                    _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
+                    _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, false);
             }
-
             _statusVM.Refresh();
         }
 
