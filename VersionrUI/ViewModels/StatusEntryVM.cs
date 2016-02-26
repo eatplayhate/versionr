@@ -185,24 +185,18 @@ namespace VersionrUI.ViewModels
 
         public void RevertSelected()
         {
-            foreach (StatusEntryVM entry in VersionrUI.Controls.VersionrPanel.SelectedItems)
-                entry.Revert();
+            bool deleteNewFile = true;
+            MessageBoxResult result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (result == MessageBoxResult.Cancel)
+                return;
+            else
+            {
+                deleteNewFile = (result == MessageBoxResult.Yes);
+                foreach (StatusEntryVM entry in VersionrUI.Controls.VersionrPanel.SelectedItems)
+                    _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
+            }
 
             _statusVM.Refresh();
-        }
-
-        public void Revert()
-        {
-            bool deleteNewFile = true;
-            if (Code == StatusCode.Added || Code == StatusCode.Unversioned)
-            {
-                MessageBoxResult result = MessageBox.Show("Do you want to delete this file from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-                if (result == MessageBoxResult.Cancel)
-                    return;
-                else
-                    deleteNewFile = (result == MessageBoxResult.Yes);
-            }
-            _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
         }
 
         private class Region
