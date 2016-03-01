@@ -225,7 +225,9 @@ namespace Versionr.Utilities
                             Arguments = mergeCommands[i].Value,
                             UseShellExecute = true
                         };
-                        success = true;
+                        proc = System.Diagnostics.Process.Start(psi);
+                        proc.WaitForExit();
+                        success = proc.ExitCode == 0;
                     }
                     catch
                     {
@@ -237,7 +239,9 @@ namespace Versionr.Utilities
                                 Arguments = mergeCommands[i].Value,
                                 UseShellExecute = true
                             };
-                            success = true;
+                            proc = System.Diagnostics.Process.Start(psi);
+                            proc.WaitForExit();
+                            success = proc.ExitCode == 0;
                         }
                         catch
                         {
@@ -356,7 +360,9 @@ namespace Versionr.Utilities
                             Arguments = mergeCommands[i].Value,
                             UseShellExecute = true
                         };
-                        success = true;
+                        proc = System.Diagnostics.Process.Start(psi);
+                        proc.WaitForExit();
+                        success = proc.ExitCode == 0;
                     }
                     catch
                     {
@@ -368,7 +374,9 @@ namespace Versionr.Utilities
                                 Arguments = mergeCommands[i].Value,
                                 UseShellExecute = true
                             };
-                            success = true;
+                            proc = System.Diagnostics.Process.Start(psi);
+                            proc.WaitForExit();
+                            success = proc.ExitCode == 0;
                         }
                         catch
                         {
