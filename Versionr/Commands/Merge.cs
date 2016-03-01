@@ -53,7 +53,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             foreach (var x in localOptions.Target)
-                ws.Merge(x, false, localOptions.Force, !localOptions.Simple, localOptions.Reintegrate, !localOptions.IgnoreMergeAncestry);
+                ws.Merge(x, false, localOptions.Force, !localOptions.Simple, localOptions.Reintegrate, localOptions.IgnoreMergeAncestry);
             return true;
         }
     }

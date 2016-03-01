@@ -2055,7 +2055,6 @@ namespace Versionr
 
 		private void LoadDirectives()
 		{
-            Configuration = null;
             FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
             if (info.Exists)
             {
@@ -2064,8 +2063,16 @@ namespace Versionr
                 {
                     data = sr.ReadToEnd();
                 }
-                Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
-                Directives = LoadConfigurationElement<Directives>("Versionr");
+                try
+                {
+                    Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
+                    Directives = LoadConfigurationElement<Directives>("Versionr");
+                }
+                catch (Exception e)
+                {
+                    Printer.PrintError("#x#Error:## .vrmeta is malformed!");
+                    Printer.PrintMessage(e.ToString());
+                }
             }
             else
                 Directives = new Directives();
@@ -2077,18 +2084,26 @@ namespace Versionr
                 {
                     data = sr.ReadToEnd();
                 }
-                var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
-                var localDirJSON = localObj["Versionr"];
-                if (localDirJSON != null)
+                try
                 {
-                    var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
-                    if (localDirectives != null)
+                    var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
+                    var localDirJSON = localObj["Versionr"];
+                    if (localDirJSON != null)
                     {
-                        if (Directives != null)
-                            Directives.Merge(localDirectives);
-                        else
-                            Directives = localDirectives;
+                        var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
+                        if (localDirectives != null)
+                        {
+                            if (Directives != null)
+                                Directives.Merge(localDirectives);
+                            else
+                                Directives = localDirectives;
+                        }
                     }
+                }
+                catch (Exception e)
+                {
+                    Printer.PrintError("#x#Error:## .vruser is malformed!");
+                    Printer.PrintMessage(e.ToString());
                 }
             }
         }

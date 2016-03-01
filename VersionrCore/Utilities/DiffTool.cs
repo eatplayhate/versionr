@@ -227,7 +227,7 @@ namespace Versionr.Utilities
                         };
                         proc = System.Diagnostics.Process.Start(psi);
                         proc.WaitForExit();
-                        success = proc.ExitCode == 0;
+                        return proc.ExitCode == 0;
                     }
                     catch
                     {
@@ -241,7 +241,7 @@ namespace Versionr.Utilities
                             };
                             proc = System.Diagnostics.Process.Start(psi);
                             proc.WaitForExit();
-                            success = proc.ExitCode == 0;
+                            return proc.ExitCode == 0;
                         }
                         catch
                         {
@@ -249,15 +249,11 @@ namespace Versionr.Utilities
                         }
                     }
                 }
-                if (!success)
-                {
-                    if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
-                        Printer.PrintMessage("Couldn't run external 2-way merge. Specify an #b#ExternalMerge2Way## program in your directives file.");
-                    else
-                        Printer.PrintMessage("Couldn't run external 2-way merge. Make sure you have #b#kdiff3## available or specify an #b#ExternalMerge2Way## program in your directives file.");
-                    throw new Exception();
-                }
-                return true;
+                if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+                    Printer.PrintMessage("Couldn't run external 2-way merge. Specify an #b#ExternalMerge2Way## program in your directives file.");
+                else
+                    Printer.PrintMessage("Couldn't run external 2-way merge. Make sure you have #b#kdiff3## available or specify an #b#ExternalMerge2Way## program in your directives file.");
+                throw new Exception();
             }
         }
 		public static bool Merge3Way(string baseFile, string file1, string file2, string output, string externalTool)
@@ -362,7 +358,7 @@ namespace Versionr.Utilities
                         };
                         proc = System.Diagnostics.Process.Start(psi);
                         proc.WaitForExit();
-                        success = proc.ExitCode == 0;
+                        return proc.ExitCode == 0;
                     }
                     catch
                     {
@@ -376,7 +372,7 @@ namespace Versionr.Utilities
                             };
                             proc = System.Diagnostics.Process.Start(psi);
                             proc.WaitForExit();
-                            success = proc.ExitCode == 0;
+                            return proc.ExitCode == 0;
                         }
                         catch
                         {
@@ -384,15 +380,11 @@ namespace Versionr.Utilities
                         }
                     }
                 }
-                if (!success)
-                {
-                    if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
-                        Printer.PrintMessage("Couldn't run external 3-way merge. Make sure you have #b#merge## available or specify an #b#ExternalMerge## program in your directives file.");
-                    else
-                        Printer.PrintMessage("Couldn't run external 3-way merge. Make sure you have #b#kdiff3## available or specify an #b#ExternalMerge## program in your directives file.");
-                    throw new Exception();
-                }
-                return true;
+                if (MultiArchPInvoke.RunningPlatform != Platform.Windows)
+                    Printer.PrintMessage("Couldn't run external 3-way merge. Make sure you have #b#merge## available or specify an #b#ExternalMerge## program in your directives file.");
+                else
+                    Printer.PrintMessage("Couldn't run external 3-way merge. Make sure you have #b#kdiff3## available or specify an #b#ExternalMerge## program in your directives file.");
+                throw new Exception();
             }
 		}
 	}
