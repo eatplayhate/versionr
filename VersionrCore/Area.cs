@@ -2072,6 +2072,9 @@ namespace Versionr
                 {
                     Printer.PrintError("#x#Error:## .vrmeta is malformed!");
                     Printer.PrintMessage(e.ToString());
+
+                    if (Directives == null)
+                        Directives = new Directives();
                 }
             }
             else
