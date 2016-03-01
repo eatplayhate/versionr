@@ -2460,7 +2460,7 @@ namespace Versionr
             }
         }
 
-        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false, bool reintegrate = false)
+        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false, bool reintegrate = false, bool ignoreMergeParents = false)
         {
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
@@ -2486,7 +2486,7 @@ namespace Versionr
                 if (possibleBranch == null && reintegrate)
                     throw new Exception("Can't reintegrate when merging a version and not a branch.");
 
-                var parents = GetCommonParents(null, mergeVersion);
+                var parents = GetCommonParents(null, mergeVersion, ignoreMergeParents);
                 if (parents == null || parents.Count == 0)
                     throw new Exception("No common parent!");
 
@@ -2967,7 +2967,7 @@ namespace Versionr
                     if (x.Type == StageOperationType.Merge)
                     {
                         if (mergeVersionGraph == null)
-                            mergeVersionGraph = GetParentGraph(mergeVersion);
+                            mergeVersionGraph = GetParentGraph(mergeVersion, ignoreMergeParents);
                         Objects.Version stagedMergeVersion = GetVersion(new Guid(x.Operand1));
                         if (mergeVersionGraph.ContainsKey(stagedMergeVersion.ID))
                             LocalData.RemoveStageOperation(x);
@@ -3011,7 +3011,7 @@ namespace Versionr
 
         private List<TransientMergeObject> MergeCoreRecursive(Objects.Version v1, Objects.Version v2)
         {
-            var parents = GetCommonParents(v1, v2);
+            var parents = GetCommonParents(v1, v2, false);
             if (parents == null || parents.Count == 0)
                 throw new Exception("No common parent!");
 
@@ -3391,10 +3391,10 @@ namespace Versionr
             }
         }
 
-        private List<KeyValuePair<Guid, int>> GetCommonParents(Objects.Version version, Objects.Version mergeVersion)
+        private List<KeyValuePair<Guid, int>> GetCommonParents(Objects.Version version, Objects.Version mergeVersion, bool ignoreMergeParents)
         {
-            Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion);
-            List<KeyValuePair<Guid, int>> shared = GetSharedParentGraphMinimal(version, foreignGraph);
+            Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion, ignoreMergeParents);
+            List<KeyValuePair<Guid, int>> shared = GetSharedParentGraphMinimal(version, foreignGraph, ignoreMergeParents);
             shared = shared.OrderBy(x => x.Value).ToList();
             if (shared.Count == 0)
                 return null;
@@ -3405,7 +3405,7 @@ namespace Versionr
                 if (ignored.Contains(shared[i].Key))
                     continue;
                 pruned.Add(shared[i]);
-                var parents = GetParentGraph(GetVersion(shared[i].Key));
+                var parents = GetParentGraph(GetVersion(shared[i].Key), ignoreMergeParents);
                 for (int j = 0; j < shared.Count; j++)
                 {
                     if (j == i)
@@ -3417,7 +3417,7 @@ namespace Versionr
             return pruned.Where(x => !ignored.Contains(x.Key)).ToList();
         }
 
-        private List<KeyValuePair<Guid, int>> GetSharedParentGraphMinimal(Objects.Version version, Dictionary<Guid, int> foreignGraph)
+        private List<KeyValuePair<Guid, int>> GetSharedParentGraphMinimal(Objects.Version version, Dictionary<Guid, int> foreignGraph, bool ignoreMergeParents)
         {
             bool includePendingMerge = false;
             if (version == null)
@@ -3462,10 +3462,14 @@ namespace Versionr
                 {
                     if (currentNode.Parent.HasValue && !visited.ContainsKey(currentNode.Parent.Value))
                         openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(currentNode.Parent), currentNodeData.Item2 + 1));
-                    foreach (var x in Database.GetMergeInfo(currentNode.ID))
+
+                    if (!ignoreMergeParents)
                     {
-                        if (!visited.ContainsKey(x.SourceVersion))
-                            openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                        foreach (var x in Database.GetMergeInfo(currentNode.ID))
+                        {
+                            if (!visited.ContainsKey(x.SourceVersion))
+                                openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                        }
                     }
                 }
             }
@@ -3482,7 +3486,7 @@ namespace Versionr
             return shared;
         }
 
-        public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion)
+        public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion, bool ignoreMergeParents)
         {
             Printer.PrintDiagnostics("Getting parent graph for version {0}", mergeVersion.ID);
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
@@ -3506,10 +3510,14 @@ namespace Versionr
 
                 if (currentNode.Parent.HasValue && !result.ContainsKey(currentNode.Parent.Value))
                     openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(currentNode.Parent), currentNodeData.Item2 + 1));
-                foreach (var x in Database.GetMergeInfo(currentNode.ID))
+
+                if (!ignoreMergeParents)
                 {
-                    if (!result.ContainsKey(x.SourceVersion))
-                        openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                    foreach (var x in Database.GetMergeInfo(currentNode.ID))
+                    {
+                        if (!result.ContainsKey(x.SourceVersion))
+                            openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                    }
                 }
             }
             sw.Stop();

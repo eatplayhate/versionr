@@ -83,7 +83,7 @@ namespace Versionr.Commands
                                 relationshipCode = 2;
                                 result = "#s#a merge parent";
                             }
-                            else if (relationshipCode < 1 && ws.GetParentGraph(headVersion).ContainsKey(v.ID))
+                            else if (relationshipCode < 1 && ws.GetParentGraph(headVersion, false).ContainsKey(v.ID))
                             {
                                 relationshipCode = 1;
                                 result = "#c#an indirect ancestor";

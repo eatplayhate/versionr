@@ -133,6 +133,7 @@ namespace Versionr
         public string DefaultCompression { get; set; }
         public string ExternalDiff { get; set; }
         public bool? NonBlockingDiff { get; set; }
+        public bool? UseTortoiseMerge { get; set; }
         public string ExternalMerge { get; set; }
         public string ExternalMerge2Way { get; set; }
         public SvnCompatibility Svn { get; set; }
@@ -148,6 +149,9 @@ namespace Versionr
                 Ignore.Merge(other.Ignore);
             else if (other.Ignore != null)
                 Ignore = other.Ignore;
+
+            if (other.UseTortoiseMerge != null)
+                UseTortoiseMerge = other.UseTortoiseMerge;
 
             if (Include != null && other.Include != null)
                 Include.Merge(other.Include);
