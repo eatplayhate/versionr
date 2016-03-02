@@ -2053,14 +2053,27 @@ namespace Versionr
 			return Database.GetMergeInfo(iD);
 		}
 
-		private void LoadDirectives()
+		private void LoadVRMeta()
 		{
-
 			Configuration = null;
 			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-			
+			if (info.Exists)
+			{
+				string data = string.Empty;
+				using (var sr = info.OpenText())
+				{
+					data = sr.ReadToEnd();
+				}
+				Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
+				Directives = LoadConfigurationElement<Directives>("Versionr");
+			}
+			else
 				Directives = new Directives();
-			FileInfo localInfo = new FileInfo(Path.Combine(Root.FullName, ".vruser"));
+		}
+
+		private void LoadVRUser(string path)
+		{
+			FileInfo localInfo = new FileInfo(path);
 			if (localInfo.Exists)
 			{
 				string data = string.Empty;
@@ -2082,6 +2095,13 @@ namespace Versionr
 					}
 				}
 			}
+		}
+
+		private void LoadDirectives()
+		{
+			LoadVRMeta();
+			LoadVRUser(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".vruser"));
+			LoadVRUser(Path.Combine(Root.FullName, ".vruser"));
 		}
 
 
