@@ -2053,65 +2053,79 @@ namespace Versionr
             return Database.GetMergeInfo(iD);
         }
 
+
+		private void LoadVRMeta()
+		{
+			Configuration = null;
+			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
+			if (info.Exists)
+			{
+				string data = string.Empty;
+				using (var sr = info.OpenText())
+				{
+					data = sr.ReadToEnd();
+				}
+				try
+				{
+					Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
+					Directives = LoadConfigurationElement<Directives>("Versionr");
+				}
+				catch (Exception e)
+				{
+					Printer.PrintError("#x#Error:## .vrmeta is malformed!");
+					Printer.PrintMessage(e.ToString());
+
+					if (Directives == null)
+						Directives = new Directives();
+				}
+			}
+			else
+				Directives = new Directives();
+		}
+
+		private void LoadVRUser(string path)
+		{
+			FileInfo localInfo = new FileInfo(path);
+			if (localInfo.Exists)
+			{
+				string data = string.Empty;
+				using (var sr = localInfo.OpenText())
+				{
+					data = sr.ReadToEnd();
+				}
+				try
+				{
+					var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
+					var localDirJSON = localObj["Versionr"];
+					if (localDirJSON != null)
+					{
+						var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
+						if (localDirectives != null)
+						{
+							if (Directives != null)
+								Directives.Merge(localDirectives);
+							else
+								Directives = localDirectives;
+						}
+					}
+				}
+				catch (Exception e)
+				{
+					Printer.PrintError("#x#Error:## .vruser is malformed!");
+					Printer.PrintMessage(e.ToString());
+				}
+			}
+		}
+
 		private void LoadDirectives()
 		{
-            FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-            if (info.Exists)
-            {
-                string data = string.Empty;
-                using (var sr = info.OpenText())
-                {
-                    data = sr.ReadToEnd();
-                }
-                try
-                {
-                    Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
-                    Directives = LoadConfigurationElement<Directives>("Versionr");
-                }
-                catch (Exception e)
-                {
-                    Printer.PrintError("#x#Error:## .vrmeta is malformed!");
-                    Printer.PrintMessage(e.ToString());
+			LoadVRMeta();
+			LoadVRUser(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".vruser"));
+			LoadVRUser(Path.Combine(Root.FullName, ".vruser"));
+		}
 
-                    if (Directives == null)
-                        Directives = new Directives();
-                }
-            }
-            else
-                Directives = new Directives();
-            FileInfo localInfo = new FileInfo(Path.Combine(Root.FullName, ".vruser"));
-            if (localInfo.Exists)
-            {
-                string data = string.Empty;
-                using (var sr = localInfo.OpenText())
-                {
-                    data = sr.ReadToEnd();
-                }
-                try
-                {
-                    var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
-                    var localDirJSON = localObj["Versionr"];
-                    if (localDirJSON != null)
-                    {
-                        var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
-                        if (localDirectives != null)
-                        {
-                            if (Directives != null)
-                                Directives.Merge(localDirectives);
-                            else
-                                Directives = localDirectives;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    Printer.PrintError("#x#Error:## .vruser is malformed!");
-                    Printer.PrintMessage(e.ToString());
-                }
-            }
-        }
 
-        public T LoadConfigurationElement<T>(string v)
+		public T LoadConfigurationElement<T>(string v)
             where T : new()
         {
             var element = Configuration[v];
