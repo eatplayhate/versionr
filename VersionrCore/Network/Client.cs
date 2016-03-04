@@ -688,7 +688,7 @@ namespace Versionr.Network
 
                                 for (int i = 0; i < heads.Count; i++)
                                 {
-                                    if (heads[i].Version == remoteVersions.First().Version || heads[i].Version == localVersion)
+                                    if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
                                     {
                                         heads.RemoveAt(i);
                                         --i;
