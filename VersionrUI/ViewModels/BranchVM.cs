@@ -17,7 +17,6 @@ namespace VersionrUI.ViewModels
         private ObservableCollection<VersionVM> _history = null;
         private string _searchText;
         private VersionVM _selectedVersion;
-        private bool _historyRefreshing = false;
         private int _revisionLimit = 50;
         private static Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
         {
@@ -35,9 +34,7 @@ namespace VersionrUI.ViewModels
             {
                 _searchText = value;
                 NotifyPropertyChanged("SearchText");
-                _historyRefreshing = true;
                 NotifyPropertyChanged("History");
-                _historyRefreshing = false;
             }
         }
 
@@ -74,8 +71,8 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (!_historyRefreshing)
-                    Load(() => RefreshHistory());
+                if (_history == null)
+                    Load(() => Refresh());
                 if (!string.IsNullOrEmpty(SearchText))
                     return FilterHistory(_history, SearchText);
                 return _history;
@@ -129,11 +126,10 @@ namespace VersionrUI.ViewModels
         }
 
         private object refreshLock = new object();
-        private void RefreshHistory()
+        private void Refresh()
         {
             lock (refreshLock)
             {
-                _historyRefreshing = true;
                 var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
                 List<Version> versions = _areaVM.Area.GetHistory(headVersion, limit);
@@ -148,7 +144,6 @@ namespace VersionrUI.ViewModels
                     foreach (Version version in versions)
                         _history.Add(new VersionVM(version, _areaVM.Area));
                     NotifyPropertyChanged("History");
-                    _historyRefreshing = false;
                 });
             }
         }
@@ -188,7 +183,7 @@ namespace VersionrUI.ViewModels
             Load(() =>
             {
                 _areaVM.Area.Checkout(Name, purge, false, false);
-                _areaVM.RefreshStatusAndBranches();
+                _areaVM.Refresh();
             });
         }
 

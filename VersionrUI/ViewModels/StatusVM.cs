@@ -4,6 +4,7 @@ using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace VersionrUI.ViewModels
 {
@@ -17,8 +18,6 @@ namespace VersionrUI.ViewModels
         private ObservableCollection<StatusEntryVM> _elements;
         private bool _pushOnCommit;
         private string _commitMessage;
-        private bool _statusRefreshing = false;
-        private bool _elementsRefreshing = false;
 
         public StatusVM(AreaVM areaVM)
         {
@@ -32,7 +31,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (!_statusRefreshing)
+                if (_status == null)
                     Load(() => Refresh());
                 return _status;
             }
@@ -69,8 +68,6 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
-                _statusRefreshing = true;
-                _elementsRefreshing = true;
                 _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
 
                 MainWindow.Instance.Dispatcher.Invoke(() =>
@@ -100,9 +97,6 @@ namespace VersionrUI.ViewModels
 
                     NotifyPropertyChanged("Status");
                     NotifyPropertyChanged("Elements");
-
-                    _statusRefreshing = false;
-                    _elementsRefreshing = false;
                 });
             }
         }
@@ -122,7 +116,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (!_elementsRefreshing)
+                if (_elements == null)
                     Load(() => Refresh());
                 return _elements;
             }
@@ -132,12 +126,12 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (Elements == null)
+                if (_elements == null)
                     return false;   // whatever
-                int stagedCount = Elements.Count(x => x.IsStaged);
+                int stagedCount = _elements.Count(x => x.IsStaged);
                 if (stagedCount == 0)
                     return false;
-                else if (stagedCount == Elements.Count)
+                else if (stagedCount == _elements.Count)
                     return true;
                 else
                     return null;
@@ -149,13 +143,29 @@ namespace VersionrUI.ViewModels
                     useValue = false;
                 if (AllStaged != useValue)
                 {
-                    foreach (var st in Elements)
+                    foreach (var st in _elements)
                     {
                         st.IsStaged = useValue;
                     }
                     NotifyPropertyChanged("AllStaged");
                 }
             }
+        }
+
+        public void SetStaged(List<StatusEntryVM> statusEntries, bool staged)
+        {   
+            if (staged)
+                _areaVM.Area.RecordChanges(_status, statusEntries.Select(x => x.StatusEntry).ToList(), true, false, (se, code, b) => { se.Code = code; se.Staged = true; });
+            else
+                _areaVM.Area.Revert(statusEntries.Select(x => x.StatusEntry).ToList(), false, false, false, (se, code) => { se.Code = code; se.Staged = false; });
+
+            statusEntries.ForEach(x =>
+            {
+                x.NotifyPropertyChanged("IsStaged");
+                x.NotifyPropertyChanged("Code");
+            });
+
+            NotifyPropertyChanged("AllStaged");
         }
 
         private void Commit()

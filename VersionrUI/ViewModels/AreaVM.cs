@@ -28,12 +28,10 @@ namespace VersionrUI.ViewModels
         private ObservableCollection<BranchVM> _branches;
         private ObservableCollection<RemoteConfig> _remotes;
         private StatusVM _status;
-        private bool _statusRefreshing = false;
-        private bool _branchesRefreshing = false;
-        private bool _remotesRefreshing = false;
 
         public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
+            RefreshCommand = new DelegateCommand(Refresh);
             PullCommand = new DelegateCommand(Pull);
             PushCommand = new DelegateCommand(Push);
 
@@ -109,8 +107,8 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (!_remotesRefreshing)
-                    Load(() => RefreshRemotes());
+                if (_remotes == null)
+                    Load(() => Refresh());
                 return _remotes;
             }
         }
@@ -129,6 +127,7 @@ namespace VersionrUI.ViewModels
         }
 
         #region Commands
+        public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand PullCommand { get; private set; }
         public DelegateCommand PushCommand { get; private set; }
 
@@ -142,41 +141,25 @@ namespace VersionrUI.ViewModels
         {
             ExecuteClientCommand((c) => c.Push(), "push", true);
         }
-        #endregion
-
-        private ObservableCollection<BranchVM> Branches
-        {
-            get
-            {
-                if (!_branchesRefreshing)
-                    Load(() => RefreshStatusAndBranches());
-                return _branches;
-            }
-        }
-
-        private StatusVM Status
-        {
-            get
-            {
-                if (!_statusRefreshing)
-                    Load(() => RefreshStatusAndBranches());
-                return _status;
-            }
-        }
 
         private object refreshLock = new object();
-        public void RefreshStatusAndBranches()
+        public void Refresh()
         {
             lock (refreshLock)
             {
-                _branchesRefreshing = true;
-                _statusRefreshing = true;
+                // Refresh status
                 if (_status == null)
                 {
                     // Assume the active directory is the root of the Area
                     _status = new StatusVM(this);
                 }
+                else
+                {
+                    _status.Refresh();
+                }
 
+
+                // Refresh branches
                 IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
 
                 MainWindow.Instance.Dispatcher.Invoke(() =>
@@ -189,17 +172,10 @@ namespace VersionrUI.ViewModels
                         _branches.Add(new BranchVM(this, branch));
 
                     NotifyPropertyChanged("Children");
-                    _branchesRefreshing = false;
-                    _statusRefreshing = false;
                 });
-            }
-        }
 
-        private void RefreshRemotes()
-        {
-            lock (refreshLock)
-            {
-                _remotesRefreshing = true;
+
+                // Refresh remotes
                 List<RemoteConfig> remotes = _area.GetRemotes();
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
@@ -216,8 +192,28 @@ namespace VersionrUI.ViewModels
 
                     NotifyPropertyChanged("Remotes");
                     NotifyPropertyChanged("SelectedRemote");
-                    _remotesRefreshing = false;
                 });
+            }
+        }
+        #endregion
+
+        private ObservableCollection<BranchVM> Branches
+        {
+            get
+            {
+                if (_branches == null)
+                    Load(() => Refresh());
+                return _branches;
+            }
+        }
+
+        public StatusVM Status
+        {
+            get
+            {
+                if (_status == null)
+                    Load(() => Refresh());
+                return _status;
             }
         }
         

@@ -43,13 +43,21 @@ namespace VersionrUI.ViewModels
             get { return _statusEntry.Staged; }
             set
             {
-                if (value)
-                    _area.RecordChanges(_statusVM.Status, new List<Status.StatusEntry>() { _statusEntry }, true, false, (se, code, b) => { _statusEntry.Code = code; _statusEntry.Staged = true; });
-                else
-                    _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
-                NotifyPropertyChanged("IsStaged");
-                NotifyPropertyChanged("Code");
+                if (_statusEntry.Staged != value)
+                {
+                    if (value)
+                        _area.RecordChanges(_statusVM.Status, new List<Status.StatusEntry>() { _statusEntry }, true, false, (se, code, b) => { _statusEntry.Code = code; _statusEntry.Staged = true; });
+                    else
+                        _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
+                    NotifyPropertyChanged("IsStaged");
+                    NotifyPropertyChanged("Code");
+                }
             }
+        }
+
+        public Status.StatusEntry StatusEntry
+        {
+            get { return _statusEntry; }
         }
 
         public string Name

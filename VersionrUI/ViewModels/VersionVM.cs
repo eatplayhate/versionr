@@ -13,8 +13,7 @@ namespace VersionrUI.ViewModels
         private Version _version;
         private Area _area;
         private ObservableCollection<AlterationVM> _alterations;
-        private bool _alterationsRefreshing = false;
-
+        
         public VersionVM(Version version, Area area)
         {
             _version = version;
@@ -65,7 +64,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (!_alterationsRefreshing)
+                if (_alterations == null)
                     Load(() => Refresh());
                 return _alterations;
             }
@@ -76,7 +75,6 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
-                _alterationsRefreshing = true;
                 List<Alteration> alterations = _area.GetAlterations(_version);
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
@@ -93,7 +91,6 @@ namespace VersionrUI.ViewModels
                         _alterations.Add(vm);
 
                     NotifyPropertyChanged("Alterations");
-                    _alterationsRefreshing = false;
                 });
             }
         }

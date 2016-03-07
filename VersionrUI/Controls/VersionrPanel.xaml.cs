@@ -251,22 +251,12 @@ namespace VersionrUI.Controls
 
         private void CheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            foreach (StatusEntryVM item in SelectedItems)
-            {
-                if (item == sender)
-                    continue;
-                item.IsStaged = true;
-            }
+            _selectedArea.Status.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
         }
 
         private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
-            foreach (StatusEntryVM item in SelectedItems)
-            {
-                if (item == sender)
-                    continue;
-                item.IsStaged = false;
-            }
+            _selectedArea.Status.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
         }
     }
 }
