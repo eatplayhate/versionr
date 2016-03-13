@@ -252,6 +252,9 @@ namespace Versionr
                     Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
                 }
 
+                if (!string.IsNullOrEmpty((invokedVerbInstance as VerbOptionBase).Logfile))
+                    Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
+
                 Dictionary<string, Commands.BaseCommand> commands = new Dictionary<string, Commands.BaseCommand>();
                 commands["init"] = new Commands.Init();
                 commands["commit"] = new Commands.Commit();

@@ -1,4 +1,6 @@
-﻿using System;
+﻿//#define MERGE_DIAGNOSTICS
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -2635,20 +2637,60 @@ namespace Versionr
             List<StageOperation> delayedStageOperations = new List<StageOperation>();
             Dictionary<string, bool> parentIgnoredList = new Dictionary<string,bool>();
 
+#if MERGE_DIAGNOSTICS
+            Printer.PrintDiagnostics("Merge phase 1 - processing foreign records.");
+#endif
             foreach (var x in CheckoutOrder(foreignRecords))
             {
+#if MERGE_DIAGNOSTICS
+                Printer.PrintDiagnostics("(F) Record: {0} (\\#{1})", x.CanonicalName, x.Id);
+                Printer.PrintDiagnostics(" > Fingerprint: {0}", x.Fingerprint);
+#endif
                 TransientMergeObject parentObject = null;
                 parentDataLookup.TryGetValue(x.CanonicalName, out parentObject);
                 Status.StatusEntry localObject = null;
                 status.Map.TryGetValue(x.CanonicalName, out localObject);
 
+#if MERGE_DIAGNOSTICS
+                if (parentObject != null)
+                {
+                    Printer.PrintDiagnostics(" > Found parent: {0} (\\#{1})", parentObject.CanonicalName, parentObject.Record.Id);
+                    if (parentObject.TemporaryFile != null)
+                        Printer.PrintDiagnostics("   > Parent is a virtual merge result.");
+                    else
+                        Printer.PrintDiagnostics("   > Parent fingerprint: {0}", parentObject.Record.Fingerprint);
+                }
+                if (localObject != null)
+                {
+                    Printer.PrintDiagnostics(" > Found local object: {0} (status: {1})", localObject.CanonicalName, localObject.Code);
+                    if (localObject.VersionControlRecord != null)
+                        Printer.PrintDiagnostics("   > Local object has a VC record \\#{0}", localObject.VersionControlRecord.Id);
+                    else
+                        Printer.PrintDiagnostics("   > Local object is not in version control");
+                    Printer.PrintDiagnostics("   > Local fingerprint: {0}", localObject.Hash);
+                }
+#endif
+
                 bool included = Included(x.CanonicalName);
+#if MERGE_DIAGNOSTICS
+                if (included)
+                    Printer.PrintDiagnostics(" > Object is part of the masked area of the checkout graph.");
+                else
+                    Printer.PrintDiagnostics(" > Object is NOT included in the masked graph.");
+#endif
+
                 if (localObject == null || localObject.Removed)
                 {
+#if MERGE_DIAGNOSTICS
+                    Printer.PrintDiagnostics(" > Local object is NOT PRESENT.");
+#endif
                     if (localObject != null && localObject.Staged == false && localObject.IsDirectory)
                     {
-                        if (included)
+                        if (included && !System.IO.Directory.Exists(GetRecordPath(x)))
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## Local directory does not exist. Creating.");
+#endif
                             Printer.PrintMessage("Recreating locally missing directory: #b#{0}##.", localObject.CanonicalName);
                             RestoreRecord(x, newRefTime);
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
@@ -2656,6 +2698,10 @@ namespace Versionr
                     }
                     else if (parentObject == null)
                     {
+#if MERGE_DIAGNOSTICS
+                        Printer.PrintDiagnostics(" > No parent object exists for this record.");
+                        Printer.PrintDiagnostics(" > #c#MR:## Remote object was added in remote branch.");
+#endif
                         // Added
                         if (included)
                             RestoreRecord(x, newRefTime);
@@ -2672,13 +2718,22 @@ namespace Versionr
                     }
                     else
                     {
+#if MERGE_DIAGNOSTICS
+                        Printer.PrintDiagnostics(" > A parent object exists for this record.");
+#endif
                         // Removed locally
                         if (parentObject.DataEquals(x))
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## Remote object is the same as parent, it was locally removed.");
+#endif
                             // this is fine, we removed it in our branch
                         }
                         else
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > Remote object is different to common parent.");
+#endif
                             if (!included && !updateMode)
                             {
                                 Printer.PrintError("#x#Error:##\n  Merge results in a tree change outside the current restricted path. Aborting.");
@@ -2687,6 +2742,9 @@ namespace Versionr
                             // less fine
                             if (included)
                             {
+#if MERGE_DIAGNOSTICS
+                                Printer.PrintDiagnostics(" > Checking to see if this is in an ignored location and can be discarded.");
+#endif
                                 // check to see if we've ignored this whole thing
                                 string parentName = x.CanonicalName;
                                 bool resolved = false;
@@ -2721,12 +2779,18 @@ namespace Versionr
                                 }
                                 if (resolved)
                                 {
-                                    Printer.PrintMessage("Resolved incoming update of ignored file: #b#{0}##", x.CanonicalName);
+#if MERGE_DIAGNOSTICS
+                                    Printer.PrintDiagnostics(" > #c#MR:## Remote object is locally ignored.");
+#endif
+                                    Printer.PrintMessage("#q#Merged (Ignored)##: #b#{0}##", x.CanonicalName);
                                     if (!directoryRemoved)
                                         delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                                 }
                                 else
                                 {
+#if MERGE_DIAGNOSTICS
+                                    Printer.PrintDiagnostics(" > #c#MR:## Unreconcilable changes, tree conflict.");
+#endif
                                     Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
                                     RestoreRecord(x, newRefTime);
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
@@ -2739,27 +2803,54 @@ namespace Versionr
                 }
                 else
                 {
+#if MERGE_DIAGNOSTICS
+                    Printer.PrintDiagnostics(" > There is local data for this object.");
+#endif
                     if (localObject.DataEquals(x))
                     {
+#if MERGE_DIAGNOSTICS
+                        Printer.PrintDiagnostics(" > Both local and remote data is the same.");
+#endif
                         // all good, same data in both places
                         if (localObject.Code == StatusCode.Unversioned)
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## Local data is unversioned, adding to stage.");
+#endif
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                        }
+                        else
+                        {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## No operation required.");
+#endif
                         }
                     }
                     else
                     {
+#if MERGE_DIAGNOSTICS
+                        Printer.PrintDiagnostics(" > Local data is different to remote data.");
+#endif
                         if (localObject.Code == StatusCode.Masked)
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## Local changes at that path are not important.");
+#endif
                             // don't care, update the merge info because someone else does care
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
                         else if (parentObject != null && parentObject.DataEquals(localObject))
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > Parent data is the same as local data.");
+#endif
                             // modified in foreign branch
                             if (included)
                             {
+#if MERGE_DIAGNOSTICS
+                                Printer.PrintDiagnostics(" > #c#MR:## Updating to remote data as there are no conflicting changes in this branch.");
+#endif
                                 RestoreRecord(x, newRefTime);
                                 if (!updateMode)
                                 {
@@ -2775,16 +2866,25 @@ namespace Versionr
                         }
                         else if (parentObject != null && parentObject.DataEquals(x))
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## Remote data and shared parent are the same, local data is modified.");
+#endif
                             // modified locally
                         }
                         else if (parentObject == null)
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > No shared parent, requires two way merge.");
+#endif
                             if (included)
                             {
+#if MERGE_DIAGNOSTICS
+                                Printer.PrintDiagnostics(" > #c#MR:## Running two way merge.");
+#endif
                                 // added in both places
-                                var mf = GetTemporaryFile(x);
+                                var mf = GetTemporaryFile(x, "-theirs");
                                 var ml = localObject.FilesystemEntry.Info;
-                                var mr = GetTemporaryFile(x);
+                                var mr = GetTemporaryFile(x, "-result");
                             
                                 RestoreRecord(x, newRefTime, mf.FullName);
 
@@ -2793,6 +2893,9 @@ namespace Versionr
                                 FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true, ref resolveAll);
                                 if (result != null)
                                 {
+#if MERGE_DIAGNOSTICS
+                                    Printer.PrintDiagnostics(" > #c#MR:## Two way merge success.");
+#endif
                                     if (result != ml)
                                         ml.Delete();
                                     if (result != mr)
@@ -2812,6 +2915,9 @@ namespace Versionr
 							    }
                                 else
                                 {
+#if MERGE_DIAGNOSTICS
+                                    Printer.PrintDiagnostics(" > #c#MR:## Two way merge failed, conflict.");
+#endif
                                     mr.Delete();
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
 								    if (!updateMode)
@@ -2826,16 +2932,19 @@ namespace Versionr
                         }
                         else
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > Parent exists, running three-way merge.");
+#endif
                             if (included)
                             {
-                                var mf = GetTemporaryFile(x);
+                                var mf = GetTemporaryFile(x, "-theirs");
                                 FileInfo mb;
                                 var ml = localObject.FilesystemEntry.Info;
-                                var mr = GetTemporaryFile(x);
+                                var mr = GetTemporaryFile(x, "-result");
 
                                 if (parentObject.TemporaryFile == null)
                                 {
-                                    mb = GetTemporaryFile(parentObject.Record);
+                                    mb = GetTemporaryFile(parentObject.Record, "-base");
                                     RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
                                     mb = new FileInfo(mb.FullName);
                                 }
@@ -2849,6 +2958,9 @@ namespace Versionr
                                 FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true, ref resolveAll);
                                 if (result != null)
                                 {
+#if MERGE_DIAGNOSTICS
+                                    Printer.PrintDiagnostics(" > #c#MR:## Three way merge success.");
+#endif
                                     if (result != ml)
                                         ml.Delete();
                                     if (result != mr)
@@ -2870,6 +2982,9 @@ namespace Versionr
 							    }
                                 else
                                 {
+#if MERGE_DIAGNOSTICS
+                                    Printer.PrintDiagnostics(" > #c#MR:## Three way merge failed. Conflict.");
+#endif
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
 								    if (!updateMode)
                                         delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
@@ -2887,33 +3002,67 @@ namespace Versionr
 				if (x.IsDirective)
 					LoadDirectives();
             }
+#if MERGE_DIAGNOSTICS
+            Printer.PrintDiagnostics(" > Merge phase 2, checking parent data.");
+#endif
             List<Record> deletionList = new List<Record>();
             foreach (var x in DeletionOrder(parentData))
             {
+#if MERGE_DIAGNOSTICS
+                Printer.PrintDiagnostics("(P) Record: {0} (\\#{1})", x.CanonicalName, x.Record.Id);
+#endif
                 Objects.Record foreignRecord = null;
                 foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
                 Status.StatusEntry localObject = null;
                 status.Map.TryGetValue(x.CanonicalName, out localObject);
+#if MERGE_DIAGNOSTICS
+                if (foreignRecord != null)
+                {
+                    Printer.PrintDiagnostics(" > Found foreign record: {0} (\\#{1})", foreignRecord.CanonicalName, foreignRecord.Id);
+                }
+                if (localObject != null)
+                {
+                    Printer.PrintDiagnostics(" > Found local object: {0} (status: {1})", localObject.CanonicalName, localObject.Code);
+                }
+#endif
                 if (foreignRecord == null)
                 {
+#if MERGE_DIAGNOSTICS
+                    Printer.PrintDiagnostics(" > Parent object was deleted in foreign branch.");
+#endif
                     // deleted by branch
                     if (localObject != null)
                     {
+#if MERGE_DIAGNOSTICS
+                        Printer.PrintDiagnostics(" > Object still exists in local filesystem.");
+#endif
                         if (localObject.Code == StatusCode.Masked)
                         {
-                            Printer.PrintMessage("Removing record for ignored object #b#{0}##", x.CanonicalName);
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > #c#MR:## Object exists locally but is ignored, removing record info.");
+#endif
+                            Printer.PrintMessage("#q#Removing (Ignored):## #b#{0}##", x.CanonicalName);
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = -1 });
                         }
                         else if (!localObject.Removed)
                         {
+#if MERGE_DIAGNOSTICS
+                            Printer.PrintDiagnostics(" > Local object is still active.");
+#endif
                             string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
                             if (x.DataEquals(localObject))
                             {
-                                Printer.PrintMessage("Removing {0}", x.CanonicalName);
+#if MERGE_DIAGNOSTICS
+                                Printer.PrintDiagnostics(" > #c#MR:## Local object matches parent, removing.");
+#endif
+                                Printer.PrintMessage("#c#Removing:## {0}", x.CanonicalName);
                                 deletionList.Add(x.Record);
                             }
                             else
                             {
+#if MERGE_DIAGNOSTICS
+                                Printer.PrintDiagnostics(" > #c#MR:## Local object doesn't match parent!");
+#endif
                                 Printer.PrintError("Can't remove object \"{0}\", tree confict!", x.CanonicalName);
                                 Printer.PrintMessage("Resolve conflict by: (r)emoving file, (k)eeping local or (c)onflict?");
                                 string resolution = System.Console.ReadLine();
@@ -2931,8 +3080,14 @@ namespace Versionr
                 }
             }
             List<string> filetimesToRemove = new List<string>();
+#if MERGE_DIAGNOSTICS
+            Printer.PrintDiagnostics(" > Merge phase 3, removing files marked for delete.");
+#endif
             foreach (var x in deletionList)
             {
+#if MERGE_DIAGNOSTICS
+                Printer.PrintDiagnostics(" > #w#Note:## Attempting to delete {0}", x.CanonicalName);
+#endif
                 if (!Included(x.CanonicalName))
                 {
                     if (!updateMode)
@@ -3278,7 +3433,7 @@ namespace Versionr
 
         private FileInfo Merge3Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, Record record, FileInfo parentFile, FileInfo temporaryFile, bool allowConflict, ref ResolveType? resolveAll)
         {
-            Printer.PrintMessage("Merging {0}", x.CanonicalName);
+            Printer.PrintMessage("#w#Merging:## {0}", x.CanonicalName);
             // modified in both places
             string mf = foreign.FullName;
             string mb = parentFile.FullName;
@@ -3292,7 +3447,7 @@ namespace Versionr
             if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
             {
                 System.IO.File.Delete(ml + ".mine");
-                Printer.PrintMessage(" - Resolved.");
+                Printer.PrintMessage("#s# - Resolved.##");
                 return temporaryFile;
             }
             else
@@ -3300,11 +3455,13 @@ namespace Versionr
                 ResolveType resolution = GetResolution(isBinary, ref resolveAll);
                 if (resolution == ResolveType.Mine)
                 {
+                    Printer.PrintMessage("#s# - Resolved (mine).##");
                     System.IO.File.Delete(ml + ".mine");
                     return local;
                 }
                 if (resolution == ResolveType.Theirs)
                 {
+                    Printer.PrintMessage("#s# - Resolved (theirs).##");
                     System.IO.File.Delete(ml + ".mine");
                     return foreign;
                 }
@@ -3314,7 +3471,7 @@ namespace Versionr
                         throw new Exception();
                     System.IO.File.Move(mf, ml + ".theirs");
                     System.IO.File.Move(mb, ml + ".base");
-                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                    Printer.PrintMessage("#e# - File not resolved. Please manually merge and then mark as resolved.##");
                     return null;
                 }
             }
@@ -3329,7 +3486,7 @@ namespace Versionr
 
         private FileInfo Merge2Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, FileInfo temporaryFile, bool allowConflict, ref ResolveType? resolveAll)
         {
-            Printer.PrintMessage("Merging {0}", x.CanonicalName);
+            Printer.PrintMessage("#w#Merging:## {0}", x.CanonicalName);
             string mf = foreign.FullName;
             string ml = local.FullName;
             string mr = temporaryFile.FullName;
@@ -3341,7 +3498,7 @@ namespace Versionr
             if (!isBinary && Utilities.DiffTool.Merge(ml, mf, mr, Directives.ExternalMerge2Way))
             {
                 System.IO.File.Delete(ml + ".mine");
-                Printer.PrintMessage(" - Resolved.");
+                Printer.PrintMessage("#s# - Resolved.##");
                 return temporaryFile;
             }
             else
@@ -3349,11 +3506,13 @@ namespace Versionr
                 ResolveType resolution = GetResolution(isBinary, ref resolveAll);
                 if (resolution == ResolveType.Mine)
                 {
+                    Printer.PrintMessage("#s# - Resolved (mine).##");
                     System.IO.File.Delete(ml + ".mine");
                     return local;
                 }
                 if (resolution == ResolveType.Theirs)
                 {
+                    Printer.PrintMessage("#s# - Resolved (theirs).##");
                     System.IO.File.Delete(ml + ".mine");
                     return foreign;
                 }
@@ -3362,7 +3521,7 @@ namespace Versionr
                     if (!allowConflict)
                         throw new Exception();
                     System.IO.File.Move(mf, ml + ".theirs");
-                    Printer.PrintMessage(" - File not resolved. Please manually merge and then mark as resolved.");
+                    Printer.PrintMessage("#e# - File not resolved. Please manually merge and then mark as resolved.##");
                     return null;
                 }
             }
@@ -3401,7 +3560,7 @@ namespace Versionr
         }
 
         int m_TempFileIndex = 0;
-        private FileInfo GetTemporaryFile(Record rec)
+        private FileInfo GetTemporaryFile(Record rec, string name = "")
         {
             DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "temp"));
             info.Create();
@@ -3409,7 +3568,7 @@ namespace Versionr
             {
                 while (true)
                 {
-                    string fn = rec.Name + m_TempFileIndex++.ToString() + ".tmp";
+                    string fn = rec.Name + name + m_TempFileIndex++.ToString() + ".tmp";
                     var x = new FileInfo(Path.Combine(info.FullName, fn));
                     if (!x.Exists)
                     {
@@ -5098,7 +5257,8 @@ namespace Versionr
                 if (caseCheck.Name != dest.Name)
                 {
                     caseCheck.MoveTo(Path.GetRandomFileName());
-                    caseCheck.MoveTo(dest.Name);
+                    caseCheck.MoveTo(GetRecordPath(rec));
+                    dest = caseCheck;
                 }
                 FileTimestamp fst = GetReferenceTime(rec.CanonicalName);
 
@@ -5125,7 +5285,7 @@ namespace Versionr
                 if (overridePath == null)
                 {
                     if (feedback == null)
-                        Printer.PrintMessage("Updating {0}", GetLocalCanonicalName(rec));
+                        Printer.PrintMessage("#M#Updating:## {0}", GetLocalCanonicalName(rec));
                     else
                         feedback(RecordUpdateType.Updated, GetLocalCanonicalName(rec), rec);
                 }
@@ -5133,7 +5293,7 @@ namespace Versionr
             else if (overridePath == null)
             {
                 if (feedback == null)
-                    Printer.PrintMessage("Creating {0}", GetLocalCanonicalName(rec));
+                    Printer.PrintMessage("#s#Creating:## {0}", GetLocalCanonicalName(rec));
                 else
                     feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
             }

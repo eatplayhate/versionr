@@ -58,6 +58,9 @@ namespace Versionr
         [Option("nocolours", HelpText = "Disable coloured output.")]
         public bool NoColours { get; set; }
 
+        [Option("logfile", HelpText = "Specify a log file for versionr.")]
+        public string Logfile { get; set; }
+
         public virtual string Usage
         {
             get

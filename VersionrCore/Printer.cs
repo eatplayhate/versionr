@@ -27,6 +27,8 @@ namespace Versionr
                 Text.Clear();
             }
         }
+
+        static public System.IO.StreamWriter LogStream { get; set; }
         static public bool EnableDiagnostics { get; set; }
         static public bool Quiet { get; set; }
         static public ConsoleColor DefaultBGColour { get; set; }
@@ -81,6 +83,14 @@ namespace Versionr
                 AllowInteractivePrinting = false;
             }
         }
+
+        public static void OpenLog(string log)
+        {
+            LogStream = new System.IO.StreamWriter(System.IO.File.Open(log, System.IO.FileMode.Create));
+            LogStream.NewLine = "\\r\\n";
+            LogStream.AutoFlush = true;
+        }
+        
         public static void RestoreDefaults()
         {
             try
@@ -169,7 +179,7 @@ namespace Versionr
             return s.Replace("#", "\\#");
         }
 
-        private static void FormatOutput(string v)
+        private static void FormatOutput(string v, bool bypassLog)
         {
             List<Tuple<OutputColour, string>> outputs = new List<Tuple<OutputColour, string>>();
             OutputColour currentColour = OutputColour.Normal;
@@ -243,11 +253,11 @@ namespace Versionr
             {
                 if (newline)
                 {
-                    FlushOutput(true, x);
+                    FlushOutput(true, x, bypassLog);
                     newline = false;
                 }
                 else
-                    FlushOutput(false, x);
+                    FlushOutput(false, x, bypassLog);
                 if (x.Item2.EndsWith("\n"))
                     newline = true;
             }
@@ -305,7 +315,7 @@ namespace Versionr
             Write(MessageType.Message, string.Format(v, obj));
         }
         private static object SyncObject = new object();
-        private static void FlushOutput(bool newline, Tuple<OutputColour, string> x)
+        private static void FlushOutput(bool newline, Tuple<OutputColour, string> x, bool bypassLog)
         {
             lock (SyncObject)
             {
@@ -314,14 +324,23 @@ namespace Versionr
                 {
                     SetOutputColour(x.Item1);
                     if (newline && !SuppressIndent)
-                        System.Console.Write(indent + x.Item2);
+                        FlushUnformatted(indent + x.Item2, bypassLog);
                     else
-                        System.Console.Write(x.Item2);
+                        FlushUnformatted(x.Item2, bypassLog);
                     SuppressIndent = false;
                 }
                 else if (newline && !SuppressIndent)
-                    System.Console.Write(indent);
+                    FlushUnformatted(indent, bypassLog);
                 SuppressIndent = false;
+            }
+        }
+
+        private static void FlushUnformatted(string message, bool bypassLog)
+        {
+            System.Console.Write(message);
+            if (!bypassLog && LogStream != null)
+            {
+                LogStream.Write(message);
             }
         }
 
@@ -476,7 +495,7 @@ namespace Versionr
                 {
                     ClearInteractive();
                 }
-                FormatOutput(message);
+                FormatOutput(message, type == MessageType.Interactive);
             }
         }
 
@@ -486,7 +505,7 @@ namespace Versionr
             {
                 int clearLength = System.Console.CursorLeft;
                 System.Console.CursorLeft = 0;
-                FormatOutput(new string(' ', clearLength));
+                FormatOutput(new string(' ', clearLength), true);
                 System.Console.CursorLeft = 0;
                 LastPrinter = null;
             }
