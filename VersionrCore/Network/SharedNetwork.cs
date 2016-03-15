@@ -756,7 +756,10 @@ namespace Versionr.Network
                         break;
                     var record = sharedInfo.RemoteRecordMap[sharedInfo.UnknownRecords[index]];
                     if (record.Parent.HasValue && !sharedInfo.UnknownRecordSet.Contains(record.Parent.Value))
-                        requests.Add(record.Parent.Value);
+                    {
+                        if (!sharedInfo.LocalRecordMap.ContainsKey(record.Parent.Value))
+                            requests.Add(record.Parent.Value);
+                    }
                     index++;
                 }
                 if (requests.Count > 0)

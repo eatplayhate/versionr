@@ -42,7 +42,7 @@ namespace Versionr.Commands
 			if (localOptions.Ignored)
 				targets = targets.Where(x => x.Code != StatusCode.Ignored).ToList();
 			else
-				targets = targets.Where(x => x.Code != StatusCode.Ignored && x.Code != StatusCode.Masked).ToList();
+				targets = targets.Where(x => (x.Code != StatusCode.Ignored && (x.Staged || x.Code != StatusCode.Masked))).ToList();
 		}
 
 		protected override IEnumerable<KeyValuePair<bool, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)

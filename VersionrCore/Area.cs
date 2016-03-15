@@ -1170,7 +1170,18 @@ namespace Versionr
         {
             get
             {
-                return Database.Version;
+                try
+                {
+                    return Database.Version;
+                }
+                catch
+                {
+                    Printer.PrintError("#e#Error:## Unable to locate version {0}, switching local copy to initial revision.", LocalData.Workspace.Tip);
+                    var ws = LocalData.Workspace;
+                    ws.Tip = Database.Domain;
+                    LocalData.Update(ws);
+                    return Database.Version;
+                }
             }
         }
 
@@ -1246,7 +1257,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.1.34";
+                return "v1.1.36";
             }
         }
 

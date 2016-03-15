@@ -13,10 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 32;
+        public const int InternalDBVersion = 33;
         public const int MinimumDBVersion = 3;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 32;
+        public const int MaximumDBVersion = 33;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -93,6 +93,40 @@ namespace Versionr
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
 
+                    if (priorFormat < 33)
+                    {
+                        foreach (var x in Table<Record>().ToList())
+                        {
+                            if (x.Parent.HasValue)
+                            {
+                                Record rp = Find<Record>(x.Parent.Value);
+                                if (rp == null)
+                                {
+                                    Printer.PrintMessage("Found missing parent for record ID {0} - parent ID: {1}, attempting to fix.", x.Id, x.Parent.Value);
+                                    Printer.PrintMessage(" - Record {0} - {1}", Find<ObjectName>(x.CanonicalNameId).CanonicalName, x.Fingerprint);
+
+                                    var alterations = Query<Alteration>("SELECT * from Alteration where Alteration.NewRecord = ?", x.Id);
+                                    var possibleParents = alterations.Where(z => z.PriorRecord.HasValue).Select(z => z.PriorRecord.Value).Distinct().ToList();
+
+                                    Printer.PrintMessage(" - Found {0} possible parents for this record.", possibleParents.Count);
+                                    if (possibleParents.Count == 1)
+                                    {
+                                        Printer.PrintMessage(" - Updating parent record to ID {0}", possibleParents[0]);
+                                        x.Parent = possibleParents[0];
+                                    }
+                                    else
+                                    {
+                                        if (possibleParents.Count > 0)
+                                            Printer.PrintMessage(" - Data is ambiguous, removing parent record.");
+                                        else
+                                            Printer.PrintMessage(" - No parents found, removing parent record.");
+                                        x.Parent = null;
+                                    }
+                                    Update(x);
+                                }
+                            }
+                        }
+                    }
                     if (priorFormat < 28)
                     {
                         var tips = Query<BranchJournal>("SELECT * FROM BranchJournal WHERE NOT EXISTS (SELECT * FROM BranchJournalLink WHERE Parent = BranchJournal.ID)").ToList();
