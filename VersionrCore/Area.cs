@@ -2539,6 +2539,10 @@ namespace Versionr
                 Printer.PrintMessage("Starting merge:");
                 Printer.PrintMessage(" - Local: {0} #b#\"{1}\"##", Database.Version.ID, GetBranch(Database.Version.Branch).Name);
                 Printer.PrintMessage(" - Remote: {0} #b#\"{1}\"##", mergeVersion.ID, GetBranch(mergeVersion.Branch).Name);
+                if (parents.Count == 2 && allowrecursiveMerge)
+                {
+                    parents = GetCommonParents(GetVersion(parents[0].Key), GetVersion(parents[1].Key), ignoreMergeParents);
+                }
                 if (parents.Count == 1 || !allowrecursiveMerge)
                 {
                     parent = GetVersion(parents[0].Key);
@@ -3294,7 +3298,29 @@ namespace Versionr
                         }
                         else
                         {
-                            throw new Exception();
+                            Printer.PrintMessage("Remote file #w#{0}## has been removed.", x.CanonicalName);
+                            while (true)
+                            {
+                                Printer.PrintMessage("This file has been modified on the other branch. Resolve by (k)eeping local or (d)eleting file?");
+                                Printer.PrintMessage("Specifiying (c) for conflict will abort the merge.");
+                                string resolution = System.Console.ReadLine();
+                                if (resolution.StartsWith("k"))
+                                {
+                                    var transientResult = new TransientMergeObject() { Record = localRecord, CanonicalName = localRecord.CanonicalName };
+                                    results.Add(transientResult);
+                                    break;
+                                }
+                                if (resolution.StartsWith("d"))
+                                {
+                                    // do nothing
+                                    break;
+                                }
+                                if (resolution.StartsWith("c"))
+                                {
+                                    Printer.PrintMessage("Tree conflicts cannot be recursively resolved.");
+                                    throw new Exception();
+                                }
+                            }
                         }
                     }
                 }
