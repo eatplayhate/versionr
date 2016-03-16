@@ -2539,7 +2539,7 @@ namespace Versionr
                 Printer.PrintMessage("Starting merge:");
                 Printer.PrintMessage(" - Local: {0} #b#\"{1}\"##", Database.Version.ID, GetBranch(Database.Version.Branch).Name);
                 Printer.PrintMessage(" - Remote: {0} #b#\"{1}\"##", mergeVersion.ID, GetBranch(mergeVersion.Branch).Name);
-                if (parents.Count == 2 && allowrecursiveMerge)
+                if (false && parents.Count == 2 && allowrecursiveMerge)
                 {
                     parents = GetCommonParents(GetVersion(parents[0].Key), GetVersion(parents[1].Key), ignoreMergeParents);
                 }
