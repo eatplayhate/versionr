@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -23,21 +23,40 @@ namespace VersionrUI.Dialogs
         private Area _area;
         private string _author;
         private string _pattern;
-        private Tuple<int?, string> _limit;
-        private ObservableCollection<VersionVM> _history;
+        private List<VersionVM> _history;
+        private int _revisionLimit;
+        private static Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
+        {
+            { 50, "50" },
+            { 100, "100" },
+            { 150, "150" },
+            { 200, "200" },
+            { -1, "All" },
+        };
 
-        public LogDialog(Version version, Area area, string pattern = null)
+        public static void Show(Version version, Area area, string pattern = null)
+        {
+            // Showing modal for now because sqlite dies a horrible death if multiple windows access the db.
+            // If that ever gets fixed, uncomment the code below so we can have multiple log windows.
+            new LogDialog(version, area, pattern).ShowDialog();
+
+            //Thread newWindowThread = new Thread(() =>
+            //{
+            //    new LogDialog(version, area, pattern).Show();
+            //    System.Windows.Threading.Dispatcher.Run();
+            //});
+            //newWindowThread.SetApartmentState(ApartmentState.STA);
+            //newWindowThread.IsBackground = true;
+            //newWindowThread.Start();
+        }
+
+        private LogDialog(Version version, Area area, string pattern = null)
         {
             Version = version;
             _area = area;
             _pattern = pattern;
 
-            LimitOptions = new List<Tuple<int?, string>>();
-            LimitOptions.Add(new Tuple<int?, string>(50, "50"));
-            LimitOptions.Add(new Tuple<int?, string>(100, "100"));
-            LimitOptions.Add(new Tuple<int?, string>(200, "200"));
-            LimitOptions.Add(new Tuple<int?, string>(null, "All"));
-            _limit = LimitOptions.First();
+            _revisionLimit = RevisionLimitOptions.First().Key;
 
             InitializeComponent();
             mainGrid.DataContext = this;
@@ -61,22 +80,25 @@ namespace VersionrUI.Dialogs
                 {
                     _author = value;
                     NotifyPropertyChanged("Author");
-                    RefreshHistory();
+                    Load(RefreshHistory);
                 }
             }
         }
 
-        public List<Tuple<int?, string>> LimitOptions { get; private set; }
-        public Tuple<int?, string> Limit
+        public Dictionary<int, string> RevisionLimitOptions
         {
-            get { return _limit; }
+            get { return _revisionLimitOptions; }
+        }
+        public int RevisionLimit
+        {
+            get { return _revisionLimit; }
             set
             {
-                if (_limit != value)
+                if (_revisionLimit != value)
                 {
-                    _limit = value;
-                    NotifyPropertyChanged("Limit");
-                    RefreshHistory();
+                    _revisionLimit = value;
+                    NotifyPropertyChanged("RevisionLimit");
+                    Load(RefreshHistory);
                 }
             }
         }
@@ -104,27 +126,17 @@ namespace VersionrUI.Dialogs
                     _pattern = value;
                     NotifyPropertyChanged("Pattern");
                     NotifyPropertyChanged("Regex");
-                    RefreshHistory();
+                    Load(RefreshHistory);
                 }
             }
         }
 
-        public ObservableCollection<VersionVM> History
+        public List<VersionVM> History
         {
             get
             {
                 if (_history == null)
-                {
-                    IsLoading = true;
-
-                    BackgroundWorker worker = new BackgroundWorker();
-                    worker.DoWork += new DoWorkEventHandler((obj, args) =>
-                    {
-                        RefreshHistory();
-                        IsLoading = false;
-                    });
-                    worker.RunWorkerAsync();
-                }
+                    Load(RefreshHistory);
                 return _history;
             }
         }
@@ -132,29 +144,16 @@ namespace VersionrUI.Dialogs
         private object refreshLock = new object();
         private void RefreshHistory()
         {
-            IsLoading = true;
-
-            BackgroundWorker worker = new BackgroundWorker();
-            worker.DoWork += new DoWorkEventHandler((obj, args) =>
+            lock (refreshLock)
             {
-                lock (refreshLock)
-                {
-                    IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetHistory(Version));
-                    
-                    MainWindow.Instance.Dispatcher.Invoke(() =>
-                    {
-                        if (_history == null)
-                            _history = new ObservableCollection<VersionVM>();
-                        else
-                            _history.Clear();
-                        foreach (Version ver in versions)
-                            _history.Add(new VersionVM(ver, _area));
-                        NotifyPropertyChanged("History");
-                    });
-                }
-                IsLoading = false;
-            });
-            worker.RunWorkerAsync();
+                int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
+                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetHistory(Version, limit));
+                
+                _history = new List<VersionVM>();
+                foreach (Version ver in versions)
+                    _history.Add(new VersionVM(ver, _area));
+                NotifyPropertyChanged("History");
+            }
         }
 
         IEnumerable<ResolvedAlteration> GetAlterations(Version v)
@@ -168,11 +167,11 @@ namespace VersionrUI.Dialogs
 
             if (!string.IsNullOrEmpty(Author))
                 enumeration = enumeration.Where(x => x.Author.IndexOf(Author, StringComparison.OrdinalIgnoreCase) >= 0);
-            
+
             enumeration = enumeration.Where(x => HasAlterationMatchingFilter(x));
-            
-            if (Limit.Item1.HasValue)
-                enumeration = enumeration.Take(Limit.Item1.Value);
+
+            if (RevisionLimit != -1)
+                enumeration = enumeration.Take(RevisionLimit);
 
             return enumeration;
         }
@@ -182,7 +181,7 @@ namespace VersionrUI.Dialogs
             IEnumerable<ResolvedAlteration> alterations = GetAlterations(v);
             return alterations.Any(x => Regex.IsMatch(x.Record.CanonicalName));
         }
-        
+
         #region Loading
         private bool _isLoading = false;
         public bool IsLoading
@@ -194,14 +193,27 @@ namespace VersionrUI.Dialogs
                 {
                     _isLoading = value;
                     NotifyPropertyChanged("IsLoading");
-                    NotifyPropertyChanged("Visibility");
+                    NotifyPropertyChanged("LogVisibility");
                 }
             }
         }
 
-        public Visibility GridVisibility
+        public Visibility LogVisibility
         {
             get { return IsLoading ? Visibility.Collapsed : Visibility.Visible; }
+        }
+
+        protected void Load(Action action)
+        {
+            IsLoading = true;
+
+            BackgroundWorker worker = new BackgroundWorker();
+            worker.DoWork += new DoWorkEventHandler((obj, args) =>
+            {
+                action.Invoke();
+                IsLoading = false;
+            });
+            worker.RunWorkerAsync();
         }
         #endregion
 

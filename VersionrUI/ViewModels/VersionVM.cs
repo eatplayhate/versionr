@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using Versionr;
 using Versionr.Objects;
@@ -12,7 +11,7 @@ namespace VersionrUI.ViewModels
     {
         private Version _version;
         private Area _area;
-        private ObservableCollection<AlterationVM> _alterations;
+        private List<AlterationVM> _alterations;
         
         public VersionVM(Version version, Area area)
         {
@@ -40,11 +39,6 @@ namespace VersionrUI.ViewModels
             get { return _version.Message; }
         }
 
-        public BranchVM Branch
-        {
-            get { return null; }    // TODO share the same branchVM as those coming from AreaVM
-        }
-
         public DateTime Timestamp
         {
             get { return _version.Timestamp.ToLocalTime(); }
@@ -60,12 +54,12 @@ namespace VersionrUI.ViewModels
             get { return _version.Revision; }
         }
 
-        public ObservableCollection<AlterationVM> Alterations
+        public List<AlterationVM> Alterations
         {
             get
             {
                 if (_alterations == null)
-                    Load(() => Refresh());
+                    Load(Refresh);
                 return _alterations;
             }
         }
@@ -76,22 +70,16 @@ namespace VersionrUI.ViewModels
             lock (refreshLock)
             {
                 List<Alteration> alterations = _area.GetAlterations(_version);
-                MainWindow.Instance.Dispatcher.Invoke(() =>
-                {
-                    if (_alterations == null)
-                        _alterations = new ObservableCollection<AlterationVM>();
-                    else
-                        _alterations.Clear();
+                _alterations = new List<AlterationVM>();
+                
+                List<AlterationVM> unordered = new List<AlterationVM>(alterations.Count);
+                foreach (Alteration alteration in alterations)
+                    unordered.Add(new AlterationVM(alteration, _area, _version));
 
-                    List<AlterationVM> unordered = new List<AlterationVM>(alterations.Count);
-                    foreach (Alteration alteration in alterations)
-                        unordered.Add(new AlterationVM(alteration, _area, _version));
+                foreach (AlterationVM vm in unordered.OrderBy(x => x.Name))
+                    _alterations.Add(vm);
 
-                    foreach (AlterationVM vm in unordered.OrderBy(x => x.Name))
-                        _alterations.Add(vm);
-
-                    NotifyPropertyChanged("Alterations");
-                });
+                NotifyPropertyChanged("Alterations");
             }
         }
     }

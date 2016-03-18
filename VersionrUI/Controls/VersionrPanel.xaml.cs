@@ -66,8 +66,8 @@ namespace VersionrUI.Controls
             }
         }
 
-         public static IList SelectedItems
-         {
+        public static IList SelectedItems
+        {
             get
             {
                 ListView lv = FindChild<ListView>(Application.Current.MainWindow, "listView");
@@ -76,8 +76,8 @@ namespace VersionrUI.Controls
 
                 return null;
             }
-         }
-        
+        }
+
         #region Commands
         public DelegateCommand CloseCommand { get; private set; }
         public DelegateCommand NewAreaCommand { get; private set; }
@@ -173,14 +173,14 @@ namespace VersionrUI.Controls
                     break; // Only test one item
                 }
             }
-            
+
             dataView.SortDescriptions.Clear();
             SortDescription sd = new SortDescription(sortBy, direction);
             dataView.SortDescriptions.Add(sd);
             dataView.Refresh();
         }
 
-#region INotifyPropertyChanged
+        #region INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;
         public void NotifyPropertyChanged(string info)
         {
@@ -251,12 +251,12 @@ namespace VersionrUI.Controls
 
         private void CheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            _selectedArea.Status.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
+            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
         }
 
         private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
-            _selectedArea.Status.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
+            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
         }
     }
 }

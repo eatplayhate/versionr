@@ -8,6 +8,7 @@
              d:DesignHeight="300" d:DesignWidth="300">
     
     <Grid Name="mainGrid"
+          Background="Transparent"
           Visibility="{Binding GridVisibility}">
         <TextBlock Text="{Binding Message}"
                    HorizontalAlignment="Center"

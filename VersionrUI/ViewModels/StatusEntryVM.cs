@@ -8,6 +8,7 @@ using System.Windows.Media;
 using Versionr;
 using Versionr.Utilities;
 using VersionrUI.Commands;
+using VersionrUI.Controls;
 using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
@@ -30,7 +31,7 @@ namespace VersionrUI.ViewModels
 
             DiffCommand = new DelegateCommand(Diff);
             LogCommand = new DelegateCommand(Log);
-            RevertCommand = new DelegateCommand(RevertSelected);
+            RevertCommand = new DelegateCommand(() => Load(RevertSelected));
         }
 
         public Versionr.StatusCode Code
@@ -79,6 +80,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
+                // Not caching this one (like we do in AlterationVM) because the diff could change at any time.
                 FlowDocument diffPreviewDocument = new FlowDocument();
                 diffPreviewDocument.PageWidth = 10000;
 
@@ -188,25 +190,36 @@ namespace VersionrUI.ViewModels
 
         private void Log()
         {
-            new LogDialog(_area.Version, _area, _statusEntry.CanonicalName).ShowDialog();
+            LogDialog.Show(_area.Version, _area, _statusEntry.CanonicalName);
         }
 
         public void RevertSelected()
         {
-            if (VersionrUI.Controls.VersionrPanel.SelectedItems.OfType<StatusEntryVM>().Any(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned))
+            List<StatusEntryVM> selectedItems = new List<StatusEntryVM>();
+
+            MainWindow.Instance.Dispatcher.Invoke(() =>
             {
-                MessageBoxResult result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
+            });
+
+            if (selectedItems.Any(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned))
+            {
+                MessageBoxResult result = MessageBoxResult.Cancel;
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                });
                 if (result == MessageBoxResult.Cancel)
                     return;
                 else
                 {
                     bool deleteNewFile = (result == MessageBoxResult.Yes);
-                    _area.Revert(VersionrUI.Controls.VersionrPanel.SelectedItems.OfType<StatusEntryVM>().Select(x => x._statusEntry).ToList(), true, false, deleteNewFile);
+                    _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, deleteNewFile);
                 }
             }
             else
             {
-                _area.Revert(VersionrUI.Controls.VersionrPanel.SelectedItems.OfType<StatusEntryVM>().Select(x => x._statusEntry).ToList(), true, false, false);
+                _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, false);
             }
             _statusVM.Refresh();
         }

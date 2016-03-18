@@ -46,7 +46,7 @@ namespace VersionrUI.Controls
         {
             LoadingPanel panel = obj as LoadingPanel;
             if (panel != null)
-                panel.Visibility = panel.IsLoading ? Visibility.Visible : Visibility.Collapsed;
+                panel.NotifyPropertyChanged("GridVisibility");
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

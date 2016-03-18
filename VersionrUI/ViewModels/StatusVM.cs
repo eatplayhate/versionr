@@ -1,10 +1,9 @@
-﻿using System.Collections.ObjectModel;
+﻿using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
-using System.Linq;
-using System.Collections.Generic;
 
 namespace VersionrUI.ViewModels
 {
@@ -15,7 +14,7 @@ namespace VersionrUI.ViewModels
 
         private Status _status;
         private AreaVM _areaVM;
-        private ObservableCollection<StatusEntryVM> _elements;
+        private List<StatusEntryVM> _elements;
         private bool _pushOnCommit;
         private string _commitMessage;
 
@@ -23,7 +22,7 @@ namespace VersionrUI.ViewModels
         {
             _areaVM = areaVM;
 
-            RefreshCommand = new DelegateCommand(Refresh);
+            RefreshCommand = new DelegateCommand(() => Load(Refresh));
             CommitCommand = new DelegateCommand(Commit);
         }
 
@@ -32,7 +31,7 @@ namespace VersionrUI.ViewModels
             get
             {
                 if (_status == null)
-                    Load(() => Refresh());
+                    Load(Refresh);
                 return _status;
             }
         }
@@ -69,35 +68,26 @@ namespace VersionrUI.ViewModels
             lock (refreshLock)
             {
                 _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
+                _elements = new List<StatusEntryVM>();
 
-                MainWindow.Instance.Dispatcher.Invoke(() =>
+                foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
                 {
-                    if (_elements == null)
+                    if (statusEntry.Code != StatusCode.Masked &&
+                        statusEntry.Code != StatusCode.Ignored &&
+                        statusEntry.Code != StatusCode.Unchanged)
                     {
-                        _elements = new ObservableCollection<StatusEntryVM>();
-                        _elements.CollectionChanged += _elements_CollectionChanged;
-                    }
-                    else
-                        _elements.Clear();
-
-                    foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
-                    {
-                        if (statusEntry.Code != StatusCode.Masked &&
-                            statusEntry.Code != StatusCode.Ignored &&
-                            statusEntry.Code != StatusCode.Unchanged)
+                        StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
+                        if (statusEntryVM != null)
                         {
-                            StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
-                            if (statusEntryVM != null)
-                            {
-                                _elements.Add(statusEntryVM);
-                                statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
-                            }
+                            _elements.Add(statusEntryVM);
+                            statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
                         }
                     }
+                }
 
-                    NotifyPropertyChanged("Status");
-                    NotifyPropertyChanged("Elements");
-                });
+                NotifyPropertyChanged("Status");
+                NotifyPropertyChanged("Elements");
+                NotifyPropertyChanged("AllStaged");
             }
         }
 
@@ -107,17 +97,12 @@ namespace VersionrUI.ViewModels
                 NotifyPropertyChanged("AllStaged");
         }
 
-        private void _elements_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        {
-           NotifyPropertyChanged("AllStaged");
-        }
-
-        public ObservableCollection<StatusEntryVM> Elements
+        public List<StatusEntryVM> Elements
         {
             get
             {
                 if (_elements == null)
-                    Load(() => Refresh());
+                    Load(Refresh);
                 return _elements;
             }
         }

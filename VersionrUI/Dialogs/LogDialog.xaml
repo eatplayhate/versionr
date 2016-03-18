@@ -39,10 +39,10 @@
                                 <Setter Property="ContextMenu">
                                     <Setter.Value>
                                         <ContextMenu>
-                                            <MenuItem Header="Diff with previous version" FontWeight="Bold" Command="{Binding DiffWithPreviousCommand}" CommandParameter="{Binding}" />
-                                            <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" CommandParameter="{Binding}" />
+                                            <MenuItem Header="Diff with previous version" FontWeight="Bold" Command="{Binding DiffWithPreviousCommand}" />
+                                            <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" />
                                             <MenuItem Header="View log..." Command="{Binding LogCommand}" />
-                                            <MenuItem Header="Save this version as..." Command="{Binding SaveVersionAsCommand}" CommandParameter="{Binding}" />
+                                            <MenuItem Header="Save this version as..." Command="{Binding SaveVersionAsCommand}" />
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>
@@ -81,7 +81,7 @@
     </Window.Resources>
 
     <Grid x:Name="mainGrid">
-        <Grid Visibility="{Binding GridVisibility}">
+        <Grid Visibility="{Binding LogVisibility}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -98,7 +98,11 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Label Grid.Column="0" Margin="4" Content="Limit:" />
-                <ComboBox Grid.Column="1" Margin="4" ItemsSource="{Binding LimitOptions}" SelectedItem="{Binding Limit}" DisplayMemberPath="Item2" />
+                <ComboBox Grid.Column="1" Margin="4"
+                          SelectedValuePath="Key"
+                          DisplayMemberPath="Value"
+                          ItemsSource="{Binding RevisionLimitOptions}"
+                          SelectedValue="{Binding RevisionLimit}" />
                 <Label Grid.Column="2" Margin="4" Content="Author:" />
                 <TextBox Grid.Column="3" Margin="4" Text="{Binding Author, UpdateSourceTrigger=PropertyChanged, Delay=500}" Width="150" />
                 <Label Grid.Column="4" Margin="4" Content="Path Filter:" />
@@ -125,6 +129,6 @@
             <ContentPresenter Grid.Row="3" Content="{Binding SelectedItem, ElementName=listView}" />
         </Grid>
         <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Branch" />
+                               Message="Loading Log" />
     </Grid>
 </Window>

@@ -25,6 +25,7 @@ namespace VersionrUI.ViewModels
         private Version _version;
         private Record _priorRecord;
         private Record _newRecord;
+        private FlowDocument _diffPreviewDocument;
 
         public AlterationVM(Alteration alteration, Area area, Version version)
         {
@@ -147,89 +148,92 @@ namespace VersionrUI.ViewModels
 
         private void Log()
         {
-            new LogDialog(_version, _area, _newRecord.CanonicalName).ShowDialog();
+            LogDialog.Show(_version, _area, _newRecord.CanonicalName);
         }
 
         public FlowDocument DiffPreview
         {
             get
             {
-                FlowDocument diffPreviewDocument = new FlowDocument();
-                diffPreviewDocument.PageWidth = 10000;
-
-                if (CanDiffWithPrevious())
+                if (_diffPreviewDocument == null)
                 {
-                    if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
-                        (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
-                    {
-                        Paragraph text = new Paragraph();
-                        text.Inlines.Add(new Run("File: "));
-                        text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
-                        text.Inlines.Add(new Run(" is binary "));
-                        text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
-                        text.Inlines.Add(new Run("."));
-                    }
-                    else
-                    {
-                        // Displaying modifications
-                        string tmpPrior = DiffTool.GetTempFilename();
-                        string tmpNew = DiffTool.GetTempFilename();
-                        _area.GetMissingRecords(new Record[] { _priorRecord, _newRecord });
-                        _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
-                        _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
+                    _diffPreviewDocument = new FlowDocument();
+                    _diffPreviewDocument.PageWidth = 10000;
 
-                        Paragraph text = new Paragraph();
-                        text.Inlines.Add(new Run("Displaying changes for file: "));
-                        text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
-                        diffPreviewDocument.Blocks.Add(text);
-                        try
-                        {
-                            StatusEntryVM.RunInternalDiff(diffPreviewDocument, tmpPrior, tmpNew);
-                        }
-                        finally
-                        {
-                            File.Delete(tmpPrior);
-                            File.Delete(tmpNew);
-                        }
-                    }
-                }
-                else if (_priorRecord == null)
-                {
-                    Paragraph text = new Paragraph();
-                    text.Inlines.Add(new Run("Object: "));
-                    text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
-                    text.Inlines.Add(new Run(" was previously "));
-                    text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
-                    text.Inlines.Add(new Run("."));
-                    diffPreviewDocument.Blocks.Add(text);
-
-                    string tmpNew = DiffTool.GetTempFilename();
-                    _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
-                    if (File.Exists(tmpNew))
+                    if (CanDiffWithPrevious())
                     {
-                        try
+                        if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
+                            (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
                         {
-                            using (var fs = new System.IO.FileInfo(tmpNew).OpenText())
+                            Paragraph text = new Paragraph();
+                            text.Inlines.Add(new Run("File: "));
+                            text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
+                            text.Inlines.Add(new Run(" is binary "));
+                            text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
+                            text.Inlines.Add(new Run("."));
+                        }
+                        else
+                        {
+                            // Displaying modifications
+                            string tmpPrior = DiffTool.GetTempFilename();
+                            string tmpNew = DiffTool.GetTempFilename();
+                            _area.GetMissingRecords(new Record[] { _priorRecord, _newRecord });
+                            _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
+                            _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
+
+                            Paragraph text = new Paragraph();
+                            text.Inlines.Add(new Run("Displaying changes for file: "));
+                            text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
+                            _diffPreviewDocument.Blocks.Add(text);
+                            try
                             {
-                                Paragraph content = new Paragraph();
-                                while (true)
-                                {
-                                    if (fs.EndOfStream)
-                                        break;
-                                    string line = fs.ReadLine().Replace("\t", "    ");
-                                    content.Inlines.Add(new Run(line + Environment.NewLine));
-                                }
-                                diffPreviewDocument.Blocks.Add(content);
+                                StatusEntryVM.RunInternalDiff(_diffPreviewDocument, tmpPrior, tmpNew);
+                            }
+                            finally
+                            {
+                                File.Delete(tmpPrior);
+                                File.Delete(tmpNew);
                             }
                         }
-                        finally
+                    }
+                    else if (_priorRecord == null)
+                    {
+                        Paragraph text = new Paragraph();
+                        text.Inlines.Add(new Run("Object: "));
+                        text.Inlines.Add(new Run(Name) { FontWeight = FontWeights.Bold });
+                        text.Inlines.Add(new Run(" was previously "));
+                        text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
+                        text.Inlines.Add(new Run("."));
+                        _diffPreviewDocument.Blocks.Add(text);
+
+                        string tmpNew = DiffTool.GetTempFilename();
+                        _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
+                        if (File.Exists(tmpNew))
                         {
-                            File.Delete(tmpNew);
+                            try
+                            {
+                                using (var fs = new System.IO.FileInfo(tmpNew).OpenText())
+                                {
+                                    Paragraph content = new Paragraph();
+                                    while (true)
+                                    {
+                                        if (fs.EndOfStream)
+                                            break;
+                                        string line = fs.ReadLine().Replace("\t", "    ");
+                                        content.Inlines.Add(new Run(line + Environment.NewLine));
+                                    }
+                                    _diffPreviewDocument.Blocks.Add(content);
+                                }
+                            }
+                            finally
+                            {
+                                File.Delete(tmpNew);
+                            }
                         }
                     }
                 }
 
-                return diffPreviewDocument;
+                return _diffPreviewDocument;
             }
         }
     }

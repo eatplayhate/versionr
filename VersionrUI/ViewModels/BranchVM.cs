@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -14,7 +13,7 @@ namespace VersionrUI.ViewModels
 
         private AreaVM _areaVM;
         private Branch _branch;
-        private ObservableCollection<VersionVM> _history = null;
+        private List<VersionVM> _history = null;
         private string _searchText;
         private VersionVM _selectedVersion;
         private int _revisionLimit = 50;
@@ -67,12 +66,12 @@ namespace VersionrUI.ViewModels
             get { return _areaVM.Area.CurrentBranch.ID == _branch.ID; }
         }
 
-        public ObservableCollection<VersionVM> History
+        public List<VersionVM> History
         {
             get
             {
                 if (_history == null)
-                    Load(() => Refresh());
+                    Load(Refresh);
                 if (!string.IsNullOrEmpty(SearchText))
                     return FilterHistory(_history, SearchText);
                 return _history;
@@ -108,10 +107,10 @@ namespace VersionrUI.ViewModels
             get { return _revisionLimitOptions; }
         }
 
-        private ObservableCollection<VersionVM> FilterHistory(ObservableCollection<VersionVM> history, string searchtext)
+        private List<VersionVM> FilterHistory(List<VersionVM> history, string searchtext)
         {
             searchtext = searchtext.ToLower();
-            ObservableCollection<VersionVM> results = new ObservableCollection<VersionVM>();
+            List<VersionVM> results = new List<VersionVM>();
             foreach (VersionVM version in history)
             {
                 if (version.Message.ToLower().Contains(searchtext) ||
@@ -133,18 +132,11 @@ namespace VersionrUI.ViewModels
                 var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
                 List<Version> versions = _areaVM.Area.GetHistory(headVersion, limit);
+                _history = new List<VersionVM>();
 
-                MainWindow.Instance.Dispatcher.Invoke(() =>
-                {
-                    if (_history == null)
-                        _history = new ObservableCollection<VersionVM>();
-                    else
-                        _history.Clear();
-
-                    foreach (Version version in versions)
-                        _history.Add(new VersionVM(version, _areaVM.Area));
-                    NotifyPropertyChanged("History");
-                });
+                foreach (Version version in versions)
+                    _history.Add(new VersionVM(version, _areaVM.Area));
+                NotifyPropertyChanged("History");
             }
         }
 
@@ -183,14 +175,14 @@ namespace VersionrUI.ViewModels
             Load(() =>
             {
                 _areaVM.Area.Checkout(Name, purge, false, false);
-                _areaVM.Refresh();
+                _areaVM.RefreshChildren();
             });
         }
 
         private void Log()
         {
             Version headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
-            new LogDialog(headVersion, _areaVM.Area).ShowDialog();
+            LogDialog.Show(headVersion, _areaVM.Area);
         }
     }
 }

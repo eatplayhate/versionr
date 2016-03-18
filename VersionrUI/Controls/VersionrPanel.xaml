@@ -84,7 +84,7 @@
                                 </DataTemplate>
                             </TreeView.Resources>
                             <TreeView.ItemContainerStyle>
-                                <Style TargetType="{x:Type TreeViewItem}">
+                                <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
                                     <Setter Property="IsExpanded" Value="True"/>
                                 </Style>
                             </TreeView.ItemContainerStyle>
