@@ -1,7 +1,8 @@
-﻿<Window x:Class="VersionrUI.MainWindow"
+﻿<mahapps:MetroWindow x:Class="VersionrUI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:VersionrUI.Controls"
+        xmlns:mahapps="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         Loaded="MainWindow_Loaded"
         SizeChanged="Window_SizeChanged"
         LocationChanged="Window_LocationChanged"
@@ -11,4 +12,4 @@
     <Grid>
         <controls:VersionrPanel />
     </Grid>
-</Window>
+</mahapps:MetroWindow>
