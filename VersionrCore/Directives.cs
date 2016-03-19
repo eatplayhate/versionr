@@ -21,6 +21,7 @@ namespace Versionr
     {
         private string[] m_Patterns;
         private string[] m_DirectoryPatterns;
+        private string[] m_Directories;
         private string[] m_FilePatterns;
         public string[] Extensions { get; set; }
         public string[] Patterns
@@ -41,6 +42,17 @@ namespace Versionr
                     RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(regexes).ToArray();
                 else
                     RegexDirectoryPatterns = regexes;
+            }
+        }
+        public string[] Directories
+        {
+            get
+            {
+                return m_Directories;
+            }
+            set
+            {
+                m_Directories = value;
             }
         }
         public string[] FilePatterns
@@ -79,6 +91,7 @@ namespace Versionr
         }
         public Ignores()
         {
+            m_Directories = new string[0];
         }
         [Newtonsoft.Json.JsonIgnore]
         public System.Text.RegularExpressions.Regex[] RegexFilePatterns { get; set; }
@@ -93,6 +106,8 @@ namespace Versionr
                 RegexFilePatterns = RegexFilePatterns.Concat(ignore.RegexFilePatterns).ToArray();
             if (ignore.RegexDirectoryPatterns != null)
                 RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(ignore.RegexDirectoryPatterns).ToArray();
+            if (ignore.Directories != null)
+                Directories = Directories.Concat(ignore.Directories).ToArray();
         }
     }
 
@@ -118,6 +133,7 @@ namespace Versionr
         public string DefaultCompression { get; set; }
         public string ExternalDiff { get; set; }
         public bool? NonBlockingDiff { get; set; }
+        public bool? UseTortoiseMerge { get; set; }
         public string ExternalMerge { get; set; }
         public string ExternalMerge2Way { get; set; }
         public SvnCompatibility Svn { get; set; }
@@ -133,6 +149,9 @@ namespace Versionr
                 Ignore.Merge(other.Ignore);
             else if (other.Ignore != null)
                 Ignore = other.Ignore;
+
+            if (other.UseTortoiseMerge != null)
+                UseTortoiseMerge = other.UseTortoiseMerge;
 
             if (Include != null && other.Include != null)
                 Include.Merge(other.Include);

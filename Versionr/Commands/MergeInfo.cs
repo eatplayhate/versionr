@@ -24,7 +24,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return "merge";
+                return "mergeinfo";
             }
         }
 
@@ -61,6 +61,8 @@ namespace Versionr.Commands
                     Printer.PrintMessage("Branch relationships:");
                     foreach (var b in ws.GetBranches(localOptions.Deleted))
                     {
+                        HashSet<Guid> inputMerges = new HashSet<Guid>();
+                        HashSet<Guid> visitedMerges = new HashSet<Guid>();
                         string result = "#w#unrelated";
                         int relationshipCode = 0;
                         foreach (var h in ws.GetBranchHeads(b))
@@ -81,7 +83,7 @@ namespace Versionr.Commands
                                 relationshipCode = 2;
                                 result = "#s#a merge parent";
                             }
-                            else if (relationshipCode < 1 && ws.GetParentGraph(headVersion).ContainsKey(v.ID))
+                            else if (relationshipCode < 1 && ws.GetParentGraph(headVersion, false).ContainsKey(v.ID))
                             {
                                 relationshipCode = 1;
                                 result = "#c#an indirect ancestor";

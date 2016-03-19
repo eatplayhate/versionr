@@ -13,9 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 31;
+        public const int InternalDBVersion = 33;
         public const int MinimumDBVersion = 3;
-        public const int MaximumDBVersion = 31;
+        public const int MinimumRemoteDBVersion = 29;
+        public const int MaximumDBVersion = 33;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -92,6 +93,40 @@ namespace Versionr
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
 
+                    if (priorFormat < 33)
+                    {
+                        foreach (var x in Table<Record>().ToList())
+                        {
+                            if (x.Parent.HasValue)
+                            {
+                                Record rp = Find<Record>(x.Parent.Value);
+                                if (rp == null)
+                                {
+                                    Printer.PrintMessage("Found missing parent for record ID {0} - parent ID: {1}, attempting to fix.", x.Id, x.Parent.Value);
+                                    Printer.PrintMessage(" - Record {0} - {1}", Find<ObjectName>(x.CanonicalNameId).CanonicalName, x.Fingerprint);
+
+                                    var alterations = Query<Alteration>("SELECT * from Alteration where Alteration.NewRecord = ?", x.Id);
+                                    var possibleParents = alterations.Where(z => z.PriorRecord.HasValue).Select(z => z.PriorRecord.Value).Distinct().ToList();
+
+                                    Printer.PrintMessage(" - Found {0} possible parents for this record.", possibleParents.Count);
+                                    if (possibleParents.Count == 1)
+                                    {
+                                        Printer.PrintMessage(" - Updating parent record to ID {0}", possibleParents[0]);
+                                        x.Parent = possibleParents[0];
+                                    }
+                                    else
+                                    {
+                                        if (possibleParents.Count > 0)
+                                            Printer.PrintMessage(" - Data is ambiguous, removing parent record.");
+                                        else
+                                            Printer.PrintMessage(" - No parents found, removing parent record.");
+                                        x.Parent = null;
+                                    }
+                                    Update(x);
+                                }
+                            }
+                        }
+                    }
                     if (priorFormat < 28)
                     {
                         var tips = Query<BranchJournal>("SELECT * FROM BranchJournal WHERE NOT EXISTS (SELECT * FROM BranchJournalLink WHERE Parent = BranchJournal.ID)").ToList();
@@ -103,6 +138,24 @@ namespace Versionr
                     if (priorFormat < 14)
                     {
                         ExecuteDirect("DROP TABLE RecordIndex;");
+                    }
+                    if (priorFormat < 32)
+                    {
+                        int count = 0;
+                        foreach (var x in Table<Objects.Version>())
+                        {
+                            if (x.Message != null && x.Message.StartsWith("Automatic merge of"))
+                            {
+                                var mergeInfos = Table<MergeInfo>().Where(y => y.DestinationVersion == x.ID).ToList();
+                                if (mergeInfos.Count == 1)
+                                {
+                                    mergeInfos[0].Type = MergeType.Automatic;
+                                    Update(mergeInfos[0]);
+                                    count++;
+                                }
+                            }
+                        }
+                        Printer.PrintMessage("Updated #b#{0}## merge info records.", count);
                     }
                     if (priorFormat < 31)
                     {
@@ -121,93 +174,7 @@ namespace Versionr
                     }
                     if (priorFormat < 30)
                     {
-                        Printer.PrintMessage(" - Upgrading database - running full consistency check.");
-                        var objNames = Table<ObjectName>().ToList();
-                        Dictionary<long, long> nameMapping = new Dictionary<long, long>();
-                        Dictionary<string, long> nameIndexes = new Dictionary<string, long>();
-                        DropTable<ObjectName>();
-                        DropTable<RecordRef>();
-                        CreateTable<ObjectName>();
-                        int duplicateObjs = 0;
-                        foreach (var x in objNames)
-                        {
-                            if (nameIndexes.ContainsKey(x.CanonicalName))
-                            {
-                                nameMapping[x.NameId] = nameIndexes[x.CanonicalName];
-                                duplicateObjs++;
-                            }
-                            else
-                            {
-                                ObjectName oname = new ObjectName() { CanonicalName = x.CanonicalName };
-                                Insert(oname);
-                                nameMapping[x.NameId] = oname.NameId;
-                                nameIndexes[x.CanonicalName] = oname.NameId;
-                            }
-                        }
-                        foreach (var x in Table<Record>().ToList())
-                        {
-                            x.CanonicalNameId = nameMapping[x.CanonicalNameId];
-                            Update(x);
-                        }
-                        Printer.PrintMessage(" - Cleaned {0} duplicate canonical names.", duplicateObjs);
-                        CreateTable<RecordRef>();
-                        Dictionary<Tuple<string, long, DateTime>, Record> records = new Dictionary<Tuple<string, long, DateTime>, Record>();
-                        foreach (var x in Table<Objects.Record>().ToList())
-                        {
-                            var key = new Tuple<string, long, DateTime>(x.UniqueIdentifier, x.CanonicalNameId, x.ModificationTime);
-                            if (records.ContainsKey(key))
-                            {
-                                var other = records[key];
-                                Printer.PrintDiagnostics("Found duplicate records {0} ==> {1}", x.Id, other.Id);
-                                Printer.PrintDiagnostics(" - UID: {0}", x.UniqueIdentifier);
-                                Printer.PrintDiagnostics(" - Time: {0}", x.ModificationTime);
-                                Printer.PrintDiagnostics(" - Name: {0}", Get<ObjectName>(x.CanonicalNameId).CanonicalName);
-
-                                int updates = 0;
-                                foreach (var s in Table<Alteration>().Where(z => z.PriorRecord == x.Id || z.NewRecord == x.Id))
-                                {
-                                    if (s.NewRecord.HasValue && s.NewRecord.Value == x.Id)
-                                        s.NewRecord = other.Id;
-                                    if (s.PriorRecord.HasValue && s.PriorRecord.Value == x.Id)
-                                        s.PriorRecord = other.Id;
-                                    Update(s);
-                                    updates++;
-                                }
-                                Delete(x);
-                                Printer.PrintDiagnostics("Deleted record and updated {0} links.", updates);
-                            }
-                            else
-                                records[key] = x;
-                        }
-                        foreach (var x in Table<Objects.Version>().ToList())
-                        {
-                            x.Snapshot = null;
-                            Update(x);
-                            var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
-                            HashSet<long> moveAdds = new HashSet<long>();
-                            HashSet<long> moveDeletes = new HashSet<long>();
-                            foreach (var s in alterations)
-                            {
-                                if (s.Type == AlterationType.Move)
-                                {
-                                    moveAdds.Add(s.NewRecord.Value);
-                                    moveDeletes.Add(s.PriorRecord.Value);
-                                }
-                            }
-                            foreach (var s in alterations)
-                            {
-                                if (s.Type == AlterationType.Add && moveAdds.Contains(s.NewRecord.Value))
-                                {
-                                    Delete(s);
-                                    Printer.PrintDiagnostics("Cleaned up extra add in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.NewRecord.Value).CanonicalNameId).CanonicalName);
-                                }
-                                if (s.Type == AlterationType.Delete && moveDeletes.Contains(s.PriorRecord.Value))
-                                {
-                                    Delete(s);
-                                    Printer.PrintDiagnostics("Cleaned up extra delete in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.PriorRecord.Value).CanonicalNameId).CanonicalName);
-                                }
-                            }
-                        }
+                        RunConsistencyCheck();
                     }
                     if (priorFormat < 30)
                     {
@@ -307,11 +274,103 @@ namespace Versionr
 
                     ExecuteDirect("VACUUM");
                 }
-                catch
+                catch (Exception e)
                 {
                     Rollback();
+                    Printer.PrintError("Couldn't update DB: {0}", e.ToString());
                 }
                 PrepareTables();
+            }
+        }
+
+        private void RunConsistencyCheck()
+        {
+            Printer.PrintMessage(" - Upgrading database - running full consistency check.");
+            var objNames = Table<ObjectName>().ToList();
+            Dictionary<long, long> nameMapping = new Dictionary<long, long>();
+            Dictionary<string, long> nameIndexes = new Dictionary<string, long>();
+            DropTable<ObjectName>();
+            DropTable<RecordRef>();
+            CreateTable<ObjectName>();
+            int duplicateObjs = 0;
+            foreach (var x in objNames)
+            {
+                if (nameIndexes.ContainsKey(x.CanonicalName))
+                {
+                    nameMapping[x.NameId] = nameIndexes[x.CanonicalName];
+                    duplicateObjs++;
+                }
+                else
+                {
+                    ObjectName oname = new ObjectName() { CanonicalName = x.CanonicalName };
+                    Insert(oname);
+                    nameMapping[x.NameId] = oname.NameId;
+                    nameIndexes[x.CanonicalName] = oname.NameId;
+                }
+            }
+            foreach (var x in Table<Record>().ToList())
+            {
+                x.CanonicalNameId = nameMapping[x.CanonicalNameId];
+                Update(x);
+            }
+            Printer.PrintMessage(" - Cleaned {0} duplicate canonical names.", duplicateObjs);
+            CreateTable<RecordRef>();
+            Dictionary<Tuple<string, long, DateTime>, Record> records = new Dictionary<Tuple<string, long, DateTime>, Record>();
+            foreach (var x in Table<Objects.Record>().ToList())
+            {
+                var key = new Tuple<string, long, DateTime>(x.UniqueIdentifier, x.CanonicalNameId, x.ModificationTime);
+                if (records.ContainsKey(key))
+                {
+                    var other = records[key];
+                    Printer.PrintDiagnostics("Found duplicate records {0} ==> {1}", x.Id, other.Id);
+                    Printer.PrintDiagnostics(" - UID: {0}", x.UniqueIdentifier);
+                    Printer.PrintDiagnostics(" - Time: {0}", x.ModificationTime);
+                    Printer.PrintDiagnostics(" - Name: {0}", Get<ObjectName>(x.CanonicalNameId).CanonicalName);
+
+                    int updates = 0;
+                    foreach (var s in Table<Alteration>().Where(z => z.PriorRecord == x.Id || z.NewRecord == x.Id))
+                    {
+                        if (s.NewRecord.HasValue && s.NewRecord.Value == x.Id)
+                            s.NewRecord = other.Id;
+                        if (s.PriorRecord.HasValue && s.PriorRecord.Value == x.Id)
+                            s.PriorRecord = other.Id;
+                        Update(s);
+                        updates++;
+                    }
+                    Delete(x);
+                    Printer.PrintDiagnostics("Deleted record and updated {0} links.", updates);
+                }
+                else
+                    records[key] = x;
+            }
+            foreach (var x in Table<Objects.Version>().ToList())
+            {
+                x.Snapshot = null;
+                Update(x);
+                var alterations = Table<Objects.Alteration>().Where(z => z.Owner == x.AlterationList);
+                HashSet<long> moveAdds = new HashSet<long>();
+                HashSet<long> moveDeletes = new HashSet<long>();
+                foreach (var s in alterations)
+                {
+                    if (s.Type == AlterationType.Move)
+                    {
+                        moveAdds.Add(s.NewRecord.Value);
+                        moveDeletes.Add(s.PriorRecord.Value);
+                    }
+                }
+                foreach (var s in alterations)
+                {
+                    if (s.Type == AlterationType.Add && moveAdds.Contains(s.NewRecord.Value))
+                    {
+                        Delete(s);
+                        Printer.PrintDiagnostics("Cleaned up extra add in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.NewRecord.Value).CanonicalNameId).CanonicalName);
+                    }
+                    if (s.Type == AlterationType.Delete && moveDeletes.Contains(s.PriorRecord.Value))
+                    {
+                        Delete(s);
+                        Printer.PrintDiagnostics("Cleaned up extra delete in v{0} for \"{1}\"", x.ShortName, Get<ObjectName>(Get<Record>(s.PriorRecord.Value).CanonicalNameId).CanonicalName);
+                    }
+                }
             }
         }
 
@@ -422,7 +481,20 @@ namespace Versionr
             }
             alterations = GetAlterationsInternal(parents);
             Printer.PrintDiagnostics(" - Target has {0} alterations.", alterations.Count);
-            var finalList = Consolidate(baseList, alterations, null);
+            List<Record> finalList = null;
+            try
+            {
+                finalList = Consolidate(baseList, alterations, null);
+            }
+            catch
+            {
+                Printer.PrintError("Error during database operation. Deleting cached snapshots.");
+                BeginExclusive(true);
+                RunConsistencyCheck();
+                Commit();
+                Printer.PrintError("Please retry this operation.");
+                throw;
+            }
             Printer.PrintDiagnostics("Record list resolved in {0} ticks.", sw.ElapsedTicks);
             if (baseList.Count < alterations.Count || (alterations.Count > 4096 && parents.Count > 128))
             {
@@ -546,7 +618,6 @@ namespace Versionr
 #endif
 
             List<long> pending = new List<long>();
-
             CacheRecords(alterations.Select(x => x.NewRecord).Where(x => x.HasValue).Select(x => x.Value));
             foreach (var x in alterations.Select(x => x).Reverse())
             {
@@ -603,7 +674,7 @@ namespace Versionr
                                 Printer.PrintMessage(" (error, already present)");
 #endif
                             if (!records.Remove(x.PriorRecord.Value))
-                                throw new Exception("Consistency constraint invalid!");
+                                throw new Exception();
                             records[record.Id] = record;
                             break;
                         }
@@ -686,6 +757,12 @@ namespace Versionr
         {
             return dbVersion <= MaximumDBVersion
              && dbVersion >= InternalDBVersion;
+        }
+
+        internal static bool AcceptRemoteDBVersion(int dbVersion)
+        {
+            return dbVersion <= MaximumDBVersion
+             && dbVersion >= MinimumRemoteDBVersion;
         }
 
         private List<Alteration> GetAlterations(Objects.Version version)

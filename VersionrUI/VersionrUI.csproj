@@ -86,7 +86,6 @@
     <Compile Include="ViewModels\AlterationVM.cs" />
     <Compile Include="ViewModels\StatusEntryVM.cs" />
     <Compile Include="ViewModels\StatusVM.cs" />
-    <Compile Include="ViewModels\VersionrVMFactory.cs" />
     <Compile Include="ViewModels\VersionVM.cs" />
     <Page Include="Controls\LoadingPanel.xaml">
       <SubType>Designer</SubType>

@@ -112,24 +112,18 @@ namespace Versionr.Network
             int? decompressedSize = null;
             byte[] compressedBuffer = null;
             PacketCompressionCodec codec = PacketCompressionCodec.None;
-            if (result.Length > 512 * 1024)
+            if (true)
             {
                 compressedBuffer = LZ4.LZ4Codec.Encode(result, 0, result.Length);
-                codec = PacketCompressionCodec.LZ4;
+                if (compressedBuffer.Length < result.Length)
+                {
+                    decompressedSize = result.Length;
+                    codec = PacketCompressionCodec.LZ4;
+                    result = compressedBuffer;
+                }
             }
             else
-            {
-                compressedBuffer = new byte[result.Length * 2];
-                Versionr.Utilities.LZHL.ResetCompressor(info.LZHLCompressor);
-                int compressedSize = (int)Versionr.Utilities.LZHL.Compress(info.LZHLCompressor, result, (uint)result.Length, compressedBuffer);
-                Array.Resize(ref compressedBuffer, compressedSize);
-                codec = PacketCompressionCodec.LZH;
-            }
-            if (compressedBuffer.Length < result.Length)
-            {
-                decompressedSize = result.Length;
-                result = compressedBuffer;
-            }
+                codec = PacketCompressionCodec.None;
 
             int payload = result.Length;
             if (info.EncryptorFunction != null)

@@ -28,14 +28,17 @@ namespace Versionr.Commands
             }
         }
 
-		[Option('f', "force", HelpText = "Force the merge even if the repository isn't clean" )]
-		public bool Force { get; set; }
+        [Option('f', "force", HelpText = "Force the merge even if the repository isn't clean")]
+        public bool Force { get; set; }
 
         [Option('s', "simple", HelpText = "Disable recursive merge engine")]
         public bool Simple { get; set; }
 
         [Option("reintegrate", HelpText = "Deletes the branch once the merge finishes.")]
         public bool Reintegrate { get; set; }
+
+        [Option("ignore-merge-ancestry", HelpText = "Ignores prior merge results when computing changes.")]
+        public bool IgnoreMergeAncestry { get; set; }
 
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
@@ -50,7 +53,7 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             foreach (var x in localOptions.Target)
-                ws.Merge(x, false, localOptions.Force, !localOptions.Simple, localOptions.Reintegrate);
+                ws.Merge(x, false, localOptions.Force, !localOptions.Simple, localOptions.Reintegrate, localOptions.IgnoreMergeAncestry);
             return true;
         }
     }

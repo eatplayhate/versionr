@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -25,14 +24,15 @@ namespace VersionrUI.ViewModels
 
         private Area _area;
         private string _name;
-        private ObservableCollection<BranchVM> _branches;
-        private ObservableCollection<RemoteConfig> _remotes;
+        private List<BranchVM> _branches;
+        private List<RemoteConfig> _remotes;
         private StatusVM _status;
 
         public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
-            PullCommand = new DelegateCommand(Pull);
-            PushCommand = new DelegateCommand(Push);
+            RefreshCommand = new DelegateCommand(() => Load(() => { RefreshRemotes(); RefreshChildren(); }));
+            PullCommand = new DelegateCommand(() => Load(Pull));
+            PushCommand = new DelegateCommand(() => Load(Push));
 
             _name = name;
 
@@ -102,12 +102,12 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public ObservableCollection<RemoteConfig> Remotes
+        public List<RemoteConfig> Remotes
         {
             get
             {
                 if (_remotes == null)
-                    Load(() => RefreshRemotes());
+                    Load(RefreshRemotes);
                 return _remotes;
             }
         }
@@ -118,14 +118,18 @@ namespace VersionrUI.ViewModels
         {
             get
             {
+                if (_branches == null || _status == null)
+                    Load(RefreshChildren);
+
                 CompositeCollection collection = new CompositeCollection();
-                collection.Add(Status);
-                collection.Add(new NamedCollection("Branches", Branches));
+                collection.Add(_status);
+                collection.Add(new NamedCollection("Branches", _branches));
                 return collection;
             }
         }
 
         #region Commands
+        public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand PullCommand { get; private set; }
         public DelegateCommand PushCommand { get; private set; }
 
@@ -139,90 +143,80 @@ namespace VersionrUI.ViewModels
         {
             ExecuteClientCommand((c) => c.Push(), "push", true);
         }
-        #endregion
 
-        private ObservableCollection<BranchVM> Branches
+        private object refreshChildrenLock = new object();
+        public void RefreshChildren()
         {
-            get
+            lock (refreshChildrenLock)
             {
-                if (_branches == null)
-                    Load(() => RefreshStatusAndBranches());
-                return _branches;
-            }
-        }
-
-        private StatusVM Status
-        {
-            get
-            {
-                if (_status == null)
-                    Load(() => RefreshStatusAndBranches());
-                return _status;
-            }
-        }
-
-        private object refreshLock = new object();
-        public void RefreshStatusAndBranches()
-        {
-            lock (refreshLock)
-            {
+                // Refresh status
                 if (_status == null)
                 {
                     // Assume the active directory is the root of the Area
-                    _status = VersionrVMFactory.GetStatusVM(this);
+                    _status = new StatusVM(this);
+                }
+                else
+                {
+                    _status.Refresh();
                 }
 
+
+                // Refresh branches
                 IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
+                _branches = new List<BranchVM>();
 
-                MainWindow.Instance.Dispatcher.Invoke(() =>
-                {
-                    if (_branches == null)
-                        _branches = new ObservableCollection<BranchVM>();
-                    else
-                        _branches.Clear();
-                    foreach (Branch branch in branches)
-                        _branches.Add(VersionrVMFactory.GetBranchVM(this, branch));
+                foreach (Branch branch in branches)
+                    _branches.Add(new BranchVM(this, branch));
 
-                    NotifyPropertyChanged("Children");
-                });
+                NotifyPropertyChanged("Children");
             }
         }
 
-        private void RefreshRemotes()
+        private object refreshRemotesLock = new object();
+        public void RefreshRemotes()
         {
-            lock (refreshLock)
+            lock (refreshRemotesLock)
             {
+                // Refresh remotes
                 List<RemoteConfig> remotes = _area.GetRemotes();
-                MainWindow.Instance.Dispatcher.Invoke(() =>
-                {
-                    if (_remotes == null)
-                        _remotes = new ObservableCollection<RemoteConfig>();
-                    else
-                        _remotes.Clear();
+                _remotes = new List<RemoteConfig>();
+                
+                foreach (RemoteConfig remote in remotes)
+                    _remotes.Add(remote);
 
-                    foreach (RemoteConfig remote in remotes)
-                        _remotes.Add(remote);
+                if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
+                    SelectedRemote = _remotes.FirstOrDefault();
 
-                    if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
-                        SelectedRemote = _remotes.FirstOrDefault();
-
-                    NotifyPropertyChanged("Remotes");
-                    NotifyPropertyChanged("SelectedRemote");
-                });
+                NotifyPropertyChanged("Remotes");
+                NotifyPropertyChanged("SelectedRemote");
             }
         }
-        
+        #endregion
+
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
         {
             if (SelectedRemote != null)
             {
                 Client client = new Client(_area);
                 if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
+                {
                     action.Invoke(client);
+                }
                 else
-                    MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                {
+                    MainWindow.Instance.Dispatcher.Invoke(() =>
+                    {
+                        MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    });
+                }
                 client.Close();
             }
+        }
+
+        internal void SetStaged(List<StatusEntryVM> entries, bool staged)
+        {
+            if(_status != null)
+                _status.SetStaged(entries, staged);
         }
     }
 }

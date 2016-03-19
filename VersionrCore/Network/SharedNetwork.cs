@@ -715,6 +715,33 @@ namespace Versionr.Network
                 RequestRecordDataUnmapped(sharedInfo, filteredDeps);
         }
 
+        internal static HashSet<Guid> GetAncestry(Guid version, SharedNetworkInfo sharedInfo)
+        {
+            HashSet<Guid> checkedVersions = new HashSet<Guid>();
+            GetAncestryInternal(checkedVersions, version, sharedInfo);
+            return checkedVersions;
+        }
+
+        internal static void GetAncestryInternal(HashSet<Guid> checkedVersions, Guid version, SharedNetwork.SharedNetworkInfo clientInfo)
+        {
+            Guid nextVersionToCheck = version;
+            while (nextVersionToCheck != null)
+            {
+                if (checkedVersions.Contains(nextVersionToCheck))
+                    return;
+                checkedVersions.Add(nextVersionToCheck);
+                List<MergeInfo> mergeInfo;
+                Objects.Version v = FindLocalOrRemoteVersionInfo(nextVersionToCheck, clientInfo, out mergeInfo);
+                foreach (var x in mergeInfo)
+                {
+                    GetAncestryInternal(checkedVersions, x.SourceVersion, clientInfo);
+                }
+                if (!v.Parent.HasValue)
+                    return;
+                nextVersionToCheck = v.Parent.Value;
+            }
+        }
+
         internal static void RequestRecordMetadata(SharedNetworkInfo sharedInfo)
         {
             int index = 0;
@@ -729,7 +756,10 @@ namespace Versionr.Network
                         break;
                     var record = sharedInfo.RemoteRecordMap[sharedInfo.UnknownRecords[index]];
                     if (record.Parent.HasValue && !sharedInfo.UnknownRecordSet.Contains(record.Parent.Value))
-                        requests.Add(record.Parent.Value);
+                    {
+                        if (!sharedInfo.LocalRecordMap.ContainsKey(record.Parent.Value))
+                            requests.Add(record.Parent.Value);
+                    }
                     index++;
                 }
                 if (requests.Count > 0)

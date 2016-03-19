@@ -43,12 +43,17 @@ namespace Versionr.Commands
 
         [Option("partial", HelpText = "Sets a partial path within the vault.")]
         public string Partial { get; set; }
+
+        [Option("quietfail", HelpText = "Disables error messages if the clone directory isn't empty.")]
+        public bool QuietFail { get; set; }
     }
     class Clone : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
+            if (localOptions.QuietFail && new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, ".versionr")).Exists)
+                return true;
             bool result = false;
             try
             {

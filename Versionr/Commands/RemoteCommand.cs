@@ -45,7 +45,7 @@ namespace Versionr.Commands
 
             if (NeedsWorkspace)
             {
-                ws = Area.Load(workingDirectory);
+                ws = Area.Load(workingDirectory, Headless);
                 if (ws == null)
                 {
                     Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:##\n  The current directory #b#`{0}`## is not part of a vault.\n", workingDirectory.FullName));
@@ -77,9 +77,15 @@ namespace Versionr.Commands
                     }
                     try
                     {
-                        ws = Area.Load(workingDirectory);
+                        ws = Area.Load(workingDirectory, Headless);
                         if (ws != null)
                         {
+                            CloneVerbOptions cloneOptions = options as CloneVerbOptions;
+                            if (cloneOptions != null && cloneOptions.QuietFail)
+                            {
+                                Printer.PrintMessage("Directory already contains a vault. Skipping.");
+                                return false;
+                            }
                             Printer.PrintError("This command cannot function with an active Versionr vault.");
                             return false;
                         }
@@ -124,6 +130,14 @@ namespace Versionr.Commands
             return result;
         }
         protected virtual bool RequiresWriteAccess
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        protected virtual bool Headless
         {
             get
             {

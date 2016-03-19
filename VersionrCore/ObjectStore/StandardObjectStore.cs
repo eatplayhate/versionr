@@ -934,7 +934,11 @@ namespace Versionr.ObjectStore
         {
             string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            WriteRecordStream(storeData, outputStream);
+        }
 
+        protected void WriteRecordStream(FileObjectStoreData storeData, System.IO.Stream outputStream)
+        {
             System.IO.Stream dataStream;
             if (storeData.Mode == StorageMode.Delta)
             {
@@ -955,13 +959,6 @@ namespace Versionr.ObjectStore
                 else
                     throw new Exception();
                 Printer.InteractivePrinter printer = null;
-                if (false && record.Size > 16 * 1024 * 1024)
-                {
-                    printer = Printer.CreateSimplePrinter(string.Format(" - Unpacking {0}", record.Name), (obj) =>
-                    {
-                        return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(record.Size));
-                    });
-                }
                 long total = 0;
                 byte[] dataBlob = new byte[16 * 1024 * 1024];
                 while (true)

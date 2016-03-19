@@ -163,6 +163,20 @@ namespace Versionr.Network
                     {
                         Config = Newtonsoft.Json.JsonConvert.DeserializeObject<ServerConfig>(fs.ReadToEnd());
                     }
+                    if (!string.IsNullOrEmpty(Config.AutoDomains))
+                    {
+                        string path = System.IO.Path.GetFullPath(Config.AutoDomains);
+                        var vaultdir = new System.IO.DirectoryInfo(path);
+                        if (!vaultdir.Exists)
+                            Printer.PrintError("#x#Error:##\n  Can't find auto-domain location: {0}.", path);
+                        else
+                        {
+                            foreach (var x in vaultdir.GetDirectories())
+                            {
+                                Config.Domains.Add(x.Name, x.FullName);
+                            }
+                        }
+                    }
                     List<string> deletedDomains = new List<string>();
                     foreach (var z in Domains)
                     {
@@ -218,9 +232,11 @@ namespace Versionr.Network
             public List<VersionInfo> MergeVersions { get; set; }
             public SharedNetwork.SharedNetworkInfo SharedInfo { get; set; }
             public Rights Access { get; set; }
+            public bool BareAccessRequired { get; set; }
             public ClientStateInfo()
             {
                 MergeVersions = new List<VersionInfo>();
+                BareAccessRequired = false;
             }
         }
 
@@ -287,6 +303,7 @@ namespace Versionr.Network
                         sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
                         clientInfo.Access = Rights.Read | Rights.Write;
+                        clientInfo.BareAccessRequired = domainInfo.Bare;
                         if (PrivateKey != null)
                         {
                             startSequence = Network.StartTransaction.Create(domainInfo.Bare ? string.Empty : ws.Domain.ToString(), PublicKey, clientProtocol.Value);
@@ -666,7 +683,10 @@ namespace Versionr.Network
         {
             if (Config.RequiresAuthentication)
             {
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate, Identifier = Config.AllowUnauthenticatedRead ? 1 : 0 }, ProtoBuf.PrefixStyle.Fixed32);
+                int flags = ((Config.AllowUnauthenticatedWrite ? 2 : 0) | (Config.AllowUnauthenticatedRead ? 1 : 0));
+                if (clientInfo.BareAccessRequired)
+                    flags = 0;
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(client.GetStream(), new NetCommand() { Type = NetCommandType.Authenticate, Identifier = flags }, ProtoBuf.PrefixStyle.Fixed32);
                 AuthenticationChallenge challenge = new AuthenticationChallenge();
                 challenge.AvailableModes = new List<AuthenticationMode>();
                 if (Config.SupportsSimpleAuthentication)
@@ -713,6 +733,8 @@ namespace Versionr.Network
             if (response.Mode == AuthenticationMode.Guest && Config.AllowUnauthenticatedRead)
             {
                 accessRights = Rights.Read;
+                if (Config.AllowUnauthenticatedWrite)
+                    accessRights |= Rights.Write;
                 return true;
             }
             else if (response.Mode == AuthenticationMode.Simple)
@@ -742,6 +764,7 @@ namespace Versionr.Network
             SharedNetwork.ImportBranches(clientInfo.SharedInfo);
             Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
             Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
+            Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
             foreach (var x in clientInfo.SharedInfo.PushedVersions)
             {
                 Branch branch = ws.GetBranch(x.Version.Branch);
@@ -764,13 +787,25 @@ namespace Versionr.Network
                 }
                 if (head.Version != x.Version.ID)
                 {
-                    if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                    HashSet<Guid> headAncestors = null;
+                    if (!headAncestry.TryGetValue(head.Version, out headAncestors))
                     {
+                        headAncestors = SharedNetwork.GetAncestry(head.Version, clientInfo.SharedInfo);
+                        headAncestry[head.Version] = headAncestors;
+                    }
+                    if (headAncestors.Contains(x.Version.ID))
+                    {
+                        // all best
+                    }
+                    else if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                    {
+                        headAncestry.Remove(head.Version);
                         pendingMerges[branch.ID] = Guid.Empty;
                         head.Version = x.Version.ID;
                     }
                     else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, clientInfo.SharedInfo))
                     {
+                        headAncestry.Remove(head.Version);
                         pendingMerges[branch.ID] = head.Version;
                         head.Version = x.Version.ID;
                     }

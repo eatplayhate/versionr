@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Documents;
@@ -7,6 +8,7 @@ using System.Windows.Media;
 using Versionr;
 using Versionr.Utilities;
 using VersionrUI.Commands;
+using VersionrUI.Controls;
 using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
@@ -20,7 +22,6 @@ namespace VersionrUI.ViewModels
         private Status.StatusEntry _statusEntry;
         private StatusVM _statusVM;
         private Area _area;
-        private FlowDocument _diffPreviewDocument = null;
 
         public StatusEntryVM(Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
@@ -30,7 +31,7 @@ namespace VersionrUI.ViewModels
 
             DiffCommand = new DelegateCommand(Diff);
             LogCommand = new DelegateCommand(Log);
-            RevertCommand = new DelegateCommand(Revert);
+            RevertCommand = new DelegateCommand(() => Load(RevertSelected));
         }
 
         public Versionr.StatusCode Code
@@ -43,13 +44,21 @@ namespace VersionrUI.ViewModels
             get { return _statusEntry.Staged; }
             set
             {
-                if (value)
-                    _area.RecordChanges(_statusVM.Status, new List<Status.StatusEntry>() { _statusEntry }, true, false, (se, code, b) => { _statusEntry.Code = code; _statusEntry.Staged = true; });
-                else
-                    _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
-                NotifyPropertyChanged("IsStaged");
-                NotifyPropertyChanged("Code");
+                if (_statusEntry.Staged != value)
+                {
+                    if (value)
+                        _area.RecordChanges(_statusVM.Status, new List<Status.StatusEntry>() { _statusEntry }, true, false, (se, code, b) => { _statusEntry.Code = code; _statusEntry.Staged = true; });
+                    else
+                        _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
+                    NotifyPropertyChanged("IsStaged");
+                    NotifyPropertyChanged("Code");
+                }
             }
+        }
+
+        public Status.StatusEntry StatusEntry
+        {
+            get { return _statusEntry; }
         }
 
         public string Name
@@ -71,65 +80,81 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_diffPreviewDocument == null)
-                {
-                    _diffPreviewDocument = new FlowDocument();
+                // Not caching this one (like we do in AlterationVM) because the diff could change at any time.
+                FlowDocument diffPreviewDocument = new FlowDocument();
+                diffPreviewDocument.PageWidth = 10000;
 
-                    if (_statusEntry.VersionControlRecord != null && !_statusEntry.IsDirectory && _statusEntry.FilesystemEntry != null && _statusEntry.Code == Versionr.StatusCode.Modified)
+                if (_statusEntry.VersionControlRecord != null && !_statusEntry.IsDirectory && _statusEntry.FilesystemEntry != null && _statusEntry.Code == Versionr.StatusCode.Modified)
+                {
+                    if (FileClassifier.Classify(_statusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
                     {
-                        if (FileClassifier.Classify(_statusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
+                        Paragraph text = new Paragraph();
+                        text.Inlines.Add(new Run("File: "));
+                        text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                        text.Inlines.Add(new Run(" is binary "));
+                        text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
+                        text.Inlines.Add(new Run("."));
+                    }
+                    else
+                    {
+                        // Displaying local modifications
+                        string tmp = DiffTool.GetTempFilename();
+                        if (_area.ExportRecord(_statusEntry.CanonicalName, _area.Version, tmp))
                         {
                             Paragraph text = new Paragraph();
-                            text.Inlines.Add(new Run("File: "));
+                            text.Inlines.Add(new Run("Displaying changes for file: "));
                             text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
-                            text.Inlines.Add(new Run(" is binary "));
-                            text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
-                            text.Inlines.Add(new Run("."));
-                        }
-                        else
-                        {
-                            // Displaying local modifications
-                            string tmp = DiffTool.GetTempFilename();
-                            if (_area.ExportRecord(_statusEntry.CanonicalName, _area.Version, tmp))
+                            diffPreviewDocument.Blocks.Add(text);
+                            try
                             {
-                                Paragraph text = new Paragraph();
-                                text.Inlines.Add(new Run("Displaying changes for file: "));
-                                text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
-                                _diffPreviewDocument.Blocks.Add(text);
-                                try
-                                {
-                                    RunInternalDiff(_diffPreviewDocument, tmp, System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName));
-                                }
-                                finally
-                                {
-                                    System.IO.File.Delete(tmp);
-                                }
+                                RunInternalDiff(diffPreviewDocument, tmp, System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName));
+                            }
+                            finally
+                            {
+                                System.IO.File.Delete(tmp);
                             }
                         }
                     }
-                    else if (_statusEntry.Code == Versionr.StatusCode.Unchanged && !_statusEntry.IsDirectory)
+                }
+                else if (_statusEntry.Code == Versionr.StatusCode.Unchanged && !_statusEntry.IsDirectory)
+                {
+                    Paragraph text = new Paragraph();
+                    text.Inlines.Add(new Run("Object: "));
+                    text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                    text.Inlines.Add(new Run(" is "));
+                    text.Inlines.Add(new Run("different") { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(220, 255, 220)) });
+                    text.Inlines.Add(new Run("."));
+                    diffPreviewDocument.Blocks.Add(text);
+                }
+                else if (_statusEntry.VersionControlRecord == null)
+                {
+                    Paragraph text = new Paragraph();
+                    text.Inlines.Add(new Run("Object: "));
+                    text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                    text.Inlines.Add(new Run(" is "));
+                    text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
+                    text.Inlines.Add(new Run("."));
+                    diffPreviewDocument.Blocks.Add(text);
+
+                    string fileName = System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName);
+                    if (File.Exists(fileName))
                     {
-                        Paragraph text = new Paragraph();
-                        text.Inlines.Add(new Run("Object: "));
-                        text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
-                        text.Inlines.Add(new Run(" is "));
-                        text.Inlines.Add(new Run("different") { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(220, 255, 220)) });
-                        text.Inlines.Add(new Run("."));
-                        _diffPreviewDocument.Blocks.Add(text);
-                    }
-                    else if (_statusEntry.VersionControlRecord == null)
-                    {
-                        Paragraph text = new Paragraph();
-                        text.Inlines.Add(new Run("Object: "));
-                        text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
-                        text.Inlines.Add(new Run(" is "));
-                        text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
-                        text.Inlines.Add(new Run("."));
-                        _diffPreviewDocument.Blocks.Add(text);
+                        using (var fs = new FileInfo(fileName).OpenText())
+                        {
+                            Paragraph content = new Paragraph();
+                            while (true)
+                            {
+                                if (fs.EndOfStream)
+                                    break;
+                                string line = fs.ReadLine().Replace("\t", "    ");
+                                content.Inlines.Add(new Run(line + Environment.NewLine));
+                            }
+                            diffPreviewDocument.Blocks.Add(content);
+                        }
                     }
                 }
 
-                return _diffPreviewDocument;
+                return diffPreviewDocument;
             }
         }
 
@@ -165,21 +190,37 @@ namespace VersionrUI.ViewModels
 
         private void Log()
         {
-            new LogDialog(_area.Version, _area, _statusEntry.CanonicalName).ShowDialog();
+            LogDialog.Show(_area.Version, _area, _statusEntry.CanonicalName);
         }
 
-        public void Revert()
+        public void RevertSelected()
         {
-            bool deleteNewFile = true;
-            if (Code == StatusCode.Added || Code == StatusCode.Unversioned)
+            List<StatusEntryVM> selectedItems = new List<StatusEntryVM>();
+
+            MainWindow.Instance.Dispatcher.Invoke(() =>
             {
-                MessageBoxResult result = MessageBox.Show("Do you want to delete this file from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
+            });
+
+            if (selectedItems.Any(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned))
+            {
+                MessageBoxResult result = MessageBoxResult.Cancel;
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                });
                 if (result == MessageBoxResult.Cancel)
                     return;
                 else
-                    deleteNewFile = (result == MessageBoxResult.Yes);
+                {
+                    bool deleteNewFile = (result == MessageBoxResult.Yes);
+                    _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, deleteNewFile);
+                }
             }
-            _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, true, false, deleteNewFile);
+            else
+            {
+                _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, false);
+            }
             _statusVM.Refresh();
         }
 
@@ -190,6 +231,7 @@ namespace VersionrUI.ViewModels
             public int Start2;
             public int End2;
         }
+        
         internal static void RunInternalDiff(FlowDocument document, string file1, string file2, bool processTabs = true)
         {
             List<string> lines1 = new List<string>();
@@ -243,7 +285,9 @@ namespace VersionrUI.ViewModels
             Region openRegion = null;
             Region last = null;
             // cleanup step
-
+            bool doCleanup = true;
+            if (!doCleanup)
+                goto Display;
             for (int i = 1; i < diff.Count - 1; i++)
             {
                 if (diff[i - 1].common == null || diff[i - 1].common.Count == 0)
@@ -311,23 +355,34 @@ namespace VersionrUI.ViewModels
                         break;
                     }
                 }
-                if (isShort)
+                if (diff[i + 1].common.Count == 1 || (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}")))
                 {
-                    if (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}"))
+                    if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
                         isBrace = true;
                 }
-                if ((isWhitespace || isBrace) && isShort)
+                if ((isWhitespace && isShort) || isShort || isBrace)
                 {
                     var next = diff[i + 1];
-                    diff.RemoveAt(i + 1);
-                    foreach (var x in next.common)
+                    if (isBrace && next.common.Count > 1)
                     {
-                        diff[i].file1.Add(x);
-                        diff[i].file2.Add(x);
+                        // currently disabled
+                        diff[i].file1.Add(next.common[0]);
+                        diff[i].file2.Add(next.common[0]);
+                        next.common.RemoveAt(0);
                     }
-                    i--;
+                    else
+                    {
+                        diff.RemoveAt(i + 1);
+                        foreach (var x in next.common)
+                        {
+                            diff[i].file1.Add(x);
+                            diff[i].file2.Add(x);
+                        }
+                        i--;
+                    }
                 }
             }
+        Display:
             for (int i = 0; i < diff.Count; i++)
             {
                 if (regions.Count > 0)
@@ -366,12 +421,16 @@ namespace VersionrUI.ViewModels
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
-                    regions.Add(openRegion);
+                    if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                        regions.Add(openRegion);
                     openRegion = null;
                 }
             }
             if (openRegion != null && openRegion != last)
-                regions.Add(openRegion);
+            {
+                if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)
+                    regions.Add(openRegion);
+            }
             int activeRegion = 0;
             while (activeRegion < regions.Count)
             {

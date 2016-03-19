@@ -25,7 +25,7 @@ namespace VersionrUI.ViewModels
         private Version _version;
         private Record _priorRecord;
         private Record _newRecord;
-        private FlowDocument _diffPreviewDocument = null;
+        private FlowDocument _diffPreviewDocument;
 
         public AlterationVM(Alteration alteration, Area area, Version version)
         {
@@ -69,9 +69,9 @@ namespace VersionrUI.ViewModels
 
         private bool CanSaveVersionAs()
         {
-            return _newRecord != null &&
-                   !_newRecord.IsDirectory &&
-                   _alteration.Type != AlterationType.Delete;
+            Record rec = _newRecord ?? _priorRecord;
+            return rec != null &&
+                   !rec.IsDirectory;
         }
 
         private void DiffWithPrevious()
@@ -135,26 +135,20 @@ namespace VersionrUI.ViewModels
 
         private void SaveVersionAs()
         {
-            if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
+            Record rec = _newRecord ?? _priorRecord;
+            SaveFileDialog dialog = new SaveFileDialog();
+            dialog.FileName = rec.Name;
+            dialog.CheckPathExists = true;
+            if (dialog.ShowDialog() == true)
             {
-                MessageBox.Show(string.Format("File: {0} is binary different.", _newRecord.CanonicalName));
-            }
-            else
-            {
-                SaveFileDialog dialog = new SaveFileDialog();
-                dialog.FileName = _newRecord.Name;
-                dialog.CheckPathExists = true;
-                if (dialog.ShowDialog() == true)
-                {
-                    _area.GetMissingRecords(new Record[] { _newRecord });
-                    _area.RestoreRecord(_newRecord, DateTime.UtcNow, dialog.FileName);
-                }
+                _area.GetMissingRecords(new Record[] { rec });
+                _area.RestoreRecord(rec, DateTime.UtcNow, dialog.FileName);
             }
         }
 
         private void Log()
         {
-            new LogDialog(_version, _area, _newRecord.CanonicalName).ShowDialog();
+            LogDialog.Show(_version, _area, _newRecord.CanonicalName);
         }
 
         public FlowDocument DiffPreview
@@ -164,6 +158,7 @@ namespace VersionrUI.ViewModels
                 if (_diffPreviewDocument == null)
                 {
                     _diffPreviewDocument = new FlowDocument();
+                    _diffPreviewDocument.PageWidth = 10000;
 
                     if (CanDiffWithPrevious())
                     {
@@ -210,6 +205,31 @@ namespace VersionrUI.ViewModels
                         text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
                         text.Inlines.Add(new Run("."));
                         _diffPreviewDocument.Blocks.Add(text);
+
+                        string tmpNew = DiffTool.GetTempFilename();
+                        _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
+                        if (File.Exists(tmpNew))
+                        {
+                            try
+                            {
+                                using (var fs = new System.IO.FileInfo(tmpNew).OpenText())
+                                {
+                                    Paragraph content = new Paragraph();
+                                    while (true)
+                                    {
+                                        if (fs.EndOfStream)
+                                            break;
+                                        string line = fs.ReadLine().Replace("\t", "    ");
+                                        content.Inlines.Add(new Run(line + Environment.NewLine));
+                                    }
+                                    _diffPreviewDocument.Blocks.Add(content);
+                                }
+                            }
+                            finally
+                            {
+                                File.Delete(tmpNew);
+                            }
+                        }
                     }
                 }
 

@@ -15,6 +15,9 @@ namespace Versionr.Commands
         public bool Summary { get; set; }
 		[Option('a', "all", HelpText = "Includes unchanged files.")]
 		public bool All { get; set; }
+		[Option('f', "flat", HelpText = "Formats list as flat, instead of partitioned by status.")]
+		public bool Flat { get; set; }
+
 		public override string[] Description
         {
             get
@@ -60,8 +63,10 @@ namespace Versionr.Commands
     {
         protected override void Start()
         {
-            Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
-        }
+			//Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
+			Printer.WriteLineMessage("Branch #g#{1}## ({2}) #b#{0}##", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
+		}
+
         protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
         {
             StatusVerbOptions localOptions = (StatusVerbOptions)options;
@@ -78,7 +83,7 @@ namespace Versionr.Commands
             var ss = status;
             if (!string.IsNullOrEmpty(ss.RestrictedPath))
                 Printer.WriteLineMessage("  Computing status for path: #b#{0}##", ss.RestrictedPath);
-            Printer.WriteLineMessage("");
+
             int[] codeCount = new int[(int)StatusCode.Count];
             if (status.MergeInputs.Count > 0)
                 Printer.WriteLineMessage("Workspace has #b#{0}## pending merges.", status.MergeInputs.Count);
@@ -86,34 +91,70 @@ namespace Versionr.Commands
             {
                 Printer.WriteLineMessage(" #c#{0}#q# from branch \"#b#{1}##\" (rev {2})", x.ID, Workspace.GetBranch(x.Branch).Name, x.Revision);
             }
-            if (status.MergeInputs.Count > 0)
-                Printer.WriteLineMessage("");
-            IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return x.Code != StatusCode.Ignored; });
+			if (status.MergeInputs.Count > 0)
+				Printer.WriteLineMessage("");
+			IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return x.Code != StatusCode.Ignored; });
             if (!localOptions.All)
                 operands = operands.Where(x => x.Code != StatusCode.Unchanged);
             string localRestrictedPath = null;
             if (ss.RestrictedPath != null)
                 localRestrictedPath = ws.GetLocalCanonicalName(ss.RestrictedPath);
-            if (!localOptions.NoList)
-            {
-                foreach (var x in operands.OrderBy(x => x.CanonicalName))
-                {
-                    string name = ws.GetLocalCanonicalName(x.CanonicalName);
-                    if (localRestrictedPath != null)
-                        name = name.Substring(localRestrictedPath.Length);
-                    int index = name.LastIndexOf('/');
-                    if (index != name.Length - 1)
-                        name = name.Insert(index + 1, "#b#");
-                    if (name.Length == 0)
-                        name = "#q#<parent directory>##";
-					if (x.IsSymlink)
-						name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
-                    Printer.WriteLineMessage("{1}## {0}", name, GetStatus(x));
-                    if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
-                        Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
-                }
-            }
-            if (localOptions.Summary)
+
+
+			if (!localOptions.NoList)
+			{
+				if (localOptions.Flat)
+				{
+					foreach (var x in operands.OrderBy(x => x.CanonicalName))
+					{
+						PrintFile(ws, localRestrictedPath, x, true);
+					}
+				}
+				else
+				{
+					var staged = operands.OrderBy(x => x.CanonicalName).Where(y => y.Staged);
+					if (staged.Count() > 0)
+					{
+						Printer.WriteLineMessage("");
+						Printer.WriteLineMessage(" Changes recorded for commit:");
+						Printer.WriteLineMessage("  (use \"vsr unrecord <file>...\" to unrecord)");
+						Printer.WriteLineMessage("");
+						foreach (var x in staged)
+						{
+							PrintFile(ws, localRestrictedPath, x);
+						}
+					}
+
+					var nonstaged = operands.OrderBy(x => x.CanonicalName).Where(y => !y.Staged && y.Code != StatusCode.Unversioned);
+					if (nonstaged.Count() > 0)
+					{
+						Printer.WriteLineMessage("");
+						Printer.WriteLineMessage(" Changes not staged:");
+						Printer.WriteLineMessage("  (use \"vsr record <file>...\" to add files to this record)");
+						Printer.WriteLineMessage("  (use \"vsr revert <file>...\" to revert changes from working directory)");
+						Printer.WriteLineMessage("");
+						foreach (var x in nonstaged)
+						{
+							PrintFile(ws, localRestrictedPath, x);
+						}
+					}
+
+					var untracked = operands.OrderBy(x => x.CanonicalName).Where(y => y.Code == StatusCode.Unversioned);
+					if (untracked.Count() > 0)
+					{
+						Printer.WriteLineMessage("");
+						Printer.WriteLineMessage(" Untracked files:");
+						Printer.WriteLineMessage("  (use \"vsr record <file>...\" to add files to this record)");
+						Printer.WriteLineMessage("");
+						foreach (var x in untracked)
+						{
+							PrintFile(ws, localRestrictedPath, x);
+						}
+					}
+				}
+			}
+
+			if (localOptions.Summary)
             {
                 Printer.WriteLineMessage("\n#b#Summary:##");
                 for (int i = 0; i < codeCount.Length; i++)
@@ -143,7 +184,28 @@ namespace Versionr.Commands
             return true;
         }
 
-        private string GetPatterns(IList<string> objects)
+		private void PrintFile(Area ws, string localRestrictedPath, Versionr.Status.StatusEntry x, bool flat = false)
+		{
+			string name = ws.GetLocalCanonicalName(x.CanonicalName);
+
+			if (FilterOptions.WindowsPaths)
+				name = name.Replace('/', '\\');
+
+			if (localRestrictedPath != null)
+				name = name.Substring(localRestrictedPath.Length);
+			int index = name.LastIndexOf('/');
+			if (index != name.Length - 1)
+				name = name.Insert(index + 1, "#b#");
+			if (name.Length == 0)
+				name = "#q#<parent directory>##";
+			if (x.IsSymlink)
+				name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
+			Printer.WriteLineMessage("{1}##{0}", name, GetStatus(x, flat));
+			if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
+				Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
+		}
+
+		private string GetPatterns(IList<string> objects)
         {
             var patterns = objects.Select(x => "`" + x + "`").ToList();
             if (patterns.Count == 1)
@@ -151,19 +213,21 @@ namespace Versionr.Commands
             return "[" + string.Join(", ", patterns) + "]";
         }
 
-        private string GetStatus(Versionr.Status.StatusEntry x)
-        {
-            var info = GetStatusText(x);
-            string text = "(" + info.Item2 + ")";
-            while (text.Length < 14)
-                text = " " + text;
-            text = "#" + info.Item1 + "#" + text;
-            if (x.Staged)
-                text += "#b#*##";
-            else
-                text += " ";
-            return text;
-        }
+		const int s_FileLeadingSpaces = 4;
+
+		private string GetStatus(Versionr.Status.StatusEntry x, bool flat = false)
+		{
+			if (!flat && x.Code == StatusCode.Unversioned)
+			{
+				return new string(' ', s_FileLeadingSpaces);
+			}
+			else
+			{
+				var info = GetStatusText(x);
+				string format = (flat) ? "    {0}{1, 12} " : "    {0}{1, -11} ";
+                return String.Format(format, "#" + info.Item1 + "#", info.Item2 + ":");
+			}
+		}
 
         protected override bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
         {
@@ -210,13 +274,13 @@ namespace Versionr.Commands
                         : new Tuple<char, string>('w', "ignored");
                 case StatusCode.Modified:
                     return staged ? new Tuple<char, string>('s', "modified")
-                        : new Tuple<char, string>('w', "changed");
+                        : new Tuple<char, string>('M', "changed");
                 case StatusCode.Renamed:
                     return staged ? new Tuple<char, string>('s', "renamed")
                         : new Tuple<char, string>('w', "renamed");
                 case StatusCode.Unversioned:
                     return staged ? new Tuple<char, string>('e', "error")
-                        : new Tuple<char, string>('w', "unversioned");
+                        : new Tuple<char, string>('a', "unversioned");
 				case StatusCode.Ignored:
 					return staged ? new Tuple<char, string>('e', "error")
 						: new Tuple<char, string>('q', "ignored");

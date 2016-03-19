@@ -131,7 +131,7 @@ namespace Versionr.Network
                     if (response.Type == NetCommandType.Acknowledge)
                     {
                         int dbVersion = (int)response.Identifier;
-                        if (!WorkspaceDB.AcceptDBVersion(dbVersion))
+                        if (!WorkspaceDB.AcceptRemoteDBVersion(dbVersion))
                         {
                             Printer.PrintError("Server database version is incompatible (v{0}). Use non-full clone to perform the operation.", dbVersion);
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
@@ -417,30 +417,33 @@ namespace Versionr.Network
                         if (remoteData != null)
                         {
                             Objects.Branch localData = Workspace.GetBranch(new Guid(branchID));
-                            if (localData.Terminus.HasValue && remoteData.Terminus.HasValue && localData.Terminus.Value == remoteData.Terminus.Value)
-                                continue;
-                            bool skip = false;
-                            if (branchList.Heads != null)
+                            if (localData != null)
                             {
-                                foreach (var x in branchList.Heads)
+                                if (localData.Terminus.HasValue && remoteData.Terminus.HasValue && localData.Terminus.Value == remoteData.Terminus.Value)
+                                    continue;
+                                bool skip = false;
+                                if (branchList.Heads != null)
                                 {
-                                    if (x.Key == localData.ID)
+                                    foreach (var x in branchList.Heads)
                                     {
-                                        var localHeads = Workspace.GetBranchHeads(localData);
-                                        foreach (var y in localHeads)
+                                        if (x.Key == localData.ID)
                                         {
-                                            if (y.Version == x.Value)
+                                            var localHeads = Workspace.GetBranchHeads(localData);
+                                            foreach (var y in localHeads)
                                             {
-                                                skip = true;
-                                                break;
+                                                if (y.Version == x.Value)
+                                                {
+                                                    skip = true;
+                                                    break;
+                                                }
                                             }
+                                            break;
                                         }
-                                        break;
                                     }
                                 }
+                                if (skip)
+                                    continue;
                             }
-                            if (skip)
-                                continue;
                         }
                     }
                     Printer.InteractivePrinter printer = Printer.CreateSpinnerPrinter(string.Empty, (object obj) =>
@@ -542,41 +545,91 @@ namespace Versionr.Network
                         if (!SharedNetwork.ImportBranchJournal(sharedInfo, true))
                             return false;
                         SharedNetwork.ImportBranches(sharedInfo);
-                        Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
+                        Dictionary<Guid, List<Head>> temporaryHeads = new Dictionary<Guid, List<Head>>();
                         Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
-                        foreach (var x in sharedInfo.PushedVersions)
+                        Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
+                        HashSet<Guid> terminatedBranches = new HashSet<Guid>();
+                        List<Guid> mergeResults = new List<Guid>();
+                        foreach (var x in ((IEnumerable<VersionInfo>)sharedInfo.PushedVersions).Reverse())
                         {
-                            Branch branch = sharedInfo.Workspace.GetBranch(x.Version.Branch);
-                            if (branch.Terminus.HasValue)
+                            if (terminatedBranches.Contains(x.Version.Branch))
                                 continue;
-                            Head head;
-                            if (!temporaryHeads.TryGetValue(branch.ID, out head))
+                            List<Head> heads;
+                            if (!temporaryHeads.TryGetValue(x.Version.Branch, out heads))
                             {
-                                var heads = sharedInfo.Workspace.GetBranchHeads(branch);
-                                if (heads.Count == 0)
-                                    head = new Head() { Branch = branch.ID, Version = x.Version.ID };
-                                else if (heads.Count == 1)
-                                    head = heads[0];
+                                Branch branch = sharedInfo.Workspace.GetBranch(x.Version.Branch);
+                                if (branch.Terminus.HasValue)
+                                {
+                                    terminatedBranches.Add(branch.ID);
+                                    continue;
+                                }
+                                heads = new List<Head>();
+                                var bheads = sharedInfo.Workspace.GetBranchHeads(branch);
+                                if (bheads.Count == 0)
+                                    heads.Add(new Head() { Branch = branch.ID, Version = x.Version.ID });
                                 else
                                 {
-                                    Printer.PrintError("Multiple ({0}) heads for branch {1}", heads.Count, branch.ID);
-                                    return false;
+                                    foreach (var h in bheads)
+                                        heads.Add(h);
                                 }
-                                temporaryHeads[branch.ID] = head;
+                                temporaryHeads[branch.ID] = heads;
                             }
-                            if (head.Version != x.Version.ID)
+                            mergeResults.Clear();
+                            for (int i = 0; i < heads.Count; i++)
                             {
-                                if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, sharedInfo))
+                                if (heads[i].Version != x.Version.ID)
                                 {
-                                    if (!pendingMerges.ContainsKey(branch.ID) || SharedNetwork.IsAncestor(pendingMerges[branch.ID], x.Version.ID, sharedInfo))
-                                        pendingMerges[branch.ID] = Guid.Empty;
-                                    head.Version = x.Version.ID;
+                                    HashSet<Guid> headAncestors = null;
+                                    if (!headAncestry.TryGetValue(heads[i].Version, out headAncestors))
+                                    {
+                                        headAncestors = SharedNetwork.GetAncestry(heads[i].Version, sharedInfo);
+                                        headAncestry[heads[i].Version] = headAncestors;
+                                    }
+                                    if (headAncestors.Contains(x.Version.ID))
+                                    {
+                                        // all best
+                                        mergeResults.Add(heads[i].Version);
+                                    }
+                                    else if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo))
+                                    {
+                                        mergeResults.Add(x.Version.ID);
+                                    }
+                                    else
+                                    {
+                                        mergeResults.Add(Guid.Empty);
+                                    }
                                 }
-                                else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, sharedInfo))
+                            }
+                            pendingMerges[x.Version.Branch] = Guid.Empty;
+                            // Remove any superceded heads
+                            // Add a merge if required
+                            bool unrelated = true;
+                            for (int i = 0; i < mergeResults.Count; i++)
+                            {
+                                if (mergeResults[i] == Guid.Empty)
+                                    continue;
+                                else if (mergeResults[i] != heads[i].Version)
                                 {
-                                    if (!pendingMerges.ContainsKey(branch.ID) || pendingMerges[branch.ID] == Guid.Empty)
-                                        pendingMerges[branch.ID] = head.Version;
-                                    head.Version = x.Version.ID;
+                                    headAncestry.Remove(heads[i].Version);
+                                    heads[i].Version = x.Version.ID;
+                                    unrelated = false;
+                                }
+                                else
+                                    unrelated = false;
+                            }
+                            if (unrelated)
+                            {
+                                heads.Add(new Head() { Branch = x.Version.Branch, Version = x.Version.ID });
+                            }
+                            for (int i = 0; i < heads.Count; i++)
+                            {
+                                for (int j = i + 1; j < heads.Count; j++)
+                                {
+                                    if (heads[i].Version == heads[j].Version)
+                                    {
+                                        heads.RemoveAt(j);
+                                        --j;
+                                    }
                                 }
                             }
                         }
@@ -584,37 +637,65 @@ namespace Versionr.Network
                         List<VersionInfo> autoMerged = new List<VersionInfo>();
                         foreach (var x in pendingMerges)
                         {
-                            if (x.Value == Guid.Empty)
+                            Branch branch = sharedInfo.Workspace.GetBranch(x.Key);
+                            List<Head> heads = temporaryHeads[x.Key];
+                            var bheads = sharedInfo.Workspace.GetBranchHeads(branch);
+
+                            bool headsChanged = bheads.Count != heads.Count;
+                            if (!headsChanged)
                             {
-                                Printer.PrintDiagnostics("Uncontested head update for branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
-                                Printer.PrintDiagnostics(" - Head updated to {0}", temporaryHeads[x.Key].Version);
+                                for (int i = 0; i < bheads.Count; i++)
+                                {
+                                    if (bheads[i].Version != heads[i].Version)
+                                        headsChanged = true;
+                                }
+                            }
+
+                            if (!headsChanged)
+                            {
+                                temporaryHeads[x.Key] = null;
                                 continue;
                             }
-                            Branch branch = Workspace.GetBranch(x.Key);
-                            VersionInfo result;
-                            string error;
-                            result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(x.Value, sharedInfo), temporaryHeads[x.Key].Version, sharedInfo, out error);
-                            if (result == null)
+
+                            if (heads.Count == 1)
                             {
-                                if (x.Value != Workspace.Version.ID && temporaryHeads[x.Key].Branch == Workspace.CurrentBranch.ID)
-                                {
-                                    Printer.PrintError("Not on head revision!");
-                                    return false;
-                                }
-                                newHeads.Add(new Head() { Branch = temporaryHeads[x.Key].Branch, Version = temporaryHeads[x.Key].Version });
-                                Printer.PrintError("New head revision downloaded - requires manual merge between:");
-                                Printer.PrintError(" - Local {0}", x.Value);
-                                Printer.PrintError(" - Remote {0}", temporaryHeads[x.Key].Version);
-                                temporaryHeads[x.Key] = null;
+                                Printer.PrintDiagnostics("Uncontested head update for branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
+                                Printer.PrintDiagnostics(" - Head updated to {0}", temporaryHeads[x.Key][0].Version);
+                                continue;
                             }
-                            else
+
+                            var localVersions = bheads.Where(h => heads.Any(y => y.Version != h.Version));
+                            var remoteVersions = heads.Where(h => !bheads.Any(y => y.Version != h.Version));
+
+                            if (localVersions.Count() != 1)
                             {
-                                autoMerged.Add(result);
+                                Printer.PrintDiagnostics("Too many heads in local branch to merge remote head. Please merge locally and try again to update branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
+                                return false;
+                            }
+
+                            Guid localVersion = localVersions.First().Version;
+
+                            if (remoteVersions.Count() == 1)
+                            {
+                                VersionInfo result;
+                                string error;
+                                result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
+
                                 Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
-                                Printer.PrintDiagnostics(" - Merge local input {0}", x.Value);
-                                Printer.PrintDiagnostics(" - Merge remote input {0}", temporaryHeads[x.Key].Version);
+                                Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
+                                Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
                                 Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
-                                temporaryHeads[x.Key].Version = result.Version.ID;
+
+                                for (int i = 0; i < heads.Count; i++)
+                                {
+                                    if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                    {
+                                        heads.RemoveAt(i);
+                                        --i;
+                                    }
+                                }
+                                heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
+                                autoMerged.Add(result);
                             }
                         }
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
@@ -668,11 +749,7 @@ namespace Versionr.Network
                         foreach (var x in temporaryHeads)
                         {
                             if (x.Value != null)
-                                Workspace.ImportHeadNoCommit(x);
-                        }
-                        foreach (var x in newHeads)
-                        {
-                            Workspace.AddHeadNoCommit(x);
+                                Workspace.ReplaceHeads(x.Key, x.Value);
                         }
                         Workspace.CommitDatabaseTransaction();
                         sharedInfo.Workspace.CommitDatabaseTransaction();
@@ -761,7 +838,8 @@ namespace Versionr.Network
                         {
                             bool runauth = true;
                             var challenge = ProtoBuf.Serializer.DeserializeWithLengthPrefix<AuthenticationChallenge>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                            if (!requirewrite && command.Identifier == 1) // server supports unauthenticated read
+                            if ((!requirewrite && (command.Identifier & 1) != 0) ||
+                                (requirewrite && (command.Identifier & 2) != 0)) // server supports unauthenticated access
                             {
                                 AuthenticationResponse response = new AuthenticationResponse()
                                 {

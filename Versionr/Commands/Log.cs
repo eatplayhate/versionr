@@ -12,8 +12,12 @@ namespace Versionr.Commands
 	{
 		[Option('l', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
+        [Option('m', "shormerged", DefaultValue = true, HelpText = "Show logical history (cleans up automatic merge data).")]
+        public bool ShowMerged { get; set; }
+        [Option('e', "reverse", HelpText = "Reverses the order of versions in the log.")]
+        public bool Reverse { get; set; }
 
-		public enum DetailMode
+        public enum DetailMode
 		{
 			Normal,
 			N = Normal,
@@ -259,9 +263,21 @@ namespace Versionr.Commands
 						Printer.PrintMessage("#b#Alterations:##");
 						foreach (var y in alterations.OrderBy(z => z.Alteration.Type))
 						{
-							Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
-						}
-					}
+                            if (y.Alteration.Type == Objects.AlterationType.Move || y.Alteration.Type == Objects.AlterationType.Copy)
+                            {
+                                string operationName = y.Alteration.Type.ToString().ToLower();
+                                Objects.Record prior = Workspace.GetRecord(y.Alteration.PriorRecord.Value);
+                                Objects.Record next = Workspace.GetRecord(y.Alteration.NewRecord.Value);
+                                if (y.Alteration.Type == Objects.AlterationType.Move && !next.IsDirectory && prior.DataIdentifier != next.DataIdentifier)
+                                    operationName = "refactor";
+                                Printer.PrintMessage("#{2}#({0})## {1}\n  <- #q#{3}##", operationName, y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type), prior.CanonicalName);
+                            }
+                            else
+                            {
+                                Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
+                            }
+                        }
+                    }
 					else
 					{
 						int[] alterationCounts = new int[5];
@@ -291,33 +307,33 @@ namespace Versionr.Commands
 				}
 
 				// Same-branch merge revisions. This only sort-of respects the limit :(
-				foreach (var y in mergeInfo)
-				{
-					var mergeParent = Workspace.GetVersion(y.SourceVersion);
-					if (mergeParent.Branch == v.Branch)
-					{
-						Printer.PushIndent();
-						Printer.PrintMessage("---- Merged versions ----");
+				//foreach (var y in mergeInfo)
+				//{
+				//	var mergeParent = Workspace.GetVersion(y.SourceVersion);
+				//	if (mergeParent.Branch == v.Branch)
+				//	{
+				//		Printer.PushIndent();
+				//		Printer.PrintMessage("---- Merged versions ----");
 
-						List<Objects.Version> mergedVersions = new List<Objects.Version>();
+				//		List<Objects.Version> mergedVersions = new List<Objects.Version>();
 
-						var p = mergeParent;
-						do
-						{
-							mergedVersions.Add(p);
-							if (p.Parent.HasValue && !m_LoggedVersions.Contains(p.Parent.Value))
-								p = Workspace.GetVersion(p.Parent.Value);
-							else
-								p = null;
-						} while (p != null);
+				//		var p = mergeParent;
+				//		do
+				//		{
+				//			mergedVersions.Add(p);
+				//			if (p.Parent.HasValue && !m_LoggedVersions.Contains(p.Parent.Value))
+				//				p = Workspace.GetVersion(p.Parent.Value);
+				//			else
+				//				p = null;
+				//		} while (p != null);
 
-						foreach (var a in ApplyHistoryFilter(mergedVersions, localOptions))
-							FormatLog(a.Item1, a.Item2, localOptions);
+				//		foreach (var a in ApplyHistoryFilter(mergedVersions, localOptions))
+				//			FormatLog(a.Item1, a.Item2, localOptions);
 
-						Printer.PrintMessage("-------------------------");
-						Printer.PopIndent();
-					}
-				}
+				//		Printer.PrintMessage("-------------------------");
+				//		Printer.PopIndent();
+				//	}
+				//}
 			}
 		}
 
@@ -328,12 +344,12 @@ namespace Versionr.Commands
 
 			var enumeration = history
 				.Select(x => new Tuple<Objects.Version, IEnumerable<KeyValuePair<bool, ResolvedAlteration>>>(x, FilterAlterations(x)))
-				.Where(x => x.Item2.Any() || (x.Item1.Parent == null && localOptions.Objects.Count == 0));
+				.Where(x => x.Item2.Any() || (x.Item1.Parent == null || localOptions.Objects.Count == 0));
 
 			if (localOptions.Limit != 0)
 				enumeration = enumeration.Take(localOptions.Limit);
 
-			if (!localOptions.Jrunting)
+			if (!(localOptions.Jrunting ^ localOptions.Reverse))
 				enumeration = enumeration.Reverse();
 
 			return enumeration;
@@ -373,8 +389,14 @@ namespace Versionr.Commands
 
 			if (localOptions.Limit == -1)
 				localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
+            if (version == null)
+                version = ws.Version;
 
-			var history = (version == null ? ws.History : ws.GetHistory(version)).AsEnumerable();
+            int? nullableLimit = localOptions.Limit;
+            if (nullableLimit.Value <= 0)
+                nullableLimit = null;
+            
+            var history = (localOptions.ShowMerged ? ws.GetLogicalHistory(version, nullableLimit) : ws.GetHistory(version, nullableLimit)).AsEnumerable();
 
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;
@@ -385,7 +407,7 @@ namespace Versionr.Commands
 				FormatLog(x.Item1, x.Item2, localOptions);
 			}
 
-			if (!localOptions.Jrunting && last.ID == m_Tip.ID && version == null)
+			if (!localOptions.Jrunting && last != null && last.ID == m_Tip.ID && version == null)
 			{
 				var branch = Workspace.CurrentBranch;
 				var heads = Workspace.GetBranchHeads(branch);
