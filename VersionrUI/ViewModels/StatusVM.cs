@@ -62,7 +62,7 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private object refreshLock = new object();
+        private static object refreshLock = new object();
         public void Refresh()
         {
             lock (refreshLock)

@@ -141,7 +141,7 @@ namespace VersionrUI.Dialogs
             }
         }
 
-        private object refreshLock = new object();
+        private static object refreshLock = new object();
         private void RefreshHistory()
         {
             lock (refreshLock)

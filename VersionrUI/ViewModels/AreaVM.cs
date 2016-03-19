@@ -144,7 +144,7 @@ namespace VersionrUI.ViewModels
             ExecuteClientCommand((c) => c.Push(), "push", true);
         }
 
-        private object refreshChildrenLock = new object();
+        private static object refreshChildrenLock = new object();
         public void RefreshChildren()
         {
             lock (refreshChildrenLock)
@@ -172,7 +172,7 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private object refreshRemotesLock = new object();
+        private static object refreshRemotesLock = new object();
         public void RefreshRemotes()
         {
             lock (refreshRemotesLock)
