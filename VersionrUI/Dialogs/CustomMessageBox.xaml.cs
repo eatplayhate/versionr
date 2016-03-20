@@ -1,5 +1,7 @@
-﻿using System.ComponentModel;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System.ComponentModel;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -15,11 +17,13 @@ namespace VersionrUI.Dialogs
         public DelegateCommand<int> ButtonClickCommand { get; private set; }
 
         private int _cancelOption = -1;
+        private bool _dialogResult = false;
 
-        public static int Show(string message, string title, string[] options, int cancelOption = -1, MessageBoxImage icon = MessageBoxImage.None)
+        public static async Task<int> Show(string message, string title, string[] options, int cancelOption = -1, MessageBoxImage icon = MessageBoxImage.None)
         {
             CustomMessageBox box = new CustomMessageBox(message, title, options, cancelOption, icon);
-            box.ShowDialog();
+            await MainWindow.Instance.ShowMetroDialogAsync(box);
+            await box.WaitUntilUnloadedAsync();
             return box.Result;
         }
 
@@ -63,6 +67,16 @@ namespace VersionrUI.Dialogs
             this.DataContext = this;
         }
 
+        public bool DialogResult
+        {
+            get { return _dialogResult; }
+            set
+            {
+                _dialogResult = value;
+                MainWindow.Instance.HideMetroDialogAsync(this);
+            }
+        }
+
         public int Result { get; private set; }
         public string Message { get; private set; }
         public string[] Options { get; private set; }
@@ -74,12 +88,6 @@ namespace VersionrUI.Dialogs
         {
             Result = option;
             DialogResult = (option != _cancelOption);
-        }
-
-        private void MessageBox_Loaded(object sender, RoutedEventArgs e)
-        {
-            this.Width = grid.DesiredSize.Width + SystemParameters.ResizeFrameVerticalBorderWidth * 2 + 20;
-            this.Height = grid.DesiredSize.Height + SystemParameters.WindowCaptionHeight + SystemParameters.ResizeFrameHorizontalBorderHeight * 2 + 20;
         }
 
         #region INotifyPropertyChanged

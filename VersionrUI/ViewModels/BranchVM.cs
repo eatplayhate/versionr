@@ -140,11 +140,11 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private void Checkout()
+        private async void Checkout()
         {
             if (_areaVM.Area.Status.HasModifications(false))
             {
-                int result = CustomMessageBox.Show("Vault contains uncommitted changes.\nDo you want to force the checkout operation?",
+                int result = await CustomMessageBox.Show("Vault contains uncommitted changes.\nDo you want to force the checkout operation?",
                                                    "Checkout",
                                                    new string[] { "Checkout (keep unversioned files)",
                                                                   "Checkout (purge unversioned files)",
@@ -154,10 +154,10 @@ namespace VersionrUI.ViewModels
                 switch (result)
                 {
                     case 0:
-                        CheckoutAsync(false);
+                        DoCheckout(false);
                         break;
                     case 1:
-                        CheckoutAsync(true);
+                        DoCheckout(true);
                         break;
                     case 2:
                     default:
@@ -166,11 +166,11 @@ namespace VersionrUI.ViewModels
             }
             else
             {
-                CheckoutAsync(false);
+                DoCheckout(false);
             }
         }
 
-        private void CheckoutAsync(bool purge)
+        private void DoCheckout(bool purge)
         {
             Load(() =>
             {

@@ -27,7 +27,6 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0"
@@ -354,14 +353,14 @@
                         Width="50" Height="50"
                         HorizontalAlignment="Right"
                         Content="CRASH"
-                        Foreground="Red"
+                        Foreground="{StaticResource AccentColorBrush}"
                         FontWeight="Bold"
                         FontSize="13"
                         Command="{Binding CloseCommand}">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Grid>
-                                <Ellipse Fill="Transparent" Stroke="Red" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                <Ellipse Fill="Transparent" Stroke="{StaticResource AccentColorBrush}" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </ControlTemplate>
