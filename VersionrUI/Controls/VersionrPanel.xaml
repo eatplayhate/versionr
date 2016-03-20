@@ -85,7 +85,12 @@
                             </TreeView.Resources>
                             <TreeView.ItemContainerStyle>
                                 <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
-                                    <Setter Property="IsExpanded" Value="True"/>
+                                    <Setter Property="IsExpanded" Value="False"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Name}" Value="Branches">
+                                            <Setter Property="IsExpanded" Value="True"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
                                 </Style>
                             </TreeView.ItemContainerStyle>
                         </TreeView>

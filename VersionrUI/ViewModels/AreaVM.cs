@@ -123,7 +123,8 @@ namespace VersionrUI.ViewModels
 
                 CompositeCollection collection = new CompositeCollection();
                 collection.Add(_status);
-                collection.Add(new NamedCollection("Branches", _branches));
+                collection.Add(new NamedCollection("Branches", _branches?.Where(x => !x.IsDeleted)));
+                collection.Add(new NamedCollection("Deleted Branches", _branches?.Where(x => x.IsDeleted)));
                 return collection;
             }
         }
