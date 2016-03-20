@@ -35,6 +35,11 @@ namespace VersionrUI.ViewModels
                 return _status;
             }
         }
+        
+        public string Name
+        {
+            get { return "Status"; }
+        }
 
         public bool PushOnCommit
         {

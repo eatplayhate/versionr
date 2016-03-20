@@ -80,7 +80,7 @@
                                     </TextBlock>
                                 </DataTemplate>
                                 <DataTemplate DataType="{x:Type vm:StatusVM}">
-                                    <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,8" />
                                 </DataTemplate>
                             </TreeView.Resources>
                             <TreeView.ItemContainerStyle>
