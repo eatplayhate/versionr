@@ -85,7 +85,7 @@ namespace VersionrUI.Controls
 
         private void AddArea()
         {
-            CloneNewDialog cloneNewDlg = new CloneNewDialog(MainWindow.Instance);
+            CloneNewDialog cloneNewDlg = new CloneNewDialog();
             if (cloneNewDlg.ShowDialog() == true)
             {
                 int port = 0;

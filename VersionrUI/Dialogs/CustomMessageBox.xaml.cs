@@ -10,7 +10,7 @@ namespace VersionrUI.Dialogs
     /// <summary>
     /// Interaction logic for CheckoutConfirmDialog.xaml
     /// </summary>
-    public partial class CustomMessageBox : Window, INotifyPropertyChanged
+    public partial class CustomMessageBox : INotifyPropertyChanged
     {
         public DelegateCommand<int> ButtonClickCommand { get; private set; }
 

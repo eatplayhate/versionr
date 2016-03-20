@@ -7,6 +7,7 @@
              xmlns:controls="clr-namespace:VersionrUI.Controls"
              xmlns:commands="clr-namespace:VersionrUI.Commands"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:mahapps="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="300">
 
@@ -14,7 +15,7 @@
 
         <DataTemplate DataType="{x:Type vm:AreaVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
+                <Grid Opacity="{Binding Opacity}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="200" />
                         <ColumnDefinition Width="Auto" />
@@ -66,7 +67,7 @@
                                             </ContextMenu>
                                         </TextBlock.ContextMenu>
                                         <TextBlock.Resources>
-                                            <Style TargetType="{x:Type TextBlock}">
+                                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                         <Setter Property="TextBlock.FontWeight" Value="Bold"/>
@@ -97,14 +98,13 @@
                                   Width="5" />
                     <ContentPresenter Grid.Column="2" Content="{Binding SelectedItem, ElementName=treeView}" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Area" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
         
         <DataTemplate DataType="{x:Type vm:BranchVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
+                <Grid Opacity="{Binding Opacity}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="400" />
@@ -155,9 +155,8 @@
                                 </GridViewColumn>
                             </GridView>
                         </ListView.View>
-
                         <ListView.ItemContainerStyle>
-                            <Style TargetType="{x:Type ListViewItem}">
+                            <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Path=IsCurrent}" Value="True">
                                         <Setter Property="FontWeight" Value="Bold" />
@@ -187,8 +186,7 @@
                     
                     <ContentPresenter Grid.Row="5" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Branch" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
 
@@ -205,7 +203,7 @@
                     </GridView>
                 </ListView.View>
                 <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
+                    <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                         <Setter Property="ContextMenu">
                             <Setter.Value>
                                 <ContextMenu>
@@ -225,7 +223,7 @@
 
         <DataTemplate DataType="{x:Type vm:StatusVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
+                <Grid Opacity="{Binding Opacity}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="120" />
                         <RowDefinition Height="Auto" />
@@ -289,7 +287,7 @@
                             </GridView>
                         </ListView.View>
                         <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
+                            <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                                 <Setter Property="ContextMenu">
                                     <Setter.Value>
                                         <ContextMenu>
@@ -316,8 +314,7 @@
                                                   HorizontalScrollBarVisibility="Auto"
                                                   VerticalScrollBarVisibility="Auto" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Status" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
 

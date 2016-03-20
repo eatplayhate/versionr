@@ -16,7 +16,7 @@ namespace VersionrUI.Dialogs
     /// <summary>
     /// Interaction logic for CloneNewDialog.xaml
     /// </summary>
-    public partial class CloneNewDialog : Window, INotifyPropertyChanged
+    public partial class CloneNewDialog : INotifyPropertyChanged
     {
         private bool _userTypedName = false;
         private string _pathString = "";
@@ -26,7 +26,7 @@ namespace VersionrUI.Dialogs
         private ImageSource _imageGoodTick;
         private ImageSource _imageBadCircle;
 
-        public CloneNewDialog(Window owner)
+        public CloneNewDialog()
         {
             InitializeComponent();
             mainGrid.DataContext = this;

@@ -71,9 +71,6 @@
     <Compile Include="Commands\ControlDoubleClick.cs" />
     <Compile Include="Commands\DelegateCommand.cs" />
     <Compile Include="Controls\BindableRichTextBox.cs" />
-    <Compile Include="Controls\LoadingPanel.xaml.cs">
-      <DependentUpon>LoadingPanel.xaml</DependentUpon>
-    </Compile>
     <Compile Include="Controls\VersionrPanel.xaml.cs">
       <DependentUpon>VersionrPanel.xaml</DependentUpon>
     </Compile>
@@ -95,10 +92,6 @@
     <Compile Include="ViewModels\StatusEntryVM.cs" />
     <Compile Include="ViewModels\StatusVM.cs" />
     <Compile Include="ViewModels\VersionVM.cs" />
-    <Page Include="Controls\LoadingPanel.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
     <Page Include="Dialogs\CustomMessageBox.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

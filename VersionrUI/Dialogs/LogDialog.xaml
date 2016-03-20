@@ -1,4 +1,4 @@
-﻿<Window x:Class="VersionrUI.Dialogs.LogDialog"
+﻿<mahapps:MetroWindow x:Class="VersionrUI.Dialogs.LogDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,6 +7,7 @@
         xmlns:controls="clr-namespace:VersionrUI.Controls"
         xmlns:commands="clr-namespace:VersionrUI.Commands"
         xmlns:dialogs="clr-namespace:VersionrUI.Dialogs"
+        xmlns:mahapps="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         mc:Ignorable="d"
         Title="Log"
         d:DesignHeight="300" d:DesignWidth="300"
@@ -18,7 +19,7 @@
         
         <DataTemplate DataType="{x:Type vm:VersionVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
+                <Grid Opacity="{Binding Opacity}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -35,7 +36,7 @@
                             </GridView>
                         </ListView.View>
                         <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
+                            <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                                 <Setter Property="ContextMenu">
                                     <Setter.Value>
                                         <ContextMenu>
@@ -74,14 +75,13 @@
                                                   HorizontalScrollBarVisibility="Auto"
                                                   VerticalScrollBarVisibility="Auto" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Log" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
     </Window.Resources>
 
     <Grid x:Name="mainGrid">
-        <Grid Visibility="{Binding LogVisibility}">
+        <Grid Opacity="{Binding LogOpacity}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -128,7 +128,6 @@
                           Height="5" />
             <ContentPresenter Grid.Row="3" Content="{Binding SelectedItem, ElementName=listView}" />
         </Grid>
-        <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                               Message="Loading Log" />
+        <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
     </Grid>
-</Window>
+</mahapps:MetroWindow>
