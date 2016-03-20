@@ -12,6 +12,7 @@ using VersionrUI.Dialogs;
 using VersionrUI.ViewModels;
 
 using System.Windows.Media;
+using MahApps.Metro.Controls.Dialogs;
 
 namespace VersionrUI.Controls
 {
@@ -32,7 +33,6 @@ namespace VersionrUI.Controls
 
             CloseCommand = new DelegateCommand(() => MainWindow.Instance.Close());
             NewAreaCommand = new DelegateCommand(AddArea);
-            RemoveAreaCommand = new DelegateCommand<AreaVM>(RemoveArea);
 
             OpenAreas = new ObservableCollection<AreaVM>();
 
@@ -81,12 +81,13 @@ namespace VersionrUI.Controls
         #region Commands
         public DelegateCommand CloseCommand { get; private set; }
         public DelegateCommand NewAreaCommand { get; private set; }
-        public DelegateCommand<AreaVM> RemoveAreaCommand { get; private set; }
 
-        private void AddArea()
+        private async void AddArea()
         {
             CloneNewDialog cloneNewDlg = new CloneNewDialog();
-            if (cloneNewDlg.ShowDialog() == true)
+            await MainWindow.Instance.ShowMetroDialogAsync(cloneNewDlg);
+            await cloneNewDlg.WaitUntilUnloadedAsync();
+            if (cloneNewDlg.DialogResult == true)
             {
                 int port = 0;
                 int.TryParse(cloneNewDlg.Port, out port);
@@ -97,11 +98,6 @@ namespace VersionrUI.Controls
                     SelectedArea = OpenAreas.LastOrDefault();
                 }
             }
-        }
-
-        private void RemoveArea(AreaVM area)
-        {
-            OpenAreas.Remove(area);
         }
         #endregion
 

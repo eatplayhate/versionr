@@ -67,7 +67,7 @@
                                             </ContextMenu>
                                         </TextBlock.ContextMenu>
                                         <TextBlock.Resources>
-                                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style TargetType="{x:Type TextBlock}">
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                                         <Setter Property="TextBlock.FontWeight" Value="Bold"/>
@@ -370,30 +370,28 @@
             </Grid>
             
             <!-- Area tabs -->
-            <TabControl ItemsSource="{Binding OpenAreas}"
-                        SelectedItem="{Binding SelectedArea}">
-                <TabControl.ItemTemplate>
+            <mahapps:MetroTabControl ItemsSource="{Binding OpenAreas}"
+                                     SelectedItem="{Binding SelectedArea}">
+                <mahapps:MetroTabControl.ItemTemplate>
                     <DataTemplate>
                         <DockPanel>
                             <TextBlock Margin="4,2"
                                        VerticalAlignment="Center"
                                        Text="{Binding Name}" />
-                            <Button DockPanel.Dock="Right"
-                                    Margin="2"
-                                    Padding="0"
-                                    Width="18" Height="18"
-                                    Content="X"
-                                    Command="{Binding DataContext.RemoveAreaCommand, ElementName=mainGrid}"
-                                    CommandParameter="{Binding}" />
                         </DockPanel>
                     </DataTemplate>
-                </TabControl.ItemTemplate>
-                <TabControl.ContentTemplate>
+                </mahapps:MetroTabControl.ItemTemplate>
+                <mahapps:MetroTabControl.ItemContainerStyle>
+                    <Style TargetType="{x:Type mahapps:MetroTabItem}" BasedOn="{StaticResource {x:Type mahapps:MetroTabItem}}">
+                        <Setter Property="CloseButtonEnabled" Value="True"/>
+                    </Style>
+                </mahapps:MetroTabControl.ItemContainerStyle>
+                <mahapps:MetroTabControl.ContentTemplate>
                     <DataTemplate>
                         <ContentPresenter Content="{Binding}" />
                     </DataTemplate>
-                </TabControl.ContentTemplate>
-            </TabControl>
+                </mahapps:MetroTabControl.ContentTemplate>
+            </mahapps:MetroTabControl>
         </DockPanel>
     </Grid>
     

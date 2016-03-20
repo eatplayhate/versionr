@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -18,6 +19,7 @@ namespace VersionrUI.Dialogs
     /// </summary>
     public partial class CloneNewDialog : INotifyPropertyChanged
     {
+        private bool _dialogResult = false;
         private bool _userTypedName = false;
         private string _pathString = "";
         private string _nameString = "";
@@ -29,7 +31,7 @@ namespace VersionrUI.Dialogs
         public CloneNewDialog()
         {
             InitializeComponent();
-            mainGrid.DataContext = this;
+            DataContext = this;
 
             try
             {
@@ -41,7 +43,18 @@ namespace VersionrUI.Dialogs
             PathBrowseCommand = new DelegateCommand(PathBrowse);
             OptionChangedCommand = new DelegateCommand<AreaInitMode>(OptionChanged);
             OkCommand = new DelegateCommand(Ok, CanOk);
+            CancelCommand = new DelegateCommand(Cancel);
             RefreshRadioButtons();
+        }
+
+        public bool DialogResult
+        {
+            get { return _dialogResult; }
+            set
+            {
+                _dialogResult = value;
+                MainWindow.Instance.HideMetroDialogAsync(this);
+            }
         }
 
         public string PathString
@@ -173,6 +186,7 @@ namespace VersionrUI.Dialogs
         public DelegateCommand PathBrowseCommand { get; private set; }
         public DelegateCommand<AreaInitMode> OptionChangedCommand { get; private set; }
         public DelegateCommand OkCommand { get; private set; }
+        public DelegateCommand CancelCommand { get; private set; }
 
         private void OptionChanged(AreaInitMode newOption)
         {
@@ -181,7 +195,7 @@ namespace VersionrUI.Dialogs
             NotifyPropertyChanged("HostFieldVisibility");
             OkCommand.RaiseCanExecuteChanged();
         }
-        
+
         private void PathBrowse()
         {
             FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
@@ -212,11 +226,15 @@ namespace VersionrUI.Dialogs
                     return false;
             }
         }
-        
+
         private void Ok()
         {
             DialogResult = true;
-            Close();
+        }
+
+        private void Cancel()
+        {
+            DialogResult = false;
         }
         #endregion
 
