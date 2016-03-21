@@ -26,7 +26,6 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0"
@@ -42,13 +41,7 @@
                                   ItemsSource="{Binding Remotes}"
                                   SelectedItem="{Binding SelectedRemote}"
                                   DisplayMemberPath="Name" />
-                        <StackPanel Grid.Row="3"
-                                    Margin="0,4"
-                                    Orientation="Horizontal">
-                            <Button Margin="4" Content="Pull" Command="{Binding PullCommand}" />
-                            <Button Margin="4" Content="Push" Command="{Binding PushCommand}" />
-                        </StackPanel>
-                        <TreeView Grid.Row="4"
+                        <TreeView Grid.Row="3"
                                   Margin="0,4"
                                   Name="treeView"
                                   BorderThickness="0"
@@ -61,6 +54,8 @@
                                     <TextBlock Text="{Binding Name}">
                                         <TextBlock.ContextMenu>
                                             <ContextMenu>
+                                                <MenuItem Header="Pull" Command="{Binding PullCommand}" />
+                                                <MenuItem Header="Push" Command="{Binding PushCommand}" />
                                                 <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
                                                 <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                             </ContextMenu>

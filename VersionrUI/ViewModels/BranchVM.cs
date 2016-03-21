@@ -8,6 +8,8 @@ namespace VersionrUI.ViewModels
 {
     public class BranchVM : NotifyPropertyChangedBase
     {
+        public DelegateCommand PullCommand { get; private set; }
+        public DelegateCommand PushCommand { get; private set; }
         public DelegateCommand CheckoutCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
 
@@ -42,7 +44,9 @@ namespace VersionrUI.ViewModels
             _areaVM = areaVM;
             _branch = branch;
 
-            CheckoutCommand = new DelegateCommand(Checkout);
+            PullCommand = new DelegateCommand(() => Load(Pull));
+            PushCommand = new DelegateCommand(() => Load(Push));
+            CheckoutCommand = new DelegateCommand(Checkout, () => !IsCurrent);
             LogCommand = new DelegateCommand(Log);
         }
 
@@ -138,6 +142,18 @@ namespace VersionrUI.ViewModels
                     _history.Add(new VersionVM(version, _areaVM.Area));
                 NotifyPropertyChanged("History");
             }
+        }
+
+        private void Pull()
+        {
+            _areaVM.ExecuteClientCommand((c) => c.Pull(true, Name), "pull");
+            if(IsCurrent)
+                _areaVM.Area.Update();
+        }
+
+        private void Push()
+        {
+            _areaVM.ExecuteClientCommand((c) => c.Push(Name), "push", true);
         }
 
         private async void Checkout()

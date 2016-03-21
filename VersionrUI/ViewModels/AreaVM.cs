@@ -31,9 +31,7 @@ namespace VersionrUI.ViewModels
         public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
             RefreshCommand = new DelegateCommand(() => Load(() => { RefreshRemotes(); RefreshChildren(); }));
-            PullCommand = new DelegateCommand(() => Load(Pull));
-            PushCommand = new DelegateCommand(() => Load(Push));
-
+            
             _name = name;
 
             DirectoryInfo dir = new DirectoryInfo(path);
@@ -131,20 +129,7 @@ namespace VersionrUI.ViewModels
 
         #region Commands
         public DelegateCommand RefreshCommand { get; private set; }
-        public DelegateCommand PullCommand { get; private set; }
-        public DelegateCommand PushCommand { get; private set; }
-
-        private void Pull()
-        {
-            ExecuteClientCommand((c) => c.Pull(true, null), "pull");
-            _area.Update();
-        }
-
-        private void Push()
-        {
-            ExecuteClientCommand((c) => c.Push(), "push", true);
-        }
-
+        
         private static object refreshChildrenLock = new object();
         public void RefreshChildren()
         {
@@ -199,18 +184,25 @@ namespace VersionrUI.ViewModels
             if (SelectedRemote != null)
             {
                 Client client = new Client(_area);
-                if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
+                try
                 {
-                    action.Invoke(client);
-                }
-                else
-                {
-                    MainWindow.Instance.Dispatcher.Invoke(() =>
+                    if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
                     {
-                        MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    });
+                        action.Invoke(client);
+                    }
+                    else
+                    {
+                        MainWindow.Instance.Dispatcher.Invoke(() =>
+                        {
+                            MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        });
+                    }
                 }
-                client.Close();
+                catch { }
+                finally
+                {
+                    client.Close();
+                }
             }
         }
 
