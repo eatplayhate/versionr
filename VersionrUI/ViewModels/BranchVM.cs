@@ -131,7 +131,7 @@ namespace VersionrUI.ViewModels
             {
                 var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                List<Version> versions = _areaVM.Area.GetHistory(headVersion, limit);
+                List<Version> versions = _areaVM.Area.GetLogicalHistory(headVersion, limit);
                 _history = new List<VersionVM>();
 
                 foreach (Version version in versions)

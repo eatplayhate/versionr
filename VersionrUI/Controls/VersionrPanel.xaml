@@ -128,8 +128,8 @@
                         <Label Grid.Column="0">Search:</Label>
                         <TextBox Grid.Column="1"
                                  Name="logSearch"
-                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}">
-                        </TextBox>
+                                 mahapps:TextBoxHelper.Watermark="Search"
+                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}" />
                         <Label Grid.Column="2">Limit:</Label>
                         <ComboBox Grid.Column="3"
                                   SelectedValuePath="Key"
@@ -253,9 +253,10 @@
                         <DockPanel>
                             <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
                             <TextBox Margin="4"
-                                        Text="{Binding CommitMessage}"
-                                        TextWrapping="Wrap"
-                                        AcceptsReturn="True" />
+                                     mahapps:TextBoxHelper.Watermark="Message"
+                                     Text="{Binding CommitMessage}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True" />
                         </DockPanel>
                     </DockPanel>
                     <GridSplitter Grid.Row="1"
