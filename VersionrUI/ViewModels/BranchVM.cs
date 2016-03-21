@@ -17,6 +17,7 @@ namespace VersionrUI.ViewModels
         private string _searchText;
         private VersionVM _selectedVersion;
         private int _revisionLimit = 50;
+        private bool _forceRefresh = false;
         private static Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
         {
             { 50, "50" },
@@ -70,7 +71,7 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_history == null)
+                if (_history == null || _forceRefresh)
                     Load(Refresh);
                 if (!string.IsNullOrEmpty(SearchText))
                     return FilterHistory(_history, SearchText);
@@ -96,6 +97,7 @@ namespace VersionrUI.ViewModels
                 if (_revisionLimit != value)
                 {
                     _revisionLimit = value;
+                    _forceRefresh = true;
                     NotifyPropertyChanged("RevisionLimit");
                     NotifyPropertyChanged("History");
                 }
@@ -129,6 +131,8 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
+                _forceRefresh = false;
+
                 var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
                 List<Version> versions = _areaVM.Area.GetHistory(headVersion, limit);
