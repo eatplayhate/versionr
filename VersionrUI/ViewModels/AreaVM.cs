@@ -9,6 +9,7 @@ using Versionr.LocalState;
 using Versionr.Network;
 using Versionr.Objects;
 using VersionrUI.Commands;
+using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
 {
@@ -203,6 +204,10 @@ namespace VersionrUI.ViewModels
                 {
                     client.Close();
                 }
+            }
+            else
+            {
+                OperationStatusDialog.Write("No remote selected");
             }
         }
 

@@ -555,8 +555,7 @@ namespace Versionr.Utilities
             {
                 common = new List<string>()
             };
-
-            CommonRun cr;
+            
             List<CommonRun> crList = null;
             if (fancy)
                 crList = Diff.longest_common_subsequence3(file1, file2);

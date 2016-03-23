@@ -184,7 +184,6 @@ namespace Versionr.Utilities
 
         private static bool PossiblyUCS4(byte[] data, int v, bool bigEndian)
         {
-            int count = 0;
             for (int i = v; i < data.Length - 3; i += 4)
             {
                 uint c = BitConverter.ToUInt32(data, i);

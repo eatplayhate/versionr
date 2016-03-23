@@ -146,14 +146,18 @@ namespace VersionrUI.ViewModels
 
         private void Pull()
         {
+            OperationStatusDialog.Start("Pull");
             _areaVM.ExecuteClientCommand((c) => c.Pull(true, Name), "pull");
             if(IsCurrent)
                 _areaVM.Area.Update();
+            OperationStatusDialog.Finish();
         }
 
         private void Push()
         {
+            OperationStatusDialog.Start("Push");
             _areaVM.ExecuteClientCommand((c) => c.Push(Name), "push", true);
+            OperationStatusDialog.Finish();
         }
 
         private async void Checkout()
@@ -190,8 +194,10 @@ namespace VersionrUI.ViewModels
         {
             Load(() =>
             {
+                OperationStatusDialog.Start("Checkout");
                 _areaVM.Area.Checkout(Name, purge, false, false);
                 _areaVM.RefreshChildren();
+                OperationStatusDialog.Finish();
             });
         }
 
