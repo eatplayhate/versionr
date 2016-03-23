@@ -39,6 +39,9 @@ namespace Versionr.Commands
 
         [Option('l', "local", HelpText = "Compare with working copy")]
         public bool Local { get; set; }
+
+        [Option('c', "recorded", HelpText = "Matches only files that are recorded")]
+        public bool Recorded { get; set; }
     }
 
 	class Diff : FileCommand
@@ -115,6 +118,9 @@ namespace Versionr.Commands
                     {
                         if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
                         {
+                            if (localOptions.Recorded && x.Staged == false)
+                                continue;
+
                             if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
                             {
                                 Printer.PrintMessage("File: #b#{0}## is binary #w#different##.", x.CanonicalName);
@@ -182,6 +188,9 @@ namespace Versionr.Commands
                             recordMap[x.CanonicalName] = x;
                         foreach (var x in targets)
                         {
+                            if (localOptions.Recorded && x.Staged == false)
+                                continue;
+
                             Objects.Record otherRecord = null;
                             if (recordMap.TryGetValue(x.CanonicalName, out otherRecord))
                             {
