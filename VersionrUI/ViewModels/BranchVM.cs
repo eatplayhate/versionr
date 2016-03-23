@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System.Collections.Generic;
 using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -46,7 +47,7 @@ namespace VersionrUI.ViewModels
 
             PullCommand = new DelegateCommand(() => Load(Pull));
             PushCommand = new DelegateCommand(() => Load(Push));
-            CheckoutCommand = new DelegateCommand(Checkout, () => !IsCurrent);
+            CheckoutCommand = new DelegateCommand(() => Load(Checkout), () => !IsCurrent);
             LogCommand = new DelegateCommand(Log);
         }
 
@@ -160,26 +161,32 @@ namespace VersionrUI.ViewModels
             OperationStatusDialog.Finish();
         }
 
-        private async void Checkout()
+        private void Checkout()
         {
             if (_areaVM.Area.Status.HasModifications(false))
             {
-                int result = await CustomMessageBox.Show("Vault contains uncommitted changes.\nDo you want to force the checkout operation?",
-                                                   "Checkout",
-                                                   new string[] { "Checkout (keep unversioned files)",
-                                                                  "Checkout (purge unversioned files)",
-                                                                  "Cancel" },
-                                                   2);
+                MessageDialogResult result = MessageDialogResult.FirstAuxiliary;
+                MainWindow.Instance.Dispatcher.Invoke(async () =>
+                {
+                    MetroDialogSettings settings = new MetroDialogSettings()
+                    {
+                        AffirmativeButtonText = "Checkout (keep unversioned files)",
+                        NegativeButtonText = "Checkout (purge unversioned files)",
+                        FirstAuxiliaryButtonText = "Cancel",
+                        ColorScheme = MetroDialogColorScheme.Accented
+                    };
+                    result = await MainWindow.Instance.ShowMessageAsync("Checkout", "Vault contains uncommitted changes. Do you want to force the checkout operation?", MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
+                }).Wait();
 
                 switch (result)
                 {
-                    case 0:
+                    case MessageDialogResult.Affirmative:
                         DoCheckout(false);
                         break;
-                    case 1:
+                    case MessageDialogResult.Negative:
                         DoCheckout(true);
                         break;
-                    case 2:
+                    case MessageDialogResult.FirstAuxiliary:
                     default:
                         return;
                 }
@@ -192,13 +199,10 @@ namespace VersionrUI.ViewModels
 
         private void DoCheckout(bool purge)
         {
-            Load(() =>
-            {
-                OperationStatusDialog.Start("Checkout");
-                _areaVM.Area.Checkout(Name, purge, false, false);
-                _areaVM.RefreshChildren();
-                OperationStatusDialog.Finish();
-            });
+            OperationStatusDialog.Start("Checkout");
+            _areaVM.Area.Checkout(Name, purge, false, false);
+            _areaVM.RefreshChildren();
+            OperationStatusDialog.Finish();
         }
 
         private void Log()

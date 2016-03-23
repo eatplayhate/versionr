@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -164,7 +165,7 @@ namespace VersionrUI.ViewModels
             {
                 if (FileClassifier.Classify(_statusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
                 {
-                    MessageBox.Show(string.Format("File: {0} is binary different.", _statusEntry.CanonicalName));
+                    MainWindow.Instance.ShowMessageAsync("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _statusEntry.CanonicalName));
                 }
                 else
                 {
@@ -196,32 +197,32 @@ namespace VersionrUI.ViewModels
         public void RevertSelected()
         {
             List<StatusEntryVM> selectedItems = new List<StatusEntryVM>();
-
-            MainWindow.Instance.Dispatcher.Invoke(() =>
+            
+            MessageDialogResult result = MessageDialogResult.FirstAuxiliary;
+            MainWindow.Instance.Dispatcher.Invoke(async () =>
             {
                 selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
-            });
 
-            if (selectedItems.Any(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned))
-            {
-                MessageBoxResult result = MessageBoxResult.Cancel;
-                MainWindow.Instance.Dispatcher.Invoke(() =>
+                MetroDialogSettings settings = new MetroDialogSettings()
                 {
-                    result = MessageBox.Show("Do you want to delete selected files from disk?", "Delete unversioned file?", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-                });
-                if (result == MessageBoxResult.Cancel)
-                    return;
+                    ColorScheme = MetroDialogColorScheme.Accented
+                };
+
+                string message = String.Empty;
+                string plural = (selectedItems.Count > 1) ? "s" : "";
+                if (selectedItems.All(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
+                    message = String.Format("The selected item{0} will be permanently deleted. ", plural);
                 else
-                {
-                    bool deleteNewFile = (result == MessageBoxResult.Yes);
-                    _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, deleteNewFile);
-                }
-            }
-            else
+                    message = String.Format("All changes to the selected item{0} will be lost. ", plural);
+                
+                result = await MainWindow.Instance.ShowMessageAsync(String.Format("Reverting {0} item{1}", selectedItems.Count, plural), message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative, settings);
+            }).Wait();
+
+            if (result == MessageDialogResult.Affirmative)
             {
-                _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, false);
+                _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, true);
+                _statusVM.Refresh();
             }
-            _statusVM.Refresh();
         }
 
         private class Region

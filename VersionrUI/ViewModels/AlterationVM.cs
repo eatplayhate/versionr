@@ -1,4 +1,5 @@
-﻿using Microsoft.Win32;
+﻿using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Win32;
 using System;
 using System.IO;
 using System.Windows;
@@ -79,7 +80,7 @@ namespace VersionrUI.ViewModels
             if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
                 (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
-                MessageBox.Show(string.Format("Not showing binary differences."));
+                MainWindow.Instance.ShowMessageAsync("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
             }
             else
             {
@@ -110,7 +111,7 @@ namespace VersionrUI.ViewModels
         {
             if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
-                MessageBox.Show(string.Format("File: {0} is binary different.", _newRecord.CanonicalName));
+                MainWindow.Instance.ShowMessageAsync("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
             }
             else
             {

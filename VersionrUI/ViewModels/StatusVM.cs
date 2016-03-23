@@ -1,9 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
+using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
 {
@@ -162,19 +164,17 @@ namespace VersionrUI.ViewModels
         {
             if (string.IsNullOrEmpty(CommitMessage))
             {
-                MessageBox.Show("Please provide a commit message", "Denied", MessageBoxButton.OK, MessageBoxImage.Error);
+                MainWindow.Instance.ShowMessageAsync("Denied", "Please provide a commit message");
                 return;
             }
 
-            if (!_areaVM.Area.Commit(CommitMessage, false))
-            {
-                MessageBox.Show("Could not commit as it would create a new head.", "Commit failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            if (PushOnCommit)
-                _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
+            OperationStatusDialog.Start("Commit");
+            bool commitSuccessful = _areaVM.Area.Commit(CommitMessage, false);
             
+            if (commitSuccessful && PushOnCommit)
+                _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
+            OperationStatusDialog.Finish();
+
             CommitMessage = string.Empty;
             Refresh();
         }

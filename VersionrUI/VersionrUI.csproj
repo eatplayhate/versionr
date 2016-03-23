@@ -74,9 +74,6 @@
     <Compile Include="Controls\VersionrPanel.xaml.cs">
       <DependentUpon>VersionrPanel.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Dialogs\CustomMessageBox.xaml.cs">
-      <DependentUpon>CustomMessageBox.xaml</DependentUpon>
-    </Compile>
     <Compile Include="Dialogs\CloneNewDialog.xaml.cs">
       <DependentUpon>CloneNewDialog.xaml</DependentUpon>
     </Compile>
@@ -95,10 +92,6 @@
     <Compile Include="ViewModels\StatusEntryVM.cs" />
     <Compile Include="ViewModels\StatusVM.cs" />
     <Compile Include="ViewModels\VersionVM.cs" />
-    <Page Include="Dialogs\CustomMessageBox.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
     <Page Include="Dialogs\CloneNewDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

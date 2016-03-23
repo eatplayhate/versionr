@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -58,7 +59,7 @@ namespace VersionrUI.ViewModels
                     }
                     else
                     {
-                        MessageBox.Show(string.Format("Couldn't connect to {0}:{1}", host, port), "Clone Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MainWindow.Instance.ShowMessageAsync("Clone Failed", String.Format("Couldn't connect to {0}:{1}", host, port));
                     }
                     client.Close();
                     break;
@@ -70,7 +71,7 @@ namespace VersionrUI.ViewModels
                     }
                     catch
                     {
-                        MessageBox.Show("Error - couldn't create subdirectory \"{0}\"", dir.FullName);
+                        MainWindow.Instance.ShowMessageAsync("Init Failed", String.Format("couldn't create subdirectory \"{0}\"", dir.FullName));
                         break;
                     }
                     _area = Area.Init(dir, name);
@@ -195,7 +196,7 @@ namespace VersionrUI.ViewModels
                     {
                         MainWindow.Instance.Dispatcher.Invoke(() =>
                         {
-                            MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                            MainWindow.Instance.ShowMessageAsync("Command Failed", String.Format("Couldn't connect to remote {0}:{1} while processing {2} command!", SelectedRemote.Host, SelectedRemote.Port, command));
                         });
                     }
                 }

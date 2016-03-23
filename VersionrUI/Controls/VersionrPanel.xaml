@@ -374,11 +374,7 @@
                                      SelectedItem="{Binding SelectedArea}">
                 <mahapps:MetroTabControl.ItemTemplate>
                     <DataTemplate>
-                        <DockPanel>
-                            <TextBlock Margin="4,2"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding Name}" />
-                        </DockPanel>
+                        <TextBlock Text="{Binding Name}" />
                     </DataTemplate>
                 </mahapps:MetroTabControl.ItemTemplate>
                 <mahapps:MetroTabControl.ItemContainerStyle>

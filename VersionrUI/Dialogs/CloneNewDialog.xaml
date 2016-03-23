@@ -55,8 +55,16 @@
         <StackPanel Margin="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Center">
-            <Button Margin="4" Width="60" Command="{Binding OkCommand}" IsDefault="True" Content="Ok" />
-            <Button Margin="4" Width="60" Command="{Binding CancelCommand}" IsCancel="True" Content="Cancel" />
+            <Button Command="{Binding OkCommand}"
+                    IsDefault="True"
+                    Content="Ok"
+                    Height="35" Width="80" Margin="5 0 5 0"
+                    Style="{DynamicResource AccentedDialogSquareButton}" />
+            <Button Command="{Binding CancelCommand}"
+                    IsCancel="True"
+                    Content="Cancel"
+                    Height="35" Width="80" Margin="5 0 5 0"
+                    Style="{DynamicResource AccentedDialogSquareButton}" />
         </StackPanel>
     </mahapps:CustomDialog.DialogBottom>
 
