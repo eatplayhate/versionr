@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Windows;
 
 namespace VersionrUI
@@ -8,6 +9,8 @@ namespace VersionrUI
     /// </summary>
     public partial class MainWindow
     {
+        public static readonly MetroDialogColorScheme DialogColorScheme = MetroDialogColorScheme.Accented;
+
         private bool _userSettingsLoaded = false;
 
         public MainWindow()

@@ -173,7 +173,7 @@ namespace VersionrUI.ViewModels
                         AffirmativeButtonText = "Checkout (keep unversioned files)",
                         NegativeButtonText = "Checkout (purge unversioned files)",
                         FirstAuxiliaryButtonText = "Cancel",
-                        ColorScheme = MetroDialogColorScheme.Accented
+                        ColorScheme = MainWindow.DialogColorScheme
                     };
                     result = await MainWindow.Instance.ShowMessageAsync("Checkout", "Vault contains uncommitted changes. Do you want to force the checkout operation?", MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
                 }).Wait();

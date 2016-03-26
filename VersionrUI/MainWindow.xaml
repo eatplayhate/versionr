@@ -9,6 +9,10 @@
         StateChanged="Window_StateChanged"
         Title="Versionr"
         Width="825" Height="650">
+
+    <mahapps:MetroWindow.Resources>
+
+    </mahapps:MetroWindow.Resources>
     <Grid>
         <controls:VersionrPanel />
     </Grid>

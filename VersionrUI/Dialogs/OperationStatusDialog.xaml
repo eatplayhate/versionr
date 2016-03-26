@@ -19,7 +19,7 @@
     </mahapps:CustomDialog.Content>
 
     <mahapps:CustomDialog.DialogBottom>
-        <Grid>
+        <Grid Height="85">
             <Button Command="{Binding CloseCommand}"
                     Content="Close"
                     Height="35"

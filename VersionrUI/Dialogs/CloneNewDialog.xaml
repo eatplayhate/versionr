@@ -9,6 +9,33 @@
         mc:Ignorable="d"
         Title="Clone/Init Repo">
 
+    <mahapps:CustomDialog.Resources>
+        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource AccentedDialogSquareButton}">
+            <Setter Property="Height" Value="35" />
+            <Setter Property="MinWidth" Value="80" />
+            <Setter Property="Margin" Value="5,0" />
+        </Style>
+
+        <Style TargetType="{x:Type Label}" BasedOn="{StaticResource {x:Type Label}}">
+            <Setter Property="Foreground" Value="{DynamicResource IdealForegroundColorBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="50" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="{x:Type RadioButton}" BasedOn="{StaticResource MetroRadioButton}">
+            <Setter Property="Foreground" Value="{DynamicResource IdealForegroundColorBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="50" />
+                    <Setter Property="Background" Value="{DynamicResource HighlightBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </mahapps:CustomDialog.Resources>
+    
     <mahapps:CustomDialog.Content>
 
         <StackPanel Orientation="Vertical">
@@ -24,13 +51,33 @@
                     <RowDefinition />
                 </Grid.RowDefinitions>
 
-                <Label Grid.Column="0" Grid.Row="0" Margin="4" Content="Destination:" />
-                <TextBox Grid.Column="1" Grid.Row="0" Margin="4" Text="{Binding PathString}" />
-                <Button Grid.Column="2" Grid.Row="0" Margin="4" Command="{Binding PathBrowseCommand}" Content="..." Width="20" />
-                <Image Grid.Column="3" Grid.Row="0" Margin="4" Source="{Binding PathStatus}" Width="20" />
+                <Label Grid.Column="0" Grid.Row="0"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Content="Destination:" />
+                <TextBox Grid.Column="1" Grid.Row="0"
+                         Margin="4"
+                        VerticalAlignment="Center"
+                         Text="{Binding PathString}" />
+                <Button Grid.Column="2" Grid.Row="0"
+                        Command="{Binding PathBrowseCommand}"
+                        Content="..."
+                        VerticalAlignment="Center"
+                        MinWidth="24" Width="24" Height="28" />
+                <Image Grid.Column="3" Grid.Row="0" 
+                       Margin="4"
+                       Source="{Binding PathStatus}"
+                       Width="20" />
 
-                <Label Grid.Column="0" Grid.Row="1" Margin="4" Content="Name:" />
-                <TextBox Grid.Column="1" Grid.Row="1" Margin="4" Text="{Binding NameString}" KeyDown="TextBox_Name_KeyDown" />
+                <Label Grid.Column="0" Grid.Row="1"
+                           Margin="4"
+                           VerticalAlignment="Center"
+                           Content="Name:" />
+                <TextBox Grid.Column="1" Grid.Row="1"
+                         Margin="4"
+                         VerticalAlignment="Center"
+                         Text="{Binding NameString}"
+                         KeyDown="TextBox_Name_KeyDown" />
                 <Image Grid.Column="3" Grid.Row="1" Margin="4" Source="{Binding NameStatus}" Width="20" />
             </Grid>
 
@@ -42,29 +89,26 @@
                             Orientation="Horizontal"
                             HorizontalAlignment="Center"
                             Visibility="{Binding HostFieldVisibility}">
-                    <Label Content="Host:" />
-                    <TextBox Width="180" Text="{Binding Host}" />
-                    <Label Content="Port:" />
-                    <TextBox Width="60" Text="{Binding Port}" />
+                    <Label Margin="4" VerticalAlignment="Center" Content="Host:" />
+                    <TextBox Margin="4" Width="180" VerticalAlignment="Center" Text="{Binding Host}" />
+                    <Label Margin="4" VerticalAlignment="Center" Content="Port:" />
+                    <TextBox Margin="4" Width="60" VerticalAlignment="Center" Text="{Binding Port}" />
                 </StackPanel>
             </StackPanel>
         </StackPanel>
     </mahapps:CustomDialog.Content>
 
     <mahapps:CustomDialog.DialogBottom>
-        <StackPanel Margin="4"
+        <StackPanel Height="85"
+                    Margin="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Center">
             <Button Command="{Binding OkCommand}"
                     IsDefault="True"
-                    Content="Ok"
-                    Height="35" Width="80" Margin="5 0 5 0"
-                    Style="{DynamicResource AccentedDialogSquareButton}" />
+                    Content="Ok" />
             <Button Command="{Binding CancelCommand}"
                     IsCancel="True"
-                    Content="Cancel"
-                    Height="35" Width="80" Margin="5 0 5 0"
-                    Style="{DynamicResource AccentedDialogSquareButton}" />
+                    Content="Cancel" />
         </StackPanel>
     </mahapps:CustomDialog.DialogBottom>
 

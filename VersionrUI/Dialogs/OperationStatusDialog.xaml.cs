@@ -52,6 +52,8 @@ namespace VersionrUI.Dialogs
 
         public OperationStatusDialog()
         {
+            DialogSettings.ColorScheme = MetroDialogColorScheme.Accented;
+
             CloseCommand = new DelegateCommand(Close, CanClose);
             InitializeComponent();
             

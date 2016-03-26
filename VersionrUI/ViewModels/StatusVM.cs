@@ -164,7 +164,11 @@ namespace VersionrUI.ViewModels
         {
             if (string.IsNullOrEmpty(CommitMessage))
             {
-                MainWindow.Instance.ShowMessageAsync("Denied", "Please provide a commit message");
+                MetroDialogSettings settings = new MetroDialogSettings()
+                {
+                    ColorScheme = MainWindow.DialogColorScheme
+                };
+                MainWindow.Instance.ShowMessageAsync("Not so fast...", "Please provide a commit message", MessageDialogStyle.Affirmative, settings);
                 return;
             }
 

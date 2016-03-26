@@ -33,9 +33,9 @@
                                    Text="{Binding Directory.FullName}"
                                    FontWeight="Bold" />
                         <Button Grid.Row="1"
-                                Margin="4"
                                 Content="Refresh Area"
-                                Command="{Binding RefreshCommand}" />
+                                Command="{Binding RefreshCommand}"
+                                Style="{StaticResource LinkButtonStyle}" />
                         <ComboBox Grid.Row="2"
                                   Margin="4"
                                   ItemsSource="{Binding Remotes}"
@@ -232,12 +232,12 @@
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0">
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-                            <Button Margin="4"
-                                    Content="Refresh Status"
-                                    Command="{Binding RefreshCommand}" />
-                            <Button Margin="4"
-                                    Content="Commit"
-                                    Command="{Binding CommitCommand}" />
+                            <Button Content="Refresh Status"
+                                    Command="{Binding RefreshCommand}"
+                                    Style="{StaticResource LinkButtonStyle}" />
+                            <Button Content="Commit"
+                                    Command="{Binding CommitCommand}"
+                                    Style="{StaticResource LinkButtonStyle}" />
                             <CheckBox Margin="4"
                                         Content="Push after commit"
                                         IsChecked="{Binding PushOnCommit}" />
@@ -347,21 +347,22 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0"
                             Orientation="Horizontal">
-                    <Button Margin="4" Content="Clone/Init" Command="{Binding NewAreaCommand}" />
+                    <Button Content="Clone/Init"
+                            Command="{Binding NewAreaCommand}"
+                            Style="{StaticResource LinkButtonStyle}" />
                 </StackPanel>
                 <Button Grid.Column="1"
-                        Margin="4"
                         Width="50" Height="50"
                         HorizontalAlignment="Right"
                         Content="CRASH"
-                        Foreground="{StaticResource AccentColorBrush}"
                         FontWeight="Bold"
                         FontSize="13"
-                        Command="{Binding CloseCommand}">
+                        Command="{Binding CloseCommand}"
+                        Style="{StaticResource LinkButtonStyle}">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Grid>
-                                <Ellipse Fill="Transparent" Stroke="{StaticResource AccentColorBrush}" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                <Ellipse Fill="Transparent" Stroke="{TemplateBinding Foreground}" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </ControlTemplate>

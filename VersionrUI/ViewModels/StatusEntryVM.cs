@@ -205,7 +205,7 @@ namespace VersionrUI.ViewModels
 
                 MetroDialogSettings settings = new MetroDialogSettings()
                 {
-                    ColorScheme = MetroDialogColorScheme.Accented
+                    ColorScheme = MainWindow.DialogColorScheme
                 };
 
                 string message = String.Empty;

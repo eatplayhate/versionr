@@ -30,6 +30,8 @@ namespace VersionrUI.Dialogs
 
         public CloneNewDialog()
         {
+            DialogSettings.ColorScheme = MetroDialogColorScheme.Accented;
+
             InitializeComponent();
             DataContext = this;
 
