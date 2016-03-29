@@ -11,6 +11,8 @@
         mc:Ignorable="d"
         Title="Log"
         d:DesignHeight="300" d:DesignWidth="300"
+        BorderThickness="1"
+        BorderBrush="{DynamicResource AccentColorBrush}"
         WindowStyle="ToolWindow">
 
     <Window.Resources>

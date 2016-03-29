@@ -38,7 +38,6 @@ namespace Versionr
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
-        public Newtonsoft.Json.Linq.JObject Configuration { get; set; }
 
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
 
@@ -396,7 +395,7 @@ namespace Versionr
             rebaseVersion.Message = message;
             rebaseVersion.Parent = parentVersion.ID;
             rebaseVersion.Published = false;
-            rebaseVersion.Author = Environment.UserName;
+            rebaseVersion.Author = Directives.UserName;
             rebaseVersion.Branch = parentVersion.Branch;
             rebaseVersion.Timestamp = DateTime.UtcNow;
             MergeInfo mergeInfo = new MergeInfo();
@@ -1393,7 +1392,7 @@ namespace Versionr
             Objects.Version version = GetVersion(initialRevision);
             Objects.Branch branch = GetBranch(version.Branch);
 
-            ws.Name = Environment.UserName;
+            ws.Name = Directives.UserName;
             ws.Branch = branch.ID;
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
@@ -1432,7 +1431,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Imported version {0}", version.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = Environment.UserName;
+            ws.Name = Directives.UserName;
 
             head.Branch = branch.ID;
             head.Version = version.ID;
@@ -1641,7 +1640,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Created branch \"{0}\", ID: {1}.", branch.Name, branch.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = Environment.UserName;
+            ws.Name = Directives.UserName;
             version.Parent = null;
             version.Timestamp = DateTime.UtcNow;
             version.Author = ws.Name;
@@ -2065,88 +2064,26 @@ namespace Versionr
         {
             return Database.GetMergeInfo(iD);
         }
-
-
-		private void LoadVRMeta()
+        
+		public void LoadDirectives()
 		{
-			Configuration = null;
-			FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-			if (info.Exists)
-			{
-				string data = string.Empty;
-				using (var sr = info.OpenText())
-				{
-					data = sr.ReadToEnd();
-				}
-				try
-				{
-					Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
-					Directives = LoadConfigurationElement<Directives>("Versionr");
-				}
-				catch (Exception e)
-				{
-					Printer.PrintError("#x#Error:## .vrmeta is malformed!");
-					Printer.PrintMessage(e.ToString());
+            string error;
 
-					if (Directives == null)
-						Directives = new Directives();
-				}
-			}
-			else
-				Directives = new Directives();
+            // Load .vrmeta
+            Directives directives = DirectivesUtils.LoadVRMeta(this, out error);
+            Directives = (directives != null) ? directives : new Directives();
+
+            // Load global .vruser
+            directives = DirectivesUtils.LoadGlobalVRUser(out error);
+            if (directives != null)
+                Directives.Merge(directives);
+
+            // Load .vruser
+            directives = DirectivesUtils.LoadVRUser(this, out error);
+            if (directives != null)
+                Directives.Merge(directives);
 		}
-
-		private void LoadVRUser(string path)
-		{
-			FileInfo localInfo = new FileInfo(path);
-			if (localInfo.Exists)
-			{
-				string data = string.Empty;
-				using (var sr = localInfo.OpenText())
-				{
-					data = sr.ReadToEnd();
-				}
-				try
-				{
-					var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
-					var localDirJSON = localObj["Versionr"];
-					if (localDirJSON != null)
-					{
-						var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
-						if (localDirectives != null)
-						{
-							if (Directives != null)
-								Directives.Merge(localDirectives);
-							else
-								Directives = localDirectives;
-						}
-					}
-				}
-				catch (Exception e)
-				{
-					Printer.PrintError("#x#Error:## .vruser is malformed!");
-					Printer.PrintMessage(e.ToString());
-				}
-			}
-		}
-
-		private void LoadDirectives()
-		{
-			LoadVRMeta();
-			LoadVRUser(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".vruser"));
-			LoadVRUser(Path.Combine(Root.FullName, ".vruser"));
-		}
-
-
-		public T LoadConfigurationElement<T>(string v)
-            where T : new()
-        {
-            var element = Configuration[v];
-            if (element == null)
-                return new T();
-            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
-        }
-
+        
         private bool Load(bool headless = false)
         {
             try
@@ -2602,7 +2539,7 @@ namespace Versionr
                                 mergeVersion = x;
                             break;
                         }
-                        if (x.Author == Environment.UserName)
+                        if (x.Author == Directives.UserName)
                         {
                             backup = x;
                         }
@@ -3129,7 +3066,7 @@ namespace Versionr
 					{
 						Utilities.Symlink.Delete(path);
 					}
-					catch (Exception e)
+					catch (Exception)
 					{
 						Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
 					}
@@ -4279,7 +4216,7 @@ namespace Versionr
                         RestoreRecord(x, newRefTime, null, null, feedback);
                         System.Threading.Interlocked.Increment(ref count);
                     }
-                    catch (Utilities.Symlink.TargetNotFoundException e)
+                    catch (Utilities.Symlink.TargetNotFoundException)
                     {
                         Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
                         pendingSymlinks.Add(x);
@@ -4315,7 +4252,7 @@ namespace Versionr
 						done.Add(x);
 						Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
 					}
-					catch (Utilities.Symlink.TargetNotFoundException e)
+					catch (Utilities.Symlink.TargetNotFoundException)
 					{
 						// do nothing...
 						if (attempts == 0)
@@ -4709,7 +4646,7 @@ namespace Versionr
                                 {
                                     mineFile.Delete();
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     Printer.PrintMessage("Couldn't delete: {0}", mineFile.FullName);
                                 }
@@ -4721,7 +4658,7 @@ namespace Versionr
                                 {
                                     theirsFile.Delete();
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     Printer.PrintMessage("Couldn't delete: {0}", theirsFile.FullName);
                                 }
@@ -4733,7 +4670,7 @@ namespace Versionr
                                 {
                                     baseFile.Delete();
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     Printer.PrintMessage("Couldn't delete: {0}", baseFile.FullName);
                                 }
@@ -4792,7 +4729,7 @@ namespace Versionr
                         {
                             Objects.Version vs = null;
                             vs = Objects.Version.Create();
-                            vs.Author = Environment.UserName;
+                            vs.Author = Directives.UserName;
                             vs.Parent = Database.Version.ID;
                             vs.Branch = Database.Branch.ID;
                             Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);

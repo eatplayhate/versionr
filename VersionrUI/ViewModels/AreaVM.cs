@@ -29,6 +29,7 @@ namespace VersionrUI.ViewModels
         private List<BranchVM> _branches;
         private List<RemoteConfig> _remotes;
         private StatusVM _status;
+        public SettingsVM _settings;
 
         public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
@@ -118,11 +119,12 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_branches == null || _status == null)
+                if (_branches == null || _status == null || _settings == null)
                     Load(RefreshChildren);
 
                 CompositeCollection collection = new CompositeCollection();
                 collection.Add(_status);
+                collection.Add(_settings);
                 collection.Add(new NamedCollection("Branches", _branches?.Where(x => !x.IsDeleted)));
                 collection.Add(new NamedCollection("Deleted Branches", _branches?.Where(x => x.IsDeleted)));
                 return collection;
@@ -139,16 +141,13 @@ namespace VersionrUI.ViewModels
             {
                 // Refresh status
                 if (_status == null)
-                {
-                    // Assume the active directory is the root of the Area
                     _status = new StatusVM(this);
-                }
                 else
-                {
                     _status.Refresh();
-                }
 
-
+                // Reload user settings
+                _settings = new SettingsVM(_area);
+                
                 // Refresh branches
                 IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
                 _branches = new List<BranchVM>();

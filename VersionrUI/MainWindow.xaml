@@ -8,7 +8,9 @@
         LocationChanged="Window_LocationChanged"
         StateChanged="Window_StateChanged"
         Title="Versionr"
-        Width="825" Height="650">
+        Width="825" Height="650"
+        BorderThickness="1"
+        BorderBrush="{DynamicResource AccentColorBrush}">
 
     <mahapps:MetroWindow.Resources>
 

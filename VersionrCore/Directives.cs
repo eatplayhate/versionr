@@ -138,6 +138,14 @@ namespace Versionr
         public string ExternalMerge2Way { get; set; }
         public SvnCompatibility Svn { get; set; }
         public Dictionary<string, Extern> Externals { get; set; }
+
+        private string m_UserName;
+        public string UserName
+        {
+            get { return (String.IsNullOrEmpty(m_UserName)) ? Environment.UserName : m_UserName; }
+            set { m_UserName = value; }
+        }
+
         public Directives()
         {
             Ignore = new Ignores();
@@ -168,6 +176,8 @@ namespace Versionr
                 ExternalMerge2Way = other.ExternalMerge2Way;
             if (other.NonBlockingDiff != null)
                 NonBlockingDiff = other.NonBlockingDiff;
+            if (other.m_UserName != null)
+                m_UserName = other.m_UserName;
 
             if (other.Externals != null)
             {
