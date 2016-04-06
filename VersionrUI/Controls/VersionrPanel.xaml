@@ -331,65 +331,6 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-
-
-                    <!--<mahapps:MetroTabControl ItemsSource="{Binding SubSettingsArray}"
-                                     SelectedItem="{Binding SelectedSubSettings}">
-                        <mahapps:MetroTabControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Name}" />
-                            </DataTemplate>
-                        </mahapps:MetroTabControl.ItemTemplate>
-                        <mahapps:MetroTabControl.ContentTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Label Grid.Column="0" Grid.Row="0" Margin="4" Content="UserName"
-                                   mahapps:TextBoxHelper.Watermark="{Binding UserNameWatermark}" />
-                                    <TextBox Grid.Column="1" Grid.Row="0" Margin="4" Text="{Binding UserName}" />
-                                    <Label Grid.Column="0" Grid.Row="1" Margin="4" Content="External Diff" />
-                                    <TextBox Grid.Column="1" Grid.Row="1" Margin="4" Text="{Binding ExternalDiff}" />
-                                    <Label Grid.Column="0" Grid.Row="2" Margin="4" Content="External Merge (2 way)" />
-                                    <TextBox Grid.Column="1" Grid.Row="2" Margin="4" Text="{Binding ExternalMerge2Way}" />
-                                    <Label Grid.Column="0" Grid.Row="3" Margin="4" Content="External Merge (3 way)" />
-                                    <TextBox Grid.Column="1" Grid.Row="3" Margin="4" Text="{Binding ExternalMerge}" />
-                                    <StackPanel Grid.Column="1" Grid.Row="4"
-                                Orientation="Horizontal">
-                                        <Label Margin="4" Content="Ignores" />
-                                        <StackPanel Margin="4" Orientation="Vertical">
-                                            <ComboBox SelectedValuePath="Key"
-                                              DisplayMemberPath="Value"
-                                              ItemsSource="{Binding Ignores.IgnoreLists}"
-                                              SelectedValue="{Binding Ignores.SelectedList}" />
-                                            <TextBox Height="300" Width="300"
-                                             Text="{Binding Ignores.SelectedList, Converter={StaticResource MultilineStringConverter}}" />
-                                        </StackPanel>
-                                        <Label Margin="4" Content="Includes" />
-                                        <StackPanel Margin="4" Orientation="Vertical">
-                                            <ComboBox SelectedValuePath="Key"
-                                              DisplayMemberPath="Value"
-                                              ItemsSource="{Binding Includes.IgnoreLists}"
-                                              SelectedValue="{Binding Includes.SelectedList}" />
-                                            <TextBox Height="300" Width="300"
-                                             Text="{Binding Includes.SelectedList, Converter={StaticResource MultilineStringConverter}}" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </DataTemplate>
-                        </mahapps:MetroTabControl.ContentTemplate>
-                    </mahapps:MetroTabControl>-->
-
                     <StackPanel Grid.Row="0" Orientation="Vertical">
                         <RadioButton Margin="8,4" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:SettingsViewMode.Meta}" Content="Repo settings" />
                         <RadioButton Margin="8,4" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:SettingsViewMode.UserGlobal}" Content="Global user settings" />
@@ -424,6 +365,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Margin="8,4,8,8" 
                                                Text="{Binding Error}"
@@ -439,29 +381,10 @@
                                     <TextBox Grid.Column="1" Grid.Row="3" Margin="4" Text="{Binding ExternalMerge2Way}" IsReadOnly="{Binding IsReadOnly}" />
                                     <Label Grid.Column="0" Grid.Row="4" Margin="4" Content="External Merge (3 way)" />
                                     <TextBox Grid.Column="1" Grid.Row="4" Margin="4" Text="{Binding ExternalMerge}" IsReadOnly="{Binding IsReadOnly}" />
-                                    <StackPanel Grid.Column="1" Grid.Row="5"
-                                        Orientation="Horizontal">
-                                        <Label Margin="4" Content="Ignores" />
-                                        <StackPanel Margin="4" Orientation="Vertical">
-                                            <ComboBox DisplayMemberPath="Name"
-                                                      ItemsSource="{Binding Ignores.IgnoreLists}"
-                                                      SelectedItem="{Binding Ignores.SelectedPair}" />
-                                            <TextBox Height="300" Width="300"
-                                                     Text="{Binding Ignores.SelectedList, Converter={StaticResource MultilineStringConverter}}"
-                                                     IsReadOnly="{Binding IsReadOnly}"
-                                                     AcceptsReturn="True" />
-                                        </StackPanel>
-                                        <Label Margin="4" Content="Includes" />
-                                        <StackPanel Margin="4" Orientation="Vertical">
-                                            <ComboBox DisplayMemberPath="Name"
-                                                      ItemsSource="{Binding Includes.IgnoreLists}"
-                                                      SelectedItem="{Binding Includes.SelectedPair}" />
-                                            <TextBox Height="300" Width="300"
-                                                     Text="{Binding Includes.SelectedList, Converter={StaticResource MultilineStringConverter}}"
-                                                     IsReadOnly="{Binding IsReadOnly}"
-                                                     AcceptsReturn="True" />
-                                        </StackPanel>
-                                    </StackPanel>
+                                    <Label Grid.Column="0" Grid.Row="5" Margin="4" Content="Ignores" />
+                                    <ContentPresenter Grid.Column="1" Grid.Row="5" Content="{Binding Ignores}" />
+                                    <Label Grid.Column="0" Grid.Row="6" Margin="4" Content="Includes" />
+                                    <ContentPresenter Grid.Column="1" Grid.Row="6" Content="{Binding Includes}" />
                                 </Grid>
                             </ScrollViewer>
                         </Grid>
@@ -470,7 +393,47 @@
                 <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
-        
+
+        <DataTemplate DataType="{x:Type vm:IgnoresVM}">
+            <WrapPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Directory Patterns" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding DirectoryPatterns, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="File Patterns" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding FilePatterns, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Directories" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding Directories, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Extensions" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding Extensions, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Patterns" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding Patterns, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+            </WrapPanel>
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:NamedCollection}">
         </DataTemplate>
 

@@ -1,76 +1,88 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using Versionr;
 
 namespace VersionrUI.ViewModels
 {
     public class IgnoresVM : NotifyPropertyChangedBase
     {
-        public class NameArrayPair
-        {
-            public string Name { get; set; }
-            public string[] Array { get; set; }
-        }
-
-        public event EventHandler ListChanged;
-
         private Ignores _ignores;
-        private List<NameArrayPair> _ignoreLists;
-        private NameArrayPair _selectedPair;
+        
+        public event EventHandler Dirtied;
 
-        public IgnoresVM(Ignores ignores)
+        public IgnoresVM(Ignores ignores, bool isReadOnly)
         {
             _ignores = ignores;
-            _ignoreLists = new List<NameArrayPair>();
+            if (_ignores == null)
+                _ignores = new Ignores();
 
-            // TODO: Can't use ignores?.DirectoryPatterns here because we need to set to the original property
-            // and we also need to handle the _ignores being null
-
-            AddEntry("Directory Patterns", ignores?.DirectoryPatterns);
-            AddEntry("File Patterns", ignores?.FilePatterns);
-            AddEntry("Directories", ignores?.Directories);
-            AddEntry("Extensions", ignores?.Extensions);
-            AddEntry("Patterns", ignores?.Patterns);
-            
-            SelectedPair = _ignoreLists.FirstOrDefault();
+            IsReadOnly = isReadOnly;
         }
 
-        public List<NameArrayPair> IgnoreLists
+        public Ignores Ignores
         {
-            get { return _ignoreLists; }
+            get { return _ignores; }
         }
 
-        public NameArrayPair SelectedPair
+        public bool IsReadOnly { get; private set; }
+
+        public string[] DirectoryPatterns
         {
-            get { return _selectedPair; }
+            get { return _ignores.DirectoryPatterns; }
             set
             {
-                _selectedPair = value;
-                NotifyPropertyChanged("SelectedPair");
-                NotifyPropertyChanged("SelectedList");
+                _ignores.DirectoryPatterns = value;
+                if (Dirtied != null)
+                    Dirtied(this, new EventArgs());
+                NotifyPropertyChanged("DirectoryPatterns");
             }
         }
 
-        public string[] SelectedList
+        public string[] FilePatterns
         {
-            get { return _selectedPair.Array; }
+            get { return _ignores.FilePatterns; }
             set
             {
-                _selectedPair.Array = value;
-                if(ListChanged != null)
-                    ListChanged(this, new EventArgs());
-                NotifyPropertyChanged("SelectedList");
+                _ignores.FilePatterns = value;
+                if (Dirtied != null)
+                    Dirtied(this, new EventArgs());
+                NotifyPropertyChanged("FilePatterns");
             }
         }
 
-        private void AddEntry(string name, string[] collection)
+        public string[] Directories
         {
-            _ignoreLists.Add(new NameArrayPair()
+            get { return _ignores.Directories; }
+            set
             {
-                Name = name,
-                Array = (collection != null) ? collection : new string[0]
-            });
+                _ignores.Directories = value;
+                if (Dirtied != null)
+                    Dirtied(this, new EventArgs());
+                NotifyPropertyChanged("Directories");
+            }
+        }
+
+        public string[] Extensions
+        {
+            get { return _ignores.Extensions; }
+            set
+            {
+                _ignores.Extensions = value;
+                if (Dirtied != null)
+                    Dirtied(this, new EventArgs());
+                NotifyPropertyChanged("Extensions");
+            }
+        }
+
+        public string[] Patterns
+        {
+            get { return _ignores.Patterns; }
+            set
+            {
+                _ignores.Patterns = value;
+                if (Dirtied != null)
+                    Dirtied(this, new EventArgs());
+                NotifyPropertyChanged("Patterns");
+            }
         }
     }
 }

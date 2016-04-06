@@ -210,7 +210,7 @@ namespace VersionrUI.ViewModels
                 else
                     message = String.Format("All changes to the selected item{0} will be lost. ", plural);
                 
-                result = await MainWindow.ShowMessage(String.Format("Reverting {0} item{1}", selectedItems.Count, plural), message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative, settings);
+                result = await MainWindow.ShowMessage(String.Format("Reverting {0} item{1}", selectedItems.Count, plural), message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative);
             }).Wait();
 
             if (result == MessageDialogResult.Affirmative)

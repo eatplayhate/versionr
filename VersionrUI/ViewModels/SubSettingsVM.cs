@@ -48,11 +48,11 @@ namespace VersionrUI.ViewModels
             if (_directives == null)
                 _directives = new Directives();
             
-            _ignores = new IgnoresVM(_directives.Ignore);
-            _ignores.ListChanged += (s, e) => IsDirty = true;
+            _ignores = new IgnoresVM(_directives.Ignore, IsReadOnly);
+            _ignores.Dirtied += (s, e) => IsDirty = true;
 
-            _includes = new IgnoresVM(_directives.Include);
-            _includes.ListChanged += (s, e) => IsDirty = true;
+            _includes = new IgnoresVM(_directives.Include, IsReadOnly);
+            _includes.Dirtied += (s, e) => IsDirty = true;
         }
 
         public bool IsDirty
@@ -186,6 +186,11 @@ namespace VersionrUI.ViewModels
         
         private void Save()
         {
+            if (_directives.Ignore == null)
+                _directives.Ignore = _ignores.Ignores;
+            if (_directives.Include == null)
+                _directives.Include = _includes.Ignores;
+
             bool success = false;
             switch (_viewMode)
             {
