@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -25,7 +24,7 @@ namespace VersionrUI.ViewModels
             _areaVM = areaVM;
 
             RefreshCommand = new DelegateCommand(() => Load(Refresh));
-            CommitCommand = new DelegateCommand(Commit);
+            CommitCommand = new DelegateCommand(() => Load(Commit), CanCommit);
         }
 
         public Status Status
@@ -95,13 +94,17 @@ namespace VersionrUI.ViewModels
                 NotifyPropertyChanged("Status");
                 NotifyPropertyChanged("Elements");
                 NotifyPropertyChanged("AllStaged");
+                MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
             }
         }
 
         private void StatusVM_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == "IsStaged")
+            {
                 NotifyPropertyChanged("AllStaged");
+                MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+            }
         }
 
         public List<StatusEntryVM> Elements
@@ -140,6 +143,7 @@ namespace VersionrUI.ViewModels
                         st.IsStaged = useValue;
                     }
                     NotifyPropertyChanged("AllStaged");
+                    MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
                 }
             }
         }
@@ -158,17 +162,22 @@ namespace VersionrUI.ViewModels
             });
 
             NotifyPropertyChanged("AllStaged");
+            MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+        }
+
+        private bool CanCommit()
+        {
+            return _elements != null && _elements.Count(x => x.IsStaged) > 0;
         }
 
         private void Commit()
         {
             if (string.IsNullOrEmpty(CommitMessage))
             {
-                MetroDialogSettings settings = new MetroDialogSettings()
+                MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
-                    ColorScheme = MainWindow.DialogColorScheme
-                };
-                MainWindow.Instance.ShowMessageAsync("Not so fast...", "Please provide a commit message", MessageDialogStyle.Affirmative, settings);
+                    MainWindow.ShowMessage("Not so fast...", "Please provide a commit message", MessageDialogStyle.Affirmative);
+                });
                 return;
             }
 

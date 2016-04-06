@@ -60,7 +60,7 @@ namespace VersionrUI.ViewModels
                     }
                     else
                     {
-                        MainWindow.Instance.ShowMessageAsync("Clone Failed", String.Format("Couldn't connect to {0}:{1}", host, port));
+                        MainWindow.ShowMessage("Clone Failed", String.Format("Couldn't connect to {0}:{1}", host, port));
                     }
                     client.Close();
                     break;
@@ -72,7 +72,7 @@ namespace VersionrUI.ViewModels
                     }
                     catch
                     {
-                        MainWindow.Instance.ShowMessageAsync("Init Failed", String.Format("couldn't create subdirectory \"{0}\"", dir.FullName));
+                        MainWindow.ShowMessage("Init Failed", String.Format("Couldn't create subdirectory \"{0}\"", dir.FullName));
                         break;
                     }
                     _area = Area.Init(dir, name);
@@ -188,16 +188,9 @@ namespace VersionrUI.ViewModels
                 try
                 {
                     if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
-                    {
                         action.Invoke(client);
-                    }
                     else
-                    {
-                        MainWindow.Instance.Dispatcher.Invoke(() =>
-                        {
-                            MainWindow.Instance.ShowMessageAsync("Command Failed", String.Format("Couldn't connect to remote {0}:{1} while processing {2} command!", SelectedRemote.Host, SelectedRemote.Port, command));
-                        });
-                    }
+                        OperationStatusDialog.Write(String.Format("Couldn't connect to remote {0}:{1} while processing {2} command!", SelectedRemote.Host, SelectedRemote.Port, command));
                 }
                 catch { }
                 finally

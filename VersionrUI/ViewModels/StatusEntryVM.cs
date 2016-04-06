@@ -165,7 +165,7 @@ namespace VersionrUI.ViewModels
             {
                 if (FileClassifier.Classify(_statusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
                 {
-                    MainWindow.Instance.ShowMessageAsync("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _statusEntry.CanonicalName));
+                    MainWindow.ShowMessage("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _statusEntry.CanonicalName));
                 }
                 else
                 {
@@ -202,12 +202,7 @@ namespace VersionrUI.ViewModels
             MainWindow.Instance.Dispatcher.Invoke(async () =>
             {
                 selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
-
-                MetroDialogSettings settings = new MetroDialogSettings()
-                {
-                    ColorScheme = MainWindow.DialogColorScheme
-                };
-
+                
                 string message = String.Empty;
                 string plural = (selectedItems.Count > 1) ? "s" : "";
                 if (selectedItems.All(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
@@ -215,7 +210,7 @@ namespace VersionrUI.ViewModels
                 else
                     message = String.Format("All changes to the selected item{0} will be lost. ", plural);
                 
-                result = await MainWindow.Instance.ShowMessageAsync(String.Format("Reverting {0} item{1}", selectedItems.Count, plural), message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative, settings);
+                result = await MainWindow.ShowMessage(String.Format("Reverting {0} item{1}", selectedItems.Count, plural), message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative, settings);
             }).Wait();
 
             if (result == MessageDialogResult.Affirmative)

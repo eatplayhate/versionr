@@ -175,7 +175,7 @@ namespace VersionrUI.ViewModels
                         FirstAuxiliaryButtonText = "Cancel",
                         ColorScheme = MainWindow.DialogColorScheme
                     };
-                    result = await MainWindow.Instance.ShowMessageAsync("Checkout", "Vault contains uncommitted changes. Do you want to force the checkout operation?", MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
+                    result = await MainWindow.ShowMessage("Checkout", "Vault contains uncommitted changes. Do you want to force the checkout operation?", MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
                 }).Wait();
 
                 switch (result)

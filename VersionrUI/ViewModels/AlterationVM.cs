@@ -80,7 +80,7 @@ namespace VersionrUI.ViewModels
             if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
                 (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
-                MainWindow.Instance.ShowMessageAsync("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
+                MainWindow.ShowMessage("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
             }
             else
             {
@@ -111,7 +111,7 @@ namespace VersionrUI.ViewModels
         {
             if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
-                MainWindow.Instance.ShowMessageAsync("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
+                MainWindow.ShowMessage("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
             }
             else
             {

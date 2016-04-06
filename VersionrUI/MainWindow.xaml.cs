@@ -1,5 +1,6 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace VersionrUI
@@ -62,6 +63,13 @@ namespace VersionrUI
                 Properties.Settings.Default.WindowState = (int)this.WindowState;
                 Properties.Settings.Default.Save();
             }
+        }
+
+        public static Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle style = MessageDialogStyle.Affirmative, MetroDialogSettings settings = null)
+        {
+            MetroDialogSettings dialogSettings = (settings != null) ? settings : new MetroDialogSettings() { ColorScheme = MainWindow.DialogColorScheme };
+
+            return MainWindow.Instance.ShowMessageAsync(title, message, style, dialogSettings);
         }
     }
 }
