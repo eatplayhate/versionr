@@ -111,27 +111,21 @@ namespace Versionr.Utilities
         {
             bool success = false;
 
-            JsonSerializerSettings settings = new JsonSerializerSettings()
-            {
-                Formatting = Formatting.Indented,
-                DefaultValueHandling = DefaultValueHandling.Ignore,
-            };
-
-            string element = JsonConvert.SerializeObject(directives, typeof(Directives), settings);
-            JObject configuration = new JObject(new JProperty("Versionr", element));
-
             try
             {
+                JsonSerializerSettings settings = new JsonSerializerSettings()
+                {
+                    Formatting = Formatting.Indented,
+                    DefaultValueHandling = DefaultValueHandling.Ignore,
+                    NullValueHandling = NullValueHandling.Ignore
+                };
+                string element = JsonConvert.SerializeObject(directives, typeof(Directives), settings);
+                string config = String.Format("{{\n\t\"Versionr\" :\n{0}\n}}", element);
+
                 using (StreamWriter file = File.CreateText(path))
                 {
-                    using (JsonTextWriter writer = new JsonTextWriter(file)
-                    {
-                        Formatting = Formatting.Indented
-                    })
-                    {
-                        configuration.WriteTo(writer);
-                        success = true;
-                    }
+                    file.Write(config);
+                    success = true;
                 }
             }
             catch (Exception e)

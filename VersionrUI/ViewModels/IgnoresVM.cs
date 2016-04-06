@@ -6,7 +6,7 @@ namespace VersionrUI.ViewModels
     public class IgnoresVM : NotifyPropertyChangedBase
     {
         private Ignores _ignores;
-        
+
         public event EventHandler Dirtied;
 
         public IgnoresVM(Ignores ignores, bool isReadOnly)
@@ -25,12 +25,26 @@ namespace VersionrUI.ViewModels
 
         public bool IsReadOnly { get; private set; }
 
+        public bool IsEmpty
+        {
+            get
+            {
+                return DirectoryPatterns == null &&
+                   FilePatterns == null &&
+                   Directories == null &&
+                   Extensions == null &&
+                   Patterns == null;
+            }
+        }
+
         public string[] DirectoryPatterns
         {
             get { return _ignores.DirectoryPatterns; }
             set
             {
                 _ignores.DirectoryPatterns = value;
+                if (_ignores.DirectoryPatterns != null && _ignores.DirectoryPatterns.Length == 0)
+                    _ignores.DirectoryPatterns = null;
                 if (Dirtied != null)
                     Dirtied(this, new EventArgs());
                 NotifyPropertyChanged("DirectoryPatterns");
@@ -43,6 +57,8 @@ namespace VersionrUI.ViewModels
             set
             {
                 _ignores.FilePatterns = value;
+                if (_ignores.FilePatterns != null && _ignores.FilePatterns.Length == 0)
+                    _ignores.FilePatterns = null;
                 if (Dirtied != null)
                     Dirtied(this, new EventArgs());
                 NotifyPropertyChanged("FilePatterns");
@@ -55,6 +71,8 @@ namespace VersionrUI.ViewModels
             set
             {
                 _ignores.Directories = value;
+                if (_ignores.Directories != null && _ignores.Directories.Length == 0)
+                    _ignores.Directories = null;
                 if (Dirtied != null)
                     Dirtied(this, new EventArgs());
                 NotifyPropertyChanged("Directories");
@@ -67,6 +85,8 @@ namespace VersionrUI.ViewModels
             set
             {
                 _ignores.Extensions = value;
+                if (_ignores.Extensions != null && _ignores.Extensions.Length == 0)
+                    _ignores.Extensions = null;
                 if (Dirtied != null)
                     Dirtied(this, new EventArgs());
                 NotifyPropertyChanged("Extensions");
@@ -79,6 +99,8 @@ namespace VersionrUI.ViewModels
             set
             {
                 _ignores.Patterns = value;
+                if (_ignores.Patterns != null && _ignores.Patterns.Length == 0)
+                    _ignores.Patterns = null;
                 if (Dirtied != null)
                     Dirtied(this, new EventArgs());
                 NotifyPropertyChanged("Patterns");

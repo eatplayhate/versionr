@@ -33,6 +33,8 @@ namespace Versionr
             set
             {
                 m_Patterns = value;
+                if (m_Patterns == null)
+                    return;
                 var regexes = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
                 if (RegexFilePatterns != null)
                     RegexFilePatterns = RegexFilePatterns.Concat(regexes).ToArray();
@@ -64,6 +66,8 @@ namespace Versionr
             set
             {
                 m_FilePatterns = value;
+                if (m_FilePatterns == null)
+                    return;
                 var regexes = m_FilePatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
 
                 if (RegexFilePatterns != null)
@@ -81,6 +85,8 @@ namespace Versionr
             set
             {
                 m_DirectoryPatterns = value;
+                if (m_DirectoryPatterns == null)
+                    return;
                 var regexes = m_DirectoryPatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
 
                 if (RegexDirectoryPatterns != null)

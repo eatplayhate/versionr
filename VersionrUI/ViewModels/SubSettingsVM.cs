@@ -17,7 +17,7 @@ namespace VersionrUI.ViewModels
         private IgnoresVM _includes;
         private string _error;
         private bool _isDirty = false;
-        
+
         public SubSettingsVM(Area area, SettingsViewMode viewMode)
         {
             SaveCommand = new DelegateCommand(Save, () => IsDirty);
@@ -47,7 +47,7 @@ namespace VersionrUI.ViewModels
 
             if (_directives == null)
                 _directives = new Directives();
-            
+
             _ignores = new IgnoresVM(_directives.Ignore, IsReadOnly);
             _ignores.Dirtied += (s, e) => IsDirty = true;
 
@@ -127,6 +127,8 @@ namespace VersionrUI.ViewModels
                 {
                     IsDirty = true;
                     _directives.UserName = value;
+                    if (String.IsNullOrEmpty(_directives.UserName))
+                        _directives.UserName = null;
                     NotifyPropertyChanged("UserName");
                 }
             }
@@ -141,6 +143,8 @@ namespace VersionrUI.ViewModels
                 {
                     IsDirty = true;
                     _directives.ExternalDiff = value;
+                    if (String.IsNullOrEmpty(_directives.ExternalDiff))
+                        _directives.ExternalDiff = null;
                     NotifyPropertyChanged("ExternalDiff");
                 }
             }
@@ -155,6 +159,8 @@ namespace VersionrUI.ViewModels
                 {
                     IsDirty = true;
                     _directives.ExternalMerge = value;
+                    if (String.IsNullOrEmpty(_directives.ExternalMerge))
+                        _directives.ExternalMerge = null;
                     NotifyPropertyChanged("ExternalMerge");
                 }
             }
@@ -169,6 +175,8 @@ namespace VersionrUI.ViewModels
                 {
                     IsDirty = true;
                     _directives.ExternalMerge2Way = value;
+                    if (String.IsNullOrEmpty(_directives.ExternalMerge2Way))
+                        _directives.ExternalMerge2Way = null;
                     NotifyPropertyChanged("ExternalMerge2Way");
                 }
             }
@@ -183,13 +191,11 @@ namespace VersionrUI.ViewModels
         {
             get { return _includes; }
         }
-        
+
         private void Save()
         {
-            if (_directives.Ignore == null)
-                _directives.Ignore = _ignores.Ignores;
-            if (_directives.Include == null)
-                _directives.Include = _includes.Ignores;
+            _directives.Ignore = (_ignores.IsEmpty) ? null : _ignores.Ignores;
+            _directives.Include = (_includes.IsEmpty) ? null : _includes.Ignores;
 
             bool success = false;
             switch (_viewMode)
@@ -209,9 +215,14 @@ namespace VersionrUI.ViewModels
             }
 
             if (success)
+            {
                 IsDirty = false;
+                Error = String.Empty;
+            }
             else
+            {
                 Error = String.Format("Failed to write to {0}\n. This could be because the file is already in use.", FilePath);
+            }
         }
     }
 }
