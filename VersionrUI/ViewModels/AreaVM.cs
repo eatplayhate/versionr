@@ -1,6 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -23,6 +24,9 @@ namespace VersionrUI.ViewModels
 
     public class AreaVM : NotifyPropertyChangedBase
     {
+        public DelegateCommand RefreshCommand { get; private set; }
+        public DelegateCommand<NotifyPropertyChangedBase> SelectViewCommand { get; private set; }
+        public DelegateCommand OpenInExplorerCommand { get; private set; }
 
         private Area _area;
         private string _name;
@@ -30,11 +34,16 @@ namespace VersionrUI.ViewModels
         private List<RemoteConfig> _remotes;
         private StatusVM _status;
         public SettingsVM _settings;
+        public NotifyPropertyChangedBase _selectedVM = null;
+        public BranchVM _selectedBranch = null;
+        public RemoteConfig _selectedRemote = null;
 
         public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
         {
-            RefreshCommand = new DelegateCommand(() => Load(() => { RefreshRemotes(); RefreshChildren(); }));
-            
+            RefreshCommand = new DelegateCommand(() => Load(RefreshAll));
+            SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
+            OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
+
             _name = name;
 
             DirectoryInfo dir = new DirectoryInfo(path);
@@ -84,6 +93,38 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        public NotifyPropertyChangedBase SelectedVM
+        {
+            get { return _selectedVM; }
+            set
+            {
+                if (_selectedVM != value)
+                {
+                    _selectedVM = value;
+                    NotifyPropertyChanged("SelectedVM");
+                    NotifyPropertyChanged("IsStatusSelected");
+                    NotifyPropertyChanged("IsHistorySelected");
+                }
+            }
+        }
+
+        public BranchVM SelectedBranch
+        {
+            get { return _selectedBranch; }
+            set
+            {
+                if (_selectedBranch != value)
+                {
+                    _selectedBranch = value;
+
+                    if (IsHistorySelected)
+                        SelectedVM = _selectedBranch;
+
+                    NotifyPropertyChanged("SelectedBranch");
+                }
+            }
+        }
+
         public Area Area { get { return _area; } }
 
         public bool IsValid { get { return _area != null; } }
@@ -103,6 +144,18 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        public bool IsStatusSelected
+        {
+            get { return SelectedVM == Status; }
+            set { SelectedVM = Status; }
+        }
+
+        public bool IsHistorySelected
+        {
+            get { return SelectedVM is BranchVM; }
+            set { SelectedVM = SelectedBranch; }
+        }
+
         public List<RemoteConfig> Remotes
         {
             get
@@ -113,49 +166,89 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public RemoteConfig SelectedRemote { get; set; }
-
-        public CompositeCollection Children
+        public RemoteConfig SelectedRemote
         {
-            get
+            get { return _selectedRemote; }
+            set
             {
-                if (_branches == null || _status == null || _settings == null)
-                    Load(RefreshChildren);
-
-                CompositeCollection collection = new CompositeCollection();
-                collection.Add(_status);
-                collection.Add(_settings);
-                collection.Add(new NamedCollection("Branches", _branches?.Where(x => !x.IsDeleted)));
-                collection.Add(new NamedCollection("Deleted Branches", _branches?.Where(x => x.IsDeleted)));
-                return collection;
+                if (_selectedRemote != value)
+                {
+                    _selectedRemote = value;
+                    NotifyPropertyChanged("SelectedRemote");
+                }
             }
         }
 
-        #region Commands
-        public DelegateCommand RefreshCommand { get; private set; }
-        
-        private static object refreshChildrenLock = new object();
-        public void RefreshChildren()
+        public IEnumerable<BranchVM> Branches
         {
-            lock (refreshChildrenLock)
+            get
             {
-                // Refresh status
+                if (_branches == null)
+                    Load(RefreshBranches);
+                return _branches;
+            }
+        }
+
+        public StatusVM Status
+        {
+            get
+            {
+                if (_status == null)
+                    Load(RefreshStatus);
+                return _status;
+            }
+        }
+
+        public SettingsVM Settings
+        {
+            get
+            {
+                if (_settings == null)
+                    Load(RefreshSettings);
+                return _settings;
+            }
+        }
+
+        private static object refreshStatusLock = new object();
+        public void RefreshStatus()
+        {
+            lock (refreshStatusLock)
+            {
                 if (_status == null)
                     _status = new StatusVM(this);
                 else
                     _status.Refresh();
 
-                // Reload user settings
+                NotifyPropertyChanged("Status");
+
+                // Make sure something is displayed
+                if (SelectedVM == null)
+                    SelectedVM = _status;
+            }
+        }
+
+        private static object refreshSettingsLock = new object();
+        public void RefreshSettings()
+        {
+            lock (refreshSettingsLock)
+            {
                 _settings = new SettingsVM(_area);
+                NotifyPropertyChanged("Settings");
+            }
+        }
+
+        private static object refreshBranchesLock = new object();
+        public void RefreshBranches()
+        {
+            lock (refreshBranchesLock)
+            {
+                _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent).ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
                 
-                // Refresh branches
-                IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
-                _branches = new List<BranchVM>();
+                NotifyPropertyChanged("Branches");
 
-                foreach (Branch branch in branches)
-                    _branches.Add(new BranchVM(this, branch));
-
-                NotifyPropertyChanged("Children");
+                // Make sure something is displayed
+                if (SelectedBranch == null)
+                    SelectedBranch = Branches.First();
             }
         }
 
@@ -171,14 +264,27 @@ namespace VersionrUI.ViewModels
                 foreach (RemoteConfig remote in remotes)
                     _remotes.Add(remote);
 
+                NotifyPropertyChanged("Remotes");
+
                 if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
                     SelectedRemote = _remotes.FirstOrDefault();
-
-                NotifyPropertyChanged("Remotes");
-                NotifyPropertyChanged("SelectedRemote");
             }
         }
-        #endregion
+
+        private void RefreshAll()
+        {
+            RefreshRemotes();
+            RefreshStatus();
+            RefreshSettings();
+            RefreshBranches();
+        }
+
+        private void OpenInExplorer()
+        {
+            ProcessStartInfo si = new ProcessStartInfo("explorer");
+            si.Arguments = "/e /root,\"" + Directory.FullName + "\"";
+            Process.Start(si);
+        }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
         {

@@ -31,7 +31,6 @@ namespace VersionrUI.Controls
             InitializeComponent();
             mainGrid.DataContext = this;
 
-            CloseCommand = new DelegateCommand(() => MainWindow.Instance.Close());
             NewAreaCommand = new DelegateCommand(AddArea);
 
             OpenAreas = new ObservableCollection<AreaVM>();
@@ -79,7 +78,6 @@ namespace VersionrUI.Controls
         }
 
         #region Commands
-        public DelegateCommand CloseCommand { get; private set; }
         public DelegateCommand NewAreaCommand { get; private set; }
 
         private async void AddArea()

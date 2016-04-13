@@ -19,89 +19,100 @@
         <DataTemplate DataType="{x:Type vm:AreaVM}">
             <Grid>
                 <Grid Opacity="{Binding Opacity}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="200" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid Grid.Column="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0"
-                                   Margin="4"
-                                   Text="{Binding Directory.FullName}"
-                                   FontWeight="Bold" />
-                        <Button Grid.Row="1"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0"
+                                Margin="8"
                                 Content="Refresh Area"
                                 Command="{Binding RefreshCommand}"
                                 Style="{StaticResource LinkButtonStyle}" />
-                        <ComboBox Grid.Row="2"
-                                  Margin="4"
-                                  ItemsSource="{Binding Remotes}"
-                                  SelectedItem="{Binding SelectedRemote}"
-                                  DisplayMemberPath="Name" />
-                        <TreeView Grid.Row="3"
-                                  Margin="0,4"
-                                  Name="treeView"
-                                  BorderThickness="0"
-                                  ItemsSource="{Binding Children}">
-                            <TreeView.Resources>
-                                <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
-                                </HierarchicalDataTemplate>
-                                <DataTemplate DataType="{x:Type vm:BranchVM}">
-                                    <TextBlock Text="{Binding Name}">
-                                        <TextBlock.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Pull" Command="{Binding PullCommand}" />
-                                                <MenuItem Header="Push" Command="{Binding PushCommand}" />
-                                                <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
-                                                <MenuItem Header="View log..." Command="{Binding LogCommand}" />
-                                            </ContextMenu>
-                                        </TextBlock.ContextMenu>
-                                        <TextBlock.Resources>
-                                            <Style TargetType="{x:Type TextBlock}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                        <Setter Property="TextBlock.FontWeight" Value="Bold"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsDeleted}" Value="True">
-                                                        <Setter Property="TextBlock.Foreground" Value="Gray"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Resources>
-                                    </TextBlock>
-                                </DataTemplate>
-                                <DataTemplate DataType="{x:Type vm:StatusVM}">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,8" />
-                                </DataTemplate>
-                                <DataTemplate DataType="{x:Type vm:SettingsVM}">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,8" />
-                                </DataTemplate>
-                            </TreeView.Resources>
-                            <TreeView.ItemContainerStyle>
-                                <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
-                                    <Setter Property="IsExpanded" Value="False"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Name}" Value="Branches">
-                                            <Setter Property="IsExpanded" Value="True"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TreeView.ItemContainerStyle>
-                        </TreeView>
+                        <StackPanel Grid.Column="1"
+                                    Margin="8"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <Label Content="Remote"
+                                   VerticalAlignment="Center" />
+                            <ComboBox ItemsSource="{Binding Remotes}"
+                                      SelectedItem="{Binding SelectedRemote}"
+                                      Height="20" Width="100"
+                                      DisplayMemberPath="Name" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2"
+                                    Margin="8"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <Label Content="Branch"
+                                   VerticalAlignment="Center" />
+                            <ComboBox ItemsSource="{Binding Branches}"
+                                      SelectedItem="{Binding SelectedBranch}"
+                                      Height="20" Width="150" >
+                                <ComboBox.Resources>
+                                    <DataTemplate DataType="{x:Type vm:BranchVM}">
+                                        <TextBlock Text="{Binding Name}">
+                                            <TextBlock.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Pull" Command="{Binding PullCommand}" />
+                                                    <MenuItem Header="Push" Command="{Binding PushCommand}" />
+                                                    <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
+                                                    <MenuItem Header="View log..." Command="{Binding LogCommand}" />
+                                                </ContextMenu>
+                                            </TextBlock.ContextMenu>
+                                            <TextBlock.Resources>
+                                                <Style TargetType="{x:Type TextBlock}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="TextBlock.FontWeight" Value="Bold"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+                                                            <Setter Property="TextBlock.Foreground" Value="Gray"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Resources>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.Resources>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3"
+                                    Margin="8"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <RadioButton Margin="8,0"
+                                         GroupName="radioGroup1"
+                                         IsChecked="{Binding IsStatusSelected}"
+                                         Content="Status" />
+                            <RadioButton Margin="8,0"
+                                         GroupName="radioGroup1"
+                                         IsChecked="{Binding IsHistorySelected}"
+                                         Content="History" />
+                        </StackPanel>
+                        <Button Grid.Column="4"
+                                Margin="8"
+                                Content="Settings"
+                                Command="{Binding SelectViewCommand}"
+                                CommandParameter="{Binding Settings}"
+                                Style="{StaticResource LinkButtonStyle}" />
                     </Grid>
-                    <GridSplitter Grid.Column="1"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Stretch"
+                    <GridSplitter Grid.Row="1"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
                                   ShowsPreview="True"
-                                  Width="5" />
-                    <ContentPresenter Grid.Column="2" Content="{Binding SelectedItem, ElementName=treeView}" />
+                                  Height="5"
+                                  IsEnabled="False" />
+                    <ContentPresenter Grid.Row="2"
+                                      Content="{Binding SelectedVM}" />
                 </Grid>
                 <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
@@ -118,8 +129,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0">
+                    <Grid Grid.Row="0"
+                          Margin="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -434,9 +445,6 @@
             </WrapPanel>
         </DataTemplate>
 
-        <DataTemplate DataType="{x:Type vm:NamedCollection}">
-        </DataTemplate>
-
         <DataTemplate x:Key="HeaderTemplateArrowUp">
             <DockPanel LastChildFill="True" Width="{Binding ActualWidth, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type GridViewColumnHeader}}}">
                 <Path x:Name="arrowUp" StrokeThickness="1" Fill="Gray" Data="M 5,10 L 15,10 L 10,5 L 5,10" DockPanel.Dock="Right" Width="20" HorizontalAlignment="Right" Margin="5,0,5,0" SnapsToDevicePixels="True"/>
@@ -454,58 +462,43 @@
     </UserControl.Resources>
     
     <Grid x:Name="mainGrid">
-        <DockPanel>
-            <!-- Menu bar -->
-            <Grid DockPanel.Dock="Top">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal">
-                    <Button Content="Clone/Init"
-                            Command="{Binding NewAreaCommand}"
-                            Style="{StaticResource LinkButtonStyle}" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Width="50" Height="50"
-                        HorizontalAlignment="Right"
-                        Content="CRASH"
-                        FontWeight="Bold"
-                        FontSize="13"
-                        Command="{Binding CloseCommand}"
-                        Style="{StaticResource LinkButtonStyle}">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Grid>
-                                <Ellipse Fill="Transparent" Stroke="{TemplateBinding Foreground}" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-            </Grid>
-            
-            <!-- Area tabs -->
-            <mahapps:MetroTabControl ItemsSource="{Binding OpenAreas}"
-                                     SelectedItem="{Binding SelectedArea}">
-                <mahapps:MetroTabControl.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Name}" />
-                    </DataTemplate>
-                </mahapps:MetroTabControl.ItemTemplate>
-                <mahapps:MetroTabControl.ItemContainerStyle>
-                    <Style TargetType="{x:Type mahapps:MetroTabItem}" BasedOn="{StaticResource {x:Type mahapps:MetroTabItem}}">
-                        <Setter Property="CloseButtonEnabled" Value="True"/>
-                    </Style>
-                </mahapps:MetroTabControl.ItemContainerStyle>
-                <mahapps:MetroTabControl.ContentTemplate>
-                    <DataTemplate>
-                        <ContentPresenter Content="{Binding}" />
-                    </DataTemplate>
-                </mahapps:MetroTabControl.ContentTemplate>
-            </mahapps:MetroTabControl>
-        </DockPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="200" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <Button Content="Clone/Init"
+                        Command="{Binding NewAreaCommand}"
+                        ToolTip="Clone or create a new local repository"
+                        Style="{StaticResource LinkButtonStyle}" />
+                <ListBox ItemsSource="{Binding OpenAreas}"
+                         SelectedItem="{Binding SelectedArea}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="4">
+                                <TextBlock Text="{Binding Name}"
+                                           FontWeight="Bold" />
+                                <TextBlock Text="{Binding Directory.FullName}" />
+                                <StackPanel.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                    </ContextMenu>
+                                </StackPanel.ContextMenu>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+            <GridSplitter Grid.Column="1"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch"
+                          ShowsPreview="True"
+                          Width="5" />
+            <ContentPresenter Grid.Column="2"
+                              Content="{Binding SelectedArea}" />
+        </Grid>
     </Grid>
     
 </UserControl>

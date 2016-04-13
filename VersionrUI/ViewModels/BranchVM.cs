@@ -201,7 +201,7 @@ namespace VersionrUI.ViewModels
         {
             OperationStatusDialog.Start("Checkout");
             _areaVM.Area.Checkout(Name, purge, false, false);
-            _areaVM.RefreshChildren();
+            _areaVM.RefreshBranches();
             OperationStatusDialog.Finish();
         }
 
