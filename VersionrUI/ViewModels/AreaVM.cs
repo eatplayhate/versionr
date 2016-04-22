@@ -1,15 +1,11 @@
-﻿using MahApps.Metro.Controls.Dialogs;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Windows;
-using System.Windows.Data;
 using Versionr;
 using Versionr.LocalState;
 using Versionr.Network;
-using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
 
@@ -24,6 +20,13 @@ namespace VersionrUI.ViewModels
 
     public class AreaVM : NotifyPropertyChangedBase
     {
+        public static AreaVM Create(string name, string path, Action<AreaVM, string, string> afterInit, AreaInitMode areaInitMode, string host = null, int port = 0)
+        {
+            AreaVM area = new AreaVM(name);
+            area.Init(path, areaInitMode, host, port, afterInit);
+            return area;
+        }
+
         public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand<NotifyPropertyChangedBase> SelectViewCommand { get; private set; }
         public DelegateCommand OpenInExplorerCommand { get; private set; }
@@ -38,59 +41,78 @@ namespace VersionrUI.ViewModels
         public BranchVM _selectedBranch = null;
         public RemoteConfig _selectedRemote = null;
 
-        public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
+        private AreaVM(string name)
         {
             RefreshCommand = new DelegateCommand(() => Load(RefreshAll));
             SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
 
             _name = name;
+        }
 
-            DirectoryInfo dir = new DirectoryInfo(path);
-            switch (areaInitMode)
+        public void Init(string path, AreaInitMode areaInitMode, string host, int port, Action<AreaVM, string, string> afterInit)
+        {
+            Load(() =>
             {
-                case AreaInitMode.Clone:
-                    // Spawn another dialog for the source (or put it in the Clone New button)
-                    Client client = new Client(dir);
-                    if (client.Connect(host, port, null, true))
-                    {
-                        bool result = client.Clone(true);
-                        if (!result)
-                            result = client.Clone(false);
-                        if (result)
+                DirectoryInfo dir = new DirectoryInfo(path);
+                string title = String.Empty;
+                string message = String.Empty;
+                switch (areaInitMode)
+                {
+                    case AreaInitMode.Clone:
+                        OperationStatusDialog.Start("Clone");
+                        Client client = new Client(dir);
+                        if (client.Connect(host, port, null, true))
                         {
-                            string remoteName = "default";
-                            client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName);
-                            client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
-                            _area = Area.Load(client.Workspace.Root);
-                            _area.Checkout(null, false, false);
-                            client.SyncRecords();
+                            bool result = client.Clone(true);
+                            if (!result)
+                                result = client.Clone(false);
+                            if (result)
+                            {
+                                string remoteName = "default";
+                                client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName);
+                                client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
+                                _area = Area.Load(client.Workspace.Root);
+                                _area.Checkout(null, false, false);
+                                client.SyncRecords();
+                            }
                         }
-                    }
-                    else
-                    {
-                        MainWindow.ShowMessage("Clone Failed", String.Format("Couldn't connect to {0}:{1}", host, port));
-                    }
-                    client.Close();
-                    break;
-                case AreaInitMode.InitNew:
-                    // Tell versionr to initialize at path
-                    try
-                    {
-                        dir.Create();
-                    }
-                    catch
-                    {
-                        MainWindow.ShowMessage("Init Failed", String.Format("Couldn't create subdirectory \"{0}\"", dir.FullName));
+                        else
+                        {
+                            title = "Clone Failed";
+                            message = String.Format("Couldn't connect to {0}:{1}", host, port);
+                        }
+                        client.Close();
+                        OperationStatusDialog.Finish();
                         break;
-                    }
-                    _area = Area.Init(dir, name);
-                    break;
-                case AreaInitMode.UseExisting:
-                    // Add it to settings and refresh UI, get status etc.
-                    _area = Area.Load(dir);
-                    break;
-            }
+                    case AreaInitMode.InitNew:
+                        // Tell versionr to initialize at path
+                        try
+                        {
+                            dir.Create();
+                        }
+                        catch
+                        {
+                            title = "Init Failed";
+                            message = String.Format("Couldn't create subdirectory \"{0}\"", dir.FullName);
+                            break;
+                        }
+                        _area = Area.Init(dir, _name);
+                        break;
+                    case AreaInitMode.UseExisting:
+                        // Add it to settings and refresh UI, get status etc.
+                        _area = Area.Load(dir);
+                        if(_area == null)
+                        {
+                            title = "Missing workspace";
+                            message = String.Format("Failed to load \"{0}\". The location {1} may be have been removed.", _name, path);
+                        }
+                        break;
+                }
+                NotifyPropertyChanged("Directory");
+                NotifyPropertyChanged("IsValid");
+                MainWindow.Instance.Dispatcher.Invoke(afterInit, this, title, message);
+            });
         }
 
         public NotifyPropertyChangedBase SelectedVM
@@ -129,7 +151,7 @@ namespace VersionrUI.ViewModels
 
         public bool IsValid { get { return _area != null; } }
 
-        public DirectoryInfo Directory { get { return _area.Root; } }
+        public DirectoryInfo Directory { get { return _area?.Root; } }
 
         public string Name
         {
@@ -230,44 +252,53 @@ namespace VersionrUI.ViewModels
         private static object refreshSettingsLock = new object();
         public void RefreshSettings()
         {
-            lock (refreshSettingsLock)
+            if (_area != null)
             {
-                _settings = new SettingsVM(_area);
-                NotifyPropertyChanged("Settings");
+                lock (refreshSettingsLock)
+                {
+                    _settings = new SettingsVM(_area);
+                    NotifyPropertyChanged("Settings");
+                }
             }
         }
 
         private static object refreshBranchesLock = new object();
         public void RefreshBranches()
         {
-            lock (refreshBranchesLock)
+            if (_area != null)
             {
-                _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent).ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
-                
-                NotifyPropertyChanged("Branches");
+                lock (refreshBranchesLock)
+                {
+                    _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent).ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
 
-                // Make sure something is displayed
-                if (SelectedBranch == null)
-                    SelectedBranch = Branches.First();
+                    NotifyPropertyChanged("Branches");
+
+                    // Make sure something is displayed
+                    if (SelectedBranch == null)
+                        SelectedBranch = Branches.First();
+                }
             }
         }
 
         private static object refreshRemotesLock = new object();
         public void RefreshRemotes()
         {
-            lock (refreshRemotesLock)
+            if (_area != null)
             {
-                // Refresh remotes
-                List<RemoteConfig> remotes = _area.GetRemotes();
-                _remotes = new List<RemoteConfig>();
-                
-                foreach (RemoteConfig remote in remotes)
-                    _remotes.Add(remote);
+                lock (refreshRemotesLock)
+                {
+                    // Refresh remotes
+                    List<RemoteConfig> remotes = _area.GetRemotes();
+                    _remotes = new List<RemoteConfig>();
 
-                NotifyPropertyChanged("Remotes");
+                    foreach (RemoteConfig remote in remotes)
+                        _remotes.Add(remote);
 
-                if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
-                    SelectedRemote = _remotes.FirstOrDefault();
+                    NotifyPropertyChanged("Remotes");
+
+                    if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
+                        SelectedRemote = _remotes.FirstOrDefault();
+                }
             }
         }
 
@@ -288,7 +319,7 @@ namespace VersionrUI.ViewModels
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
         {
-            if (SelectedRemote != null)
+            if (_area != null && SelectedRemote != null)
             {
                 Client client = new Client(_area);
                 try

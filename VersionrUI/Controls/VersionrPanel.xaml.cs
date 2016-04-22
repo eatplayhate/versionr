@@ -41,9 +41,18 @@ namespace VersionrUI.Controls
                 foreach (string areaString in Properties.Settings.Default.OpenAreas)
                 {
                     string[] parts = areaString.Split(';');
-                    AreaVM areaVM = new AreaVM(parts[0], parts[1], AreaInitMode.UseExisting);
-                    if (areaVM != null && areaVM.IsValid)
-                        OpenAreas.Add(areaVM);
+                    AreaVM areaVM = AreaVM.Create(parts[1], parts[0],
+                        (x, title, message) =>
+                        {
+                            if (!x.IsValid)
+                            {
+                                // TODO: notify area has been removed. Can't call this while initializing MainWindow...
+                                // MainWindow.ShowMessage(title, message);
+                                OpenAreas.Remove(x);
+                            }
+                        },
+                        AreaInitMode.UseExisting);
+                    OpenAreas.Add(areaVM);
                 }
             }
             OpenAreas.CollectionChanged += OpenAreas_CollectionChanged;
@@ -89,12 +98,18 @@ namespace VersionrUI.Controls
             {
                 int port = 0;
                 int.TryParse(cloneNewDlg.Port, out port);
-                AreaVM areaVM = new AreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result, cloneNewDlg.Host, port);
-                if (areaVM != null && areaVM.IsValid)
-                {
-                    OpenAreas.Add(areaVM);
-                    SelectedArea = OpenAreas.LastOrDefault();
-                }
+                AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
+                    (x, title, message) =>
+                    {
+                        if (!x.IsValid)
+                        {
+                            MainWindow.ShowMessage(title, message);
+                            OpenAreas.Remove(x);
+                        }
+                    },
+                    cloneNewDlg.Result, cloneNewDlg.Host, port);
+                OpenAreas.Add(areaVM);
+                SelectedArea = OpenAreas.LastOrDefault();
             }
         }
         #endregion
@@ -102,7 +117,7 @@ namespace VersionrUI.Controls
         private void SaveOpenAreas()
         {
             Properties.Settings.Default.OpenAreas = new StringCollection();
-            foreach (AreaVM area in OpenAreas)
+            foreach (AreaVM area in OpenAreas.Where(x => x.IsValid))
             {
                 string areaString = String.Format("{0};{1}", area.Directory.FullName, area.Name);
                 Properties.Settings.Default.OpenAreas.Add(areaString);

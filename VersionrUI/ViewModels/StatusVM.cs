@@ -71,30 +71,33 @@ namespace VersionrUI.ViewModels
         private static object refreshLock = new object();
         public void Refresh()
         {
-            lock (refreshLock)
+            if (_areaVM.IsValid)
             {
-                _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
-                _elements = new List<StatusEntryVM>();
-
-                foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
+                lock (refreshLock)
                 {
-                    if (statusEntry.Code != StatusCode.Masked &&
-                        statusEntry.Code != StatusCode.Ignored &&
-                        statusEntry.Code != StatusCode.Unchanged)
+                    _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
+                    _elements = new List<StatusEntryVM>();
+
+                    foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
                     {
-                        StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
-                        if (statusEntryVM != null)
+                        if (statusEntry.Code != StatusCode.Masked &&
+                            statusEntry.Code != StatusCode.Ignored &&
+                            statusEntry.Code != StatusCode.Unchanged)
                         {
-                            _elements.Add(statusEntryVM);
-                            statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
+                            StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
+                            if (statusEntryVM != null)
+                            {
+                                _elements.Add(statusEntryVM);
+                                statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
+                            }
                         }
                     }
-                }
 
-                NotifyPropertyChanged("Status");
-                NotifyPropertyChanged("Elements");
-                NotifyPropertyChanged("AllStaged");
-                MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+                    NotifyPropertyChanged("Status");
+                    NotifyPropertyChanged("Elements");
+                    NotifyPropertyChanged("AllStaged");
+                    MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+                }
             }
         }
 

@@ -1392,7 +1392,7 @@ namespace Versionr
             Objects.Version version = GetVersion(initialRevision);
             Objects.Branch branch = GetBranch(version.Branch);
 
-            ws.Name = Directives.UserName;
+            ws.Name = (Directives != null) ? Directives.UserName : Environment.UserName;
             ws.Branch = branch.ID;
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
@@ -1431,7 +1431,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Imported version {0}", version.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = Directives.UserName;
+            ws.Name = (Directives != null) ? Directives.UserName : Environment.UserName;
 
             head.Branch = branch.ID;
             head.Version = version.ID;
@@ -1640,7 +1640,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Created branch \"{0}\", ID: {1}.", branch.Name, branch.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = Directives.UserName;
+            ws.Name = (Directives != null) ? Directives.UserName : Environment.UserName; ;
             version.Parent = null;
             version.Timestamp = DateTime.UtcNow;
             version.Author = ws.Name;

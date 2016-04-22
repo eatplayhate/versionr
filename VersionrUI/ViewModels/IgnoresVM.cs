@@ -29,11 +29,11 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                return DirectoryPatterns == null &&
-                   FilePatterns == null &&
-                   Directories == null &&
-                   Extensions == null &&
-                   Patterns == null;
+                return (DirectoryPatterns == null || DirectoryPatterns.Length == 0) &&
+                       (FilePatterns == null || FilePatterns.Length == 0) &&
+                       (Directories == null || Directories.Length == 0) &&
+                       (Extensions == null || Extensions.Length == 0) &&
+                       (Patterns == null || Patterns.Length == 0);
             }
         }
 
