@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -345,6 +346,36 @@ namespace VersionrUI.ViewModels
         {
             if(_status != null)
                 _status.SetStaged(entries, staged);
+        }
+        
+        internal async void CreateBranch()
+        {
+            if (_area != null)
+            {
+                MetroDialogSettings dialogSettings = new MetroDialogSettings() { ColorScheme = MainWindow.DialogColorScheme };
+
+                string branchName = await MainWindow.Instance.ShowInputAsync("Branching from " + _area.CurrentBranch.Name, "Enter a name for the new branch", dialogSettings);
+
+                if (branchName == null) // User pressed cancel
+                    return;
+
+                if (!System.Text.RegularExpressions.Regex.IsMatch(branchName, "^\\w+$"))
+                {
+                    await MainWindow.ShowMessage("Couldn't create branch", "Branch name is invalid");
+                    return;
+                }
+
+                // Branching is quick, so we probably don't need status messages. Commented for now...
+
+                //Load(() =>
+                //{
+                //    OperationStatusDialog.Start("Creating Branch");
+                _area.Branch(branchName);
+                RefreshAll();
+                SelectedBranch = Branches.First();
+                //    OperationStatusDialog.Finish();
+                //});
+            }
         }
     }
 }

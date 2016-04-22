@@ -12,6 +12,7 @@ namespace VersionrUI.ViewModels
     {
         public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand CommitCommand { get; private set; }
+        public DelegateCommand CreateBranchCommand { get; private set; }
 
         private Status _status;
         private AreaVM _areaVM;
@@ -25,6 +26,7 @@ namespace VersionrUI.ViewModels
 
             RefreshCommand = new DelegateCommand(() => Load(Refresh));
             CommitCommand = new DelegateCommand(() => Load(Commit), CanCommit);
+            CreateBranchCommand = new DelegateCommand(() => _areaVM.CreateBranch());
         }
 
         public Status Status

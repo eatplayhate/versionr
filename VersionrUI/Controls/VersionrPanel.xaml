@@ -252,6 +252,9 @@
                             <Button Content="Refresh Status"
                                     Command="{Binding RefreshCommand}"
                                     Style="{StaticResource LinkButtonStyle}" />
+                            <Button Content="Create Branch"
+                                    Command="{Binding CreateBranchCommand}"
+                                    Style="{StaticResource LinkButtonStyle}" />
                             <Button Content="Commit"
                                     Command="{Binding CommitCommand}"
                                     Style="{StaticResource LinkButtonStyle}" />
