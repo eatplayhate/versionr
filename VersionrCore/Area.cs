@@ -950,9 +950,9 @@ namespace Versionr
             return Database.Table<Objects.Head>().Where(x => x.Version == v.ID).Any();
         }
 
-        public List<Branch> MapVersionToHeads(Objects.Version v)
+        public List<Branch> MapVersionToHeads(Guid versionID)
         {
-            var heads = Database.Table<Objects.Head>().Where(x => x.Version == v.ID).ToList();
+            var heads = Database.Table<Objects.Head>().Where(x => x.Version == versionID).ToList();
             var branches = heads.Select(x => Database.Get<Objects.Branch>(x.Branch)).ToList();
             return branches;
         }

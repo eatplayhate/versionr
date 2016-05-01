@@ -139,7 +139,7 @@
                         </Grid.ColumnDefinitions>
                         <Label Grid.Column="0">Search:</Label>
                         <TextBox Grid.Column="1"
-                                 Name="logSearch"
+                                 x:Name="logSearch"
                                  mahapps:TextBoxHelper.Watermark="Search"
                                  Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}" />
                         <Label Grid.Column="2">Limit:</Label>
@@ -150,13 +150,58 @@
                                   SelectedValue="{Binding RevisionLimit}" />
                     </Grid>
                     <ListView Grid.Row="1"
-                              Name="listView"
+                              x:Name="listView"
                               ItemsSource="{Binding History}"
                               SelectedItem="{Binding SelectedVersion}"
                               SelectionMode="Single"
                               GridViewColumnHeader.Click="listViewHeader_Click">
                         <ListView.View>
                             <GridView>
+                                <!--<GridViewColumn Header="Graph" Width="150">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate DataType="{x:Type vm:NodeDescrption}">
+                                            <Canvas>
+                                                <Ellipse Width="13" Height="13"
+                                                         Fill="{Binding GraphNode.Brush}"
+                                                         ToolTip="{Binding GraphNode.Name}"
+                                                         Canvas.Left="{Binding GraphNode.XPos}" />
+                                                <ItemsControl ItemsSource="{Binding GraphNode.Links}">
+                                                    <ItemsControl.Resources>
+                                                        <DataTemplate DataType="{x:Type vm:Link}">
+                                                            <Canvas>
+                                                                <Line X1="{Binding XPos}" Y1="6"
+                                                                  X2="{Binding SourceXOffset}" Y2="{Binding SourceYOffset}"
+                                                                  Stroke="{Binding Brush}">
+                                                                    <Line.Style>
+                                                                        <Style TargetType="{x:Type Line}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Path=Merge}" Value="True">
+                                                                                    <Setter Property="StrokeDashArray" Value="2 2" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Line.Style>
+                                                                </Line>
+                                                            </Canvas>
+                                                        </DataTemplate>
+                                                    </ItemsControl.Resources>
+                                                </ItemsControl>
+                                                <ItemsControl ItemsSource="{Binding GraphNode.ExternalVersions}">
+                                                    <ItemsControl.Resources>
+                                                        <DataTemplate DataType="{x:Type vm:VersionVM}">
+                                                            <Canvas>
+                                                                <Ellipse Width="13" Height="13"
+                                                                         Fill="{Binding GraphNode.Brush}"
+                                                                         ToolTip="{Binding GraphNode.Name}"
+                                                                         Canvas.Left="{Binding GraphNode.XPos}" />
+                                                            </Canvas>
+                                                        </DataTemplate>
+                                                    </ItemsControl.Resources>
+                                                </ItemsControl>
+                                            </Canvas>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>-->
                                 <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
@@ -208,7 +253,6 @@
 
         <DataTemplate DataType="{x:Type vm:VersionVM}">
             <ListView Grid.Row="0"
-                      Name="listView"
                       ItemsSource="{Binding Alterations}"
                       SelectionMode="Single"
                       GridViewColumnHeader.Click="listViewHeader_Click">
@@ -280,7 +324,7 @@
                                     ShowsPreview="True"
                                     Height="5" />
                     <ListView Grid.Row="2"
-                                Name="listView"
+                                x:Name="listView"
                                 ItemsSource="{Binding Elements}"
                                 SelectionMode="Extended"
                                 GridViewColumnHeader.Click="listViewHeader_Click">
@@ -465,43 +509,41 @@
     </UserControl.Resources>
     
     <Grid x:Name="mainGrid">
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" MinWidth="200" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <Button Content="Clone/Init"
-                        Command="{Binding NewAreaCommand}"
-                        ToolTip="Clone or create a new local repository"
-                        Style="{StaticResource LinkButtonStyle}" />
-                <ListBox ItemsSource="{Binding OpenAreas}"
-                         SelectedItem="{Binding SelectedArea}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="4">
-                                <TextBlock Text="{Binding Name}"
-                                           FontWeight="Bold" />
-                                <TextBlock Text="{Binding Directory.FullName}" />
-                                <StackPanel.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
-                                    </ContextMenu>
-                                </StackPanel.ContextMenu>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </StackPanel>
-            <GridSplitter Grid.Column="1"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Stretch"
-                          ShowsPreview="True"
-                          Width="5" />
-            <ContentPresenter Grid.Column="2"
-                              Content="{Binding SelectedArea}" />
-        </Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="200" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0">
+            <Button Content="Clone/Init"
+                    Command="{Binding NewAreaCommand}"
+                    ToolTip="Clone or create a new local repository"
+                    Style="{StaticResource LinkButtonStyle}" />
+            <ListBox ItemsSource="{Binding OpenAreas}"
+                        SelectedItem="{Binding SelectedArea}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="{Binding Name}"
+                                        FontWeight="Bold" />
+                            <TextBlock Text="{Binding Directory.FullName}" />
+                            <StackPanel.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                </ContextMenu>
+                            </StackPanel.ContextMenu>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+        <GridSplitter Grid.Column="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Stretch"
+                        ShowsPreview="True"
+                        Width="5" />
+        <ContentPresenter Grid.Column="2"
+                            Content="{Binding SelectedArea}" />
     </Grid>
     
 </UserControl>

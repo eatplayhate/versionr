@@ -50,12 +50,12 @@ namespace VersionrUI.Controls
                                 // MainWindow.ShowMessage(title, message);
                                 OpenAreas.Remove(x);
                             }
+                            SaveOpenAreas();
                         },
                         AreaInitMode.UseExisting);
                     OpenAreas.Add(areaVM);
                 }
             }
-            OpenAreas.CollectionChanged += OpenAreas_CollectionChanged;
             SelectedArea = OpenAreas.FirstOrDefault();
         }
 
@@ -106,6 +106,7 @@ namespace VersionrUI.Controls
                             MainWindow.ShowMessage(title, message);
                             OpenAreas.Remove(x);
                         }
+                        SaveOpenAreas();
                     },
                     cloneNewDlg.Result, cloneNewDlg.Host, port);
                 OpenAreas.Add(areaVM);
@@ -124,12 +125,7 @@ namespace VersionrUI.Controls
             }
             Properties.Settings.Default.Save();
         }
-
-        private void OpenAreas_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        {
-            SaveOpenAreas();
-        }
-
+        
         private void listViewHeader_Click(object sender, RoutedEventArgs e)
         {
             if (!(sender is ListView))

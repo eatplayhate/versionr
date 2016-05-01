@@ -1,12 +1,71 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows.Media;
+using System.Windows.Shapes;
 using Versionr;
 using Versionr.Objects;
 using Version = Versionr.Objects.Version;
 
 namespace VersionrUI.ViewModels
 {
+    public class Link
+    {
+        private Color _color;
+
+        public VersionVM CurrentVersion { get; set; }
+        public VersionVM SourceVersion { get; set; }
+        public bool Merge { get; set; }
+        public Color Color
+        {
+            get { return _color; }
+            set
+            {
+                if (_color != value)
+                {
+                    _color = value;
+                    Brush = new SolidColorBrush(_color);
+                }
+            }
+        }
+        public Brush Brush { get; private set; }
+        public int XPos { get { return CurrentVersion.GraphNode.XPos + 6; } }
+        public int SourceXOffset { get { return SourceVersion.GraphNode.XPos + 6; } }
+        public int SourceYOffset { get { return SourceVersion.GraphNode.YPos - CurrentVersion.GraphNode.YPos + 6; } }
+    }
+
+    public class NodeDescrption
+    {
+        private Color _color;
+
+        public NodeDescrption()
+        {
+            Links = new ObservableCollection<Link>();
+            ExternalVersions = new ObservableCollection<VersionVM>();
+        }
+
+        public string Name { get; set; }
+        public Color Color
+        {
+            get { return _color; }
+            set
+            {
+                if(_color != value)
+                {
+                    _color = value;
+                    Brush = new SolidColorBrush(_color);
+                }
+            }
+        }
+        public Brush Brush { get; private set; }
+        public Color FontColor { get; set; }
+        public int XPos { get; set; }
+        public int YPos { get; set; }
+        public ObservableCollection<Link> Links { get; private set; }
+        public ObservableCollection<VersionVM> ExternalVersions { get; private set; }
+    }
+
     public class VersionVM : NotifyPropertyChangedBase
     {
         private Version _version;
@@ -17,6 +76,8 @@ namespace VersionrUI.ViewModels
         {
             _version = version;
             _area = area;
+
+            GraphNode = new NodeDescrption();
         }
 
         public Guid ID
@@ -54,6 +115,16 @@ namespace VersionrUI.ViewModels
             get { return _version.Revision; }
         }
 
+        public Guid? Parent
+        {
+            get { return _version.Parent; }
+        }
+
+        public Guid Branch
+        {
+            get { return _version.Branch; }
+        }
+
         public List<AlterationVM> Alterations
         {
             get
@@ -63,6 +134,8 @@ namespace VersionrUI.ViewModels
                 return _alterations;
             }
         }
+
+        public NodeDescrption GraphNode { get; private set; }
 
         private static object refreshLock = new object();
         private void Refresh()

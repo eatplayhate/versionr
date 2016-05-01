@@ -112,6 +112,10 @@ namespace VersionrUI.ViewModels
                 }
                 NotifyPropertyChanged("Directory");
                 NotifyPropertyChanged("IsValid");
+                NotifyPropertyChanged("Remotes");
+                NotifyPropertyChanged("Status");
+                NotifyPropertyChanged("Settings");
+                NotifyPropertyChanged("Branches");
                 MainWindow.Instance.Dispatcher.Invoke(afterInit, this, title, message);
             });
         }

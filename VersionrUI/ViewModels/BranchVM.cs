@@ -1,5 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Collections.Generic;
+using System.Windows.Media;
 using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -77,6 +79,8 @@ namespace VersionrUI.ViewModels
             {
                 if (_history == null)
                     Load(Refresh);
+                else
+                    ResolveGraph();
                 if (!string.IsNullOrEmpty(SearchText))
                     return FilterHistory(_history, SearchText);
                 return _history;
@@ -102,7 +106,7 @@ namespace VersionrUI.ViewModels
                 {
                     _revisionLimit = value;
                     NotifyPropertyChanged("RevisionLimit");
-                    NotifyPropertyChanged("History");
+                    Load(Refresh);
                 }
             }
         }
@@ -209,6 +213,136 @@ namespace VersionrUI.ViewModels
         {
             Version headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
             LogDialog.Show(headVersion, _areaVM.Area);
+        }
+
+        public class DAG
+        {
+            public class Link
+            {
+                public Guid Source { get; set; }
+                public bool Merge { get; set; }
+            }
+            public class ObjectAndLinks
+            {
+                public VersionVM Version { get; set; }
+                public List<Link> Links { get; set; }
+
+                public ObjectAndLinks(VersionVM obj)
+                {
+                    Version = obj;
+                    Links = new List<Link>();
+                }
+            }
+
+            public List<ObjectAndLinks> Objects { get; set; }
+            public Dictionary<Guid, Tuple<VersionVM, int>> Lookup { get; set; }
+
+            public DAG()
+            {
+                Objects = new List<ObjectAndLinks>();
+                Lookup = new Dictionary<Guid, Tuple<VersionVM, int>>();
+            }
+        }
+
+        private DAG GetDAG()
+        {
+            DAG result = new DAG();
+            foreach (VersionVM version in _history)
+            {
+                result.Lookup[version.ID] = new Tuple<VersionVM, int>(version, result.Objects.Count);
+                DAG.ObjectAndLinks initialLink = new DAG.ObjectAndLinks(version);
+                result.Objects.Add(initialLink);
+
+                if (version.Parent.HasValue)
+                    initialLink.Links.Add(new DAG.Link() { Source = version.Parent.Value, Merge = false });
+
+                IEnumerable<MergeInfo> mergeInfo = _areaVM.Area.GetMergeInfo(version.ID);
+                foreach (MergeInfo info in mergeInfo)
+                    initialLink.Links.Add(new DAG.Link() { Source = info.SourceVersion, Merge = true });
+            }
+            return result;
+        }
+
+        private void ResolveGraph()
+        {
+            var result = GetDAG();
+
+            int index = 0;
+            
+            foreach (var x in result.Objects)
+            {
+                Tuple<Color, string> branchInfo = GetBranchDrawingProps(x.Version.Branch);
+                x.Version.GraphNode.Color = branchInfo.Item1;
+                x.Version.GraphNode.XPos = x.Links.Count * 25;
+                x.Version.GraphNode.YPos = index * 25; // 25 = row height
+
+                string name = x.Version.ID.ToString().Substring(0, 8);
+                name += string.Format("\n{0}", x.Version.Author);
+                List<Branch> mappedHeads = _areaVM.Area.MapVersionToHeads(x.Version.ID);
+                if (mappedHeads.Count > 0)
+                {
+                    foreach (var y in mappedHeads)
+                        name += string.Format("\nHead of \"{0}\"", y.Name);
+                }
+
+                x.Version.GraphNode.Name = name;
+
+                if (x != null)
+                {
+                    foreach (DAG.Link link in x.Links)
+                    {
+                        if (result.Lookup.ContainsKey(link.Source))
+                        {
+                            VersionVM sourceVM = result.Lookup[link.Source].Item1;
+                            if (sourceVM != null)
+                            {
+                                x.Version.GraphNode.Links.Add(new Link()
+                                {
+                                    CurrentVersion = x.Version,
+                                    SourceVersion = sourceVM,
+                                    Merge = link.Merge,
+                                    Color = branchInfo.Item1
+                                });
+                            }
+                        }
+                        else
+                        {
+                            VersionVM externalVersion = new VersionVM(_areaVM.Area.GetVersion(link.Source), _areaVM.Area);
+                            Tuple<Color, string> externalBranchInfo = GetBranchDrawingProps(externalVersion.Branch);
+                            externalVersion.GraphNode.Color = externalBranchInfo.Item1;
+                            externalVersion.GraphNode.XPos = 120;
+                            externalVersion.GraphNode.YPos = index * 25;
+                            externalVersion.GraphNode.Name = String.Format("{0}\n{1}\n{2}", externalVersion.ID.ToString().Substring(0, 8), externalVersion.Author, externalBranchInfo.Item2);
+
+                            x.Version.GraphNode.ExternalVersions.Add(externalVersion);
+                            x.Version.GraphNode.Links.Add(new Link()
+                            {
+                                CurrentVersion = x.Version,
+                                SourceVersion = externalVersion,
+                                Merge = link.Merge,
+                                Color = externalBranchInfo.Item1
+                            });
+                        }
+                    }
+                }
+
+                index++;
+            }
+        }
+
+        private static Color[] colours = new Color[] { Colors.Red, Colors.Green, Colors.Blue, Colors.Cyan, Colors.DarkOrange, Colors.Magenta };
+        private Dictionary<Guid, Tuple<Color, string>> branchInfoMap = new Dictionary<Guid, Tuple<Color, string>>();
+        private Tuple<Color, string> GetBranchDrawingProps(Guid branchID)
+        {
+            Tuple<Color, string> branchInfo;
+            if (!branchInfoMap.TryGetValue(branchID, out branchInfo))
+            {
+                int nextColourIndex = branchInfoMap.Count % colours.Length;
+                Color colour = colours[nextColourIndex];
+                branchInfo = new Tuple<Color, string>(colour, _areaVM.Area.GetBranch(branchID).Name);
+                branchInfoMap.Add(branchID, branchInfo);
+            }
+            return branchInfo;
         }
     }
 }
