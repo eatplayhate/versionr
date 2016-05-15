@@ -271,6 +271,7 @@
                                     <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" />
                                     <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                     <MenuItem Header="Save this version as..." Command="{Binding SaveVersionAsCommand}" />
+                                    <MenuItem Header="Open location in Explorer" Command="{Binding OpenInExplorerCommand}" />
                                 </ContextMenu>
                             </Setter.Value>
                         </Setter>
@@ -358,6 +359,7 @@
                                             <MenuItem Header="Diff" FontWeight="Bold" Command="{Binding DiffCommand}" />
                                             <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                             <MenuItem Header="Revert" Command="{Binding RevertCommand}" />
+                                            <MenuItem Header="Open location in Explorer" Command="{Binding OpenInExplorerCommand}" />
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>

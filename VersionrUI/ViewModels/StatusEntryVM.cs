@@ -1,6 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -19,6 +20,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand DiffCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
         public DelegateCommand RevertCommand { get; private set; }
+        public DelegateCommand OpenInExplorerCommand { get; private set; }
 
         private Status.StatusEntry _statusEntry;
         private StatusVM _statusVM;
@@ -33,6 +35,7 @@ namespace VersionrUI.ViewModels
             DiffCommand = new DelegateCommand(Diff);
             LogCommand = new DelegateCommand(Log);
             RevertCommand = new DelegateCommand(() => Load(RevertSelected));
+            OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
         }
 
         public Versionr.StatusCode Code
@@ -469,6 +472,13 @@ namespace VersionrUI.ViewModels
                 document.Blocks.Add(region);
                 activeRegion++;
             }
+        }
+
+        private void OpenInExplorer()
+        {
+            ProcessStartInfo si = new ProcessStartInfo("explorer");
+            si.Arguments = "/select,\"" + Path.Combine(_area.Root.FullName, CanonicalName).Replace('/', '\\') + "\"";
+            Process.Start(si);
         }
     }
 }

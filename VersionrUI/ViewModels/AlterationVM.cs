@@ -1,6 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Win32;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Documents;
@@ -20,6 +21,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand DiffWithCurrentCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
         public DelegateCommand SaveVersionAsCommand { get; private set; }
+        public DelegateCommand OpenInExplorerCommand { get; private set; }
 
         private Alteration _alteration;
         private Area _area;
@@ -43,6 +45,7 @@ namespace VersionrUI.ViewModels
             DiffWithCurrentCommand = new DelegateCommand(DiffWithCurrent, CanDiffWithCurrent);
             LogCommand = new DelegateCommand(Log);
             SaveVersionAsCommand = new DelegateCommand(SaveVersionAs, CanSaveVersionAs);
+            OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
         }
 
         public Alteration Alteration{ get { return _alteration; } }
@@ -236,6 +239,13 @@ namespace VersionrUI.ViewModels
 
                 return _diffPreviewDocument;
             }
+        }
+
+        private void OpenInExplorer()
+        {
+            ProcessStartInfo si = new ProcessStartInfo("explorer");
+            si.Arguments = "/select,\"" + Path.Combine(_area.Root.FullName, Name).Replace('/', '\\') + "\"";
+            Process.Start(si);
         }
     }
 }
