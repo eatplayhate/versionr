@@ -4347,9 +4347,19 @@ namespace Versionr
                         external = client.Workspace;
                     external.SetPartialPath(x.Value.PartialPath);
                     external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
+
                     if (fresh)
                     {
-                        external.Checkout(x.Value.Target, false, false);
+                        if (!String.IsNullOrEmpty(x.Value.Branch))
+                        {
+                            bool multiple;
+                            Objects.Branch externBranch = external.GetBranchByPartialName(string.IsNullOrEmpty(x.Value.Branch) ? external.GetVersion(external.Domain).Branch.ToString() : x.Value.Branch, out multiple);
+                            external.Checkout(externBranch.ID.ToString(), false, verbose);
+                        }
+                        else
+                        {
+                            external.Checkout(x.Value.Target, false, false);
+                        }
                     }
                     else
                     {
