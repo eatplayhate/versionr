@@ -1,6 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Media;
 using Versionr.Objects;
 using VersionrUI.Commands;
@@ -235,12 +236,12 @@ namespace VersionrUI.ViewModels
             }
 
             public List<ObjectAndLinks> Objects { get; set; }
-            public Dictionary<Guid, Tuple<VersionVM, int>> Lookup { get; set; }
+            public Dictionary<Guid, VersionVM> Lookup { get; set; }
 
             public DAG()
             {
                 Objects = new List<ObjectAndLinks>();
-                Lookup = new Dictionary<Guid, Tuple<VersionVM, int>>();
+                Lookup = new Dictionary<Guid, VersionVM>();
             }
         }
 
@@ -249,7 +250,7 @@ namespace VersionrUI.ViewModels
             DAG result = new DAG();
             foreach (VersionVM version in _history)
             {
-                result.Lookup[version.ID] = new Tuple<VersionVM, int>(version, result.Objects.Count);
+                result.Lookup[version.ID] = version;
                 DAG.ObjectAndLinks initialLink = new DAG.ObjectAndLinks(version);
                 result.Objects.Add(initialLink);
 
@@ -263,6 +264,8 @@ namespace VersionrUI.ViewModels
             return result;
         }
 
+        const int RowHeight = 25;
+        const int XSpacing = 30;
         private void ResolveGraph()
         {
             var result = GetDAG();
@@ -271,10 +274,10 @@ namespace VersionrUI.ViewModels
             
             foreach (var x in result.Objects)
             {
-                Tuple<Color, string> branchInfo = GetBranchDrawingProps(x.Version.Branch);
+                Tuple<Color, string, int> branchInfo = GetBranchDrawingProps(x.Version.Branch);
                 x.Version.GraphNode.Color = branchInfo.Item1;
-                x.Version.GraphNode.XPos = x.Links.Count * 25;
-                x.Version.GraphNode.YPos = index * 25; // 25 = row height
+                x.Version.GraphNode.XPos = branchInfo.Item3;
+                x.Version.GraphNode.YPos = index * RowHeight;
 
                 string name = x.Version.ID.ToString().Substring(0, 8);
                 name += string.Format("\n{0}", x.Version.Author);
@@ -293,7 +296,7 @@ namespace VersionrUI.ViewModels
                     {
                         if (result.Lookup.ContainsKey(link.Source))
                         {
-                            VersionVM sourceVM = result.Lookup[link.Source].Item1;
+                            VersionVM sourceVM = result.Lookup[link.Source];
                             if (sourceVM != null)
                             {
                                 x.Version.GraphNode.Links.Add(new Link()
@@ -308,10 +311,10 @@ namespace VersionrUI.ViewModels
                         else
                         {
                             VersionVM externalVersion = new VersionVM(_areaVM.Area.GetVersion(link.Source), _areaVM.Area);
-                            Tuple<Color, string> externalBranchInfo = GetBranchDrawingProps(externalVersion.Branch);
+                            Tuple<Color, string, int> externalBranchInfo = GetBranchDrawingProps(externalVersion.Branch);
                             externalVersion.GraphNode.Color = externalBranchInfo.Item1;
-                            externalVersion.GraphNode.XPos = 120;
-                            externalVersion.GraphNode.YPos = index * 25;
+                            externalVersion.GraphNode.XPos = externalBranchInfo.Item3;
+                            externalVersion.GraphNode.YPos = index * RowHeight;
                             externalVersion.GraphNode.Name = String.Format("{0}\n{1}\n{2}", externalVersion.ID.ToString().Substring(0, 8), externalVersion.Author, externalBranchInfo.Item2);
 
                             x.Version.GraphNode.ExternalVersions.Add(externalVersion);
@@ -330,16 +333,16 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private static Color[] colours = new Color[] { Colors.Red, Colors.Green, Colors.Blue, Colors.Cyan, Colors.DarkOrange, Colors.Magenta };
-        private Dictionary<Guid, Tuple<Color, string>> branchInfoMap = new Dictionary<Guid, Tuple<Color, string>>();
-        private Tuple<Color, string> GetBranchDrawingProps(Guid branchID)
+        private static Color[] colours = new Color[] { Colors.DarkOrange, Colors.Green, Colors.Blue, Colors.Cyan, Colors.Magenta, Colors.Red };
+        private Dictionary<Guid, Tuple<Color, string, int>> branchInfoMap = new Dictionary<Guid, Tuple<Color, string, int>>();
+        private Tuple<Color, string, int> GetBranchDrawingProps(Guid branchID)
         {
-            Tuple<Color, string> branchInfo;
+            Tuple<Color, string, int> branchInfo;
             if (!branchInfoMap.TryGetValue(branchID, out branchInfo))
             {
                 int nextColourIndex = branchInfoMap.Count % colours.Length;
                 Color colour = colours[nextColourIndex];
-                branchInfo = new Tuple<Color, string>(colour, _areaVM.Area.GetBranch(branchID).Name);
+                branchInfo = new Tuple<Color, string, int>(colour, _areaVM.Area.GetBranch(branchID).Name, branchInfoMap.Count * XSpacing);
                 branchInfoMap.Add(branchID, branchInfo);
             }
             return branchInfo;

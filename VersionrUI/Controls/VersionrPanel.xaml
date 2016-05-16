@@ -157,21 +157,18 @@
                               GridViewColumnHeader.Click="listViewHeader_Click">
                         <ListView.View>
                             <GridView>
-                                <!--<GridViewColumn Header="Graph" Width="150">
+                                <GridViewColumn Header="Graph">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate DataType="{x:Type vm:NodeDescrption}">
                                             <Canvas>
-                                                <Ellipse Width="13" Height="13"
-                                                         Fill="{Binding GraphNode.Brush}"
-                                                         ToolTip="{Binding GraphNode.Name}"
-                                                         Canvas.Left="{Binding GraphNode.XPos}" />
                                                 <ItemsControl ItemsSource="{Binding GraphNode.Links}">
                                                     <ItemsControl.Resources>
                                                         <DataTemplate DataType="{x:Type vm:Link}">
                                                             <Canvas>
                                                                 <Line X1="{Binding XPos}" Y1="6"
-                                                                  X2="{Binding SourceXOffset}" Y2="{Binding SourceYOffset}"
-                                                                  Stroke="{Binding Brush}">
+                                                                      X2="{Binding SourceXOffset}" Y2="{Binding SourceYOffset}"
+                                                                      Stroke="{Binding Brush}"
+                                                                      Canvas.Top="-6">
                                                                     <Line.Style>
                                                                         <Style TargetType="{x:Type Line}">
                                                                             <Style.Triggers>
@@ -190,18 +187,24 @@
                                                     <ItemsControl.Resources>
                                                         <DataTemplate DataType="{x:Type vm:VersionVM}">
                                                             <Canvas>
-                                                                <Ellipse Width="13" Height="13"
+                                                                <Ellipse Width="12" Height="12"
                                                                          Fill="{Binding GraphNode.Brush}"
                                                                          ToolTip="{Binding GraphNode.Name}"
-                                                                         Canvas.Left="{Binding GraphNode.XPos}" />
+                                                                         Canvas.Left="{Binding GraphNode.XPos}"
+                                                                         Canvas.Top="-6" />
                                                             </Canvas>
                                                         </DataTemplate>
                                                     </ItemsControl.Resources>
                                                 </ItemsControl>
+                                                <Ellipse Width="12" Height="12"
+                                                         Fill="{Binding GraphNode.Brush}"
+                                                         ToolTip="{Binding GraphNode.Name}"
+                                                         Canvas.Left="{Binding GraphNode.XPos}"
+                                                         Canvas.Top="-6" />
                                             </Canvas>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
-                                </GridViewColumn>-->
+                                </GridViewColumn>
                                 <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
