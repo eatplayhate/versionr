@@ -2912,11 +2912,23 @@ namespace Versionr
                                     Printer.PrintDiagnostics(" > #c#MR:## Two way merge success.");
 #endif
                                     if (result != ml)
+                                    {
+                                        if (ml.IsReadOnly)
+                                            ml.IsReadOnly = false;
                                         ml.Delete();
+                                    }
                                     if (result != mr)
+                                    {
+                                        if (mr.IsReadOnly)
+                                            mr.IsReadOnly = false;
                                         mr.Delete();
+                                    }
                                     if (result != mf)
+                                    {
+                                        if (mf.IsReadOnly)
+                                            mf.IsReadOnly = false;
                                         mf.Delete();
+                                    }
                                     result.MoveTo(ml.FullName);
 								    if (!updateMode)
 								    {
@@ -2933,6 +2945,8 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                                     Printer.PrintDiagnostics(" > #c#MR:## Two way merge failed, conflict.");
 #endif
+                                    if (mr.IsReadOnly)
+                                        mr.IsReadOnly = false;
                                     mr.Delete();
                                     LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
 								    if (!updateMode)
@@ -2977,13 +2991,29 @@ namespace Versionr
                                     Printer.PrintDiagnostics(" > #c#MR:## Three way merge success.");
 #endif
                                     if (result != ml)
+                                    {
+                                        if (ml.IsReadOnly)
+                                            ml.IsReadOnly = false;
                                         ml.Delete();
+                                    }
                                     if (result != mr)
+                                    {
+                                        if (mr.IsReadOnly)
+                                            mr.IsReadOnly = false;
                                         mr.Delete();
+                                    }
                                     if (result != mf)
+                                    {
+                                        if (mf.IsReadOnly)
+                                            mf.IsReadOnly = false;
                                         mf.Delete();
+                                    }
                                     if (result != mb)
+                                    {
+                                        if (mb.IsReadOnly)
+                                            mb.IsReadOnly = false;
                                         mb.Delete();
+                                    }
                                     result.MoveTo(ml.FullName);
 								    if (!updateMode)
                                     {
@@ -3115,8 +3145,12 @@ namespace Versionr
                 if (x.IsFile)
 				{
 					try
-					{
-						System.IO.File.Delete(path);
+                    {
+                        System.IO.FileInfo fi = new FileInfo(path);
+                        if (fi.IsReadOnly)
+                            fi.IsReadOnly = false;
+
+                        System.IO.File.Delete(path);
 					}
 					catch
 					{
@@ -3153,7 +3187,11 @@ namespace Versionr
             foreach (var x in parentData)
             {
                 if (x.TemporaryFile != null)
+                {
+                    if (x.TemporaryFile.IsReadOnly)
+                        x.TemporaryFile.IsReadOnly = false;
                     x.TemporaryFile.Delete();
+                }
             }
             LocalData.BeginTransaction();
             foreach (var x in filetimesToRemove)
@@ -3368,9 +3406,15 @@ namespace Versionr
                             FileInfo info = Merge2Way(x, foreign, localRecord, local, transientResult.TemporaryFile, false, ref resolveAll);
                             if (info != transientResult.TemporaryFile)
                             {
+                                if (transientResult.TemporaryFile.IsReadOnly)
+                                    transientResult.TemporaryFile.IsReadOnly = false;
                                 transientResult.TemporaryFile.Delete();
                                 System.IO.File.Move(info.FullName, transientResult.TemporaryFile.FullName);
                             }
+                            if (foreign.IsReadOnly)
+                                foreign.IsReadOnly = false;
+                            if (local.IsReadOnly)
+                                local.IsReadOnly = false;
                             foreign.Delete();
                             local.Delete();
                             transientResult.TemporaryFile = new FileInfo(transientResult.TemporaryFile.FullName);
@@ -3402,13 +3446,23 @@ namespace Versionr
                             FileInfo info = Merge3Way(x, foreign, localRecord, local, parentObject.Record, parentFile, transientResult.TemporaryFile, false, ref resolveAll);
                             if (info != transientResult.TemporaryFile)
                             {
+                                if (transientResult.TemporaryFile.IsReadOnly)
+                                    transientResult.TemporaryFile.IsReadOnly = false;
                                 transientResult.TemporaryFile.Delete();
                                 System.IO.File.Move(info.FullName, transientResult.TemporaryFile.FullName);
                             }
+                            if (foreign.IsReadOnly)
+                                foreign.IsReadOnly = false;
+                            if (local.IsReadOnly)
+                                local.IsReadOnly = false;
                             foreign.Delete();
                             local.Delete();
                             if (parentObject.TemporaryFile == null)
+                            {
+                                if (parentFile.IsReadOnly)
+                                    parentFile.IsReadOnly = false;
                                 parentFile.Delete();
+                            }
                             transientResult.TemporaryFile = new FileInfo(transientResult.TemporaryFile.FullName);
                             results.Add(transientResult);
                         }
@@ -3463,7 +3517,11 @@ namespace Versionr
             foreach (var x in parentData)
             {
                 if (x.TemporaryFile != null)
+                {
+                    if (x.TemporaryFile.IsReadOnly)
+                        x.TemporaryFile.IsReadOnly = false;
                     x.TemporaryFile.Delete();
+                }
             }
             return results;
         }
@@ -3483,7 +3541,10 @@ namespace Versionr
             System.IO.File.Copy(ml, ml + ".mine", true);
             if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
             {
-                System.IO.File.Delete(ml + ".mine");
+                FileInfo fi = new FileInfo(ml + ".mine");
+                if (fi.IsReadOnly)
+                    fi.IsReadOnly = false;
+                fi.Delete();
                 Printer.PrintMessage("#s# - Resolved.##");
                 return temporaryFile;
             }
@@ -3493,13 +3554,19 @@ namespace Versionr
                 if (resolution == ResolveType.Mine)
                 {
                     Printer.PrintMessage("#s# - Resolved (mine).##");
-                    System.IO.File.Delete(ml + ".mine");
+                    FileInfo fi = new FileInfo(ml + ".mine");
+                    if (fi.IsReadOnly)
+                        fi.IsReadOnly = false;
+                    fi.Delete();
                     return local;
                 }
                 if (resolution == ResolveType.Theirs)
                 {
                     Printer.PrintMessage("#s# - Resolved (theirs).##");
-                    System.IO.File.Delete(ml + ".mine");
+                    FileInfo fi = new FileInfo(ml + ".mine");
+                    if (fi.IsReadOnly)
+                        fi.IsReadOnly = false;
+                    fi.Delete();
                     return foreign;
                 }
                 else
@@ -3534,7 +3601,10 @@ namespace Versionr
             System.IO.File.Copy(ml, ml + ".mine", true);
             if (!isBinary && Utilities.DiffTool.Merge(ml, mf, mr, Directives.ExternalMerge2Way))
             {
-                System.IO.File.Delete(ml + ".mine");
+                FileInfo fi = new FileInfo(ml + ".mine");
+                if (fi.IsReadOnly)
+                    fi.IsReadOnly = false;
+                fi.Delete();
                 Printer.PrintMessage("#s# - Resolved.##");
                 return temporaryFile;
             }
@@ -3544,13 +3614,19 @@ namespace Versionr
                 if (resolution == ResolveType.Mine)
                 {
                     Printer.PrintMessage("#s# - Resolved (mine).##");
-                    System.IO.File.Delete(ml + ".mine");
+                    FileInfo fi = new FileInfo(ml + ".mine");
+                    if (fi.IsReadOnly)
+                        fi.IsReadOnly = false;
+                    fi.Delete();
                     return local;
                 }
                 if (resolution == ResolveType.Theirs)
                 {
                     Printer.PrintMessage("#s# - Resolved (theirs).##");
-                    System.IO.File.Delete(ml + ".mine");
+                    FileInfo fi = new FileInfo(ml + ".mine");
+                    if (fi.IsReadOnly)
+                        fi.IsReadOnly = false;
+                    fi.Delete();
                     return foreign;
                 }
                 else
@@ -3895,6 +3971,8 @@ namespace Versionr
                             deletionList.Add(x.FilesystemEntry);
                         else
                         {
+                            if (x.FilesystemEntry.Info.IsReadOnly)
+                                x.FilesystemEntry.Info.IsReadOnly = false;
                             x.FilesystemEntry.Info.Delete();
                             RemoveFileTimeCache(x.CanonicalName);
                             Printer.PrintMessage("Purging unversioned file {0}", x.CanonicalName);
@@ -3909,6 +3987,9 @@ namespace Versionr
                 {
                     try
                     {
+                        if (x.FilesystemEntry.Info.IsReadOnly)
+                            x.FilesystemEntry.Info.IsReadOnly = false;
+
                         x.FilesystemEntry.Info.Delete();
                         RemoveFileTimeCache(x.CanonicalName);
                         Printer.PrintMessage("Purging copied file {0}", x.CanonicalName);
@@ -4198,7 +4279,10 @@ namespace Versionr
                         try
                         {
                             RemoveFileTimeCache(x.CanonicalName, false);
-                            System.IO.File.Delete(path);
+                            System.IO.FileInfo fi = new FileInfo(path);
+                            if (fi.IsReadOnly)
+                                fi.IsReadOnly = false;
+                            fi.Delete();
                             if (verbose)
                                 Printer.PrintMessage("#b#Deleted## {0}", x.CanonicalName);
                             deletions++;
@@ -4668,6 +4752,8 @@ namespace Versionr
             foreach (var x in deletionList)
             {
                 Printer.PrintMessage("#e#Deleted:## #b#{0}##", x.CanonicalName);
+                if (x.FilesystemEntry.Info.IsReadOnly)
+                    x.FilesystemEntry.Info.IsReadOnly = false;
                 x.FilesystemEntry.Info.Delete();
             }
             foreach (var x in directoryDeletionList.OrderByDescending(x => x.CanonicalName.Length))
@@ -4707,6 +4793,8 @@ namespace Versionr
                                 Printer.PrintMessage("#w#Deleting:## {0}", GetLocalCanonicalName(mineFile.FullName));
                                 try
                                 {
+                                    if (mineFile.IsReadOnly)
+                                        mineFile.IsReadOnly = false;
                                     mineFile.Delete();
                                 }
                                 catch (Exception e)
@@ -4719,6 +4807,8 @@ namespace Versionr
                                 Printer.PrintMessage("#w#Deleting:## {0}", GetLocalCanonicalName(theirsFile.FullName));
                                 try
                                 {
+                                    if (theirsFile.IsReadOnly)
+                                        theirsFile.IsReadOnly = false;
                                     theirsFile.Delete();
                                 }
                                 catch (Exception e)
@@ -4731,6 +4821,8 @@ namespace Versionr
                                 Printer.PrintMessage("#w#Deleting:## {0}", GetLocalCanonicalName(baseFile.FullName));
                                 try
                                 {
+                                    if (baseFile.IsReadOnly)
+                                        baseFile.IsReadOnly = false;
                                     baseFile.Delete();
                                 }
                                 catch (Exception e)
@@ -4751,6 +4843,8 @@ namespace Versionr
             foreach (var x in deletionList)
             {
                 Printer.PrintMessage("#e#Deleted:## #b#{0}##", x.CanonicalName);
+                if (x.FilesystemEntry.Info.IsReadOnly)
+                    x.FilesystemEntry.Info.IsReadOnly = false;
                 x.FilesystemEntry.Info.Delete();
             }
             foreach (var x in directoryDeletionList.OrderByDescending(x => x.CanonicalName.Length))
