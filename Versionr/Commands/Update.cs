@@ -49,7 +49,7 @@ namespace Versionr.Commands
             {
                 AllowRecursiveMerge = !localOptions.Simple,
                 IgnoreMergeParents = false,
-                Reintegrate = true,
+                Reintegrate = false,
                 MetadataOnly = localOptions.Metadata,
                 ResolutionStrategy = localOptions.Mine ? Area.MergeSpecialOptions.ResolutionSystem.Mine : (localOptions.Theirs ? Area.MergeSpecialOptions.ResolutionSystem.Theirs : Area.MergeSpecialOptions.ResolutionSystem.Normal)
             };
