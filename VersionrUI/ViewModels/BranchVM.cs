@@ -159,7 +159,7 @@ namespace VersionrUI.ViewModels
             OperationStatusDialog.Start("Pull");
             _areaVM.ExecuteClientCommand((c) => c.Pull(true, Name), "pull");
             if(IsCurrent)
-                _areaVM.Area.Update();
+                _areaVM.Area.Update(new Versionr.Area.MergeSpecialOptions());
             OperationStatusDialog.Finish();
         }
 

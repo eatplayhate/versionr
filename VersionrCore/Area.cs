@@ -589,9 +589,9 @@ namespace Versionr
             }
         }
 
-        public void Update(string updateTarget = null)
+        public void Update(MergeSpecialOptions options, string updateTarget = null)
         {
-            Merge(string.IsNullOrEmpty(updateTarget) ? CurrentBranch.ID.ToString() : updateTarget, true, false);
+            Merge(string.IsNullOrEmpty(updateTarget) ? CurrentBranch.ID.ToString() : updateTarget, true, options);
             ProcessExterns(true);
         }
 
@@ -2442,8 +2442,41 @@ namespace Versionr
             }
         }
 
-        public void Merge(string v, bool updateMode, bool force, bool allowrecursiveMerge = false, bool reintegrate = false, bool ignoreMergeParents = false)
+        public class MergeSpecialOptions
         {
+            public bool MetadataOnly { get; set; }
+            public bool IgnoreMergeParents { get; set; }
+            public bool Reintegrate { get; set; }
+            public bool AllowRecursiveMerge { get; set; }
+            public enum ResolutionSystem
+            {
+                Normal,
+                Theirs,
+                Mine
+            };
+
+            public ResolutionSystem ResolutionStrategy { get; set; }
+
+            public MergeSpecialOptions()
+            {
+                MetadataOnly = false;
+                IgnoreMergeParents = false;
+                Reintegrate = false;
+                AllowRecursiveMerge = true;
+                ResolutionStrategy = ResolutionSystem.Normal;
+            }
+
+            internal void Validate()
+            {
+                if (ResolutionStrategy != ResolutionSystem.Normal)
+                    AllowRecursiveMerge = false;
+                if (MetadataOnly)
+                    AllowRecursiveMerge = false;
+            }
+        }
+        public void Merge(string v, bool updateMode, MergeSpecialOptions options)
+        {
+            options.Validate();
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
             Versionr.Status status = new Status(this, Database, LocalData, FileSnapshot, null, false, false);
@@ -2465,10 +2498,10 @@ namespace Versionr
                 }
                 if (mergeVersion == null)
                     throw new Exception("Couldn't find version to merge from!");
-                if (possibleBranch == null && reintegrate)
+                if (possibleBranch == null && options.Reintegrate)
                     throw new Exception("Can't reintegrate when merging a version and not a branch.");
 
-                var parents = GetCommonParents(null, mergeVersion, ignoreMergeParents);
+                var parents = GetCommonParents(null, mergeVersion, options.IgnoreMergeParents);
                 if (parents == null || parents.Count == 0)
                     throw new Exception("No common parent!");
 
@@ -2476,11 +2509,11 @@ namespace Versionr
                 Printer.PrintMessage("Starting merge:");
                 Printer.PrintMessage(" - Local: {0} #b#\"{1}\"##", Database.Version.ID, GetBranch(Database.Version.Branch).Name);
                 Printer.PrintMessage(" - Remote: {0} #b#\"{1}\"##", mergeVersion.ID, GetBranch(mergeVersion.Branch).Name);
-                if (false && parents.Count == 2 && allowrecursiveMerge)
+                if (false && parents.Count == 2 && options.AllowRecursiveMerge)
                 {
-                    parents = GetCommonParents(GetVersion(parents[0].Key), GetVersion(parents[1].Key), ignoreMergeParents);
+                    parents = GetCommonParents(GetVersion(parents[0].Key), GetVersion(parents[1].Key), options.IgnoreMergeParents);
                 }
-                if (parents.Count == 1 || !allowrecursiveMerge)
+                if (parents.Count == 1 || !options.AllowRecursiveMerge)
                 {
                     parent = GetVersion(parents[0].Key);
                     if (parent.ID == mergeVersion.ID)
@@ -2526,7 +2559,8 @@ namespace Versionr
                     if (updateHeads.Any(x => x.ID == parentVersion.ID))
                     {
                         // merge extra head into current version
-                        Merge(updateHeads.First(x => x.ID != parentVersion.ID).ID.ToString(), false, false, true, false);
+                        options.Reintegrate = true;
+                        Merge(updateHeads.First(x => x.ID != parentVersion.ID).ID.ToString(), false, options);
                         return;
                     }
                     mergeVersion = null;
@@ -2568,7 +2602,13 @@ namespace Versionr
                 Printer.PrintMessage(" - Old version: {0}", parentVersion.ID);
                 Printer.PrintMessage(" - New version: {0}", mergeVersion.ID);
             }
-            
+
+            if (options.MetadataOnly)
+            {
+                LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Merge, Operand1 = mergeVersion.ID.ToString() });
+                return;
+            }
+
             var foreignRecords = Database.GetRecords(mergeVersion);
             DateTime newRefTime = DateTime.UtcNow;
             ResolveType? resolveAll = null;
@@ -2592,6 +2632,8 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
             Printer.PrintDiagnostics("Merge phase 1 - processing foreign records.");
 #endif
+
+            HashSet<string> caseInsensitiveSet = new HashSet<string>();
             foreach (var x in CheckoutOrder(foreignRecords))
             {
 #if MERGE_DIAGNOSTICS
@@ -2656,7 +2698,10 @@ namespace Versionr
 #endif
                         // Added
                         if (included)
+                        {
+                            caseInsensitiveSet.Add(x.CanonicalName.ToLower());
                             RestoreRecord(x, newRefTime);
+                        }
                         if (!updateMode)
                         {
                             if (!included)
@@ -2743,11 +2788,20 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                                     Printer.PrintDiagnostics(" > #c#MR:## Unreconcilable changes, tree conflict.");
 #endif
-                                    Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
-                                    RestoreRecord(x, newRefTime);
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-                                    if (!updateMode)
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Normal)
+                                    {
+                                        Printer.PrintWarning("Object \"{0}\" removed locally but changed in target version.", x.CanonicalName);
+                                        RestoreRecord(x, newRefTime);
+                                        LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                        if (!updateMode)
+                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    }
+                                    else if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Theirs)
+                                    {
+                                        caseInsensitiveSet.Add(x.CanonicalName.ToLower());
+                                        RestoreRecord(x, newRefTime);
+                                        LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                    }
                                 }
                             }
                         }
@@ -2769,6 +2823,7 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                             Printer.PrintDiagnostics(" > #c#MR:## Local data is unversioned, adding to stage.");
 #endif
+                            caseInsensitiveSet.Add(x.CanonicalName.ToLower());
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
                         }
@@ -2803,6 +2858,7 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                                 Printer.PrintDiagnostics(" > #c#MR:## Updating to remote data as there are no conflicting changes in this branch.");
 #endif
+                                caseInsensitiveSet.Add(x.CanonicalName.ToLower());
                                 RestoreRecord(x, newRefTime);
                                 if (!updateMode)
                                 {
@@ -2833,61 +2889,69 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                                 Printer.PrintDiagnostics(" > #c#MR:## Running two way merge.");
 #endif
-                                // added in both places
-                                var mf = GetTemporaryFile(x, "-theirs");
-                                var ml = localObject.FilesystemEntry.Info;
-                                var mr = GetTemporaryFile(x, "-result");
-                            
-                                RestoreRecord(x, newRefTime, mf.FullName);
-
-                                mf = new FileInfo(mf.FullName);
-
-                                FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true, ref resolveAll);
-                                if (result != null)
+                                caseInsensitiveSet.Add(x.CanonicalName.ToLower());
+                                if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Theirs)
                                 {
+                                    RestoreRecord(x, newRefTime);
+                                }
+                                else if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Normal)
+                                {
+                                    // added in both places
+                                    var mf = GetTemporaryFile(x, "-theirs");
+                                    var ml = localObject.FilesystemEntry.Info;
+                                    var mr = GetTemporaryFile(x, "-result");
+
+                                    RestoreRecord(x, newRefTime, mf.FullName);
+
+                                    mf = new FileInfo(mf.FullName);
+
+                                    FileInfo result = Merge2Way(x, mf, localObject.VersionControlRecord, ml, mr, true, ref resolveAll);
+                                    if (result != null)
+                                    {
 #if MERGE_DIAGNOSTICS
-                                    Printer.PrintDiagnostics(" > #c#MR:## Two way merge success.");
+                                        Printer.PrintDiagnostics(" > #c#MR:## Two way merge success.");
 #endif
-                                    if (result != ml)
-                                    {
-                                        if (ml.IsReadOnly)
-                                            ml.IsReadOnly = false;
-                                        ml.Delete();
+                                        if (result != ml)
+                                        {
+                                            if (ml.IsReadOnly)
+                                                ml.IsReadOnly = false;
+                                            ml.Delete();
+                                        }
+                                        if (result != mr)
+                                        {
+                                            if (mr.IsReadOnly)
+                                                mr.IsReadOnly = false;
+                                            mr.Delete();
+                                        }
+                                        if (result != mf)
+                                        {
+                                            if (mf.IsReadOnly)
+                                                mf.IsReadOnly = false;
+                                            mf.Delete();
+                                        }
+                                        result.MoveTo(ml.FullName);
+                                        if (!updateMode)
+                                        {
+                                            TransientMergeObject tmo = new TransientMergeObject() { CanonicalName = x.CanonicalName, Record = x, TemporaryFile = new FileInfo(ml.FullName) };
+                                            if (!tmo.DataEquals(localObject))
+                                            {
+                                                delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                                delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                            }
+                                        }
                                     }
-                                    if (result != mr)
+                                    else
                                     {
+#if MERGE_DIAGNOSTICS
+                                        Printer.PrintDiagnostics(" > #c#MR:## Two way merge failed, conflict.");
+#endif
                                         if (mr.IsReadOnly)
                                             mr.IsReadOnly = false;
                                         mr.Delete();
-                                    }
-                                    if (result != mf)
-                                    {
-                                        if (mf.IsReadOnly)
-                                            mf.IsReadOnly = false;
-                                        mf.Delete();
-                                    }
-                                    result.MoveTo(ml.FullName);
-								    if (!updateMode)
-								    {
-                                        TransientMergeObject tmo = new TransientMergeObject() { CanonicalName = x.CanonicalName, Record = x, TemporaryFile = new FileInfo(ml.FullName) };
-                                        if (!tmo.DataEquals(localObject))
-                                        {
-                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                        LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                        if (!updateMode)
                                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-                                        }
-								    }
-							    }
-                                else
-                                {
-#if MERGE_DIAGNOSTICS
-                                    Printer.PrintDiagnostics(" > #c#MR:## Two way merge failed, conflict.");
-#endif
-                                    if (mr.IsReadOnly)
-                                        mr.IsReadOnly = false;
-                                    mr.Delete();
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-								    if (!updateMode)
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    }
                                 }
                             }
                             else if (!updateMode)
@@ -2903,74 +2967,82 @@ namespace Versionr
 #endif
                             if (included)
                             {
-                                var mf = GetTemporaryFile(x, "-theirs");
-                                FileInfo mb;
-                                var ml = localObject.FilesystemEntry.Info;
-                                var mr = GetTemporaryFile(x, "-result");
-
-                                if (parentObject.TemporaryFile == null)
+                                caseInsensitiveSet.Add(x.CanonicalName.ToLower());
+                                if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Theirs)
                                 {
-                                    mb = GetTemporaryFile(parentObject.Record, "-base");
-                                    RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
-                                    mb = new FileInfo(mb.FullName);
+                                    RestoreRecord(x, newRefTime);
                                 }
-                                else
-                                    mb = parentObject.TemporaryFile;
-                            
-                                RestoreRecord(x, newRefTime, mf.FullName);
-
-                                mf = new FileInfo(mf.FullName);
-
-                                FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true, ref resolveAll);
-                                if (result != null)
+                                else if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Normal)
                                 {
+                                    var mf = GetTemporaryFile(x, "-theirs");
+                                    FileInfo mb;
+                                    var ml = localObject.FilesystemEntry.Info;
+                                    var mr = GetTemporaryFile(x, "-result");
+
+                                    if (parentObject.TemporaryFile == null)
+                                    {
+                                        mb = GetTemporaryFile(parentObject.Record, "-base");
+                                        RestoreRecord(parentObject.Record, newRefTime, mb.FullName);
+                                        mb = new FileInfo(mb.FullName);
+                                    }
+                                    else
+                                        mb = parentObject.TemporaryFile;
+
+                                    RestoreRecord(x, newRefTime, mf.FullName);
+
+                                    mf = new FileInfo(mf.FullName);
+
+                                    FileInfo result = Merge3Way(x, mf, localObject.VersionControlRecord, ml, parentObject.Record, mb, mr, true, ref resolveAll);
+                                    if (result != null)
+                                    {
 #if MERGE_DIAGNOSTICS
                                     Printer.PrintDiagnostics(" > #c#MR:## Three way merge success.");
 #endif
-                                    if (result != ml)
-                                    {
-                                        if (ml.IsReadOnly)
-                                            ml.IsReadOnly = false;
-                                        ml.Delete();
-                                    }
-                                    if (result != mr)
-                                    {
-                                        if (mr.IsReadOnly)
-                                            mr.IsReadOnly = false;
-                                        mr.Delete();
-                                    }
-                                    if (result != mf)
-                                    {
-                                        if (mf.IsReadOnly)
-                                            mf.IsReadOnly = false;
-                                        mf.Delete();
-                                    }
-                                    if (result != mb)
-                                    {
-                                        if (mb.IsReadOnly)
-                                            mb.IsReadOnly = false;
-                                        mb.Delete();
-                                    }
-                                    result.MoveTo(ml.FullName);
-								    if (!updateMode)
-                                    {
-                                        TransientMergeObject tmo = new TransientMergeObject() { CanonicalName = x.CanonicalName, Record = x, TemporaryFile = new FileInfo(ml.FullName) };
-                                        if (!tmo.DataEquals(localObject))
+                                        if (result != ml)
                                         {
-                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
-                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                            if (ml.IsReadOnly)
+                                                ml.IsReadOnly = false;
+                                            ml.Delete();
                                         }
-								    }
-							    }
-                                else
-                                {
+                                        if (result != mr)
+                                        {
+                                            if (mr.IsReadOnly)
+                                                mr.IsReadOnly = false;
+                                            mr.Delete();
+                                        }
+                                        if (result != mf)
+                                        {
+                                            if (mf.IsReadOnly)
+                                                mf.IsReadOnly = false;
+                                            mf.Delete();
+                                        }
+                                        if (result != mb)
+                                        {
+                                            if (mb.IsReadOnly)
+                                                mb.IsReadOnly = false;
+                                            mb.Delete();
+                                        }
+                                        result.MoveTo(ml.FullName);
+                                        if (!updateMode)
+                                        {
+                                            TransientMergeObject tmo = new TransientMergeObject() { CanonicalName = x.CanonicalName, Record = x, TemporaryFile = new FileInfo(ml.FullName) };
+                                            if (!tmo.DataEquals(localObject))
+                                            {
+                                                delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
+                                                delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
 #if MERGE_DIAGNOSTICS
                                     Printer.PrintDiagnostics(" > #c#MR:## Three way merge failed. Conflict.");
 #endif
-                                    LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
-								    if (!updateMode)
-                                        delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
-							    }
+                                        LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
+                                        if (!updateMode)
+                                            delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = x.Id });
+                                    }
+                                }
                             }
                             else if (!updateMode)
                             {
@@ -3026,13 +3098,13 @@ namespace Versionr
                             Printer.PrintMessage("#q#Removing (Ignored):## #b#{0}##", x.CanonicalName);
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = -1 });
                         }
-                        else if (!localObject.Removed)
+                        else if (!localObject.Removed && !caseInsensitiveSet.Contains(x.CanonicalName.ToLower()))
                         {
 #if MERGE_DIAGNOSTICS
                             Printer.PrintDiagnostics(" > Local object is still active.");
 #endif
                             string path = System.IO.Path.Combine(Root.FullName, x.CanonicalName);
-                            if (x.DataEquals(localObject))
+                            if (x.DataEquals(localObject) || options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Theirs)
                             {
 #if MERGE_DIAGNOSTICS
                                 Printer.PrintDiagnostics(" > #c#MR:## Local object matches parent, removing.");
@@ -3040,7 +3112,7 @@ namespace Versionr
                                 Printer.PrintMessage("#c#Removing:## {0}", x.CanonicalName);
                                 deletionList.Add(x.Record);
                             }
-                            else
+                            else if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Mine)
                             {
 #if MERGE_DIAGNOSTICS
                                 Printer.PrintDiagnostics(" > #c#MR:## Local object doesn't match parent!");
@@ -3134,7 +3206,7 @@ namespace Versionr
             foreach (var x in filetimesToRemove)
                 RemoveFileTimeCache(x);
             LocalData.Commit();
-            if (reintegrate)
+            if (options.Reintegrate)
                 LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Reintegrate, Operand1 = possibleBranch.ID.ToString() });
             if (!updateMode)
             {
@@ -3144,7 +3216,7 @@ namespace Versionr
                     if (x.Type == StageOperationType.Merge)
                     {
                         if (mergeVersionGraph == null)
-                            mergeVersionGraph = GetParentGraph(mergeVersion, ignoreMergeParents);
+                            mergeVersionGraph = GetParentGraph(mergeVersion, options.IgnoreMergeParents);
                         Objects.Version stagedMergeVersion = GetVersion(new Guid(x.Operand1));
                         if (mergeVersionGraph.ContainsKey(stagedMergeVersion.ID))
                             LocalData.RemoveStageOperation(x);
@@ -3170,7 +3242,9 @@ namespace Versionr
             }
 
             if (updateMode && !string.IsNullOrEmpty(postUpdateMerge))
-                Merge(postUpdateMerge, false, false, true, false);
+            {
+                Merge(postUpdateMerge, false, new MergeSpecialOptions());
+            }
         }
 
         private void RemoveFileTimeCache(string item2, bool updateDB = true)
@@ -4452,7 +4526,7 @@ namespace Versionr
                         if (x.Value.Target == null)
                         {
                             if (external.CurrentBranch.ID == externBranch.ID)
-                                external.Update();
+                                external.Update(new MergeSpecialOptions());
                             else
                             {
                                 if (external.Status.HasModifications(false))

@@ -7,7 +7,7 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class MergeVerbOptions : VerbOptionBase
+    class MergeVerbOptions : MergeSharedOptions
     {
         public override string[] Description
         {
@@ -28,12 +28,6 @@ namespace Versionr.Commands
             }
         }
 
-        [Option('f', "force", HelpText = "Force the merge even if the repository isn't clean")]
-        public bool Force { get; set; }
-
-        [Option('s', "simple", HelpText = "Disable recursive merge engine")]
-        public bool Simple { get; set; }
-
         [Option("reintegrate", HelpText = "Deletes the branch once the merge finishes.")]
         public bool Reintegrate { get; set; }
 
@@ -42,6 +36,18 @@ namespace Versionr.Commands
 
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
+    }
+    abstract class MergeSharedOptions : VerbOptionBase
+    {
+        [Option("metadata-only", HelpText = "Record merge without altering workspace contents (ADVANCED FEATURE ONLY).")]
+        public bool Metadata { get; set; }
+        [Option("force-theirs", MutuallyExclusiveSet = "theirsmine", HelpText = "Use remote files instead of merging results where both inputs have changed the data.")]
+        public bool Theirs { get; set; }
+        [Option("force-mine", MutuallyExclusiveSet = "theirsmine", HelpText = "Use local files instead of merging results where both inputs have changed the data.")]
+        public bool Mine { get; set; }
+
+        [Option('s', "simple", HelpText = "Disable recursive merge engine")]
+        public bool Simple { get; set; }
     }
     class Merge : BaseCommand
     {
@@ -52,8 +58,16 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
+            Area.MergeSpecialOptions opt = new Area.MergeSpecialOptions()
+            {
+                AllowRecursiveMerge = !localOptions.Simple,
+                IgnoreMergeParents = localOptions.IgnoreMergeAncestry,
+                Reintegrate = localOptions.Reintegrate,
+                MetadataOnly = localOptions.Metadata,
+                ResolutionStrategy = localOptions.Mine ? Area.MergeSpecialOptions.ResolutionSystem.Mine : (localOptions.Theirs ? Area.MergeSpecialOptions.ResolutionSystem.Theirs : Area.MergeSpecialOptions.ResolutionSystem.Normal)
+            };
             foreach (var x in localOptions.Target)
-                ws.Merge(x, false, localOptions.Force, !localOptions.Simple, localOptions.Reintegrate, localOptions.IgnoreMergeAncestry);
+                ws.Merge(x, false, opt);
             return true;
         }
     }

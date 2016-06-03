@@ -7,7 +7,7 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class UpdateVerbOptions : VerbOptionBase
+    class UpdateVerbOptions : MergeSharedOptions
     {
         public override string Usage
         {
@@ -45,7 +45,15 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            ws.Update();
+            Area.MergeSpecialOptions opt = new Area.MergeSpecialOptions()
+            {
+                AllowRecursiveMerge = !localOptions.Simple,
+                IgnoreMergeParents = false,
+                Reintegrate = false,
+                MetadataOnly = localOptions.Metadata,
+                ResolutionStrategy = localOptions.Mine ? Area.MergeSpecialOptions.ResolutionSystem.Mine : (localOptions.Theirs ? Area.MergeSpecialOptions.ResolutionSystem.Theirs : Area.MergeSpecialOptions.ResolutionSystem.Normal)
+            };
+            ws.Update(opt);
             return true;
         }
     }
