@@ -106,7 +106,7 @@ namespace Versionr.Commands
                 return false;
             if (localOptions.Update)
             {
-                client.Workspace.Update();
+                client.Workspace.Update(new Area.MergeSpecialOptions());
             }
             return true;
         }

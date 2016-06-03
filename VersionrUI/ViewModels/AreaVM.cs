@@ -136,7 +136,7 @@ namespace VersionrUI.ViewModels
         private void Pull()
         {
             ExecuteClientCommand((c) => c.Pull(true, null), "pull");
-            _area.Update();
+            _area.Update(new Area.MergeSpecialOptions());
         }
 
         private void Push()
