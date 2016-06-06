@@ -130,7 +130,7 @@ namespace VersionrUI.ViewModels
             get
             {
                 if (_alterations == null)
-                    Load(Refresh);
+                    Refresh();
                 return _alterations;
             }
         }

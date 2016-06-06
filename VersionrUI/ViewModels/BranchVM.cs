@@ -128,7 +128,9 @@ namespace VersionrUI.ViewModels
                 if (version.Message.ToLower().Contains(searchtext) ||
                     version.ID.ToString().ToLower().Contains(searchtext) ||
                     version.Author.ToLower().Contains(searchtext) ||
-                    version.Timestamp.ToString().ToLower().Contains(searchtext))
+                    version.Timestamp.ToString().ToLower().Contains(searchtext) ||
+					version.Alterations.Any(x => x.Name.ToLower().Contains(searchtext))
+				)
                 {
                     results.Add(version);
                 }
