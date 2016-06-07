@@ -2622,7 +2622,6 @@ namespace Versionr
                     if (updateHeads.Any(x => x.ID == parentVersion.ID))
                     {
                         // merge extra head into current version
-                        options.Reintegrate = true;
                         Merge(updateHeads.First(x => x.ID != parentVersion.ID).ID.ToString(), false, options);
                         return;
                     }
