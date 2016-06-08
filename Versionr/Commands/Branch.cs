@@ -52,7 +52,7 @@ namespace Versionr.Commands
             {
                 return false;
             }
-            if (System.Text.RegularExpressions.Regex.IsMatch(localOptions.Target[0], "^\\w+$"))
+            if (System.Text.RegularExpressions.Regex.IsMatch(localOptions.Target[0], "^(-|\\w)+$"))
                 ws.Branch(localOptions.Target[0]);
             else
             {

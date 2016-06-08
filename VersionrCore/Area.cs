@@ -3937,7 +3937,7 @@ namespace Versionr
 
         public void Branch(string v)
         {
-            if (!System.Text.RegularExpressions.Regex.IsMatch(v, "^\\w+$"))
+            if (!System.Text.RegularExpressions.Regex.IsMatch(v, "^([-]|\\w)+$"))
                 throw new Exception("Invalid branch name.");
             Printer.PrintDiagnostics("Checking for existing branch \"{0}\".", v);
             var branch = GetBranchByName(v).FirstOrDefault();
