@@ -5512,6 +5512,8 @@ namespace Versionr
                 }
                 else
                 {
+                    if (dest.Exists && dest.IsReadOnly)
+                        dest.IsReadOnly = false;
                     using (var fsd = dest.Open(FileMode.Create))
                     {
                         ObjectStore.WriteRecordStream(rec, fsd);
