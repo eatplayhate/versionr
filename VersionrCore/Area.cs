@@ -2559,7 +2559,6 @@ namespace Versionr
                     if (updateHeads.Any(x => x.ID == parentVersion.ID))
                     {
                         // merge extra head into current version
-                        options.Reintegrate = true;
                         Merge(updateHeads.First(x => x.ID != parentVersion.ID).ID.ToString(), false, options);
                         return;
                     }
@@ -3875,7 +3874,7 @@ namespace Versionr
 
         public void Branch(string v)
         {
-            if (!System.Text.RegularExpressions.Regex.IsMatch(v, "^\\w+$"))
+            if (!System.Text.RegularExpressions.Regex.IsMatch(v, "^([-]|\\w)+$"))
                 throw new Exception("Invalid branch name.");
             Printer.PrintDiagnostics("Checking for existing branch \"{0}\".", v);
             var branch = GetBranchByName(v).FirstOrDefault();
@@ -5460,6 +5459,8 @@ namespace Versionr
                 }
                 else
                 {
+                    if (dest.Exists && dest.IsReadOnly)
+                        dest.IsReadOnly = false;
                     using (var fsd = dest.Open(FileMode.Create))
                     {
                         ObjectStore.WriteRecordStream(rec, fsd);
