@@ -127,6 +127,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="80" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0"
@@ -247,8 +248,20 @@
                                   VerticalAlignment="Center"
                                   ShowsPreview="True"
                                   Height="5" />
-                    
-                    <ContentPresenter Grid.Row="5" Content="{Binding SelectedItem, ElementName=listView}" />
+
+                    <Grid Grid.Row="5"
+                          Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0">Search:</Label>
+                        <TextBox Grid.Column="1"
+                                 x:Name="alterationSearch"
+                                 mahapps:TextBoxHelper.Watermark="Search"
+                                 Text="{Binding SelectedVersion.SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <ContentPresenter Grid.Row="6" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>
                 <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>

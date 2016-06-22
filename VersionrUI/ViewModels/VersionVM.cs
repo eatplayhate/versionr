@@ -71,6 +71,7 @@ namespace VersionrUI.ViewModels
         private Version _version;
         private Area _area;
         private List<AlterationVM> _alterations;
+        private string _searchText;
         
         public VersionVM(Version version, Area area)
         {
@@ -125,14 +126,39 @@ namespace VersionrUI.ViewModels
             get { return _version.Branch; }
         }
 
+        public string SearchText
+        {
+            get { return _searchText; }
+            private set
+            {
+                _searchText = value;
+                NotifyPropertyChanged("SearchText");
+                NotifyPropertyChanged("Alterations");
+            }
+        }
+
         public List<AlterationVM> Alterations
         {
             get
             {
                 if (_alterations == null)
                     Refresh();
+                if (!string.IsNullOrEmpty(_searchText))
+                    return FilterAlterations(_searchText, _alterations);
                 return _alterations;
             }
+        }
+
+        public List<AlterationVM> FilterAlterations(string searchtext, List<AlterationVM> alterations)
+        {
+            searchtext = searchtext.ToLower();
+            List<AlterationVM> results = new List<AlterationVM>();
+            foreach (AlterationVM alteration in alterations)
+            {
+                if (alteration.Name.ToLower().Contains(searchtext))
+                    results.Add(alteration);
+            }
+            return results;
         }
 
         public NodeDescrption GraphNode { get; private set; }
