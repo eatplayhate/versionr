@@ -104,16 +104,22 @@ namespace Versionr
         [Newtonsoft.Json.JsonIgnore]
         public System.Text.RegularExpressions.Regex[] RegexDirectoryPatterns { get; set; }
 
+        private static T[] SafeMerge<T>(T[] a, T[] b)
+        {
+            if (a != null && b != null)
+                return a.Concat(b).ToArray();
+            else if (a != null)
+                return a;
+            else
+                return b;
+        }
+
         internal void Merge(Ignores ignore)
         {
-            if (ignore.Extensions != null)
-                Extensions = Extensions.Concat(ignore.Extensions).ToArray();
-            if (ignore.RegexFilePatterns != null)
-                RegexFilePatterns = RegexFilePatterns.Concat(ignore.RegexFilePatterns).ToArray();
-            if (ignore.RegexDirectoryPatterns != null)
-                RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(ignore.RegexDirectoryPatterns).ToArray();
-            if (ignore.Directories != null)
-                Directories = Directories.Concat(ignore.Directories).ToArray();
+            Extensions = SafeMerge(Extensions, ignore.Extensions);
+            RegexFilePatterns = SafeMerge(RegexFilePatterns, ignore.RegexFilePatterns);
+            RegexDirectoryPatterns = SafeMerge(RegexDirectoryPatterns, ignore.RegexDirectoryPatterns);
+            Directories = SafeMerge(Directories, ignore.Directories);
         }
     }
 
