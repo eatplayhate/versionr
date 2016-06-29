@@ -181,6 +181,26 @@ namespace Versionr.Commands
                         Printer.WriteLineMessage("\nExternal #c#{0}## ({1}): #e#missing##", x.Key, x.Value.Location);
                 }
             }
+
+            var heads = Workspace.GetBranchHeads(Workspace.CurrentBranch);
+            if (heads.Count == 0)
+                Printer.WriteLineMessage("\n #w#Warning:## Current branch \"#b#{0}##\" does not have a head!", Workspace.CurrentBranch.Name);
+            else if (heads.Count != 1 || heads[0].Version != Workspace.Version.ID)
+            {
+                if (heads.Count == 1)
+                    Printer.WriteLineMessage("\n #w#Warning:## Current version is not the head of branch \"#b#{0}##\"!", Workspace.CurrentBranch.Name);
+                else if (heads.Count > 1 && heads.Any(x => x.Version == Workspace.Version.ID))
+                    Printer.WriteLineMessage("\n #w#Warning:## Branch \"#b#{0}##\" has multiple heads. Current version is one of #b#{0}## heads!", Workspace.CurrentBranch.Name, heads.Count);
+                else if (heads.Count > 1)
+                    Printer.WriteLineMessage("\n #w#Warning:## Branch \"#b#{0}##\" has multiple heads. Current version is #w#not## one of the #b#{0}## heads!", Workspace.CurrentBranch.Name, heads.Count);
+
+                Printer.WriteLineMessage("\n Heads of #b#\"{0}\"##:", Workspace.CurrentBranch.Name);
+                foreach (var x in heads)
+                {
+                    var v = Workspace.GetVersion(x.Version);
+                    Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp, v.Author);
+                }
+            }
             return true;
         }
 
