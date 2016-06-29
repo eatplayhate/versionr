@@ -48,6 +48,129 @@ namespace Versionr
             return merges.Select(x => GetVersion(x.DestinationVersion)).ToList();
         }
 
+        [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        public static extern int GeneratePatch(string file1, string file2, string output);
+        [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        public static extern int GenerateBinaryPatch(string file1, string file2, string output);
+
+        public void Stash(string name, bool revert)
+        {
+            Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
+            List<string> canonicalNamesToStashAddOrUpdate = new List<string>();
+            List<string> canonicalNamesToStashRemove = new List<string>();
+            Dictionary<string, long> mergeRecords = new Dictionary<string, long>();
+            foreach (var x in LocalData.StageOperations)
+            {
+                if (x.Type == StageOperationType.Add)
+                    canonicalNamesToStashAddOrUpdate.Add(x.Operand1);
+                else if (x.Type == StageOperationType.Remove)
+                    canonicalNamesToStashRemove.Add(x.Operand1);
+                else if (x.Type == StageOperationType.MergeRecord)
+                    mergeRecords[x.Operand1] = x.ReferenceObject;
+            }
+
+            Guid stashGuid = Guid.NewGuid();
+            var stashFolder = AdministrationFolder.CreateSubdirectory("Stashes");
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+
+            using (FileStream fs = File.Open(Path.Combine(stashFolder.FullName, stashGuid + ".stash"), FileMode.Create, FileAccess.Write))
+            using (BinaryWriter bw = new BinaryWriter(fs))
+            {
+                bw.Write("STASH1");
+                bw.Write(name);
+
+                List<Status.StatusEntry> entriesToAdd = canonicalNamesToStashAddOrUpdate.Select(x => st.Map[x]).Where(x => x.IsFile).ToList();
+
+                // Additions first
+                List<Status.StatusEntry> additions = entriesToAdd.Where(x => x.Code == StatusCode.Added).ToList();
+                List<Status.StatusEntry> modifications = entriesToAdd.Where(x => x.Code == StatusCode.Modified).ToList();
+                bw.Write(additions.Count);
+                foreach (var x in additions)
+                {
+                    bw.Write(x.CanonicalName);
+
+                    long mr;
+                    if (!mergeRecords.TryGetValue(x.CanonicalName, out mr))
+                        mr = -1;
+
+                    bw.Write(mr);
+                    bw.Write((uint)x.FilesystemEntry.Attributes);
+                    bw.Write(x.FilesystemEntry.Length);
+
+                    Printer.PrintMessage("Recording ADD: {0}", x.CanonicalName);
+                    Printer.PrintMessage(" Data: {0}, Length: {1} bytes", x.Hash, x.Length);
+                    Printer.PrintMessage(" Merge Record ID: {0}", mr);
+                    
+                    long fpos = bw.BaseStream.Position;
+                    long resultSize = 0;
+                    bw.Write(resultSize);
+                    using (FileStream input = File.Open(GetRecordPath(x.CanonicalName), FileMode.Open, FileAccess.Read))
+                    {
+                        Versionr.ObjectStore.LZHAMWriter.CompressToStream(x.Length, 16 * 1024 * 1024, out resultSize, input, bw.BaseStream);
+                    }
+                    long rpos = bw.BaseStream.Position;
+
+                    bw.BaseStream.Position = fpos;
+                    bw.Write(resultSize);
+                    bw.BaseStream.Position = rpos;
+                    Printer.PrintMessage(" Compressed to {0} bytes ({1:F2}%)", resultSize, ((double)resultSize / (double)x.Length) * 100.0);
+                }
+                bw.Write(modifications.Count);
+                foreach (var x in modifications)
+                {
+                    bw.Write(x.CanonicalName);
+
+                    long mr;
+                    if (!mergeRecords.TryGetValue(x.CanonicalName, out mr))
+                        mr = -1;
+
+                    bw.Write(mr);
+                    bw.Write((uint)x.FilesystemEntry.Attributes);
+
+                    bw.Write(x.VersionControlRecord.Id);
+                    bw.Write(x.VersionControlRecord.DataIdentifier);
+
+                    bool binary = FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary;
+                    bw.Write(binary);
+
+                    Printer.PrintMessage("Recording Update: {0}{1}", x.CanonicalName, binary ? " (binary)" : " (text)");
+                    Printer.PrintMessage(" Data: {0}, Length: {1} bytes", x.Hash, x.Length);
+                    Printer.PrintMessage(" Prior Data ID: {0}", x.VersionControlRecord.DataIdentifier);
+                    Printer.PrintMessage(" Merge Record ID: {0}", mr);
+
+                    string priorRecord = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+                    string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+                    RestoreRecord(x.VersionControlRecord, DateTime.Now, priorRecord);
+
+                    int xdiffres = 0;
+                    if (binary)
+                        xdiffres = GenerateBinaryPatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
+                    else
+                        xdiffres = GeneratePatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
+
+                    if (xdiffres != 0)
+                        throw new Exception("Error during xdiff!");
+                    long patchSize = new FileInfo(patchFile).Length;
+                    bw.Write(patchSize);
+                    Printer.PrintMessage(" Generated patch of {0} bytes", patchSize);
+
+                    long fpos = bw.BaseStream.Position;
+                    long resultSize = 0;
+                    bw.Write(resultSize);
+                    using (FileStream input = File.Open(patchFile, FileMode.Open, FileAccess.Read))
+                    {
+                        Versionr.ObjectStore.LZHAMWriter.CompressToStream(patchSize, 16 * 1024 * 1024, out resultSize, input, bw.BaseStream);
+                    }
+                    long rpos = bw.BaseStream.Position;
+
+                    bw.BaseStream.Position = fpos;
+                    bw.Write(resultSize);
+                    bw.BaseStream.Position = rpos;
+                    Printer.PrintMessage(" Compressed {0} bytes ({1:F2}%)", resultSize, ((double)resultSize / (double)patchSize) * 100.0);
+                }
+            }
+        }
+
         public Guid Domain
         {
             get

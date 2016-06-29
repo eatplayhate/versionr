@@ -85,7 +85,7 @@ void Init()
 	xdl_set_allocator(&malt);
 }
 
-int GeneratePatch(const char* f1, const char* f2, const char* out)
+int __declspec(dllexport) GeneratePatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -113,13 +113,17 @@ int GeneratePatch(const char* f1, const char* f2, const char* out)
 
 		xdl_free_mmfile(&mf2);
 		xdl_free_mmfile(&mf1);
-		return 0;
+		return 2;
 	}
 
-	return 2;
+	fclose(f);
+
+	xdl_free_mmfile(&mf2);
+	xdl_free_mmfile(&mf1);
+	return 0;
 }
 
-int ApplyPatch(const char* f1, const char* f2, const char* out)
+int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -147,13 +151,17 @@ int ApplyPatch(const char* f1, const char* f2, const char* out)
 		fclose(f);
 		xdl_free_mmfile(&mf2);
 		xdl_free_mmfile(&mf1);
-		return 0;
+		return 2;
 	}
 
-	return 2;
+	fclose(f);
+
+	xdl_free_mmfile(&mf2);
+	xdl_free_mmfile(&mf1);
+	return 0;
 }
 
-int GenerateBinaryPatch(const char* f1, const char* f2, const char* out)
+int __declspec(dllexport) GenerateBinaryPatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -181,13 +189,17 @@ int GenerateBinaryPatch(const char* f1, const char* f2, const char* out)
 
 		xdl_free_mmfile(&mf2);
 		xdl_free_mmfile(&mf1);
-		return 0;
+		return 2;
 	}
 
-	return 2;
+	fclose(f);
+
+	xdl_free_mmfile(&mf2);
+	xdl_free_mmfile(&mf1);
+	return 0;
 }
 
-int ApplyBinaryPatch(const char* f1, const char* f2, const char* out)
+int __declspec(dllexport) ApplyBinaryPatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -213,10 +225,14 @@ int ApplyBinaryPatch(const char* f1, const char* f2, const char* out)
 		fclose(f);
 		xdl_free_mmfile(&mf2);
 		xdl_free_mmfile(&mf1);
-		return 0;
+		return 2;
 	}
 
-	return 2;
+	fclose(f);
+
+	xdl_free_mmfile(&mf2);
+	xdl_free_mmfile(&mf1);
+	return 0;
 }
 
 int main(int argc, char *argv[]) {

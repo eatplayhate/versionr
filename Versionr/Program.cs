@@ -104,6 +104,9 @@ namespace Versionr
         [VerbOption("resolve", HelpText = "Resolves conflicts by removing conlict markers on files.")]
         public Commands.ResolveVerbOptions ResolveVerb { get; set; }
 
+        [VerbOption("stash", HelpText = "Stashes your current changes into a patch that can be applied later and reverts the working files.")]
+        public Commands.StashVerbOptions StashVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -203,6 +206,8 @@ namespace Versionr
                 return AheadVerb.GetUsage();
             else if (verb == "resolve")
                 return ResolveVerb.GetUsage();
+            else if (verb == "stash")
+                return StashVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -287,6 +292,7 @@ namespace Versionr
                 commands["rebase"] = new Commands.Rebase();
                 commands["ahead"] = new Commands.Ahead();
                 commands["resolve"] = new Commands.Resolve();
+                commands["stash"] = new Commands.Stash();
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 

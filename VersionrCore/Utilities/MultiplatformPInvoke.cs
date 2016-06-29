@@ -65,7 +65,7 @@ namespace Versionr.Utilities
         public static void BindDLLs()
         {
             if (!IsRunningOnMono)
-                BindArchSpecific(new string[] { "sqlite3", "lzhamwrapper", "lzhl" });
+                BindArchSpecific(new string[] { "sqlite3", "lzhamwrapper", "lzhl", "XDiffEngine" });
         }
 
         private static void BindArchSpecific(string[] v)
