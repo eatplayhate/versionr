@@ -4731,6 +4731,18 @@ namespace Versionr
             foreach (var x in Database.Records)
                 recordMap[x.CanonicalName] = x;
 
+            Dictionary<string, List<StageOperation>> stageMap = new Dictionary<string, List<StageOperation>>();
+            foreach (var y in LocalData.StageOperations)
+            {
+                List<StageOperation> s;
+                if (!stageMap.TryGetValue(y.Operand1, out s))
+                {
+                    s = new List<StageOperation>();
+                    stageMap[y.Operand1] = s;
+                }
+                s.Add(y);
+            }
+
             LocalData.BeginTransaction();
 			try
 			{
@@ -4765,12 +4777,12 @@ namespace Versionr
                         if (skip)
                             continue;
                     }
-                    foreach (var y in LocalData.StageOperations)
+                    List<StageOperation> ops;
+                    if (stageMap.TryGetValue(x.CanonicalName, out ops))
                     {
-                        if (y.Operand1 == x.CanonicalName)
-                        {
+                        foreach (var y in ops)
                             LocalData.Delete(y);
-                        }
+                        ops.Clear();
                     }
                     if (x.Staged == true)
                     {

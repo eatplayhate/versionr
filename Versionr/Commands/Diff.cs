@@ -155,7 +155,7 @@ namespace Versionr.Commands
                                 {
                                     try
                                     {
-                                        RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)));
+                                        RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), true, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
                                     }
                                     finally
                                     {
@@ -229,7 +229,7 @@ namespace Versionr.Commands
                                     {
                                         try
                                         {
-                                            RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)));
+                                            RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), true, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
                                         }
                                         finally
                                         {
@@ -288,7 +288,7 @@ namespace Versionr.Commands
                             {
                                 try
                                 {
-                                    RunInternalDiff(tmpParent, tmpVersion);
+                                    RunInternalDiff(tmpParent, tmpVersion, true, rec.CanonicalName);
                                 }
                                 finally
                                 {
@@ -326,7 +326,7 @@ namespace Versionr.Commands
             public int Start2;
             public int End2;
         }
-        private void RunInternalDiff(string file1, string file2, bool processTabs = true)
+        private void RunInternalDiff(string file1, string file2, bool processTabs = true, string filenameOverride = null)
         {
             List<string> lines1 = new List<string>();
             List<string> lines2 = new List<string>();
@@ -359,8 +359,8 @@ namespace Versionr.Commands
             diff = Versionr.Utilities.Diff.diff_comm2(lines1.ToArray(), lines2.ToArray(), true);
             int line0 = 0;
             int line1 = 0;
-            Printer.PrintMessage("--- a/{0}", file1);
-            Printer.PrintMessage("+++ b/{0}", file2);
+            Printer.PrintMessage("--- {0}", filenameOverride != null ? filenameOverride : file1);
+            Printer.PrintMessage("+++ {0}", filenameOverride != null ? filenameOverride : file2);
             List<Region> regions = new List<Region>();
             Region openRegion = null;
             Region last = null;
