@@ -60,13 +60,19 @@ namespace Versionr.Commands
                 if (x.Terminus.HasValue)
                 {
                     var terminus = Workspace.GetVersion(x.Terminus.Value);
-                    Printer.PrintMessage("  #e#(deleted)## - Last version: #b#{0}##, #q#{2} {1}##", terminus.ShortName, terminus.Timestamp.ToLocalTime(), terminus.Author);
+                    if (terminus == null)
+                        Printer.PrintMessage("  #e#(deleted)## - Last version: #b#{0}## #q#(version not in local vault)##", x.Terminus.Value);
+                    else
+                        Printer.PrintMessage("  #e#(deleted)## - Last version: #b#{0}##, #q#{2} {1}##", terminus.ShortName, terminus.Timestamp.ToLocalTime(), terminus.Author);
                 }
                 var heads = Workspace.GetBranchHeads(x);
                 foreach (var z in heads)
                 {
                     var head = Workspace.GetVersion(z.Version);
-                    Printer.PrintMessage("  #s#(head)## - Version: #b#{0}##, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author);
+                    if (head == null)
+                        Printer.PrintMessage("  #s#(head)## - Version: #b#{0}##, #q#(version not in local vault)##", z.Version);
+                    else
+                        Printer.PrintMessage("  #s#(head)## - Version: #b#{0}##, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author);
                 }
 				Printer.PrintMessage("");
             }
