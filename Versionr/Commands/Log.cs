@@ -387,10 +387,51 @@ namespace Versionr.Commands
 				}
 			}
 
-			if (localOptions.Limit == -1)
+            bool versionAutoSelected = false;
+            bool lastResortVersionSelection = false;
+            List<Objects.Head> targetHeadObjects = null;
+
+            if (localOptions.Limit == -1)
 				localOptions.Limit = (version == null || targetedBranch) ? 10 : 1;
             if (version == null)
-                version = ws.Version;
+            {
+                versionAutoSelected = true;
+                targetHeadObjects = ws.GetBranchHeads(ws.CurrentBranch);
+                if (targetHeadObjects.Count == 1)
+                    version = ws.GetVersion(targetHeadObjects[0].Version);
+                else
+                {
+                    var guid = ws.Version.ID;
+                    foreach (var head in targetHeadObjects)
+                    {
+                        if (head.Version == guid)
+                        {
+                            version = ws.Version;
+                            break;
+                        }
+                    }
+                    if (version == null)
+                    {
+                        foreach (var head in targetHeadObjects)
+                        {
+                            var temphistory = ws.GetHistory(ws.GetVersion(head.Version), null);
+                            foreach (var h in temphistory)
+                            {
+                                if (h.ID == guid)
+                                {
+                                    version = ws.GetVersion(head.Version);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (version == null)
+                    {
+                        lastResortVersionSelection = true;
+                        version = ws.Version;
+                    }
+                }
+            }
 
             int? nullableLimit = localOptions.Limit;
             if (nullableLimit.Value <= 0)
@@ -407,17 +448,32 @@ namespace Versionr.Commands
 				FormatLog(x.Item1, x.Item2, localOptions);
 			}
 
-			if (!localOptions.Jrunting && last != null && last.ID == m_Tip.ID && version == null)
+			if (!localOptions.Jrunting && last != null && last.ID != m_Tip.ID)
 			{
 				var branch = Workspace.CurrentBranch;
 				var heads = Workspace.GetBranchHeads(branch);
-				bool isHead = heads.Any(x => x.Version == last.ID);
+				bool isHead = heads.Any(x => x.Version == m_Tip.ID);
 				bool isOnlyHead = heads.Count == 1;
 				if (!isHead)
 					Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
 				else if (!isOnlyHead)
 					Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
 			}
+
+            if (versionAutoSelected)
+            {
+                if (targetHeadObjects.Count > 1)
+                {
+                    Printer.WriteLineMessage("\n #w#Warning:## Target branch has multiple heads.");
+
+                    Printer.WriteLineMessage("\n Heads of #b#\"{0}\"##:", ws.CurrentBranch.Name);
+                    foreach (var x in targetHeadObjects)
+                    {
+                        var v = Workspace.GetVersion(x.Version);
+                        Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp, v.Author);
+                    }
+                }
+            }
 
 			return true;
 		}
