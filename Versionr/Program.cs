@@ -107,6 +107,9 @@ namespace Versionr
         [VerbOption("stash", HelpText = "Stashes your current changes into a patch that can be applied later and reverts the working files.")]
         public Commands.StashVerbOptions StashVerb { get; set; }
 
+        [VerbOption("unstash", HelpText = "Applies a stash to the current working directory or lists available stashes.")]
+        public Commands.UnstashVerbOptions UnstashVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -208,6 +211,8 @@ namespace Versionr
                 return ResolveVerb.GetUsage();
             else if (verb == "stash")
                 return StashVerb.GetUsage();
+            else if (verb == "unstash")
+                return UnstashVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -293,6 +298,7 @@ namespace Versionr
                 commands["ahead"] = new Commands.Ahead();
                 commands["resolve"] = new Commands.Resolve();
                 commands["stash"] = new Commands.Stash();
+                commands["unstash"] = new Commands.Unstash();
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 

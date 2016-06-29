@@ -52,6 +52,187 @@ namespace Versionr
         public static extern int GeneratePatch(string file1, string file2, string output);
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
+        [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        public static extern int ApplyPatch(string file1, string file2, string output);
+        [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        public static extern int ApplyBinaryPatch(string file1, string file2, string output);
+
+        public class StashInfo
+        {
+            public string Author { get; private set; }
+            public DateTime Time { get; private set; }
+            public string Name { get; private set; }
+            public bool Valid { get; private set; }
+            public Guid GUID { get; private set; }
+            public FileInfo File { get; private set; }
+
+            public StashInfo(string filename)
+            {
+                using (FileStream fs = System.IO.File.Open(filename, FileMode.Open, FileAccess.Read))
+                using (BinaryReader br = new BinaryReader(fs))
+                {
+                    string s1 = br.ReadString();
+                    if (s1 == "STASH1")
+                    {
+                        Valid = true;
+                        GUID = new Guid(br.ReadString());
+                        Name = br.ReadString();
+                        Author = br.ReadString();
+                        Time = new DateTime(br.ReadInt64());
+                        File = new FileInfo(filename);
+                    }
+                }
+            }
+        }
+
+        public List<StashInfo> ListStashes()
+        {
+            List<StashInfo> stashes = new List<StashInfo>();
+            DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
+            foreach (var x in info.GetFiles())
+            {
+                if (x.Extension == ".stash")
+                {
+                    StashInfo stashInfo = new StashInfo(x.FullName);
+                    if (stashInfo.Valid)
+                        stashes.Add(stashInfo);
+                }
+            }
+            return stashes.OrderByDescending(x => x.Time).ToList();
+        }
+
+        public void Unstash(string name)
+        {
+            var stashes = ListStashes();
+            foreach (var x in stashes)
+            {
+                if (x.Name == name || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
+                {
+                    ApplyStash(x);
+                }
+            }
+        }
+
+        private void ApplyStash(StashInfo x)
+        {
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+            Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
+            using (FileStream fs = x.File.OpenRead())
+            using (BinaryReader br = new BinaryReader(fs))
+            {
+                string s1 = br.ReadString();
+                if (s1 == "STASH1")
+                {
+                    Guid GUID = new Guid(br.ReadString());
+                    string Name = br.ReadString();
+                    string Author = br.ReadString();
+                    DateTime Time = new DateTime(br.ReadInt64());
+
+                    Printer.PrintMessage("Applying stash #b#{0}##.", GUID);
+
+                    int additions = br.ReadInt32();
+                    for (int i = 0; i < additions; i++)
+                    {
+                        string cname = br.ReadString();
+                        long mergeRecord = br.ReadInt64();
+                        Attributes attribs = (Attributes)br.ReadUInt32();
+                        string hash = br.ReadString();
+                        long fileLength = br.ReadInt64();
+                        long compressedLength = br.ReadInt64();
+
+                        long next = br.BaseStream.Position + compressedLength;
+
+                        string rpath = GetRecordPath(cname);
+                        bool skip = false;
+                        Status.StatusEntry entry;
+                        if (st.Map.TryGetValue(cname, out entry))
+                        {
+                            if (!entry.Removed)
+                            {
+                                skip = true;
+                                if (entry.Hash == hash)
+                                    Printer.PrintMessage("Skipped #b#{0}## - already added.", cname);
+                                else
+                                {
+                                    Printer.PrintMessage("#e#Conflict:## {0}", cname);
+                                }
+                            }
+                        }
+
+                        if (!skip)
+                        {
+                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(fileLength, br.BaseStream);
+                            using (FileStream fout = File.Open(rpath, FileMode.Create))
+                                reader.CopyTo(fout);
+                            Printer.PrintMessage("Exported: #b#{0}##", cname);
+                        }
+
+                        br.BaseStream.Position = next;
+                    }
+                    int modifications = br.ReadInt32();
+                    for (int i = 0; i < modifications; i++)
+                    {
+                        string cname = br.ReadString();
+                        long mergeRecord = br.ReadInt64();
+                        Attributes attribs = (Attributes)br.ReadUInt32();
+                        long priorRecord = br.ReadInt64();
+                        string dataID = br.ReadString();
+                        string hash = br.ReadString();
+                        bool binary = br.ReadBoolean();
+
+                        long patchSize = br.ReadInt64();
+                        long compressedLength = br.ReadInt64();
+
+                        long next = br.BaseStream.Position + compressedLength;
+
+                        string rpath = GetRecordPath(cname);
+                        bool skip = false;
+                        Status.StatusEntry entry;
+                        if (st.Map.TryGetValue(cname, out entry))
+                        {
+                            if (!entry.Removed)
+                            {
+                                if (entry.Hash == hash)
+                                {
+                                    skip = true;
+                                    Printer.PrintMessage("Skipped #b#{0}## - already updated.", cname);
+                                }
+                            }
+                        }
+
+                        if (!skip)
+                        {
+                            string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+                            string tempFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, br.BaseStream);
+                            using (FileStream fout = File.Open(patchFile, FileMode.Create))
+                                reader.CopyTo(fout);
+                            Printer.PrintMessage("Patching: #b#{0}##", cname);
+
+                            int result;
+                            if (binary)
+                                result = ApplyBinaryPatch(Path.GetFullPath(cname), patchFile, tempFile);
+                            else
+                                result = ApplyPatch(Path.GetFullPath(cname), patchFile, tempFile);
+
+                            if (result != 0)
+                                throw new Exception("Error in XDiff while applying patch!");
+                            else
+                            {
+                                FileInfo fi = new FileInfo(Path.GetFullPath(cname));
+                                fi.IsReadOnly = false;
+                                fi.Delete();
+                                File.Move(tempFile, fi.FullName);
+                            }
+
+                            File.Delete(patchFile);
+                        }
+
+                        br.BaseStream.Position = next;
+                    }
+                }
+            }
+        }
 
         public void Stash(string name, bool revert)
         {
@@ -73,11 +254,20 @@ namespace Versionr
             var stashFolder = AdministrationFolder.CreateSubdirectory("Stashes");
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
 
+            if (canonicalNamesToStashAddOrUpdate.Count == 0)
+            {
+                Printer.PrintMessage("Nothing to stash.");
+                return;
+            }
+
             using (FileStream fs = File.Open(Path.Combine(stashFolder.FullName, stashGuid + ".stash"), FileMode.Create, FileAccess.Write))
             using (BinaryWriter bw = new BinaryWriter(fs))
             {
                 bw.Write("STASH1");
+                bw.Write(stashGuid.ToString());
                 bw.Write(name);
+                bw.Write(Environment.UserName);
+                bw.Write(DateTime.UtcNow.Ticks);
 
                 List<Status.StatusEntry> entriesToAdd = canonicalNamesToStashAddOrUpdate.Select(x => st.Map[x]).Where(x => x.IsFile).ToList();
 
@@ -95,6 +285,7 @@ namespace Versionr
 
                     bw.Write(mr);
                     bw.Write((uint)x.FilesystemEntry.Attributes);
+                    bw.Write(x.Hash);
                     bw.Write(x.FilesystemEntry.Length);
 
                     Printer.PrintMessage("Recording ADD: {0}", x.CanonicalName);
@@ -129,6 +320,7 @@ namespace Versionr
 
                     bw.Write(x.VersionControlRecord.Id);
                     bw.Write(x.VersionControlRecord.DataIdentifier);
+                    bw.Write(x.Hash);
 
                     bool binary = FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary;
                     bw.Write(binary);
@@ -166,6 +358,10 @@ namespace Versionr
                     bw.BaseStream.Position = fpos;
                     bw.Write(resultSize);
                     bw.BaseStream.Position = rpos;
+
+                    File.Delete(patchFile);
+                    File.Delete(priorRecord);
+
                     Printer.PrintMessage(" Compressed {0} bytes ({1:F2}%)", resultSize, ((double)resultSize / (double)patchSize) * 100.0);
                 }
             }
