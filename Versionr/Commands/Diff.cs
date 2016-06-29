@@ -517,7 +517,7 @@ namespace Versionr.Commands
                 Region reg = regions[activeRegion];
                 line0 = 0;
                 line1 = 0;
-                Printer.PrintMessage("#c#@@ -{0},{1} +{2},{3} @@", reg.Start1, reg.End1 - reg.Start1, reg.Start2, reg.End2 - reg.Start2);
+                Printer.PrintMessage("#c#@@ -{0},{1} +{2},{3} @@", reg.Start1, reg.End1 - reg.Start1 + 1, reg.Start2, reg.End2 - reg.Start2 + 1);
                 for (int i = 0; i < diff.Count; i++)
                 {
                     if ((line0 > reg.End1) || (line1 > reg.End2))

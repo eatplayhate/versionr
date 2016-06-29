@@ -1,0 +1,175 @@
+
+!IF "$(CFG)" == ""
+CFG=debug
+!ENDIF 
+
+!IF "$(CFG)" != "release" && "$(CFG)" != "debug"
+!MESSAGE Invalid configuration "$(CFG)" specified.
+!MESSAGE You can specify a configuration when running NMAKE
+!MESSAGE by defining the macro CFG on the command line. For example:
+!MESSAGE 
+!MESSAGE nmake /f makefile CFG=debug
+!MESSAGE 
+!MESSAGE Possible choices for configuration are:
+!MESSAGE 
+!MESSAGE "release" ( Win32 x86 release build )
+!MESSAGE "debug"   ( Win32 x86 debug build)
+!MESSAGE 
+!ERROR An invalid configuration is specified.
+!ENDIF 
+
+
+!IF "$(OS)" == "Windows_NT"
+NULL=
+!ELSE 
+NULL=nul
+!ENDIF
+
+
+XDIFFLIB=xdiff.lib
+XREGRESSION=xregression.exe
+XDIFFTEST=xdifftest.exe
+XDIFF_SRCDIR=.\xdiff
+TEST_SRCDIR=.\test
+INCL_DIRS=/I"$(XDIFF_SRCDIR)" /I"$(TEST_SRCDIR)" /I"."
+CFLAGS=/D "WIN32" /D "HAVE_WINCONFIG_H" /D "_CRT_SECURE_NO_DEPRECATE" /D "_CRT_NONSTDC_NO_DEPRECATE" $(INCL_DIRS)
+
+
+!IF "$(CFG)" == "release"
+
+OUTDIR=.\release
+CPP_FLAGS=/nologo $(CFLAGS) /Zp1 /MT /W3 /O2 /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /Fo"$(OUTDIR)\\" /FD /c
+
+!ELSEIF  "$(CFG)" == "debug"
+
+OUTDIR=.\debug
+CPP_FLAGS=/nologo $(CFLAGS) /Zp1 /MTd /Zi /W3 /Gm /Od /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /Fo"$(OUTDIR)\\" /FD /c
+
+!ENDIF
+
+
+CPP=cl.exe
+LIB32=lib.exe
+LIB32_FLAGS=/nologo /machine:I386
+LINK32=link.exe
+LINK32_FLAGS="$(OUTDIR)\$(XDIFFLIB)" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib ws2_32.lib /nologo /subsystem:console /incremental:no /machine:I386
+XDIFFLIB_OBJS= \
+	"$(OUTDIR)\xadler32.obj" \
+	"$(OUTDIR)\xbdiff.obj" \
+	"$(OUTDIR)\xbpatchi.obj" \
+	"$(OUTDIR)\xmerge3.obj" \
+	"$(OUTDIR)\xdiffi.obj" \
+	"$(OUTDIR)\xemit.obj" \
+	"$(OUTDIR)\xmissing.obj" \
+	"$(OUTDIR)\xpatchi.obj" \
+	"$(OUTDIR)\xprepare.obj" \
+	"$(OUTDIR)\xversion.obj" \
+	"$(OUTDIR)\xalloc.obj" \
+	"$(OUTDIR)\xutils.obj" \
+	"$(OUTDIR)\xrabdiff.obj"
+
+XREGRESSION_OBJS= \
+	"$(OUTDIR)\xregression.obj" \
+	"$(OUTDIR)\xtestutils.obj"
+
+XDIFFTEST_OBJS= \
+	"$(OUTDIR)\xdiff_test.obj" \
+	"$(OUTDIR)\xtestutils.obj"
+
+
+ALL : "$(OUTDIR)\$(XDIFFLIB)" "$(OUTDIR)\$(XREGRESSION)" "$(OUTDIR)\$(XDIFFTEST)"
+
+CLEAN :
+	-@erase "$(OUTDIR)\$(XDIFFLIB)" "$(OUTDIR)\$(XREGRESSION)" "$(OUTDIR)\$(XDIFFTEST)"
+	-@erase $(XDIFFLIB_OBJS) $(XREGRESSION_OBJS) $(XDIFFTEST_OBJS)
+	-@erase *.pdb *.idb *.pch
+
+"$(OUTDIR)" :
+	if not exist "$(OUTDIR)\$(NULL)" mkdir "$(OUTDIR)"
+
+
+"$(OUTDIR)\$(XDIFFLIB)" : "$(OUTDIR)" $(XDIFFLIB_OBJS)
+	$(LIB32) @<<
+	$(LIB32_FLAGS) /out:"$(OUTDIR)\$(XDIFFLIB)" $(XDIFFLIB_OBJS)
+<<
+
+"$(OUTDIR)\$(XREGRESSION)" : "$(OUTDIR)" $(XREGRESSION_OBJS)
+	$(LINK32) @<<
+	$(LINK32_FLAGS) /out:"$(OUTDIR)\$(XREGRESSION)" $(XREGRESSION_OBJS)
+<<
+
+"$(OUTDIR)\$(XDIFFTEST)" : "$(OUTDIR)" $(XDIFFTEST_OBJS)
+	$(LINK32) @<<
+	$(LINK32_FLAGS) /out:"$(OUTDIR)\$(XDIFFTEST)" $(XDIFFTEST_OBJS)
+<<
+
+
+
+SOURCE="$(XDIFF_SRCDIR)\xalloc.c"
+"$(OUTDIR)\xalloc.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xadler32.c"
+"$(OUTDIR)\xadler32.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xmissing.c"
+"$(OUTDIR)\xmissing.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xbdiff.c"
+"$(OUTDIR)\xbdiff.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xbpatchi.c"
+"$(OUTDIR)\xbpatchi.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xmerge3.c"
+"$(OUTDIR)\xmerge3.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xdiffi.c"
+"$(OUTDIR)\xdiffi.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xemit.c"
+"$(OUTDIR)\xemit.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xpatchi.c"
+"$(OUTDIR)\xpatchi.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xprepare.c"
+"$(OUTDIR)\xprepare.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xutils.c"
+"$(OUTDIR)\xutils.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xrabdiff.c"
+"$(OUTDIR)\xrabdiff.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(XDIFF_SRCDIR)\xversion.c"
+"$(OUTDIR)\xversion.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+
+
+SOURCE="$(TEST_SRCDIR)\xregression.c"
+"$(OUTDIR)\xregression.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(TEST_SRCDIR)\xtestutils.c"
+"$(OUTDIR)\xtestutils.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+SOURCE="$(TEST_SRCDIR)\xdiff_test.c"
+"$(OUTDIR)\xdiff_test.obj" : $(SOURCE) "$(OUTDIR)"
+	$(CPP) $(CPP_FLAGS) $(SOURCE)
+
+
+
