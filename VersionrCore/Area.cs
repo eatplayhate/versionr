@@ -2540,6 +2540,15 @@ namespace Versionr
         public void Merge(string v, bool updateMode, MergeSpecialOptions options)
         {
             options.Validate();
+            var conflicts = LocalData.StageOperations.Where(x => x.Type == StageOperationType.Conflict).ToList();
+            if (conflicts.Count > 0)
+            {
+                Printer.PrintMessage("#e#Error:## Can't merge while pending conflicts are still present.\n#b#Conflicts:##");
+                foreach (var x in conflicts)
+                    Printer.PrintMessage(" {0}", x.Operand1);
+                Printer.PrintMessage("\nResolve these conflicts and run the operation again.");
+                return;
+            }
             Objects.Version mergeVersion = null;
             Objects.Version parentVersion = null;
             Versionr.Status status = new Status(this, Database, LocalData, FileSnapshot, null, false, false);
