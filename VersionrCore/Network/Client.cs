@@ -647,7 +647,10 @@ namespace Versionr.Network
                                 for (int i = 0; i < bheads.Count; i++)
                                 {
                                     if (bheads[i].Version != heads[i].Version)
+                                    {
                                         headsChanged = true;
+                                        break;
+                                    }
                                 }
                             }
 
@@ -669,14 +672,12 @@ namespace Versionr.Network
 
                             if (localVersions.Count() != 1)
                             {
-                                Printer.PrintDiagnostics("Too many heads in local branch to merge remote head. Please merge locally and try again to update branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
-                                return false;
+                                Printer.PrintMessage("Too many heads in local branch to merge remote head. Please merge locally and try again to update branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
                             }
-
-                            Guid localVersion = localVersions.First().Version;
-
-                            if (remoteVersions.Count() == 1)
+                            
+                            if (remoteVersions.Count() == 1 && localVersions.Count() > 0)
                             {
+                                Guid localVersion = localVersions.OrderBy(y => Workspace.GetVersion(y.Version).Timestamp).Last().Version;
                                 VersionInfo result;
                                 string error;
                                 result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
