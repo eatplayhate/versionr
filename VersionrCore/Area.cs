@@ -173,6 +173,7 @@ namespace Versionr
                     for (int i = 0; i < modifications; i++)
                     {
                         string cname = br.ReadString();
+                        Printer.PrintMessage("Processing: #b#{0}##", cname);
                         long mergeRecord = br.ReadInt64();
                         Attributes attribs = (Attributes)br.ReadUInt32();
                         long priorRecord = br.ReadInt64();
@@ -207,7 +208,7 @@ namespace Versionr
                             Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, br.BaseStream);
                             using (FileStream fout = File.Open(patchFile, FileMode.Create))
                                 reader.CopyTo(fout);
-                            Printer.PrintMessage("Patching: #b#{0}##", cname);
+                            Printer.PrintMessage("Applying patch...");
 
                             int result;
                             if (binary)
