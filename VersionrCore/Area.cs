@@ -85,6 +85,7 @@ namespace Versionr
                 {
                     GUID = Guid.NewGuid(),
                     Name = name,
+                    Key = string.Empty,
                     Author = Username,
                     Time = DateTime.UtcNow,
                     Version = 2,
@@ -847,6 +848,7 @@ namespace Versionr
                         var tempFile = GetTemporaryFile(newRecord);
                         RestoreRecord(newRecord, DateTime.Now, tempFile.FullName);
 
+                        tempFile = new FileInfo(tempFile.FullName);
                         bool binary = FileClassifier.Classify(tempFile) == FileEncoding.Binary;
 
                         StashEntry entry = new StashEntry()
@@ -886,6 +888,9 @@ namespace Versionr
                     RestoreRecord(newRecord, DateTime.Now, tempFileNew.FullName);
                     var tempFileOld = GetTemporaryFile(oldRecord);
                     RestoreRecord(newRecord, DateTime.Now, tempFileOld.FullName);
+
+                    tempFileNew = new FileInfo(tempFileNew.FullName);
+                    tempFileOld = new FileInfo(tempFileOld.FullName);
 
                     bool binary = FileClassifier.Classify(tempFileNew) == FileEncoding.Binary;
 
