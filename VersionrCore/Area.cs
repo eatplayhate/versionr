@@ -887,7 +887,7 @@ namespace Versionr
                     var tempFileNew = GetTemporaryFile(newRecord);
                     RestoreRecord(newRecord, DateTime.Now, tempFileNew.FullName);
                     var tempFileOld = GetTemporaryFile(oldRecord);
-                    RestoreRecord(newRecord, DateTime.Now, tempFileOld.FullName);
+                    RestoreRecord(oldRecord, DateTime.Now, tempFileOld.FullName);
 
                     tempFileNew = new FileInfo(tempFileNew.FullName);
                     tempFileOld = new FileInfo(tempFileOld.FullName);
