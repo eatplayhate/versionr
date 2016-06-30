@@ -148,16 +148,18 @@ namespace Versionr
             return stashes.OrderByDescending(x => x.Time).ToList();
         }
 
-        public void Unstash(string name)
+        public bool Unstash(string name)
         {
             var stashes = ListStashes();
             foreach (var x in stashes)
             {
-                if (name == (x.Author + "-" + x.Key) || x.Key == name || x.Name == name || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
+                if (string.Compare(name, (x.Author + "-" + x.Key), true) == 0 || string.Compare(x.Key, name, true) == 0 || string.Compare(x.Name, name, true) == 0 || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
                 {
                     ApplyStash(x, true);
+                    return true;
                 }
             }
+            return false;
         }
 
         private void ApplyStash(StashInfo infoOriginal, bool enableStaging)
@@ -319,7 +321,7 @@ namespace Versionr
                             FileInfo tfi = new FileInfo(rpath);
                             tfi.IsReadOnly = false;
                             tfi.Delete();
-                            Printer.PrintMessage("  -Deleted {0}.", x.CanonicalName);
+                            Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
                         }
                         else
                             Printer.PrintMessage("  - Skipped, conflict.");
