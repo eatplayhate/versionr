@@ -75,9 +75,10 @@ namespace Versionr
             public Guid GUID { get; set; }
             public FileInfo File { get; set; }
             public int Version { get; set; }
+            public Guid OriginatingVersion { get; set; }
             public long? LocalDBIndex { get; set; }
 
-            internal static StashInfo Create(string name)
+            internal static StashInfo Create(string name, Guid originalVersion)
             {
                 return new StashInfo()
                 {
@@ -85,7 +86,8 @@ namespace Versionr
                     Name = name,
                     Author = Username,
                     Time = DateTime.UtcNow,
-                    Version = 1
+                    Version = 2,
+                    OriginatingVersion = originalVersion
                 };
             }
 
@@ -99,13 +101,12 @@ namespace Versionr
                         info.File = new FileInfo(filename);
                     return info;
                 }
-                return null;
             }
 
             internal static StashInfo Read(BinaryReader br)
             {
                 string s1 = br.ReadString();
-                if (s1 == "STASH1")
+                if (s1 == "STASH2")
                 {
                     return new StashInfo()
                     {
@@ -114,7 +115,8 @@ namespace Versionr
                         Author = br.ReadString(),
                         Time = new DateTime(br.ReadInt64()),
                         Key = br.ReadString(),
-                        Version = 1
+                        Version = 2,
+                        OriginatingVersion = new Guid(br.ReadString())
                     };
                 }
                 return null;
@@ -122,8 +124,8 @@ namespace Versionr
 
             internal void Write(BinaryWriter bw)
             {
-                if (Version == 1)
-                    bw.Write("STASH1");
+                if (Version == 2)
+                    bw.Write("STASH2");
                 else
                     throw new Exception();
                 bw.Write(GUID.ToString());
@@ -131,6 +133,7 @@ namespace Versionr
                 bw.Write(Author);
                 bw.Write(Time.Ticks);
                 bw.Write(Key);
+                bw.Write(OriginatingVersion.ToString());
             }
         }
 
@@ -139,7 +142,7 @@ namespace Versionr
             DirectoryInfo stashDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
             List<StashInfo> stashes = new List<StashInfo>();
             HashSet<string> guids = new HashSet<string>();
-            foreach (var x in LocalData.Table<LocalState.SavedStash>())
+            foreach (var x in LocalData.Table<LocalState.SavedStash>().ToList())
             {
                 string fname = x.GUID + ".stash";
                 StashInfo info = new StashInfo()
@@ -157,6 +160,8 @@ namespace Versionr
                     guids.Add(fname);
                     stashes.Add(info);
                 }
+                else
+                    LocalData.Delete(x);
             }
             foreach (var x in stashDir.GetFiles())
             {
@@ -166,7 +171,10 @@ namespace Versionr
                     {
                         StashInfo stashInfo = StashInfo.FromFile(x.FullName);
                         if (stashInfo != null)
+                        {
                             stashes.Add(stashInfo);
+                            LocalData.RecordStash(stashInfo);
+                        }
                     }
                 }
             }
@@ -201,10 +209,15 @@ namespace Versionr
             ApplyStash(stashInfo, options);
             if (deleteAfterApply)
             {
-                if (stashInfo.LocalDBIndex.HasValue)
-                    LocalData.Delete<SavedStash>(stashInfo.LocalDBIndex.Value);
-                stashInfo.File.Delete();
+                DeleteStash(stashInfo);
             }
+        }
+
+        public void DeleteStash(StashInfo stashInfo)
+        {
+            if (stashInfo.LocalDBIndex.HasValue)
+                LocalData.Delete<SavedStash>(stashInfo.LocalDBIndex.Value);
+            stashInfo.File.Delete();
         }
 
         public void StashToPatch(StreamWriter result, StashInfo stash)
@@ -344,7 +357,7 @@ namespace Versionr
                                     Printer.PrintError("#e# - Can't un-apply binary patch - result file does not match!##");
                                 else
                                 {
-                                    RestoreRecord(GetRecord(x.OriginalRecordID), DateTime.Now);
+                                    RestoreRecord(GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString()), DateTime.Now, rpath);
                                     Printer.PrintMessage("  - Reverted (binary).");
                                 }
                             }
@@ -380,17 +393,17 @@ namespace Versionr
                         {
                             if (x.Alteration == AlterationType.Copy || (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize))
                             {
-                                Record dataRecord = GetRecord(x.OriginalRecordID);
+                                Record dataRecord = GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString());
                                 GetMissingRecords(new Record[] { dataRecord });
                                 RestoreRecord(dataRecord, DateTime.Now, path);
                             }
                             else
                             {
-                                Record oldRecord = GetRecord(x.OriginalRecordID);
-                                string oldPath = GetRecordPath(oldRecord);
+                                Record oldRecord = GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString());
+                                string oldPath = x.OriginalCanonicalName;
 
                                 Status.StatusEntry oldEntry = null;
-                                st.Map.TryGetValue(oldRecord.CanonicalName, out oldEntry);
+                                st.Map.TryGetValue(oldPath, out oldEntry);
 
                                 if (oldEntry == null || oldEntry.Removed)
                                 {
@@ -421,11 +434,10 @@ namespace Versionr
                     {
                         if (ws == null)
                         {
-                            Record oldRecord = GetRecord(x.OriginalRecordID);
-                            string oldPath = GetRecordPath(oldRecord);
+                            string oldPath = x.OriginalCanonicalName;
 
                             Status.StatusEntry oldEntry = null;
-                            st.Map.TryGetValue(oldRecord.CanonicalName, out oldEntry);
+                            st.Map.TryGetValue(oldPath, out oldEntry);
 
                             if (oldEntry == null || oldEntry.Removed)
                                 Printer.PrintMessage("  - Skipped, object removed.");
@@ -438,11 +450,11 @@ namespace Versionr
                                     tfi.MoveTo(rpath);
 
                                     ApplyAttributes(tfi, DateTime.Now, x.ObjectAttributes);
-                                    Printer.PrintMessage("  - Moved {0} => {1}.", oldRecord.CanonicalName, x.CanonicalName);
+                                    Printer.PrintMessage("  - Moved {0} => {1}.", oldPath, x.CanonicalName);
 
                                     if (enableStaging)
                                     {
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldRecord.CanonicalName, Type = StageOperationType.Remove });
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
                                         LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                     }
                                 }
@@ -460,11 +472,11 @@ namespace Versionr
                                         tfi.IsReadOnly = false;
                                         tfi.Delete();
 
-                                        Printer.PrintMessage("  - Moved and patched {0} => {1}.", oldRecord.CanonicalName, x.CanonicalName);
+                                        Printer.PrintMessage("  - Moved and patched {0} => {1}.", oldPath, x.CanonicalName);
 
                                         if (enableStaging)
                                         {
-                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = oldRecord.CanonicalName, Type = StageOperationType.Remove });
+                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
                                             LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                         }
 
@@ -758,8 +770,7 @@ namespace Versionr
         {
             public string CanonicalName { get; set; }
             public AlterationType Alteration { get; set; }
-            public long DataRecordID { get; set; }
-            public long OriginalRecordID { get; set; }
+            public string OriginalCanonicalName { get; set; }
             public string OriginalHash { get; set; }
             public string NewHash { get; set; }
             public long OriginalSize { get; set; }
@@ -771,8 +782,7 @@ namespace Versionr
             {
                 bw.Write(CanonicalName);
                 bw.Write((uint)Alteration);
-                bw.Write(DataRecordID);
-                bw.Write(OriginalRecordID);
+                bw.Write(OriginalCanonicalName);
                 bw.Write(OriginalHash);
                 bw.Write(NewHash);
                 bw.Write(OriginalSize);
@@ -787,8 +797,7 @@ namespace Versionr
                 {
                     CanonicalName = br.ReadString(),
                     Alteration = (AlterationType)br.ReadUInt32(),
-                    DataRecordID = br.ReadInt64(),
-                    OriginalRecordID = br.ReadInt64(),
+                    OriginalCanonicalName = br.ReadString(),
                     OriginalHash = br.ReadString(),
                     NewHash = br.ReadString(),
                     OriginalSize = br.ReadInt64(),
@@ -822,7 +831,7 @@ namespace Versionr
 
             if (name == null)
                 name = string.Empty;
-            StashInfo header = StashInfo.Create(name);
+            StashInfo header = StashInfo.Create(name, Version.ID);
             List<Tuple<StashEntry, Func<Stream, long>>> stashWriters = new List<Tuple<StashEntry, Func<Stream, long>>>();
             List<Status.StatusEntry> reverters = new List<Status.StatusEntry>();
 
@@ -839,12 +848,11 @@ namespace Versionr
                     {
                         Alteration = AlterationType.Add,
                         CanonicalName = x.CanonicalName,
-                        DataRecordID = -1,
+                        OriginalCanonicalName = string.Empty,
                         NewHash = string.Empty,
                         NewSize = -1,
                         ObjectAttributes = x.FilesystemEntry.Attributes,
                         OriginalHash = string.Empty,
-                        OriginalRecordID = -1,
                         OriginalSize = -1,
                         Flags = StashFlags.Directory
                     };
@@ -870,12 +878,11 @@ namespace Versionr
                     {
                         Alteration = AlterationType.Add,
                         CanonicalName = x.CanonicalName,
-                        DataRecordID = mr,
+                        OriginalCanonicalName = string.Empty,
                         NewHash = x.Hash,
                         NewSize = x.Length,
                         ObjectAttributes = x.FilesystemEntry.Attributes,
                         OriginalHash = string.Empty,
-                        OriginalRecordID = -1,
                         OriginalSize = -1,
                         Flags = binary ? StashFlags.Binary : StashFlags.None
                     };
@@ -900,12 +907,11 @@ namespace Versionr
                     {
                         Alteration = AlterationType.Copy,
                         CanonicalName = x.CanonicalName,
-                        DataRecordID = mr,
+                        OriginalCanonicalName = string.Empty,
                         NewHash = x.Hash,
                         NewSize = x.Length,
                         ObjectAttributes = x.FilesystemEntry.Attributes,
                         OriginalHash = x.Hash,
-                        OriginalRecordID = x.VersionControlRecord.Id,
                         OriginalSize = x.Length,
                         Flags = binary ? StashFlags.Binary : StashFlags.None
                     };
@@ -917,12 +923,11 @@ namespace Versionr
                     {
                         Alteration = AlterationType.Delete,
                         CanonicalName = x.CanonicalName,
-                        DataRecordID = -1,
+                        OriginalCanonicalName = string.Empty,
                         NewHash = string.Empty,
                         NewSize = -1,
                         ObjectAttributes = Attributes.None,
                         OriginalHash = x.VersionControlRecord.Fingerprint,
-                        OriginalRecordID = x.VersionControlRecord.Id,
                         OriginalSize = x.VersionControlRecord.Size,
                         Flags = StashFlags.None,
                     };
@@ -936,12 +941,11 @@ namespace Versionr
                     {
                         Alteration = x.Code == StatusCode.Modified ? AlterationType.Update : AlterationType.Move,
                         CanonicalName = x.CanonicalName,
-                        DataRecordID = mr,
+                        OriginalCanonicalName = x.Code == StatusCode.Modified ? string.Empty : x.VersionControlRecord.CanonicalName,
                         NewHash = x.Hash,
                         NewSize = x.Length,
                         ObjectAttributes = x.FilesystemEntry.Attributes,
                         OriginalHash = x.VersionControlRecord.Fingerprint,
-                        OriginalRecordID = x.VersionControlRecord.Id,
                         OriginalSize = x.VersionControlRecord.Size,
                         Flags = binary ? StashFlags.Binary : StashFlags.None
                     };
@@ -994,12 +998,11 @@ namespace Versionr
                     {
                         Alteration = AlterationType.Delete,
                         CanonicalName = x.CanonicalName,
-                        DataRecordID = -1,
+                        OriginalCanonicalName = string.Empty,
                         NewHash = string.Empty,
                         NewSize = -1,
                         ObjectAttributes = x.FilesystemEntry.Attributes,
                         OriginalHash = string.Empty,
-                        OriginalRecordID = -1,
                         OriginalSize = -1,
                         Flags = StashFlags.Directory
                     };

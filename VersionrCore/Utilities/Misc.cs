@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Versionr.Utilities
 {
-    static class Misc
+    public static class Misc
     {
         public static string FormatSizeFriendly(long size)
         {

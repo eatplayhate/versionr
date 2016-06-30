@@ -113,6 +113,9 @@ namespace Versionr
         [VerbOption("stash-list", HelpText = "Lists available stashes.")]
         public Commands.StashListVerbOptions StashListVerb { get; set; }
 
+        [VerbOption("stash-delete", HelpText = "Deletes stashes.")]
+        public Commands.StashDeleteVerbOptions StashDeleteVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -218,6 +221,8 @@ namespace Versionr
                 return UnstashVerb.GetUsage();
             else if (verb == "stash-list")
                 return StashListVerb.GetUsage();
+            else if (verb == "stash-delete")
+                return StashDeleteVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -305,6 +310,7 @@ namespace Versionr
                 commands["stash"] = new Commands.Stash();
                 commands["unstash"] = new Commands.Unstash();
                 commands["stash-list"] = new Commands.StashList();
+                commands["stash-delete"] = new Commands.StashDelete();
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 
