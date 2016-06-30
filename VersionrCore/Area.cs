@@ -139,6 +139,13 @@ namespace Versionr
             }
         }
 
+        public bool FindStashExact(string guidString)
+        {
+            Guid guid = new Guid(guidString);
+            SavedStash ss = LocalData.Find<SavedStash>(x => x.GUID == guid);
+            return ss != null;
+        }
+
         public List<StashInfo> ListStashes()
         {
             DirectoryInfo stashDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
@@ -183,17 +190,38 @@ namespace Versionr
             return stashes.OrderByDescending(x => x.Time).ToList();
         }
 
-        public StashInfo FindStash(string name)
+        public List<StashInfo> FindStash(string name)
         {
+            List<StashInfo> results = new List<StashInfo>();
             var stashes = ListStashes();
             foreach (var x in stashes)
             {
-                if (string.Compare(name, (x.Author + "-" + x.Key), true) == 0 || string.Compare(x.Key, name, true) == 0 || string.Compare(x.Name, name, true) == 0 || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
+                if (string.Compare(name, (x.Author + "-" + x.Key), true) == 0
+                    || string.Compare(x.Key, name, true) == 0 
+                    || string.Compare(x.Name, name, true) == 0 
+                    || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
                 {
-                    return x;
+                    results.Add(x);
                 }
             }
-            return null;
+            return results;
+        }
+
+        internal string GenerateTempPath()
+        {
+            return Path.Combine(AdministrationFolder.CreateSubdirectory("Temp").FullName, Path.GetRandomFileName());
+        }
+
+        internal bool ImportStash(string filename)
+        {
+            StashInfo info = StashInfo.FromFile(filename);
+            if (info != null)
+            {
+                info.File.MoveTo(Path.Combine(AdministrationFolder.CreateSubdirectory("Stashes").FullName, info.GUID + ".stash"));
+                LocalData.RecordStash(info);
+                return true;
+            }
+            return false;
         }
 
         public class ApplyStashOptions

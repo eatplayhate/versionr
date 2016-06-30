@@ -45,6 +45,34 @@ namespace Versionr.Commands
     }
     class StashList : BaseCommand
     {
+        static public Area.StashInfo LookupStash(Area ws, string name)
+        {
+            bool ambiguous;
+            return LookupStash(ws, name, out ambiguous);
+        }
+        static public Area.StashInfo LookupStash(Area ws, string name, out bool ambiguous)
+        {
+            var stashes = ws.FindStash(name);
+            Area.StashInfo stash = null;
+            if (stashes.Count == 1)
+                stash = stashes[0];
+
+            ambiguous = false;
+
+            if (stashes.Count == 0)
+                Printer.PrintMessage("#e#Error:## Couldn't find a stash matching a name/key/ID of \"{0}\".", name);
+            else if (stash == null)
+            {
+                ambiguous = true;
+                Printer.PrintMessage("#e#Error:## Ambiguous stash \"{0}\", could be:", name);
+                foreach (var x in stashes)
+                {
+                    Printer.PrintMessage(" #b#{0}##: {5} - #q#{4}##\n    {1} - by {2} on #q#{3}##", x.Author + "-" + x.Key, string.IsNullOrEmpty(x.Name) ? "(no name)" : ("\"" + x.Name + "\""), x.Author, x.Time.ToLocalTime(), x.GUID, Versionr.Utilities.Misc.FormatSizeFriendly(x.File.Length));
+                }
+            }
+
+            return stash;
+        }
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
             StashListVerbOptions localOptions = options as StashListVerbOptions;
@@ -68,14 +96,11 @@ namespace Versionr.Commands
             }
             else
             {
-                Area.StashInfo stash = ws.FindStash(localOptions.Name[0]);
-
-                Printer.PrintMessage("{1} patch for stash {0}", stash.GUID, string.IsNullOrEmpty(localOptions.PatchFile) ? "Showing" : "Generating");
-
-                if (stash == null)
-                    Printer.PrintMessage("#e#Error:## Couldn't find a stash matching a name/key/ID of \"{0}\".", localOptions.Name);
-                else
+                var stash = LookupStash(ws, localOptions.Name[0]);
+                if (stash != null)
                 {
+                    Printer.PrintMessage("{1} patch for stash {0}", stash.GUID, string.IsNullOrEmpty(localOptions.PatchFile) ? "Showing" : "Generating");
+
                     Stream baseStream = null;
                     if (string.IsNullOrEmpty(localOptions.PatchFile))
                         baseStream = new MemoryStream();

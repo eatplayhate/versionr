@@ -119,6 +119,12 @@ namespace Versionr
         [VerbOption("cherry-pick", HelpText = "Applies (or reverse-applies) changes from a specific version.")]
         public Commands.CherrypickVerbOptions CherrypickVerb { get; set; }
 
+        [VerbOption("push-stash", HelpText = "Pushes one or more stashes to a server.")]
+        public Commands.PushStashVerbOptions PushStashVerb { get; set; }
+
+        [VerbOption("pull-stash", HelpText = "Pulls one or more stashes from a server.")]
+        public Commands.PullStashVerbOptions PullStashVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {
@@ -156,48 +162,48 @@ namespace Versionr
         [HelpVerbOption]
         public string GetUsage(string verb)
         {
-			if (verb == "init")
-				return InitVerb.GetUsage();
-			else if (verb == "commit")
-				return CommitVerb.GetUsage();
-			else if (verb == "status")
-				return StatusVerb.GetUsage();
-			else if (verb == "record")
-				return RecordVerb.GetUsage();
-			else if (verb == "checkout")
-				return CheckoutVerb.GetUsage();
-			else if (verb == "branch")
-				return BranchVerb.GetUsage();
-			else if (verb == "server")
-				return ServerVerb.GetUsage();
-			else if (verb == "merge")
-				return MergeVerb.GetUsage();
-			else if (verb == "push")
-				return PushVerb.GetUsage();
-			else if (verb == "remote")
-				return RemoteVerb.GetUsage();
-			else if (verb == "log")
-				return LogVerb.GetUsage();
-			else if (verb == "lg")
-				return LogVerb.GetUsage();
-			else if (verb == "behead")
-				return BeheadVerb.GetUsage();
-			else if (verb == "viewdag")
-				return ViewDAGVerb.GetUsage();
-			else if (verb == "clone")
-				return CloneVerb.GetUsage();
-			else if (verb == "pull")
-				return PullVerb.GetUsage();
-			else if (verb == "syncrecords")
-				return SyncRecordsVerb.GetUsage();
-			else if (verb == "diff")
-				return DiffVerb.GetUsage();
-			else if (verb == "revert")
-				return RevertVerb.GetUsage();
-			else if (verb == "unrecord")
-				return UnrecordVerb.GetUsage();
-			else if (verb == "update")
-				return UpdateVerb.GetUsage();
+            if (verb == "init")
+                return InitVerb.GetUsage();
+            else if (verb == "commit")
+                return CommitVerb.GetUsage();
+            else if (verb == "status")
+                return StatusVerb.GetUsage();
+            else if (verb == "record")
+                return RecordVerb.GetUsage();
+            else if (verb == "checkout")
+                return CheckoutVerb.GetUsage();
+            else if (verb == "branch")
+                return BranchVerb.GetUsage();
+            else if (verb == "server")
+                return ServerVerb.GetUsage();
+            else if (verb == "merge")
+                return MergeVerb.GetUsage();
+            else if (verb == "push")
+                return PushVerb.GetUsage();
+            else if (verb == "remote")
+                return RemoteVerb.GetUsage();
+            else if (verb == "log")
+                return LogVerb.GetUsage();
+            else if (verb == "lg")
+                return LogVerb.GetUsage();
+            else if (verb == "behead")
+                return BeheadVerb.GetUsage();
+            else if (verb == "viewdag")
+                return ViewDAGVerb.GetUsage();
+            else if (verb == "clone")
+                return CloneVerb.GetUsage();
+            else if (verb == "pull")
+                return PullVerb.GetUsage();
+            else if (verb == "syncrecords")
+                return SyncRecordsVerb.GetUsage();
+            else if (verb == "diff")
+                return DiffVerb.GetUsage();
+            else if (verb == "revert")
+                return RevertVerb.GetUsage();
+            else if (verb == "unrecord")
+                return UnrecordVerb.GetUsage();
+            else if (verb == "update")
+                return UpdateVerb.GetUsage();
             else if (verb == "renamebranch")
                 return RenameBranchVerb.GetUsage();
             else if (verb == "listbranch")
@@ -228,6 +234,10 @@ namespace Versionr
                 return StashDeleteVerb.GetUsage();
             else if (verb == "cherry-pick")
                 return CherrypickVerb.GetUsage();
+            else if (verb == "push-stash")
+                return PushStashVerb.GetUsage();
+            else if (verb == "pull-stash")
+                return PullStashVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -317,6 +327,8 @@ namespace Versionr
                 commands["stash-list"] = new Commands.StashList();
                 commands["stash-delete"] = new Commands.StashDelete();
                 commands["cherry-pick"] = new Commands.Cherrypick();
+                commands["push-stash"] = new Commands.PushStash();
+                commands["pull-stash"] = new Commands.PullStash();
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 

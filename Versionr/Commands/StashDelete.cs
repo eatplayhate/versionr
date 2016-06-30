@@ -72,10 +72,8 @@ namespace Versionr.Commands
             {
                 foreach (var x in localOptions.Names)
                 {
-                    Area.StashInfo stash = ws.FindStash(x);
-                    if (stash == null)
-                        Printer.PrintMessage("#e#Error:## Couldn't find a stash matching a name/key/ID of \"{0}\".", x);
-                    else
+                    var stash = StashList.LookupStash(ws, x);
+                    if (stash != null)
                     {
                         Printer.PrintMessage("Deleting stash #b#{0}##: #q#{1}##", stash.Author + "-" + stash.Key, stash.GUID);
                         ws.DeleteStash(stash);

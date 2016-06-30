@@ -30,7 +30,7 @@ namespace Versionr.LocalState
         public void GenerateStashCode()
         {
             Random rand = new Random();
-            StashCode = new string(new char[] { (char)('A' + rand.Next('Z' - 'A')), (char)('A' + rand.Next('Z' - 'A')) });
+            StashCode = new string(new char[] { (char)('A' + rand.Next('Z' - 'A')), (char)('A' + rand.Next('Z' - 'A')), (char)('A' + rand.Next('Z' - 'A')) });
         }
     }
 }

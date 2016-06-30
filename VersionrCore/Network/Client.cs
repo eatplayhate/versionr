@@ -34,11 +34,48 @@ namespace Versionr.Network
                 return AESProvider.CreateEncryptor(AESKey, AESIV);
             }
         }
+
         System.Security.Cryptography.ICryptoTransform Decryptor
         {
             get
             {
                 return AESProvider.CreateDecryptor(AESKey, AESIV);
+            }
+        }
+
+        public bool PushStash(Area.StashInfo stash)
+        {
+            if (Workspace == null)
+                return false;
+            try
+            {
+                if (!SharedNetwork.SendStash(SharedInfo, stash))
+                    return false;
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                Close();
+                return false;
+            }
+        }
+
+        public bool PullStash(string x)
+        {
+            if (Workspace == null)
+                return false;
+            try
+            {
+                if (!SharedNetwork.RetreiveStash(SharedInfo, x))
+                    return false;
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                Close();
+                return false;
             }
         }
 

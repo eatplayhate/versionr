@@ -67,11 +67,8 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
 
-            Area.StashInfo stash = ws.FindStash(localOptions.Name);
-
-            if (stash == null)
-                Printer.PrintMessage("#e#Error:## Couldn't find a stash matching a name/key/ID of \"{0}\".", localOptions.Name);
-            else
+            var stash = StashList.LookupStash(ws, localOptions.Name);
+            if (stash != null)
             {
                 Area.ApplyStashOptions options = new Area.ApplyStashOptions();
                 options.DisallowMoves = localOptions.NoMoves;

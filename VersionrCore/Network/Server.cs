@@ -344,6 +344,38 @@ namespace Versionr.Network
                                 Printer.PrintDiagnostics("Client closing connection.");
                                 break;
                             }
+                            else if (command.Type == NetCommandType.PullStashQuery)
+                            {
+                                var stashes = ws.FindStash(command.AdditionalPayload);
+                                if (stashes.Count == 0)
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" not found!", command.AdditionalPayload) }, ProtoBuf.PrefixStyle.Fixed32);
+                                else if (stashes.Count == 1)
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length }, ProtoBuf.PrefixStyle.Fixed32);
+                                    SharedNetwork.TransmitStash(sharedInfo, stashes[0]);
+                                }
+                                else
+                                {
+                                    string amb = string.Empty;
+                                    foreach (var x in stashes)
+                                    {
+                                        amb += string.Format("\n#b#{0}-{1}## - #q#{2}##", x.Author, x.Key, x.GUID);
+                                    }
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" ambiguous - could be:{1}", command.AdditionalPayload, amb) }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                            }
+                            else if (command.Type == NetCommandType.PushStashQuery)
+                            {
+                                if (ws.FindStashExact(command.AdditionalPayload))
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                    SharedNetwork.ReceiveStashData(sharedInfo, command.Identifier);
+                                }
+                            }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
                                 bool fresh = false;
