@@ -13,7 +13,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} version", Verb);
+                return string.Format("Usage: versionr {0} version[s]", Verb);
             }
         }
 
@@ -42,8 +42,8 @@ namespace Versionr.Commands
         [Option("relaxed", DefaultValue = false, HelpText = "Allow patches to be applied even if incomplete.")]
         public bool Relaxed { get; set; }
 
-        [ValueOption(0)]
-        public string Version { get; set; }
+        [ValueList(typeof(List<string>))]
+        public List<string> Versions { get; set; }
     }
     class Cherrypick : BaseCommand
     {
@@ -54,13 +54,16 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            var version = ws.GetPartialVersion(localOptions.Version);
-            if (version == null)
+            foreach (var vname in localOptions.Versions)
             {
-                Printer.PrintError("Could't identify source version to cherrypick from!");
-                return false;
+                var version = ws.GetPartialVersion(vname);
+                if (version == null)
+                {
+                    Printer.PrintError("Could't identify source version to cherrypick from (specified name is \"{0}\")!", vname);
+                    return false;
+                }
+                ws.Cherrypick(version, localOptions.Relaxed, localOptions.Reverse);
             }
-            ws.Cherrypick(version, localOptions.Relaxed, localOptions.Reverse);
             return true;
         }
     }
