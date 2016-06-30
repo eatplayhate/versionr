@@ -149,6 +149,7 @@ namespace Versionr
         public List<StashInfo> ListStashes()
         {
             DirectoryInfo stashDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
+            stashDir.Create();
             List<StashInfo> stashes = new List<StashInfo>();
             HashSet<string> guids = new HashSet<string>();
             foreach (var x in LocalData.Table<LocalState.SavedStash>().ToList())

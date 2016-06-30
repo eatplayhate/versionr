@@ -45,12 +45,12 @@ namespace Versionr.Commands
     }
     class StashList : BaseCommand
     {
-        static public Area.StashInfo LookupStash(Area ws, string name)
+        static public Area.StashInfo LookupStash(Area ws, string name, bool expectNone = false)
         {
             bool ambiguous;
-            return LookupStash(ws, name, out ambiguous);
+            return LookupStash(ws, name, out ambiguous, expectNone);
         }
-        static public Area.StashInfo LookupStash(Area ws, string name, out bool ambiguous)
+        static public Area.StashInfo LookupStash(Area ws, string name, out bool ambiguous, bool expectNone = false)
         {
             var stashes = ws.FindStash(name);
             Area.StashInfo stash = null;
@@ -59,9 +59,9 @@ namespace Versionr.Commands
 
             ambiguous = false;
 
-            if (stashes.Count == 0)
+            if (stashes.Count == 0 && !expectNone)
                 Printer.PrintMessage("#e#Error:## Couldn't find a stash matching a name/key/ID of \"{0}\".", name);
-            else if (stash == null)
+            else if (stashes.Count > 1)
             {
                 ambiguous = true;
                 Printer.PrintMessage("#e#Error:## Ambiguous stash \"{0}\", could be:", name);

@@ -197,6 +197,10 @@ namespace Versionr.Network
 
             byte[] buffer = new byte[32 * 1024];
             string filename = sharedInfo.Workspace.GenerateTempPath();
+            receiverStream.Read(buffer, 0, 8);
+            long expectedLength = BitConverter.ToInt64(buffer, 0);
+            if (expectedLength != dataSize)
+                throw new Exception();
             using (System.IO.FileStream fs = System.IO.File.Open(filename, System.IO.FileMode.Create))
             {
                 while (!receiverStream.EndOfStream)

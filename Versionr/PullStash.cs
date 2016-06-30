@@ -40,7 +40,7 @@ namespace Versionr.Commands
             foreach (var x in localOptions.Names)
             {
                 bool ambiguous;
-                var stash = StashList.LookupStash(client.Workspace, x, out ambiguous);
+                var stash = StashList.LookupStash(client.Workspace, x, out ambiguous, true);
                 if (stash == null && !ambiguous)
                     client.PullStash(x);
             }

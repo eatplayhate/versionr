@@ -19,7 +19,7 @@ namespace Versionr.Commands
         [Option('m', "module", Required = false, HelpText = "The name of the remote module to select (used if a single server is hosting multiple vaults).")]
         public string Module { get; set; }
 
-        [ValueOption(0)]
+        [Option('s', "server", Required = false, HelpText = "The saved name of the server.")]
         public string Name { get; set; }
     }
     abstract class RemoteCommand : BaseCommand
