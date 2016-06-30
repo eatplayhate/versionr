@@ -945,7 +945,7 @@ namespace Versionr
                     Printer.PrintError("Cherrypick currently doesn't support a {0} alteration.", x.Type);
             }
             
-            string fn = WriteStash(header, stashWriters);
+            string fn = WriteStash(header, stashWriters, true);
 
             ApplyStashOptions opts = new ApplyStashOptions();
             opts.AllowUncleanPatches = relaxed;
@@ -1161,7 +1161,7 @@ namespace Versionr
             {
                 LocalData.BeginTransaction();
                 header.Key = LocalData.GetStashCode();
-                string fn = WriteStash(header, stashWriters);
+                string fn = WriteStash(header, stashWriters, false);
                 header.File = new FileInfo(fn);
                 LocalData.RecordStash(header);
                 LocalData.Commit();
@@ -1178,19 +1178,23 @@ namespace Versionr
             }
         }
 
-        private string WriteStash(StashInfo header, List<Tuple<StashEntry, Func<Stream, long>>> stashWriters)
+        private string WriteStash(StashInfo header, List<Tuple<StashEntry, Func<Stream, long>>> stashWriters, bool cherrypickMode)
         {
             var stashFolder = AdministrationFolder.CreateSubdirectory("Stashes");
             string stashfn = header.GUID + ".stash";
             string filename = Path.Combine(stashFolder.FullName, stashfn);
+            if (cherrypickMode)
+                filename = Path.Combine(AdministrationFolder.CreateSubdirectory("Temp").FullName, stashfn);
             try
             {
-                Printer.PrintMessage("Creating stash: #b#{0}## {1}\n #q#<{2}>##", header.Key, header.Name.Length == 0 ? "(no name)" : ("- " + header.Name), header.GUID);
+                if (!cherrypickMode)
+                    Printer.PrintMessage("Creating stash: #b#{0}## {1}\n #q#<{2}>##", header.Key, header.Name.Length == 0 ? "(no name)" : ("- " + header.Name), header.GUID);
                 using (FileStream fs = File.Open(filename, FileMode.Create, FileAccess.Write))
                 using (BinaryWriter bw = new BinaryWriter(fs))
                 {
                     header.Write(bw);
-                    Printer.PrintMessage(" - Stashing {0} changes.", stashWriters.Count);
+                    if (!cherrypickMode)
+                        Printer.PrintMessage(" - Stashing {0} changes.", stashWriters.Count);
                     bw.Write(stashWriters.Count);
                     for (int i = 0; i < stashWriters.Count; i++)
                         stashWriters[i].Item1.Write(bw);
@@ -1199,7 +1203,8 @@ namespace Versionr
                     fs.Seek(indexTable.Length * 8, SeekOrigin.Current);
                     for (int i = 0; i < stashWriters.Count; i++)
                     {
-                        Printer.PrintMessage(" [{0}]: #b#{1}## - {2}", i, stashWriters[i].Item1.Alteration, stashWriters[i].Item1.CanonicalName);
+                        if (!cherrypickMode)
+                            Printer.PrintMessage(" [{0}]: #b#{1}## - {2}", i, stashWriters[i].Item1.Alteration, stashWriters[i].Item1.CanonicalName);
                         long currentFilePos = fs.Position;
                         indexTable[i * 2 + 0] = currentFilePos;
                         long packedSize = stashWriters[i].Item2(fs);
@@ -1207,7 +1212,8 @@ namespace Versionr
                             throw new Exception();
                         indexTable[i * 2 + 1] = packedSize;
                     }
-                    Printer.PrintMessage("Packed stash file size is: {0} bytes.", fs.Position);
+                    if (!cherrypickMode)
+                        Printer.PrintMessage("Packed stash file size is: {0} bytes.", fs.Position);
                     fs.Seek(mainIndexPos, SeekOrigin.Begin);
                     for (int i = 0; i < indexTable.Length; i++)
                         bw.Write(indexTable[i]);
