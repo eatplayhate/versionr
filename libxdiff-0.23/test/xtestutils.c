@@ -91,6 +91,9 @@ int xdlt_dump_mmfile(char const *fname, mmfile_t *mmf) {
 	return 0;
 }
 
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 
 int xdlt_load_mmfile(char const *fname, mmfile_t *mf, int binmode) {
 	char cc;
