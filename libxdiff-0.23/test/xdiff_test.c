@@ -92,6 +92,7 @@ int __declspec(dllexport) GeneratePatch(const char* f1, const char* f2, const ch
 	xdemitconf_t xecfg;
 	bdiffparam_t bdp;
 	xdemitcb_t ecb, rjecb;
+	xecfg.ctxlen = 3;
 
 	Init();
 
