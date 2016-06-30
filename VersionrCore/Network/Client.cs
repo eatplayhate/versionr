@@ -672,7 +672,7 @@ namespace Versionr.Network
 
                             if (localVersions.Count() != 1)
                             {
-                                Printer.PrintMessage("Too many heads in local branch to merge remote head. Please merge locally and try again to update branch \"{0}\".", Workspace.GetBranch(x.Key).Name);
+                                Printer.PrintWarning("#z#Too many heads in local branch to merge remote head. Please merge locally and try again to update branch \"{0}\".##", Workspace.GetBranch(x.Key).Name);
                             }
                             
                             if (remoteVersions.Count() == 1 && localVersions.Count() > 0)
