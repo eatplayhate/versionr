@@ -190,7 +190,7 @@ namespace Versionr
 
                 bool moveAsCopies = false;
                 bool allowDeletes = true;
-
+                
                 for (int i = 0; i < entries.Count; i++)
                 {
                     var x = entries[i];
@@ -338,7 +338,7 @@ namespace Versionr
 
             bool stage = true;
             bool extract = false;
-            ResolveType rtype = ResolveType.Mine;
+            ResolveType rtype = ResolveType.Replace;
             string xpath = rpath;
             if (ws != null)
             {
