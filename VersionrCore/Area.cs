@@ -160,10 +160,15 @@ namespace Versionr
             }
         }
 
-        private void ApplyStash(StashInfo infoOriginal, bool stage)
+        private void ApplyStash(StashInfo infoOriginal, bool enableStaging)
         {
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
             Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
+
+            ResolveType? resolveAllText = null;
+            ResolveType? resolveAllBinary = null;
+            ResolveType? mergeResolve = null;
+
             using (FileStream fs = infoOriginal.File.OpenRead())
             using (BinaryReader br = new BinaryReader(fs))
             {
@@ -196,31 +201,33 @@ namespace Versionr
 
                     if (x.Alteration == AlterationType.Add)
                     {
-                        if (ws == null)
+                        if (x.Flags.HasFlag(StashFlags.Directory))
                         {
-                            br.BaseStream.Position = indexTable[i * 2 + 0];
-                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(x.NewSize, br.BaseStream);
-                            using (FileStream fout = File.Open(rpath, FileMode.Create))
-                                reader.CopyTo(fout);
-                            ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
-                            Printer.PrintMessage("  - Wrote {0} bytes.", x.NewSize);
+                            if (ws == null)
+                                System.IO.Directory.CreateDirectory(rpath);
+                            else
+                                Printer.PrintMessage("  - Skipped, directory already added.");
                         }
-                        else if (ws.Hash == x.NewHash && ws.Length == x.NewSize)
-                            Printer.PrintMessage("  - Skipped, object already added.");
                         else
-                            Printer.PrintMessage("  - Skipped, conflict.");
+                        {
+                            ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                            {
+                                br.BaseStream.Position = indexTable[i * 2 + 0];
+                                Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(x.NewSize, br.BaseStream);
+                                using (FileStream fout = File.Open(path, FileMode.Create))
+                                    reader.CopyTo(fout);
+                            });
+                        }
                     }
                     else if (x.Alteration == AlterationType.Copy || (x.Alteration == AlterationType.Move && moveAsCopies))
                     {
-                        if (ws == null)
+                        ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
                         {
                             if (x.Alteration == AlterationType.Copy || (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize))
                             {
                                 Record dataRecord = GetRecord(x.OriginalRecordID);
                                 GetMissingRecords(new Record[] { dataRecord });
-                                RestoreRecord(dataRecord, DateTime.Now, rpath);
-                                ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
-                                Printer.PrintMessage("  - Wrote {0} bytes.", x.NewSize);
+                                RestoreRecord(dataRecord, DateTime.Now, path);
                             }
                             else
                             {
@@ -237,7 +244,7 @@ namespace Versionr
 
                                     RestoreRecord(oldRecord, DateTime.Now, tempFile);
 
-                                    ApplyPatchEntry(rpath, tempFile, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream);
+                                    ApplyPatchEntry(path, tempFile, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream);
 
                                     FileInfo tfi = new FileInfo(tempFile);
                                     tfi.IsReadOnly = false;
@@ -245,16 +252,10 @@ namespace Versionr
                                 }
                                 else
                                 {
-                                    ApplyPatchEntry(rpath, oldEntry.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream);
+                                    ApplyPatchEntry(path, oldEntry.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream);
                                 }
-
-                                ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
                             }
-                        }
-                        else if (ws.Hash == x.NewHash && ws.Length == x.NewSize)
-                            Printer.PrintMessage("  - Skipped, object already present.");
-                        else
-                            Printer.PrintMessage("  - Skipped, conflict.");
+                        });
                     }
                     else if (x.Alteration == AlterationType.Move)
                     {
@@ -307,7 +308,6 @@ namespace Versionr
                         else
                         {
                             ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream);
-                            Printer.PrintMessage("  - Updated {0}.", x.CanonicalName);
                         }
                     }
                     else if (x.Alteration == AlterationType.Delete && allowDeletes)
@@ -327,6 +327,95 @@ namespace Versionr
                     else
                         Printer.PrintMessage("  - Skipped");
                 }
+            }
+        }
+
+        private void ApplyStashCreateFile(StashEntry x, Status.StatusEntry ws, string rpath, bool enableStaging, ref ResolveType? resolveAllBinary, ref ResolveType? resolveAllText, ref ResolveType? mergeResolve, Action<string> extractor)
+        {
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+
+            bool stage = true;
+            bool extract = false;
+            ResolveType rtype = ResolveType.Mine;
+            string xpath = rpath;
+            if (ws != null)
+            {
+                if (ws.Hash == x.NewHash && ws.Length == x.NewSize)
+                    Printer.PrintMessage("  - Skipped, object already added.");
+                else
+                {
+                    Printer.PrintMessage("  - File already exists!");
+                    if (x.Flags.HasFlag(StashFlags.Binary))
+                        rtype = GetStashResolutionBinary(ref resolveAllBinary);
+                    else
+                        rtype = GetStashResolutionText(ref resolveAllText);
+                }
+            }
+
+            if (rtype == ResolveType.Conflict)
+            {
+                Printer.PrintMessage("  - Saving stashed file to {0}", x.CanonicalName + ".stashed");
+                rpath = rpath + ".stashed";
+                extract = true;
+                stage = false;
+            }
+            else if (rtype == ResolveType.Replace)
+            {
+                extract = true;
+            }
+            else if (rtype == ResolveType.Skip)
+            {
+                Printer.PrintMessage("  - Skipping conflicted file.");
+                extract = false;
+                stage = false;
+            }
+            else if (rtype == ResolveType.Merge)
+            {
+                Printer.PrintMessage("  - Attempting two-way merge.");
+                xpath = Path.Combine(tempFolder.FullName, Path.GetRandomFileName()) + ".stash";
+                extract = true;
+                stage = false;
+            }
+
+            if (extract)
+            {
+                extractor(xpath);
+
+                if (rtype == ResolveType.Merge)
+                {
+                    string tfile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName()) + ".result";
+                    var mf = new FileInfo(xpath);
+                    var ml = new FileInfo(rpath);
+                    var mr = new FileInfo(tfile);
+                    FileInfo result = Merge2Way(null, mf, null, ml, mr, true, ref mergeResolve);
+                    if (result != null)
+                    {
+                        if (result != ml)
+                        {
+                            if (ml.IsReadOnly)
+                                ml.IsReadOnly = false;
+                            ml.Delete();
+                        }
+                        if (result != mr)
+                        {
+                            if (mr.IsReadOnly)
+                                mr.IsReadOnly = false;
+                            mr.Delete();
+                        }
+                        if (result != mf)
+                        {
+                            if (mf.IsReadOnly)
+                                mf.IsReadOnly = false;
+                            mf.Delete();
+                        }
+                        result.MoveTo(ml.FullName);
+                    }
+                }
+
+                ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
+
+                if (stage && enableStaging)
+                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
             }
         }
 
@@ -4311,12 +4400,18 @@ namespace Versionr
         {
             Mine,
             Theirs,
-            Conflict
+            Conflict,
+
+            // Stash resolve types
+            Replace,
+            Skip,
+            Merge,
         }
 
         private FileInfo Merge2Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, FileInfo temporaryFile, bool allowConflict, ref ResolveType? resolveAll)
         {
-            Printer.PrintMessage("#w#Merging:## {0}", x.CanonicalName);
+            if (x != null)
+                Printer.PrintMessage("#w#Merging:## {0}", x.CanonicalName);
             string mf = foreign.FullName;
             string ml = local.FullName;
             string mr = temporaryFile.FullName;
@@ -4373,28 +4468,103 @@ namespace Versionr
                 Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
                 return resolveAll.Value;
             }
-            if (!binary)
-                Printer.PrintMessage("Merge marked as failure, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
-            else
-                Printer.PrintMessage("File is binary, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
-            string resolution = System.Console.ReadLine();
-            if (resolution.StartsWith("m"))
+            while (true)
             {
-                if (resolution.Contains("*"))
-                    resolveAll = ResolveType.Mine;
-                return ResolveType.Mine;
+                if (!binary)
+                    Printer.PrintMessage("Reconcile file, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
+                else
+                    Printer.PrintMessage("Reconcile binary file, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("m"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Mine;
+                    return ResolveType.Mine;
+                }
+                if (resolution.StartsWith("t"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Theirs;
+                    return ResolveType.Theirs;
+                }
+                if (resolution.StartsWith("c"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Conflict;
+                    return ResolveType.Conflict;
+                }
             }
-            if (resolution.StartsWith("t"))
+        }
+
+        private ResolveType GetStashResolutionText(ref ResolveType? resolveAll)
+        {
+            if (resolveAll.HasValue)
             {
-                if (resolution.Contains("*"))
-                    resolveAll = ResolveType.Theirs;
-                return ResolveType.Theirs;
+                Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
+                return resolveAll.Value;
             }
-            else
+            while (true)
             {
-                if (resolution.Contains("*"))
-                    resolveAll = ResolveType.Conflict;
-                return ResolveType.Conflict;
+                Printer.PrintMessage("Reconcile stashed file, use #s#(r)eplace##, #c#(s)kip##, #w#(b)oth## or #b#attempt to (m)erge##? (Use #b#*## for all)");
+
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("r"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Replace;
+                    return ResolveType.Replace;
+                }
+                if (resolution.StartsWith("s"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Skip;
+                    return ResolveType.Skip;
+                }
+                if (resolution.StartsWith("b"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Conflict;
+                    return ResolveType.Conflict;
+                }
+                if (resolution.StartsWith("m"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Merge;
+                    return ResolveType.Merge;
+                }
+            }
+        }
+
+        private ResolveType GetStashResolutionBinary(ref ResolveType? resolveAll)
+        {
+            if (resolveAll.HasValue)
+            {
+                Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
+                return resolveAll.Value;
+            }
+            while (true)
+            {
+                Printer.PrintMessage("Reconcile stashed binary file, use #s#(r)eplace##, #c#(s)kip## or #w#(b)oth##? (Use #b#*## for all)");
+
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("r"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Replace;
+                    return ResolveType.Replace;
+                }
+                if (resolution.StartsWith("s"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Skip;
+                    return ResolveType.Skip;
+                }
+                if (resolution.StartsWith("b"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Conflict;
+                    return ResolveType.Conflict;
+                }
             }
         }
 
@@ -5497,7 +5667,14 @@ namespace Versionr
             foreach (var x in directoryDeletionList.OrderByDescending(x => x.CanonicalName.Length))
             {
                 Printer.PrintMessage("#e#Removed:## #b#{0}##", x.CanonicalName);
-                x.FilesystemEntry.DirectoryInfo.Delete();
+                try
+                {
+                    x.FilesystemEntry.DirectoryInfo.Delete();
+                }
+                catch
+                {
+                    Printer.PrintMessage(" #q#(failed to delete folder - not empty?)##");
+                }
             }
         }
 
