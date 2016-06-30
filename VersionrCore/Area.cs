@@ -48,6 +48,14 @@ namespace Versionr
             return merges.Select(x => GetVersion(x.DestinationVersion)).ToList();
         }
 
+        public static string Username
+        {
+            get
+            {
+                return Environment.UserName;
+            }
+        }
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
@@ -59,14 +67,26 @@ namespace Versionr
 
         public class StashInfo
         {
-            public string Author { get; private set; }
-            public DateTime Time { get; private set; }
-            public string Name { get; private set; }
-            public bool Valid { get; private set; }
-            public Guid GUID { get; private set; }
+            public string Author { get; set; }
+            public DateTime Time { get; set; }
+            public string Name { get; set; }
+            public string Key { get; set; }
+            public bool Valid { get; set; }
+            public Guid GUID { get; set; }
             public FileInfo File { get; private set; }
 
-            public StashInfo(string filename)
+            internal static StashInfo Create(string name)
+            {
+                return new StashInfo()
+                {
+                    GUID = Guid.NewGuid(),
+                    Name = name,
+                    Author = Username,
+                    Time = DateTime.UtcNow
+                };
+            }
+
+            internal static StashInfo FromFile(string filename)
             {
                 using (FileStream fs = System.IO.File.Open(filename, FileMode.Open, FileAccess.Read))
                 using (BinaryReader br = new BinaryReader(fs))
@@ -74,14 +94,27 @@ namespace Versionr
                     string s1 = br.ReadString();
                     if (s1 == "STASH1")
                     {
-                        Valid = true;
-                        GUID = new Guid(br.ReadString());
-                        Name = br.ReadString();
-                        Author = br.ReadString();
-                        Time = new DateTime(br.ReadInt64());
-                        File = new FileInfo(filename);
+                        return new StashInfo()
+                        {
+                            GUID = new Guid(br.ReadString()),
+                            Name = br.ReadString(),
+                            Author = br.ReadString(),
+                            Time = new DateTime(br.ReadInt64()),
+                            Key = br.ReadString(),
+                            File = new FileInfo(filename)
+                        };
                     }
                 }
+                return null;
+            }
+            internal void Write(BinaryWriter bw)
+            {
+                bw.Write("STASH1");
+                bw.Write(GUID.ToString());
+                bw.Write(Name);
+                bw.Write(Author);
+                bw.Write(Time.Ticks);
+                bw.Write(Key);
             }
         }
 
@@ -238,28 +271,26 @@ namespace Versionr
         public void Stash(string name, bool revert)
         {
             Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
-            List<string> canonicalNamesToStashAddOrUpdate = new List<string>();
-            List<string> canonicalNamesToStashRemove = new List<string>();
+            List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
             Dictionary<string, long> mergeRecords = new Dictionary<string, long>();
             foreach (var x in LocalData.StageOperations)
             {
-                if (x.Type == StageOperationType.Add)
-                    canonicalNamesToStashAddOrUpdate.Add(x.Operand1);
-                else if (x.Type == StageOperationType.Remove)
-                    canonicalNamesToStashRemove.Add(x.Operand1);
+                if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
+                    stashTargets.Add(st.Map[x.Operand1]);
                 else if (x.Type == StageOperationType.MergeRecord)
                     mergeRecords[x.Operand1] = x.ReferenceObject;
             }
-
-            Guid stashGuid = Guid.NewGuid();
+            
             var stashFolder = AdministrationFolder.CreateSubdirectory("Stashes");
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
 
-            if (canonicalNamesToStashAddOrUpdate.Count == 0)
+            if (stashTargets.Count == 0)
             {
                 Printer.PrintMessage("Nothing to stash.");
                 return;
             }
+
+            StashInfo header = StashInfo.Create(name);
 
             using (FileStream fs = File.Open(Path.Combine(stashFolder.FullName, stashGuid + ".stash"), FileMode.Create, FileAccess.Write))
             using (BinaryWriter bw = new BinaryWriter(fs))
