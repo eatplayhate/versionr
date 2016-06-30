@@ -58,6 +58,7 @@ namespace Versionr
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
@@ -808,6 +809,145 @@ namespace Versionr
             }
         }
 
+        public void Cherrypick(Objects.Version version, bool relaxed, bool reverse)
+        {
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+            var alterations = Database.GetAlterationsForVersion(version);
+            List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
+
+            StashInfo header = StashInfo.Create(string.Empty, Version.ID);
+            List<Tuple<StashEntry, Func<Stream, long>>> stashWriters = new List<Tuple<StashEntry, Func<Stream, long>>>();
+            
+            foreach (var x in alterations)
+            {
+                if (x.Type == AlterationType.Add)
+                {
+                    Record newRecord = GetRecord(x.NewRecord.Value);
+                    if (newRecord.IsDirectory)
+                    {
+                        StashEntry entry = new StashEntry()
+                        {
+                            Alteration = AlterationType.Add,
+                            CanonicalName = newRecord.CanonicalName,
+                            OriginalCanonicalName = string.Empty,
+                            NewHash = string.Empty,
+                            NewSize = -1,
+                            ObjectAttributes = newRecord.Attributes,
+                            OriginalHash = string.Empty,
+                            OriginalSize = -1,
+                            Flags = StashFlags.Directory
+                        };
+
+                        stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
+                    }
+                    else
+                    {
+                        GetMissingRecords(new Record[] { newRecord });
+
+                        var tempFile = GetTemporaryFile(newRecord);
+                        RestoreRecord(newRecord, DateTime.Now, tempFile.FullName);
+
+                        bool binary = FileClassifier.Classify(tempFile) == FileEncoding.Binary;
+
+                        StashEntry entry = new StashEntry()
+                        {
+                            Alteration = AlterationType.Add,
+                            CanonicalName = newRecord.CanonicalName,
+                            OriginalCanonicalName = string.Empty,
+                            NewHash = newRecord.Fingerprint,
+                            NewSize = newRecord.Size,
+                            ObjectAttributes = newRecord.Attributes,
+                            OriginalHash = string.Empty,
+                            OriginalSize = -1,
+                            Flags = binary ? StashFlags.Binary : StashFlags.None
+                        };
+
+                        stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
+                        {
+                            long resultSize;
+                            using (FileStream input = File.Open(tempFile.FullName, FileMode.Open, FileAccess.Read))
+                            {
+                                Versionr.ObjectStore.LZHAMWriter.CompressToStream(tempFile.Length, 16 * 1024 * 1024, out resultSize, input, s);
+                            }
+                            tempFile.IsReadOnly = false;
+                            tempFile.Delete();
+                            return resultSize;
+                        }));
+                    }
+                }
+                else if (x.Type == AlterationType.Update)
+                {
+                    Record newRecord = GetRecord(x.NewRecord.Value);
+                    Record oldRecord = GetRecord(x.PriorRecord.Value);
+
+                    GetMissingRecords(new Record[] { newRecord, oldRecord });
+
+                    var tempFileNew = GetTemporaryFile(newRecord);
+                    RestoreRecord(newRecord, DateTime.Now, tempFileNew.FullName);
+                    var tempFileOld = GetTemporaryFile(oldRecord);
+                    RestoreRecord(newRecord, DateTime.Now, tempFileOld.FullName);
+
+                    bool binary = FileClassifier.Classify(tempFileNew) == FileEncoding.Binary;
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Update,
+                        CanonicalName = newRecord.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = newRecord.Fingerprint,
+                        NewSize = newRecord.Size,
+                        ObjectAttributes = newRecord.Attributes,
+                        OriginalHash = oldRecord.Fingerprint,
+                        OriginalSize = oldRecord.Size,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
+                    {
+                        long resultSize;
+                        
+                        string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+
+                        int xdiffres = 0;
+                        if (binary)
+                            xdiffres = GenerateBinaryPatch(tempFileOld.FullName, tempFileNew.FullName, patchFile);
+                        else
+                            xdiffres = GeneratePatch(tempFileOld.FullName, tempFileNew.FullName, patchFile);
+
+                        if (xdiffres != 0)
+                            throw new Exception("Error during xdiff!");
+
+                        BinaryWriter bw = new BinaryWriter(s);
+                        long patchSize = new FileInfo(patchFile).Length;
+                        bw.Write(patchSize);
+
+                        using (FileStream input = File.Open(patchFile, FileMode.Open, FileAccess.Read))
+                        {
+                            Versionr.ObjectStore.LZHAMWriter.CompressToStream(patchSize, 16 * 1024 * 1024, out resultSize, input, s);
+                        }
+
+                        File.Delete(patchFile);
+
+                        tempFileNew.IsReadOnly = false;
+                        tempFileOld.IsReadOnly = false;
+                        tempFileNew.Delete();
+                        tempFileOld.Delete();
+
+                        return resultSize + 8;
+                    }));
+                }
+                else
+                    Printer.PrintError("Cherrypick currently doesn't support a {0} alteration.", x.Type);
+            }
+            
+            string fn = WriteStash(header, stashWriters);
+
+            ApplyStashOptions opts = new ApplyStashOptions();
+            opts.AllowUncleanPatches = relaxed;
+            opts.Reverse = reverse;
+            Unstash(header, opts, true);
+        }
+
         public void Stash(string name, bool revert, Action<Status.StatusEntry, StatusCode> revertFeedback = null)
         {
             Status st = new Status(this, Database, LocalData, FileSnapshot, null, true);
@@ -1067,6 +1207,8 @@ namespace Versionr
                     for (int i = 0; i < indexTable.Length; i++)
                         bw.Write(indexTable[i]);
                 }
+
+                header.File = new FileInfo(filename);
             }
             catch
             {
