@@ -40,7 +40,7 @@ namespace Versionr.Commands
 			return true;
         }
 
-        protected void UnrecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code)
+        public static void UnrecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code)
         {
             var previous = Status.GetStatusText(entry);
             var now = Status.GetStatusText(code, false);

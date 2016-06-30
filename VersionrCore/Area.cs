@@ -48,324 +48,1186 @@ namespace Versionr
             return merges.Select(x => GetVersion(x.DestinationVersion)).ToList();
         }
 
+        public static string Username
+        {
+            get
+            {
+                return Environment.UserName;
+            }
+        }
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        public static extern int ApplyPatch(string file1, string file2, string output);
+        public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed);
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyBinaryPatch(string file1, string file2, string output);
 
         public class StashInfo
         {
-            public string Author { get; private set; }
-            public DateTime Time { get; private set; }
-            public string Name { get; private set; }
-            public bool Valid { get; private set; }
-            public Guid GUID { get; private set; }
-            public FileInfo File { get; private set; }
+            public string Author { get; set; }
+            public DateTime Time { get; set; }
+            public string Name { get; set; }
+            public string Key { get; set; }
+            public Guid GUID { get; set; }
+            public FileInfo File { get; set; }
+            public int Version { get; set; }
+            public Guid OriginatingVersion { get; set; }
+            public long? LocalDBIndex { get; set; }
 
-            public StashInfo(string filename)
+            internal static StashInfo Create(string name, Guid originalVersion)
+            {
+                return new StashInfo()
+                {
+                    GUID = Guid.NewGuid(),
+                    Name = name,
+                    Key = string.Empty,
+                    Author = Username,
+                    Time = DateTime.UtcNow,
+                    Version = 2,
+                    OriginatingVersion = originalVersion
+                };
+            }
+
+            internal static StashInfo FromFile(string filename)
             {
                 using (FileStream fs = System.IO.File.Open(filename, FileMode.Open, FileAccess.Read))
                 using (BinaryReader br = new BinaryReader(fs))
                 {
-                    string s1 = br.ReadString();
-                    if (s1 == "STASH1")
-                    {
-                        Valid = true;
-                        GUID = new Guid(br.ReadString());
-                        Name = br.ReadString();
-                        Author = br.ReadString();
-                        Time = new DateTime(br.ReadInt64());
-                        File = new FileInfo(filename);
-                    }
+                    StashInfo info = StashInfo.Read(br);
+                    if (info != null)
+                        info.File = new FileInfo(filename);
+                    return info;
                 }
+            }
+
+            internal static StashInfo Read(BinaryReader br)
+            {
+                string s1 = br.ReadString();
+                if (s1 == "STASH2")
+                {
+                    return new StashInfo()
+                    {
+                        GUID = new Guid(br.ReadString()),
+                        Name = br.ReadString(),
+                        Author = br.ReadString(),
+                        Time = new DateTime(br.ReadInt64()),
+                        Key = br.ReadString(),
+                        Version = 2,
+                        OriginatingVersion = new Guid(br.ReadString())
+                    };
+                }
+                return null;
+            }
+
+            internal void Write(BinaryWriter bw)
+            {
+                if (Version == 2)
+                    bw.Write("STASH2");
+                else
+                    throw new Exception();
+                bw.Write(GUID.ToString());
+                bw.Write(Name);
+                bw.Write(Author);
+                bw.Write(Time.Ticks);
+                bw.Write(Key);
+                bw.Write(OriginatingVersion.ToString());
             }
         }
 
         public List<StashInfo> ListStashes()
         {
+            DirectoryInfo stashDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
             List<StashInfo> stashes = new List<StashInfo>();
-            DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
-            foreach (var x in info.GetFiles())
+            HashSet<string> guids = new HashSet<string>();
+            foreach (var x in LocalData.Table<LocalState.SavedStash>().ToList())
+            {
+                string fname = x.GUID + ".stash";
+                StashInfo info = new StashInfo()
+                {
+                    Author = x.Author,
+                    File = new FileInfo(Path.Combine(stashDir.FullName, fname)),
+                    Key = x.StashCode,
+                    GUID = x.GUID,
+                    Name = x.Name,
+                    Time = x.Timestamp,
+                    LocalDBIndex = x.Id
+                };
+                if (info.File.Exists)
+                {
+                    guids.Add(fname);
+                    stashes.Add(info);
+                }
+                else
+                    LocalData.Delete(x);
+            }
+            foreach (var x in stashDir.GetFiles())
             {
                 if (x.Extension == ".stash")
                 {
-                    StashInfo stashInfo = new StashInfo(x.FullName);
-                    if (stashInfo.Valid)
-                        stashes.Add(stashInfo);
+                    if (!guids.Contains(x.Name))
+                    {
+                        StashInfo stashInfo = StashInfo.FromFile(x.FullName);
+                        if (stashInfo != null)
+                        {
+                            stashes.Add(stashInfo);
+                            LocalData.RecordStash(stashInfo);
+                        }
+                    }
                 }
             }
             return stashes.OrderByDescending(x => x.Time).ToList();
         }
 
-        public void Unstash(string name)
+        public StashInfo FindStash(string name)
         {
             var stashes = ListStashes();
             foreach (var x in stashes)
             {
-                if (x.Name == name || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
+                if (string.Compare(name, (x.Author + "-" + x.Key), true) == 0 || string.Compare(x.Key, name, true) == 0 || string.Compare(x.Name, name, true) == 0 || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
                 {
-                    ApplyStash(x);
+                    return x;
+                }
+            }
+            return null;
+        }
+
+        public class ApplyStashOptions
+        {
+            public bool StageOperations { get; set; } = true;
+            public bool DisallowMoves { get; set; } = false;
+            public bool DisallowDeletes { get; set; } = false;
+            public bool Reverse { get; set; } = false;
+            public bool AllowUncleanPatches { get; set; } = false;
+            public bool AttemptThreeWayMergeOnPatchFailure { get; set; } = false;
+        }
+
+        public void Unstash(StashInfo stashInfo, ApplyStashOptions options, bool deleteAfterApply)
+        {
+            ApplyStash(stashInfo, options);
+            if (deleteAfterApply)
+            {
+                DeleteStash(stashInfo);
+            }
+        }
+
+        public void DeleteStash(StashInfo stashInfo)
+        {
+            if (stashInfo.LocalDBIndex.HasValue)
+                LocalData.Delete<SavedStash>(stashInfo.LocalDBIndex.Value);
+            stashInfo.File.Delete();
+        }
+
+        public void StashToPatch(StreamWriter result, StashInfo stash)
+        {
+            using (FileStream fs = stash.File.OpenRead())
+            using (BinaryReader br = new BinaryReader(fs))
+            {
+                StashInfo info;
+                List<StashEntry> entries;
+                long[] indexTable;
+
+                ReadStashHeader(br, out info, out entries, out indexTable);
+
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    var x = entries[i];
+                    if (x.Alteration == AlterationType.Update)
+                    {
+                        if (!x.Flags.HasFlag(StashFlags.Binary))
+                        {
+                            br.BaseStream.Position = indexTable[i * 2 + 0];
+                            long patchSize = br.ReadInt64();
+
+                            result.Write("--- " + GetLocalCanonicalName(x.CanonicalName) + "\n");
+                            result.Write("+++ " + GetLocalCanonicalName(x.CanonicalName) + "\n");
+                            result.Flush();
+
+                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, fs);
+                            reader.CopyTo(result.BaseStream);
+
+                            result.Write("\n");
+                            result.Flush();
+                        }
+                    }
                 }
             }
         }
 
-        private void ApplyStash(StashInfo x)
+        private void ApplyStash(StashInfo infoOriginal, ApplyStashOptions options)
         {
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
             Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
-            using (FileStream fs = x.File.OpenRead())
+
+            ResolveType? resolveAllText = null;
+            ResolveType? resolveAllBinary = null;
+            ResolveType? mergeResolve = null;
+            bool? resolveDeleted = null;
+
+            using (FileStream fs = infoOriginal.File.OpenRead())
             using (BinaryReader br = new BinaryReader(fs))
             {
-                string s1 = br.ReadString();
-                if (s1 == "STASH1")
+                StashInfo info;
+                List<StashEntry> entries;
+                long[] indexTable;
+
+                ReadStashHeader(br, out info, out entries, out indexTable);
+                
+                Printer.PrintMessage("Applying stash #b#{0}##.", info.GUID);
+
+                bool enableStaging = options.StageOperations;
+                bool moveAsCopies = options.DisallowMoves;
+                bool allowDeletes = !options.DisallowDeletes;
+                
+                for (int i = 0; i < entries.Count; i++)
                 {
-                    Guid GUID = new Guid(br.ReadString());
-                    string Name = br.ReadString();
-                    string Author = br.ReadString();
-                    DateTime Time = new DateTime(br.ReadInt64());
+                    var x = entries[i];
+                    Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", i, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
 
-                    Printer.PrintMessage("Applying stash #b#{0}##.", GUID);
+                    Status.StatusEntry ws = null;
+                    st.Map.TryGetValue(x.CanonicalName, out ws);
 
-                    int additions = br.ReadInt32();
-                    for (int i = 0; i < additions; i++)
+                    string rpath = GetRecordPath(x.CanonicalName);
+
+                    if (options.Reverse && (x.Alteration == AlterationType.Add || x.Alteration == AlterationType.Copy || (x.Alteration == AlterationType.Move && moveAsCopies)))
                     {
-                        string cname = br.ReadString();
-                        long mergeRecord = br.ReadInt64();
-                        Attributes attribs = (Attributes)br.ReadUInt32();
-                        string hash = br.ReadString();
-                        long fileLength = br.ReadInt64();
-                        long compressedLength = br.ReadInt64();
-
-                        long next = br.BaseStream.Position + compressedLength;
-
-                        string rpath = GetRecordPath(cname);
-                        bool skip = false;
-                        Status.StatusEntry entry;
-                        if (st.Map.TryGetValue(cname, out entry))
+                        if (ws == null)
+                            Printer.PrintMessage("  - Skipped, object already missing.");
+                        else
                         {
-                            if (!entry.Removed)
+                            if (x.Flags.HasFlag(StashFlags.Directory))
                             {
-                                skip = true;
-                                if (entry.Hash == hash)
-                                    Printer.PrintMessage("Skipped #b#{0}## - already added.", cname);
+                                try
+                                {
+                                    System.IO.Directory.Delete(rpath);
+                                    Printer.PrintMessage("  - Deleted.");
+                                }
+                                catch
+                                {
+                                    Printer.PrintMessage("  - Couldn't delete directory (not empty?)");
+                                }
+                            }
+                            else
+                            {
+                                bool deletionResolution = false;
+                                if (ws.Hash != x.NewHash || ws.Length != x.NewSize)
+                                    deletionResolution = GetStashResolutionDeletion(ref resolveDeleted);
+
+                                if (deletionResolution == false)
+                                {
+                                    System.IO.FileInfo fi = new FileInfo(rpath);
+                                    fi.IsReadOnly = false;
+                                    fi.Delete();
+                                    Printer.PrintMessage("  - Deleted.");
+                                }
                                 else
                                 {
-                                    Printer.PrintMessage("#e#Conflict:## {0}", cname);
+                                    Printer.PrintMessage("  - Skipped, file contents is not what is expected.");
                                 }
                             }
                         }
-
-                        if (!skip)
-                        {
-                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(fileLength, br.BaseStream);
-                            using (FileStream fout = File.Open(rpath, FileMode.Create))
-                                reader.CopyTo(fout);
-                            Printer.PrintMessage("Exported: #b#{0}##", cname);
-                        }
-
-                        br.BaseStream.Position = next;
                     }
-                    int modifications = br.ReadInt32();
-                    for (int i = 0; i < modifications; i++)
+                    else if (options.Reverse && x.Alteration == AlterationType.Delete)
                     {
-                        string cname = br.ReadString();
-                        Printer.PrintMessage("Processing: #b#{0}##", cname);
-                        long mergeRecord = br.ReadInt64();
-                        Attributes attribs = (Attributes)br.ReadUInt32();
-                        long priorRecord = br.ReadInt64();
-                        string dataID = br.ReadString();
-                        string hash = br.ReadString();
-                        bool binary = br.ReadBoolean();
-
-                        long patchSize = br.ReadInt64();
-                        long compressedLength = br.ReadInt64();
-
-                        long next = br.BaseStream.Position + compressedLength;
-
-                        string rpath = GetRecordPath(cname);
-                        bool skip = false;
-                        Status.StatusEntry entry;
-                        if (st.Map.TryGetValue(cname, out entry))
+                        if (ws != null && ws.Removed)
                         {
-                            if (!entry.Removed)
+                            RestoreRecord(ws.VersionControlRecord, DateTime.Now);
+                            Printer.PrintMessage("  - Undeleted.");
+                        }
+                        else
+                            Printer.PrintMessage("  - Skipped, not deleted.");
+                    }
+                    else if (options.Reverse && x.Alteration == AlterationType.Move)
+                    {
+                        Printer.PrintMessage("  - Skipped, too complex!");
+                    }
+                    else if (options.Reverse && x.Alteration == AlterationType.Update)
+                    {
+                        if (ws == null)
+                            Printer.PrintMessage("  - Skipped, object deleted.");
+                        else if (ws.Hash == x.OriginalHash && ws.Length == x.OriginalSize)
+                            Printer.PrintMessage("  - Skipped, object does not need to be reverted.");
+                        else
+                        {
+                            if (x.Flags.HasFlag(StashFlags.Binary))
                             {
-                                if (entry.Hash == hash)
+                                if (x.NewHash != ws.Hash || x.NewSize != ws.Length)
+                                    Printer.PrintError("#e# - Can't un-apply binary patch - result file does not match!##");
+                                else
                                 {
-                                    skip = true;
-                                    Printer.PrintMessage("Skipped #b#{0}## - already updated.", cname);
+                                    RestoreRecord(GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString()), DateTime.Now, rpath);
+                                    Printer.PrintMessage("  - Reverted (binary).");
+                                }
+                            }
+                            else
+                            {
+                                ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream, options, x);
+                            }
+                        }
+                    }
+                    else if (x.Alteration == AlterationType.Add)
+                    {
+                        if (x.Flags.HasFlag(StashFlags.Directory))
+                        {
+                            if (ws == null)
+                                System.IO.Directory.CreateDirectory(rpath);
+                            else
+                                Printer.PrintMessage("  - Skipped, directory already added.");
+                        }
+                        else
+                        {
+                            ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                            {
+                                br.BaseStream.Position = indexTable[i * 2 + 0];
+                                Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(x.NewSize, br.BaseStream);
+                                using (FileStream fout = File.Open(path, FileMode.Create))
+                                    reader.CopyTo(fout);
+                            });
+                        }
+                    }
+                    else if (x.Alteration == AlterationType.Copy || (x.Alteration == AlterationType.Move && moveAsCopies))
+                    {
+                        ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                        {
+                            if (x.Alteration == AlterationType.Copy || (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize))
+                            {
+                                Record dataRecord = GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString());
+                                GetMissingRecords(new Record[] { dataRecord });
+                                RestoreRecord(dataRecord, DateTime.Now, path);
+                            }
+                            else
+                            {
+                                Record oldRecord = GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString());
+                                string oldPath = x.OriginalCanonicalName;
+
+                                Status.StatusEntry oldEntry = null;
+                                st.Map.TryGetValue(oldPath, out oldEntry);
+
+                                if (oldEntry == null || oldEntry.Removed)
+                                {
+                                    GetMissingRecords(new Record[] { oldRecord });
+                                    string tempFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+
+                                    RestoreRecord(oldRecord, DateTime.Now, tempFile);
+
+                                    ApplyPatchEntry(path, tempFile, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream, options, x);
+
+                                    FileInfo tfi = new FileInfo(tempFile);
+                                    tfi.IsReadOnly = false;
+                                    tfi.Delete();
+                                }
+                                else
+                                {
+                                    if (x.Flags.HasFlag(StashFlags.Binary) && (x.OriginalHash != oldEntry.Hash || x.OriginalSize != oldEntry.Length))
+                                    {
+                                        Printer.PrintError("#e# - Can't apply binary patch - source file does not match!##");
+                                        throw new Exception();
+                                    }
+                                    ApplyPatchEntry(path, oldEntry.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream, options, x);
+                                }
+                            }
+                        });
+                    }
+                    else if (x.Alteration == AlterationType.Move)
+                    {
+                        if (ws == null)
+                        {
+                            string oldPath = x.OriginalCanonicalName;
+
+                            Status.StatusEntry oldEntry = null;
+                            st.Map.TryGetValue(oldPath, out oldEntry);
+
+                            if (oldEntry == null || oldEntry.Removed)
+                                Printer.PrintMessage("  - Skipped, object removed.");
+                            else
+                            {
+                                if (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize)
+                                {
+                                    FileInfo tfi = new FileInfo(oldPath);
+                                    tfi.IsReadOnly = false;
+                                    tfi.MoveTo(rpath);
+
+                                    ApplyAttributes(tfi, DateTime.Now, x.ObjectAttributes);
+                                    Printer.PrintMessage("  - Moved {0} => {1}.", oldPath, x.CanonicalName);
+
+                                    if (enableStaging)
+                                    {
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                    }
+                                }
+                                else
+                                {
+                                    FileInfo tfi = new FileInfo(oldPath);
+
+                                    if (x.Flags.HasFlag(StashFlags.Binary) && (x.OriginalHash != oldEntry.Hash || x.OriginalSize != oldEntry.Length))
+                                    {
+                                        Printer.PrintError("#e# - Can't apply binary patch - source file does not match!##");
+                                    }
+                                    else
+                                    {
+                                        ApplyPatchEntry(rpath, tfi.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream, options, x);
+                                        tfi.IsReadOnly = false;
+                                        tfi.Delete();
+
+                                        Printer.PrintMessage("  - Moved and patched {0} => {1}.", oldPath, x.CanonicalName);
+
+                                        if (enableStaging)
+                                        {
+                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
+                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                        }
+
+                                        ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
+                                    }
                                 }
                             }
                         }
-
-                        if (!skip)
+                        else if (ws.Hash == x.NewHash && ws.Length == x.NewSize)
+                            Printer.PrintMessage("  - Skipped, object already present.");
+                        else
+                            Printer.PrintMessage("  - Skipped, conflict.");
+                    }
+                    else if (x.Alteration == AlterationType.Update)
+                    {
+                        if (ws == null)
+                            Printer.PrintMessage("  - Skipped, object deleted.");
+                        else if (ws.Hash == x.NewHash && ws.Length == x.NewSize)
+                            Printer.PrintMessage("  - Skipped, already up to date.");
+                        else
                         {
-                            string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
-                            string tempFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
-                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, br.BaseStream);
-                            using (FileStream fout = File.Open(patchFile, FileMode.Create))
-                                reader.CopyTo(fout);
-                            Printer.PrintMessage("Applying patch...");
-
-                            int result;
-                            if (binary)
-                                result = ApplyBinaryPatch(Path.GetFullPath(cname), patchFile, tempFile);
-                            else
-                                result = ApplyPatch(Path.GetFullPath(cname), patchFile, tempFile);
-
-                            if (result != 0)
-                                throw new Exception("Error in XDiff while applying patch!");
+                            if (x.Flags.HasFlag(StashFlags.Binary) && (x.OriginalHash != ws.Hash || x.OriginalSize != ws.Length))
+                            {
+                                Printer.PrintError("#e# - Can't apply binary patch - source file does not match!##");
+                            }
                             else
                             {
-                                FileInfo fi = new FileInfo(Path.GetFullPath(cname));
-                                fi.IsReadOnly = false;
-                                fi.Delete();
-                                File.Move(tempFile, fi.FullName);
+                                ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream, options, x);
+                                if (enableStaging)
+                                {
+                                    FileInfo resultInfo = new FileInfo(rpath);
+                                    if (resultInfo.Length != ws.VersionControlRecord.Size || Entry.CheckHash(resultInfo) != ws.Hash)
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                }
                             }
-
-                            File.Delete(patchFile);
                         }
-
-                        br.BaseStream.Position = next;
                     }
+                    else if (x.Alteration == AlterationType.Delete && allowDeletes)
+                    {
+                        if (ws == null)
+                            Printer.PrintMessage("  - Skipped, already deleted.");
+                        else if (ws.Hash == x.OriginalHash && ws.Length == x.OriginalSize)
+                        {
+                            FileInfo tfi = new FileInfo(rpath);
+                            tfi.IsReadOnly = false;
+                            tfi.Delete();
+                            Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
+
+                            if (enableStaging)
+                            {
+                                LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                            }
+                        }
+                        else
+                        {
+                            bool deletionResolution = GetStashResolutionDeletion(ref resolveDeleted);
+                            if (deletionResolution == true)
+                                Printer.PrintMessage("  - Skipped, conflict.");
+                            else
+                            {
+                                FileInfo tfi = new FileInfo(rpath);
+                                tfi.IsReadOnly = false;
+                                tfi.Delete();
+                                Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
+
+                                if (enableStaging)
+                                {
+                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                }
+                            }
+                        }
+                    }
+                    else
+                        Printer.PrintMessage("  - Skipped");
                 }
+                End:;
             }
         }
 
-        public void Stash(string name, bool revert)
+        private bool GetStashResolutionDeletion(ref bool? resolveDeleted)
         {
-            Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
-            List<string> canonicalNamesToStashAddOrUpdate = new List<string>();
-            List<string> canonicalNamesToStashRemove = new List<string>();
+            bool deletionResolution = resolveDeleted.HasValue ? resolveDeleted.Value : true;
+            while (!resolveDeleted.HasValue)
+            {
+                Printer.PrintMessage("Stash deletes a file which has been modified, #s#(k)eep## or #e#(r)emove##? (Use #b#*## for all)");
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("k"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveDeleted = true;
+                    deletionResolution = true;
+                    break;
+                }
+                if (resolution.StartsWith("r"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveDeleted = false;
+                    deletionResolution = false;
+                    break;
+                }
+            }
+            return deletionResolution;
+        }
+
+        private void ReadStashHeader(BinaryReader br, out StashInfo info, out List<StashEntry> entries, out long[] indexTable)
+        {
+            info = StashInfo.Read(br);
+            if (info == null)
+                throw new Exception("Couldn't read stash header!");
+            int stashedActions = br.ReadInt32();
+            entries = new List<StashEntry>();
+            for (int i = 0; i < stashedActions; i++)
+                entries.Add(StashEntry.Read(br));
+
+            indexTable = new long[stashedActions * 2];
+            for (int i = 0; i < indexTable.Length; i++)
+                indexTable[i] = br.ReadInt64();
+        }
+
+        private void ApplyStashCreateFile(StashEntry x, Status.StatusEntry ws, string rpath, bool enableStaging, ref ResolveType? resolveAllBinary, ref ResolveType? resolveAllText, ref ResolveType? mergeResolve, Action<string> extractor)
+        {
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+
+            bool stage = true;
+            bool extract = false;
+            ResolveType rtype = ResolveType.Replace;
+            string xpath = rpath;
+            if (ws != null)
+            {
+                if (ws.Hash == x.NewHash && ws.Length == x.NewSize)
+                    Printer.PrintMessage("  - Skipped, object already added.");
+                else
+                {
+                    Printer.PrintMessage("  - File already exists!");
+                    if (x.Flags.HasFlag(StashFlags.Binary))
+                        rtype = GetStashResolutionBinary(ref resolveAllBinary);
+                    else
+                        rtype = GetStashResolutionText(ref resolveAllText);
+                }
+            }
+
+            if (rtype == ResolveType.Conflict)
+            {
+                Printer.PrintMessage("  - Saving stashed file to {0}", x.CanonicalName + ".stashed");
+                rpath = rpath + ".stashed";
+                extract = true;
+                stage = false;
+            }
+            else if (rtype == ResolveType.Replace)
+            {
+                extract = true;
+            }
+            else if (rtype == ResolveType.Skip)
+            {
+                Printer.PrintMessage("  - Skipping conflicted file.");
+                extract = false;
+                stage = false;
+            }
+            else if (rtype == ResolveType.Merge)
+            {
+                Printer.PrintMessage("  - Attempting two-way merge.");
+                xpath = Path.Combine(tempFolder.FullName, Path.GetRandomFileName()) + ".stash";
+                extract = true;
+                stage = false;
+            }
+
+            if (extract)
+            {
+                extractor(xpath);
+
+                if (rtype == ResolveType.Merge)
+                {
+                    string tfile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName()) + ".result";
+                    var mf = new FileInfo(xpath);
+                    var ml = new FileInfo(rpath);
+                    var mr = new FileInfo(tfile);
+                    FileInfo result = Merge2Way(null, mf, null, ml, mr, true, ref mergeResolve);
+                    if (result != null)
+                    {
+                        if (result != ml)
+                        {
+                            if (ml.IsReadOnly)
+                                ml.IsReadOnly = false;
+                            ml.Delete();
+                        }
+                        if (result != mr)
+                        {
+                            if (mr.IsReadOnly)
+                                mr.IsReadOnly = false;
+                            mr.Delete();
+                        }
+                        if (result != mf)
+                        {
+                            if (mf.IsReadOnly)
+                                mf.IsReadOnly = false;
+                            mf.Delete();
+                        }
+                        result.MoveTo(ml.FullName);
+                    }
+                }
+
+                ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
+
+                if (stage && enableStaging)
+                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+            }
+        }
+
+        private bool ApplyPatchEntry(string resultPath, string original, bool binary, long patchDataOffset, Stream baseStream, ApplyStashOptions options, StashEntry e)
+        {
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+            string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+            string tempFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+            string rejectionFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+
+            baseStream.Position = patchDataOffset;
+            BinaryReader br = new BinaryReader(baseStream);
+            long patchSize = br.ReadInt64();
+
+            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, baseStream);
+            using (FileStream fout = File.Open(patchFile, FileMode.Create))
+                reader.CopyTo(fout);
+            
+            int result;
+            if (binary)
+                result = ApplyBinaryPatch(Path.GetFullPath(original), patchFile, tempFile);
+            else
+            {
+                result = ApplyPatch(Path.GetFullPath(original), patchFile, tempFile, rejectionFile, options.Reverse ? 1 : 0);
+
+                bool hasRejectedHunks = false;
+                using (FileStream fs = File.Open(rejectionFile, FileMode.Open))
+                using (TextReader tr = new StreamReader(fs))
+                {
+                    if (fs.Length != 0)
+                    {
+                        hasRejectedHunks = true;
+                        string[] errorLines = tr.ReadToEnd().Split('\n');
+                        Printer.PrintError("#e#Error:#b# Couldn't apply all patch hunks!##");
+                        foreach (var x in errorLines)
+                        {
+                            if (x.StartsWith("@@"))
+                                Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
+                            else if (x.StartsWith("-"))
+                                Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
+                            else if (x.StartsWith("+"))
+                                Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
+                            else
+                                Printer.PrintMessage(Printer.Escape(x));
+                        }
+                    }
+                }
+
+                if (hasRejectedHunks && !options.AllowUncleanPatches)
+                {
+                    Printer.PrintError("#e# - Not applied, patch not clean!");
+                    File.Delete(rejectionFile);
+                    File.Delete(patchFile);
+                    File.Delete(tempFile);
+                    return false;
+                }
+                else if (hasRejectedHunks)
+                {
+                    Printer.PrintError("#w# - Patch not clean, generating rejection file!");
+                    File.Move(rejectionFile, Path.GetFullPath(resultPath) + ".rejected");
+                }
+            }
+            if (result != 0)
+                throw new Exception("Error in XDiff while applying patch!");
+            else
+            {
+                FileInfo fi = new FileInfo(Path.GetFullPath(resultPath));
+                fi.IsReadOnly = false;
+                fi.Delete();
+                File.Move(tempFile, fi.FullName);
+            }
+
+            File.Delete(patchFile);
+
+            return true;
+        }
+
+        [Flags]
+        public enum StashFlags
+        {
+            None = 0,
+            Directory = 1,
+            Binary = 2,
+        }
+        public class StashEntry
+        {
+            public string CanonicalName { get; set; }
+            public AlterationType Alteration { get; set; }
+            public string OriginalCanonicalName { get; set; }
+            public string OriginalHash { get; set; }
+            public string NewHash { get; set; }
+            public long OriginalSize { get; set; }
+            public long NewSize { get; set; }
+            public Attributes ObjectAttributes { get; set; }
+            public StashFlags Flags { get; set; }
+
+            internal void Write(BinaryWriter bw)
+            {
+                bw.Write(CanonicalName);
+                bw.Write((uint)Alteration);
+                bw.Write(OriginalCanonicalName);
+                bw.Write(OriginalHash);
+                bw.Write(NewHash);
+                bw.Write(OriginalSize);
+                bw.Write(NewSize);
+                bw.Write((uint)ObjectAttributes);
+                bw.Write((uint)Flags);
+            }
+
+            static internal StashEntry Read(BinaryReader br)
+            {
+                return new StashEntry()
+                {
+                    CanonicalName = br.ReadString(),
+                    Alteration = (AlterationType)br.ReadUInt32(),
+                    OriginalCanonicalName = br.ReadString(),
+                    OriginalHash = br.ReadString(),
+                    NewHash = br.ReadString(),
+                    OriginalSize = br.ReadInt64(),
+                    NewSize = br.ReadInt64(),
+                    ObjectAttributes = (Attributes)br.ReadUInt32(),
+                    Flags = (StashFlags)br.ReadUInt32()
+                };
+            }
+        }
+
+        public void Cherrypick(Objects.Version version, bool relaxed, bool reverse)
+        {
+            var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
+            var alterations = Database.GetAlterationsForVersion(version);
+            List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
+
+            StashInfo header = StashInfo.Create(string.Empty, Version.ID);
+            List<Tuple<StashEntry, Func<Stream, long>>> stashWriters = new List<Tuple<StashEntry, Func<Stream, long>>>();
+            
+            foreach (var x in alterations)
+            {
+                if (x.Type == AlterationType.Add)
+                {
+                    Record newRecord = GetRecord(x.NewRecord.Value);
+                    if (newRecord.IsDirectory)
+                    {
+                        StashEntry entry = new StashEntry()
+                        {
+                            Alteration = AlterationType.Add,
+                            CanonicalName = newRecord.CanonicalName,
+                            OriginalCanonicalName = string.Empty,
+                            NewHash = string.Empty,
+                            NewSize = -1,
+                            ObjectAttributes = newRecord.Attributes,
+                            OriginalHash = string.Empty,
+                            OriginalSize = -1,
+                            Flags = StashFlags.Directory
+                        };
+
+                        stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
+                    }
+                    else
+                    {
+                        GetMissingRecords(new Record[] { newRecord });
+
+                        var tempFile = GetTemporaryFile(newRecord);
+                        RestoreRecord(newRecord, DateTime.Now, tempFile.FullName);
+
+                        tempFile = new FileInfo(tempFile.FullName);
+                        bool binary = FileClassifier.Classify(tempFile) == FileEncoding.Binary;
+
+                        StashEntry entry = new StashEntry()
+                        {
+                            Alteration = AlterationType.Add,
+                            CanonicalName = newRecord.CanonicalName,
+                            OriginalCanonicalName = string.Empty,
+                            NewHash = newRecord.Fingerprint,
+                            NewSize = newRecord.Size,
+                            ObjectAttributes = newRecord.Attributes,
+                            OriginalHash = string.Empty,
+                            OriginalSize = -1,
+                            Flags = binary ? StashFlags.Binary : StashFlags.None
+                        };
+
+                        stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
+                        {
+                            long resultSize;
+                            using (FileStream input = File.Open(tempFile.FullName, FileMode.Open, FileAccess.Read))
+                            {
+                                Versionr.ObjectStore.LZHAMWriter.CompressToStream(tempFile.Length, 16 * 1024 * 1024, out resultSize, input, s);
+                            }
+                            tempFile.IsReadOnly = false;
+                            tempFile.Delete();
+                            return resultSize;
+                        }));
+                    }
+                }
+                else if (x.Type == AlterationType.Update)
+                {
+                    Record newRecord = GetRecord(x.NewRecord.Value);
+                    Record oldRecord = GetRecord(x.PriorRecord.Value);
+
+                    GetMissingRecords(new Record[] { newRecord, oldRecord });
+
+                    var tempFileNew = GetTemporaryFile(newRecord);
+                    RestoreRecord(newRecord, DateTime.Now, tempFileNew.FullName);
+                    var tempFileOld = GetTemporaryFile(oldRecord);
+                    RestoreRecord(oldRecord, DateTime.Now, tempFileOld.FullName);
+
+                    tempFileNew = new FileInfo(tempFileNew.FullName);
+                    tempFileOld = new FileInfo(tempFileOld.FullName);
+
+                    bool binary = FileClassifier.Classify(tempFileNew) == FileEncoding.Binary;
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Update,
+                        CanonicalName = newRecord.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = newRecord.Fingerprint,
+                        NewSize = newRecord.Size,
+                        ObjectAttributes = newRecord.Attributes,
+                        OriginalHash = oldRecord.Fingerprint,
+                        OriginalSize = oldRecord.Size,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
+                    {
+                        long resultSize;
+                        
+                        string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+
+                        int xdiffres = 0;
+                        if (binary)
+                            xdiffres = GenerateBinaryPatch(tempFileOld.FullName, tempFileNew.FullName, patchFile);
+                        else
+                            xdiffres = GeneratePatch(tempFileOld.FullName, tempFileNew.FullName, patchFile);
+
+                        if (xdiffres != 0)
+                            throw new Exception("Error during xdiff!");
+
+                        BinaryWriter bw = new BinaryWriter(s);
+                        long patchSize = new FileInfo(patchFile).Length;
+                        bw.Write(patchSize);
+
+                        using (FileStream input = File.Open(patchFile, FileMode.Open, FileAccess.Read))
+                        {
+                            Versionr.ObjectStore.LZHAMWriter.CompressToStream(patchSize, 16 * 1024 * 1024, out resultSize, input, s);
+                        }
+
+                        File.Delete(patchFile);
+
+                        tempFileNew.IsReadOnly = false;
+                        tempFileOld.IsReadOnly = false;
+                        tempFileNew.Delete();
+                        tempFileOld.Delete();
+
+                        return resultSize + 8;
+                    }));
+                }
+                else
+                    Printer.PrintError("Cherrypick currently doesn't support a {0} alteration.", x.Type);
+            }
+            
+            string fn = WriteStash(header, stashWriters, true);
+
+            ApplyStashOptions opts = new ApplyStashOptions();
+            opts.AllowUncleanPatches = relaxed;
+            opts.Reverse = reverse;
+            Unstash(header, opts, true);
+        }
+
+        public void Stash(string name, bool revert, Action<Status.StatusEntry, StatusCode> revertFeedback = null)
+        {
+            Status st = new Status(this, Database, LocalData, FileSnapshot, null, true);
+            List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
             Dictionary<string, long> mergeRecords = new Dictionary<string, long>();
             foreach (var x in LocalData.StageOperations)
             {
-                if (x.Type == StageOperationType.Add)
-                    canonicalNamesToStashAddOrUpdate.Add(x.Operand1);
-                else if (x.Type == StageOperationType.Remove)
-                    canonicalNamesToStashRemove.Add(x.Operand1);
+                if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
+                    stashTargets.Add(st.Map[x.Operand1]);
                 else if (x.Type == StageOperationType.MergeRecord)
                     mergeRecords[x.Operand1] = x.ReferenceObject;
             }
-
-            Guid stashGuid = Guid.NewGuid();
-            var stashFolder = AdministrationFolder.CreateSubdirectory("Stashes");
+            
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
 
-            if (canonicalNamesToStashAddOrUpdate.Count == 0)
+            if (stashTargets.Count == 0)
             {
                 Printer.PrintMessage("Nothing to stash.");
                 return;
             }
 
-            using (FileStream fs = File.Open(Path.Combine(stashFolder.FullName, stashGuid + ".stash"), FileMode.Create, FileAccess.Write))
-            using (BinaryWriter bw = new BinaryWriter(fs))
+            if (name == null)
+                name = string.Empty;
+            StashInfo header = StashInfo.Create(name, Version.ID);
+            List<Tuple<StashEntry, Func<Stream, long>>> stashWriters = new List<Tuple<StashEntry, Func<Stream, long>>>();
+            List<Status.StatusEntry> reverters = new List<Status.StatusEntry>();
+
+            bool includeDeletes = true;
+            bool includeDirectories = true;
+            bool includeRenames = true;
+            bool renamesAsAdds = true;
+
+            if (includeDirectories)
             {
-                bw.Write("STASH1");
-                bw.Write(stashGuid.ToString());
-                bw.Write(name);
-                bw.Write(Environment.UserName);
-                bw.Write(DateTime.UtcNow.Ticks);
-
-                List<Status.StatusEntry> entriesToAdd = canonicalNamesToStashAddOrUpdate.Select(x => st.Map[x]).Where(x => x.IsFile).ToList();
-
-                // Additions first
-                List<Status.StatusEntry> additions = entriesToAdd.Where(x => x.Code == StatusCode.Added).ToList();
-                List<Status.StatusEntry> modifications = entriesToAdd.Where(x => x.Code == StatusCode.Modified).ToList();
-                bw.Write(additions.Count);
-                foreach (var x in additions)
+                foreach (var x in stashTargets.Where(x => x.IsDirectory && x.Code == StatusCode.Added))
                 {
-                    bw.Write(x.CanonicalName);
-
-                    long mr;
-                    if (!mergeRecords.TryGetValue(x.CanonicalName, out mr))
-                        mr = -1;
-
-                    bw.Write(mr);
-                    bw.Write((uint)x.FilesystemEntry.Attributes);
-                    bw.Write(x.Hash);
-                    bw.Write(x.FilesystemEntry.Length);
-
-                    Printer.PrintMessage("Recording ADD: {0}", x.CanonicalName);
-                    Printer.PrintMessage(" Data: {0}, Length: {1} bytes", x.Hash, x.Length);
-                    Printer.PrintMessage(" Merge Record ID: {0}", mr);
-                    
-                    long fpos = bw.BaseStream.Position;
-                    long resultSize = 0;
-                    bw.Write(resultSize);
-                    using (FileStream input = File.Open(GetRecordPath(x.CanonicalName), FileMode.Open, FileAccess.Read))
+                    StashEntry entry = new StashEntry()
                     {
-                        Versionr.ObjectStore.LZHAMWriter.CompressToStream(x.Length, 16 * 1024 * 1024, out resultSize, input, bw.BaseStream);
-                    }
-                    long rpos = bw.BaseStream.Position;
+                        Alteration = AlterationType.Add,
+                        CanonicalName = x.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = string.Empty,
+                        NewSize = -1,
+                        ObjectAttributes = x.FilesystemEntry.Attributes,
+                        OriginalHash = string.Empty,
+                        OriginalSize = -1,
+                        Flags = StashFlags.Directory
+                    };
 
-                    bw.BaseStream.Position = fpos;
-                    bw.Write(resultSize);
-                    bw.BaseStream.Position = rpos;
-                    Printer.PrintMessage(" Compressed to {0} bytes ({1:F2}%)", resultSize, ((double)resultSize / (double)x.Length) * 100.0);
-                }
-                bw.Write(modifications.Count);
-                foreach (var x in modifications)
-                {
-                    bw.Write(x.CanonicalName);
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
 
-                    long mr;
-                    if (!mergeRecords.TryGetValue(x.CanonicalName, out mr))
-                        mr = -1;
-
-                    bw.Write(mr);
-                    bw.Write((uint)x.FilesystemEntry.Attributes);
-
-                    bw.Write(x.VersionControlRecord.Id);
-                    bw.Write(x.VersionControlRecord.DataIdentifier);
-                    bw.Write(x.Hash);
-
-                    bool binary = FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary;
-                    bw.Write(binary);
-
-                    Printer.PrintMessage("Recording Update: {0}{1}", x.CanonicalName, binary ? " (binary)" : " (text)");
-                    Printer.PrintMessage(" Data: {0}, Length: {1} bytes", x.Hash, x.Length);
-                    Printer.PrintMessage(" Prior Data ID: {0}", x.VersionControlRecord.DataIdentifier);
-                    Printer.PrintMessage(" Merge Record ID: {0}", mr);
-
-                    string priorRecord = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
-                    string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
-                    RestoreRecord(x.VersionControlRecord, DateTime.Now, priorRecord);
-
-                    int xdiffres = 0;
-                    if (binary)
-                        xdiffres = GenerateBinaryPatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
-                    else
-                        xdiffres = GeneratePatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
-
-                    if (xdiffres != 0)
-                        throw new Exception("Error during xdiff!");
-                    long patchSize = new FileInfo(patchFile).Length;
-                    bw.Write(patchSize);
-                    Printer.PrintMessage(" Generated patch of {0} bytes", patchSize);
-
-                    long fpos = bw.BaseStream.Position;
-                    long resultSize = 0;
-                    bw.Write(resultSize);
-                    using (FileStream input = File.Open(patchFile, FileMode.Open, FileAccess.Read))
-                    {
-                        Versionr.ObjectStore.LZHAMWriter.CompressToStream(patchSize, 16 * 1024 * 1024, out resultSize, input, bw.BaseStream);
-                    }
-                    long rpos = bw.BaseStream.Position;
-
-                    bw.BaseStream.Position = fpos;
-                    bw.Write(resultSize);
-                    bw.BaseStream.Position = rpos;
-
-                    File.Delete(patchFile);
-                    File.Delete(priorRecord);
-
-                    Printer.PrintMessage(" Compressed {0} bytes ({1:F2}%)", resultSize, ((double)resultSize / (double)patchSize) * 100.0);
+                    reverters.Add(x);
                 }
             }
+
+            foreach (var x in stashTargets.Where(x => !x.IsDirectory))
+            {
+                long mr;
+                if (!mergeRecords.TryGetValue(x.CanonicalName, out mr))
+                    mr = -1;
+
+                if (x.Code == StatusCode.Added ||
+                    (renamesAsAdds && x.Code == StatusCode.Renamed && x.Hash != x.VersionControlRecord.Fingerprint))
+                {
+                    bool binary = FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary;
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Add,
+                        CanonicalName = x.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = x.Hash,
+                        NewSize = x.Length,
+                        ObjectAttributes = x.FilesystemEntry.Attributes,
+                        OriginalHash = string.Empty,
+                        OriginalSize = -1,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
+                    {
+                        long resultSize;
+                        using (FileStream input = File.Open(GetRecordPath(x.CanonicalName), FileMode.Open, FileAccess.Read))
+                        {
+                            Versionr.ObjectStore.LZHAMWriter.CompressToStream(x.Length, 16 * 1024 * 1024, out resultSize, input, s);
+                        }
+                        return resultSize;
+                    }));
+                    reverters.Add(x);
+                }
+                else if (x.Code == StatusCode.Copied ||
+                    (renamesAsAdds && x.Code == StatusCode.Renamed && x.Hash == x.VersionControlRecord.Fingerprint))
+                {
+                    bool binary = FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary;
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Copy,
+                        CanonicalName = x.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = x.Hash,
+                        NewSize = x.Length,
+                        ObjectAttributes = x.FilesystemEntry.Attributes,
+                        OriginalHash = x.Hash,
+                        OriginalSize = x.Length,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+                    reverters.Add(x);
+                }
+                else if (x.Code == StatusCode.Deleted && includeDeletes)
+                {
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Delete,
+                        CanonicalName = x.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = string.Empty,
+                        NewSize = -1,
+                        ObjectAttributes = Attributes.None,
+                        OriginalHash = x.VersionControlRecord.Fingerprint,
+                        OriginalSize = x.VersionControlRecord.Size,
+                        Flags = StashFlags.None,
+                    };
+                    reverters.Add(x);
+                }
+                else if ((x.Code == StatusCode.Renamed && includeRenames) || x.Code == StatusCode.Modified)
+                {
+                    bool binary = FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary;
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = x.Code == StatusCode.Modified ? AlterationType.Update : AlterationType.Move,
+                        CanonicalName = x.CanonicalName,
+                        OriginalCanonicalName = x.Code == StatusCode.Modified ? string.Empty : x.VersionControlRecord.CanonicalName,
+                        NewHash = x.Hash,
+                        NewSize = x.Length,
+                        ObjectAttributes = x.FilesystemEntry.Attributes,
+                        OriginalHash = x.VersionControlRecord.Fingerprint,
+                        OriginalSize = x.VersionControlRecord.Size,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+                    reverters.Add(x);
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => 
+                    {
+                        if (x.Code == StatusCode.Modified || (entry.NewHash == entry.OriginalHash || entry.NewSize != entry.OriginalSize))
+                        {
+                            long resultSize;
+
+                            string priorRecord = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+                            string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
+                            RestoreRecord(x.VersionControlRecord, DateTime.Now, priorRecord);
+                            
+                            int xdiffres = 0;
+                            if (binary)
+                                xdiffres = GenerateBinaryPatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
+                            else
+                                xdiffres = GeneratePatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
+
+                            if (xdiffres != 0)
+                                throw new Exception("Error during xdiff!");
+
+                            BinaryWriter bw = new BinaryWriter(s);
+                            long patchSize = new FileInfo(patchFile).Length;
+                            bw.Write(patchSize);
+
+                            using (FileStream input = File.Open(patchFile, FileMode.Open, FileAccess.Read))
+                            {
+                                Versionr.ObjectStore.LZHAMWriter.CompressToStream(patchSize, 16 * 1024 * 1024, out resultSize, input, s);
+                            }
+
+                            var oldrec = new FileInfo(priorRecord);
+                            oldrec.IsReadOnly = false;
+                            File.Delete(priorRecord);
+                            File.Delete(patchFile);
+
+                            return resultSize + 8;
+                        }
+                        return 0;
+                    }));
+                }
+            }
+            if (includeDirectories && includeDeletes)
+            {
+                foreach (var x in stashTargets.Where(x => x.IsDirectory && x.Code == StatusCode.Deleted))
+                {
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Delete,
+                        CanonicalName = x.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = string.Empty,
+                        NewSize = -1,
+                        ObjectAttributes = x.FilesystemEntry.Attributes,
+                        OriginalHash = string.Empty,
+                        OriginalSize = -1,
+                        Flags = StashFlags.Directory
+                    };
+                    reverters.Add(x);
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
+                }
+            }
+
+            try
+            {
+                LocalData.BeginTransaction();
+                header.Key = LocalData.GetStashCode();
+                string fn = WriteStash(header, stashWriters, false);
+                header.File = new FileInfo(fn);
+                LocalData.RecordStash(header);
+                LocalData.Commit();
+            }
+            catch
+            {
+                LocalData.Rollback();
+                throw;
+            }
+            reverters.Reverse();
+            if (revert)
+            {
+                Revert(reverters, true, false, true, revertFeedback);
+            }
+        }
+
+        private string WriteStash(StashInfo header, List<Tuple<StashEntry, Func<Stream, long>>> stashWriters, bool cherrypickMode)
+        {
+            var stashFolder = AdministrationFolder.CreateSubdirectory("Stashes");
+            string stashfn = header.GUID + ".stash";
+            string filename = Path.Combine(stashFolder.FullName, stashfn);
+            if (cherrypickMode)
+                filename = Path.Combine(AdministrationFolder.CreateSubdirectory("Temp").FullName, stashfn);
+            try
+            {
+                if (!cherrypickMode)
+                    Printer.PrintMessage("Creating stash: #b#{0}## {1}\n #q#<{2}>##", header.Key, header.Name.Length == 0 ? "(no name)" : ("- " + header.Name), header.GUID);
+                using (FileStream fs = File.Open(filename, FileMode.Create, FileAccess.Write))
+                using (BinaryWriter bw = new BinaryWriter(fs))
+                {
+                    header.Write(bw);
+                    if (!cherrypickMode)
+                        Printer.PrintMessage(" - Stashing {0} changes.", stashWriters.Count);
+                    bw.Write(stashWriters.Count);
+                    for (int i = 0; i < stashWriters.Count; i++)
+                        stashWriters[i].Item1.Write(bw);
+                    long mainIndexPos = fs.Position;
+                    long[] indexTable = new long[stashWriters.Count * 2];
+                    fs.Seek(indexTable.Length * 8, SeekOrigin.Current);
+                    for (int i = 0; i < stashWriters.Count; i++)
+                    {
+                        if (!cherrypickMode)
+                            Printer.PrintMessage(" [{0}]: #b#{1}## - {2}", i, stashWriters[i].Item1.Alteration, stashWriters[i].Item1.CanonicalName);
+                        long currentFilePos = fs.Position;
+                        indexTable[i * 2 + 0] = currentFilePos;
+                        long packedSize = stashWriters[i].Item2(fs);
+                        if (currentFilePos + packedSize != fs.Position)
+                            throw new Exception();
+                        indexTable[i * 2 + 1] = packedSize;
+                    }
+                    if (!cherrypickMode)
+                        Printer.PrintMessage("Packed stash file size is: {0} bytes.", fs.Position);
+                    fs.Seek(mainIndexPos, SeekOrigin.Begin);
+                    for (int i = 0; i < indexTable.Length; i++)
+                        bw.Write(indexTable[i]);
+                }
+
+                header.File = new FileInfo(filename);
+            }
+            catch
+            {
+                if (System.IO.File.Exists(filename))
+                    System.IO.File.Delete(filename);
+                throw;
+            }
+            return stashfn;
         }
 
         public Guid Domain
@@ -3987,12 +4849,18 @@ namespace Versionr
         {
             Mine,
             Theirs,
-            Conflict
+            Conflict,
+
+            // Stash resolve types
+            Replace,
+            Skip,
+            Merge,
         }
 
         private FileInfo Merge2Way(Record x, FileInfo foreign, Record localRecord, FileInfo local, FileInfo temporaryFile, bool allowConflict, ref ResolveType? resolveAll)
         {
-            Printer.PrintMessage("#w#Merging:## {0}", x.CanonicalName);
+            if (x != null)
+                Printer.PrintMessage("#w#Merging:## {0}", x.CanonicalName);
             string mf = foreign.FullName;
             string ml = local.FullName;
             string mr = temporaryFile.FullName;
@@ -4049,28 +4917,103 @@ namespace Versionr
                 Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
                 return resolveAll.Value;
             }
-            if (!binary)
-                Printer.PrintMessage("Merge marked as failure, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
-            else
-                Printer.PrintMessage("File is binary, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
-            string resolution = System.Console.ReadLine();
-            if (resolution.StartsWith("m"))
+            while (true)
             {
-                if (resolution.Contains("*"))
-                    resolveAll = ResolveType.Mine;
-                return ResolveType.Mine;
+                if (!binary)
+                    Printer.PrintMessage("Reconcile file, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
+                else
+                    Printer.PrintMessage("Reconcile binary file, use #s#(m)ine##, #c#(t)heirs## or #e#(c)onflict##? (Use #b#*## for all)");
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("m"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Mine;
+                    return ResolveType.Mine;
+                }
+                if (resolution.StartsWith("t"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Theirs;
+                    return ResolveType.Theirs;
+                }
+                if (resolution.StartsWith("c"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Conflict;
+                    return ResolveType.Conflict;
+                }
             }
-            if (resolution.StartsWith("t"))
+        }
+
+        private ResolveType GetStashResolutionText(ref ResolveType? resolveAll)
+        {
+            if (resolveAll.HasValue)
             {
-                if (resolution.Contains("*"))
-                    resolveAll = ResolveType.Theirs;
-                return ResolveType.Theirs;
+                Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
+                return resolveAll.Value;
             }
-            else
+            while (true)
             {
-                if (resolution.Contains("*"))
-                    resolveAll = ResolveType.Conflict;
-                return ResolveType.Conflict;
+                Printer.PrintMessage("Reconcile stashed file, use #s#(r)eplace##, #c#(s)kip##, #w#(b)oth## or #b#attempt to (m)erge##? (Use #b#*## for all)");
+
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("r"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Replace;
+                    return ResolveType.Replace;
+                }
+                if (resolution.StartsWith("s"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Skip;
+                    return ResolveType.Skip;
+                }
+                if (resolution.StartsWith("b"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Conflict;
+                    return ResolveType.Conflict;
+                }
+                if (resolution.StartsWith("m"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Merge;
+                    return ResolveType.Merge;
+                }
+            }
+        }
+
+        private ResolveType GetStashResolutionBinary(ref ResolveType? resolveAll)
+        {
+            if (resolveAll.HasValue)
+            {
+                Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
+                return resolveAll.Value;
+            }
+            while (true)
+            {
+                Printer.PrintMessage("Reconcile stashed binary file, use #s#(r)eplace##, #c#(s)kip## or #w#(b)oth##? (Use #b#*## for all)");
+
+                string resolution = System.Console.ReadLine();
+                if (resolution.StartsWith("r"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Replace;
+                    return ResolveType.Replace;
+                }
+                if (resolution.StartsWith("s"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Skip;
+                    return ResolveType.Skip;
+                }
+                if (resolution.StartsWith("b"))
+                {
+                    if (resolution.Contains("*"))
+                        resolveAll = ResolveType.Conflict;
+                    return ResolveType.Conflict;
+                }
             }
         }
 
@@ -5173,7 +6116,14 @@ namespace Versionr
             foreach (var x in directoryDeletionList.OrderByDescending(x => x.CanonicalName.Length))
             {
                 Printer.PrintMessage("#e#Removed:## #b#{0}##", x.CanonicalName);
-                x.FilesystemEntry.DirectoryInfo.Delete();
+                try
+                {
+                    x.FilesystemEntry.DirectoryInfo.Delete();
+                }
+                catch
+                {
+                    Printer.PrintMessage(" #q#(failed to delete folder - not empty?)##");
+                }
             }
         }
 
@@ -5987,13 +6937,18 @@ namespace Versionr
             UpdateFileTimeCache(new FileTimestamp() { DataIdentifier = rec.DataIdentifier, LastSeenTime = lastAccessTimeUtc, CanonicalName = canonicalName }, commit);
         }
 
-        private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
+        private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Attributes attrib)
         {
             info.LastWriteTimeUtc = newRefTime;
-            if (rec.Attributes.HasFlag(Objects.Attributes.Hidden))
+            if (attrib.HasFlag(Objects.Attributes.Hidden))
                 info.Attributes = info.Attributes | FileAttributes.Hidden;
-            if (rec.Attributes.HasFlag(Objects.Attributes.ReadOnly))
+            if (attrib.HasFlag(Objects.Attributes.ReadOnly))
                 info.Attributes = info.Attributes | FileAttributes.ReadOnly;
+        }
+
+        private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)
+        {
+            ApplyAttributes(info, newRefTime, rec.Attributes);
         }
 
         private void RegexMatch(List<string> results, DirectoryInfo root, Regex regexPattern, bool recursive, bool fullpath, bool nodirs)

@@ -65,6 +65,7 @@
     <Compile Include="LocalState\FileTimestamp.cs" />
     <Compile Include="LocalState\LockingObject.cs" />
     <Compile Include="LocalState\RemoteConfig.cs" />
+    <Compile Include="LocalState\SavedStash.cs" />
     <Compile Include="LocalState\StageOperation.cs" />
     <Compile Include="LocalState\Workspace.cs" />
     <Compile Include="Network\Authentication.cs" />

@@ -107,8 +107,17 @@ namespace Versionr
         [VerbOption("stash", HelpText = "Stashes your current changes into a patch that can be applied later and reverts the working files.")]
         public Commands.StashVerbOptions StashVerb { get; set; }
 
-        [VerbOption("unstash", HelpText = "Applies a stash to the current working directory or lists available stashes.")]
+        [VerbOption("unstash", HelpText = "Applies a stash to the current working directory.")]
         public Commands.UnstashVerbOptions UnstashVerb { get; set; }
+
+        [VerbOption("stash-list", HelpText = "Lists available stashes.")]
+        public Commands.StashListVerbOptions StashListVerb { get; set; }
+
+        [VerbOption("stash-delete", HelpText = "Deletes stashes.")]
+        public Commands.StashDeleteVerbOptions StashDeleteVerb { get; set; }
+
+        [VerbOption("cherry-pick", HelpText = "Applies (or reverse-applies) changes from a specific version.")]
+        public Commands.CherrypickVerbOptions CherrypickVerb { get; set; }
 
         [HelpOption]
         public string GetUsage()
@@ -213,6 +222,12 @@ namespace Versionr
                 return StashVerb.GetUsage();
             else if (verb == "unstash")
                 return UnstashVerb.GetUsage();
+            else if (verb == "stash-list")
+                return StashListVerb.GetUsage();
+            else if (verb == "stash-delete")
+                return StashDeleteVerb.GetUsage();
+            else if (verb == "cherry-pick")
+                return CherrypickVerb.GetUsage();
             return GetUsage();
         }
     }
@@ -299,6 +314,9 @@ namespace Versionr
                 commands["resolve"] = new Commands.Resolve();
                 commands["stash"] = new Commands.Stash();
                 commands["unstash"] = new Commands.Unstash();
+                commands["stash-list"] = new Commands.StashList();
+                commands["stash-delete"] = new Commands.StashDelete();
+                commands["cherry-pick"] = new Commands.Cherrypick();
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 

@@ -36,34 +36,52 @@ namespace Versionr.Commands
             }
         }
 
-        [ValueList(typeof(List<string>))]
-        public IList<string> Name { get; set; }
+        [Option('d', "delete", DefaultValue = false, HelpText = "Deletes the stash after applying it.")]
+        public bool Delete { get; set; }
+
+        [Option('s', "stage", DefaultValue = true, HelpText = "Records changes made by the stash application.")]
+        public bool Stage { get; set; }
+
+        [Option("no-moves", DefaultValue = false, HelpText = "Disables stash move actions.")]
+        public bool NoMoves { get; set; }
+
+        [Option("no-deletes", DefaultValue = false, HelpText = "Disables stash delete actions.")]
+        public bool NoDeletes { get; set; }
+
+        [Option("relaxed", DefaultValue = false, HelpText = "Allow patches to be applied even if incomplete.")]
+        public bool Relaxed { get; set; }
+
+        [Option("reverse", DefaultValue = false, HelpText = "Reverse the application process.")]
+        public bool Reverse { get; set; }
+
+        [ValueOption(0)]
+        public string Name { get; set; }
     }
     class Unstash : BaseCommand
     {
-        public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
+        public bool Run(System.IO.DirectoryInfo workingDirectory, object _options)
         {
-            UnstashVerbOptions localOptions = options as UnstashVerbOptions;
+            UnstashVerbOptions localOptions = _options as UnstashVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            if (localOptions.Name == null || localOptions.Name.Count == 0)
-            {
-                var stashes = ws.ListStashes();
-                if (stashes.Count == 0)
-                    Printer.PrintMessage("Vault has #b#{0}## no stashes.", stashes.Count);
-                else
-                {
-                    Printer.PrintMessage("Vault has #b#{0}## stashes available:", stashes.Count);
-                    foreach (var x in stashes)
-                    {
-                        Printer.PrintMessage(" #b#{0}##:\n    \"{1}\" - by {2} on #q#{3}##", x.GUID, x.Name, x.Author, x.Time.ToLocalTime());
-                    }
-                }
-            }
+
+            Area.StashInfo stash = ws.FindStash(localOptions.Name);
+
+            if (stash == null)
+                Printer.PrintMessage("#e#Error:## Couldn't find a stash matching a name/key/ID of \"{0}\".", localOptions.Name);
             else
-                ws.Unstash(localOptions.Name[0]);
+            {
+                Area.ApplyStashOptions options = new Area.ApplyStashOptions();
+                options.DisallowMoves = localOptions.NoMoves;
+                options.DisallowDeletes = localOptions.NoDeletes;
+                options.StageOperations = localOptions.Stage;
+                options.AllowUncleanPatches = localOptions.Relaxed;
+                options.Reverse = localOptions.Reverse;
+                ws.Unstash(stash, options, localOptions.Delete);
+            }
+
             return true;
         }
     }

@@ -548,7 +548,7 @@ namespace Versionr
             progressLog.Wait();
         }
 
-		public List<StatusEntry> GetElements(IList<string> files, bool regex, bool filenames, bool caseInsensitive)
+        public List<StatusEntry> GetElements(IList<string> files, bool regex, bool filenames, bool caseInsensitive)
 		{
 			List<StatusEntry> results = new List<Status.StatusEntry>();
 

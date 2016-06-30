@@ -48,13 +48,14 @@ namespace Versionr.ObjectStore
                 sizes.Add(blockSize);
                 outputData.Write(outBuffer, 0, (int)blockSize);
             }
-
+            long finalpos = outputData.Position;
             outputData.Seek(baseOutputPos, SeekOrigin.Begin);
             outputData.Write(BitConverter.GetBytes(chunkSize), 0, 4);
             foreach (var x in sizes)
             {
                 outputData.Write(BitConverter.GetBytes(x), 0, 4);
             }
+            outputData.Seek(finalpos, SeekOrigin.Begin);
         }
         protected ChunkedCompressionStreamWriter()
         {
