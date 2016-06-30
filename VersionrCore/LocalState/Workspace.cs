@@ -23,7 +23,14 @@ namespace Versionr.LocalState
         {
             Workspace ws = new Workspace();
             ws.ID = Guid.NewGuid();
+            ws.GenerateStashCode();
             return ws;
+        }
+
+        public void GenerateStashCode()
+        {
+            Random rand = new Random();
+            StashCode = new string(new char[] { (char)('A' + rand.Next('Z' - 'A')), (char)('A' + rand.Next('Z' - 'A')) });
         }
     }
 }

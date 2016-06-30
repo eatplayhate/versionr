@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Versionr.LocalState
 {
-    class SavedStash
+    public class SavedStash
     {
         [SQLite.PrimaryKey, SQLite.AutoIncrement]
         public long Id { get; set; }

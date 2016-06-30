@@ -187,9 +187,8 @@ namespace Versionr
             {
                 try
                 {
-                    Random rand = new Random();
                     Workspace ws = Workspace;
-                    ws.StashCode = new string(new char[] { (char)('A' + rand.Next('Z' - 'A')), (char)('A' + rand.Next('Z' - 'A')) });
+                    ws.GenerateStashCode();
                     BeginTransaction();
                     Update(ws);
                     Commit();

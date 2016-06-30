@@ -124,13 +124,19 @@ int __declspec(dllexport) GeneratePatch(const char* f1, const char* f2, const ch
 	return 0;
 }
 
-int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char* out)
+int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char* out, const char* errors, int reverse)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
 	xdemitconf_t xecfg;
 	bdiffparam_t bdp;
 	xdemitcb_t ecb, rjecb;
+	int mode;
+
+	if (reverse == 1)
+		mode = XDL_PATCH_REVERSE;
+	else
+		mode = XDL_PATCH_NORMAL;
 
 	Init();
 
@@ -144,18 +150,21 @@ int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char*
 	}
 
 	FILE* f = fopen(out, "wb");
+	FILE* e = fopen(errors, "wt");
 	ecb.priv = f;
 	ecb.outf = xdlt_outf;
-	rjecb.priv = stderr;
+	rjecb.priv = e;
 	rjecb.outf = xdlt_outf;
-	if (xdl_patch(&mf1, &mf2, XDL_PATCH_NORMAL, &ecb, &rjecb) < 0) {
+	if (xdl_patch(&mf1, &mf2, mode, &ecb, &rjecb) < 0) {
 		fclose(f);
+		fclose(e);
 		xdl_free_mmfile(&mf2);
 		xdl_free_mmfile(&mf1);
 		return 2;
 	}
 
 	fclose(f);
+	fclose(e);
 
 	xdl_free_mmfile(&mf2);
 	xdl_free_mmfile(&mf1);
