@@ -150,7 +150,7 @@ int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char*
 	}
 
 	FILE* f = fopen(out, "wb");
-	FILE* e = fopen(errors, "wt");
+	FILE* e = fopen(errors, "wb");
 	ecb.priv = f;
 	ecb.outf = xdlt_outf;
 	rjecb.priv = e;
