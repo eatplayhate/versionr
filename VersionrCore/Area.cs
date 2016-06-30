@@ -170,6 +170,7 @@ namespace Versionr
             ResolveType? resolveAllText = null;
             ResolveType? resolveAllBinary = null;
             ResolveType? mergeResolve = null;
+            bool? resolveDeleted = null;
 
             using (FileStream fs = infoOriginal.File.OpenRead())
             using (BinaryReader br = new BinaryReader(fs))
@@ -281,6 +282,12 @@ namespace Versionr
 
                                     ApplyAttributes(tfi, DateTime.Now, x.ObjectAttributes);
                                     Printer.PrintMessage("  - Moved {0} => {1}.", oldRecord.CanonicalName, x.CanonicalName);
+
+                                    if (enableStaging)
+                                    {
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldRecord.CanonicalName, Type = StageOperationType.Remove });
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                    }
                                 }
                                 else
                                 {
@@ -291,6 +298,12 @@ namespace Versionr
                                     tfi.Delete();
 
                                     Printer.PrintMessage("  - Moved and patched {0} => {1}.", oldRecord.CanonicalName, x.CanonicalName);
+
+                                    if (enableStaging)
+                                    {
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldRecord.CanonicalName, Type = StageOperationType.Remove });
+                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                    }
 
                                     ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
                                 }
@@ -310,6 +323,10 @@ namespace Versionr
                         else
                         {
                             ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), indexTable[i * 2 + 0], br.BaseStream);
+                            if (enableStaging)
+                            {
+                                LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                            }
                         }
                     }
                     else if (x.Alteration == AlterationType.Delete && allowDeletes)
@@ -322,9 +339,49 @@ namespace Versionr
                             tfi.IsReadOnly = false;
                             tfi.Delete();
                             Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
+
+                            if (enableStaging)
+                            {
+                                LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                            }
                         }
                         else
-                            Printer.PrintMessage("  - Skipped, conflict.");
+                        {
+                            bool deletionResolution = resolveDeleted.HasValue ? resolveDeleted.Value : true;
+                            while (!resolveDeleted.HasValue)
+                            {
+                                Printer.PrintMessage("Stash deletes a file which has been modified, #s#(k)eep## or #e#(r)emove##? (Use #b#*## for all)");
+                                string resolution = System.Console.ReadLine();
+                                if (resolution.StartsWith("k"))
+                                {
+                                    if (resolution.Contains("*"))
+                                        resolveDeleted = true;
+                                    deletionResolution = true;
+                                    break;
+                                }
+                                if (resolution.StartsWith("r"))
+                                {
+                                    if (resolution.Contains("*"))
+                                        resolveDeleted = false;
+                                    deletionResolution = false;
+                                    break;
+                                }
+                            }
+                            if (deletionResolution == true)
+                                Printer.PrintMessage("  - Skipped, conflict.");
+                            else
+                            {
+                                FileInfo tfi = new FileInfo(rpath);
+                                tfi.IsReadOnly = false;
+                                tfi.Delete();
+                                Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
+
+                                if (enableStaging)
+                                {
+                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                }
+                            }
+                        }
                     }
                     else
                         Printer.PrintMessage("  - Skipped");
