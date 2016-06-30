@@ -12,7 +12,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 10;
+        public const int LocalDBVersion = 11;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -32,6 +32,7 @@ namespace Versionr
             CreateTable<LocalState.RemoteConfig>();
             CreateTable<LocalState.FileTimestamp>();
             CreateTable<LocalState.LockingObject>();
+            CreateTable<LocalState.SavedStash>();
             CreateTable<LocalState.CachedRecords>();
             Commit();
         }
@@ -71,6 +72,29 @@ namespace Versionr
                     return Get<LocalState.Workspace>(x => x.ID == Configuration.WorkspaceID);
                 }
             }
+        }
+
+        public string GetStashCode()
+        {
+            lock (this)
+            {
+                Workspace ws = Workspace;
+                string code = string.Format(ws.StashCode + "{0:D4}", ws.StashIndex++);
+                Update(ws);
+                return code;
+            }
+        }
+
+        public void RecordStash(Area.StashInfo info)
+        {
+            SavedStash ss = new SavedStash();
+            ss.Author = info.Author;
+            ss.Filename = info.File.Name;
+            ss.GUID = info.GUID;
+            ss.StashCode = info.Key;
+            ss.Name = info.Name;
+            ss.Timestamp = info.Time;
+            Insert(ss);
         }
 
         private string GetPartialPath()
@@ -159,6 +183,23 @@ namespace Versionr
             else
                 return true;
             PrepareTables();
+            if (Configuration.Version < 11)
+            {
+                try
+                {
+                    Random rand = new Random();
+                    Workspace ws = Workspace;
+                    ws.StashCode = new string(new char[] { (char)('A' + rand.Next('Z' - 'A')), (char)('A' + rand.Next('Z' - 'A')) });
+                    BeginTransaction();
+                    Update(ws);
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                    return false;
+                }
+            }
             if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;

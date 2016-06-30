@@ -16,6 +16,8 @@ namespace Versionr.LocalState
         public string Name { get; set; }
         public DateTime LocalCheckoutTime { get; set; }
         public string PartialPath { get; set; }
+        public string StashCode { get; set; }
+        public int StashIndex { get; set; }
 
         public static Workspace Create()
         {

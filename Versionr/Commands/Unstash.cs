@@ -36,6 +36,9 @@ namespace Versionr.Commands
             }
         }
 
+        [Option('a', "apply", DefaultValue = true, HelpText = "Applies the stash to the vault (rather than just reading the stash contents).")]
+        bool Apply { get; set; }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Name { get; set; }
     }
@@ -52,13 +55,13 @@ namespace Versionr.Commands
             {
                 var stashes = ws.ListStashes();
                 if (stashes.Count == 0)
-                    Printer.PrintMessage("Vault has #b#{0}## no stashes.", stashes.Count);
+                    Printer.PrintMessage("Vault has no stashes.");
                 else
                 {
-                    Printer.PrintMessage("Vault has #b#{0}## stashes available:", stashes.Count);
+                    Printer.PrintMessage("Vault has #b#{0}## stash{1} available:", stashes.Count, stashes.Count == 1 ? "" : "es");
                     foreach (var x in stashes)
                     {
-                        Printer.PrintMessage(" #b#{0}##:\n    \"{1}\" - by {2} on #q#{3}##", x.GUID, x.Name, x.Author, x.Time.ToLocalTime());
+                        Printer.PrintMessage(" #b#{0}##: - #q#{4}##\n    {1} - by {2} on #q#{3}##", x.Author + "-" + x.Key, string.IsNullOrEmpty(x.Name) ? "(no name)" : ("\"" + x.Name + "\""), x.Author, x.Time.ToLocalTime(), x.GUID);
                     }
                 }
             }

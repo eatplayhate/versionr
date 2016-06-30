@@ -50,7 +50,7 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            ws.Stash(localOptions.Name, localOptions.Revert);
+            ws.Stash(localOptions.Name, localOptions.Revert, Unrecord.UnrecordFeedback);
             return true;
         }
     }
