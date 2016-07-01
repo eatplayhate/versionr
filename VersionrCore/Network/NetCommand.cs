@@ -34,7 +34,9 @@ namespace Versionr.Network
         SkipAuthentication,
         AuthRetry,
         AuthFail,
-        ListBranches
+        ListBranches,
+        PushStashQuery,
+        PullStashQuery
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

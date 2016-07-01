@@ -13,10 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 33;
+        public const int InternalDBVersion = 34;
         public const int MinimumDBVersion = 3;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 33;
+        public const int MaximumDBVersion = 34;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -93,6 +93,10 @@ namespace Versionr
                     PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
 
+                    if (priorFormat < 34)
+                    {
+                        RunConsistencyCheck();
+                    }
                     if (priorFormat < 33)
                     {
                         foreach (var x in Table<Record>().ToList())
