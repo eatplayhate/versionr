@@ -132,6 +132,7 @@ namespace Versionr.Network
                 Printer.PrintMessage("#e#Error pulling stash:## {0}", response.AdditionalPayload);
             else if (response.Type == NetCommandType.Acknowledge)
             {
+                Printer.PrintMessage("Downloading stash #b#{0}##...", response.AdditionalPayload);
                 return ReceiveStashData(info, response.Identifier);
             }
             return false;

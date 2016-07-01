@@ -222,6 +222,8 @@ namespace Versionr
                 LocalData.RecordStash(info);
                 return true;
             }
+            else
+                Printer.PrintMessage("Couldn't import stash object - unable to read stash file!");
             return false;
         }
 
@@ -970,6 +972,47 @@ namespace Versionr
                         return resultSize + 8;
                     }));
                 }
+                else if (x.Type == AlterationType.Copy || x.Type == AlterationType.Move)
+                {
+                    Record newRecord = GetRecord(x.NewRecord.Value);
+                    Record oldRecord = GetRecord(x.PriorRecord.Value);
+                    bool binary = newRecord.Attributes.HasFlag(Attributes.Binary);
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = x.Type,
+                        CanonicalName = newRecord.CanonicalName,
+                        OriginalCanonicalName = oldRecord.CanonicalName,
+                        NewHash = newRecord.Fingerprint,
+                        NewSize = newRecord.Size,
+                        ObjectAttributes = newRecord.Attributes,
+                        OriginalHash = oldRecord.Fingerprint,
+                        OriginalSize = oldRecord.Size,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
+                }
+                else if (x.Type == AlterationType.Delete)
+                {
+                    Record oldRecord = GetRecord(x.PriorRecord.Value);
+                    bool binary = oldRecord.Attributes.HasFlag(Attributes.Binary);
+
+                    StashEntry entry = new StashEntry()
+                    {
+                        Alteration = AlterationType.Delete,
+                        CanonicalName = oldRecord.CanonicalName,
+                        OriginalCanonicalName = string.Empty,
+                        NewHash = string.Empty,
+                        NewSize = -1,
+                        ObjectAttributes = Attributes.None,
+                        OriginalHash = oldRecord.Fingerprint,
+                        OriginalSize = oldRecord.Size,
+                        Flags = binary ? StashFlags.Binary : StashFlags.None
+                    };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
+                }
                 else
                     Printer.PrintError("Cherrypick currently doesn't support a {0} alteration.", x.Type);
             }
@@ -1089,6 +1132,8 @@ namespace Versionr
                         OriginalSize = x.Length,
                         Flags = binary ? StashFlags.Binary : StashFlags.None
                     };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
                     reverters.Add(x);
                 }
                 else if (x.Code == StatusCode.Deleted && includeDeletes)
@@ -1105,6 +1150,8 @@ namespace Versionr
                         OriginalSize = x.VersionControlRecord.Size,
                         Flags = StashFlags.None,
                     };
+
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
                     reverters.Add(x);
                 }
                 else if ((x.Code == StatusCode.Renamed && includeRenames) || x.Code == StatusCode.Modified)
@@ -2468,7 +2515,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.1.36";
+                return "v1.1.44";
             }
         }
 
@@ -6472,6 +6519,8 @@ namespace Versionr
                                                         record = new Objects.Record();
                                                         record.CanonicalName = x.FilesystemEntry.CanonicalName;
                                                         record.Attributes = x.FilesystemEntry.Attributes;
+                                                        if (FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary)
+                                                            record.Attributes = (Attributes)((int)record.Attributes | (int)Attributes.Binary);
                                                         if (record.IsSymlink)
                                                             record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
                                                         else if (record.IsDirectory)

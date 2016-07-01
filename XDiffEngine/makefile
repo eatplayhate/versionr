@@ -1,7 +1,7 @@
 CC=clang
-CFLAGS=-fPIC -c -O3 -I../libxdiff-0.23/xdiff
+CFLAGS=-fPIC -c -O3 -I../libxdiff-0.23/xdiff -I../libxdiff-0.23/test
 LDFLAGS=-shared -lstdc++
-SOURCES=$(wildcard ../libxdiff-0.23/xdiff/*.c) ../libxdiff-0.23/test/xtestutils.c ../libxdiff-0.23/test/xdiff_test.c
+SOURCES=$(wildcard ../libxdiff-0.23/xdiff/*.c) ../libxdiff-0.23/test/xtestutils.c XDiffEngine.c
 OBJECTS=$(SOURCES:.c=.o)
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

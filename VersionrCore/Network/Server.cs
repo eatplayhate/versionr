@@ -351,7 +351,7 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" not found!", command.AdditionalPayload) }, ProtoBuf.PrefixStyle.Fixed32);
                                 else if (stashes.Count == 1)
                                 {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length }, ProtoBuf.PrefixStyle.Fixed32);
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length, AdditionalPayload = stashes[0].GUID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
                                     SharedNetwork.TransmitStash(sharedInfo, stashes[0]);
                                 }
                                 else

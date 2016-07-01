@@ -29,13 +29,10 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="XDiffEngine.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\libxdiff-0.23\test\xdiff_test.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\libxdiff-0.23\test\xtestutils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="XDiffEngine.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
