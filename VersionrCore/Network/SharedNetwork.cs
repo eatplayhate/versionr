@@ -243,11 +243,11 @@ namespace Versionr.Network
                         },
                         (obj) =>
                         {
-                            return (100.0f * (int)obj) / (float)fileLength;
+                            return (100.0f * (long)obj) / (float)fileLength;
                         },
                         (pct, obj) =>
                         {
-                            return string.Format("{0}/{1}", Versionr.Utilities.Misc.FormatSizeFriendly((int)obj), Versionr.Utilities.Misc.FormatSizeFriendly(fileLength));
+                            return string.Format("{0}/{1}", Versionr.Utilities.Misc.FormatSizeFriendly((long)obj), Versionr.Utilities.Misc.FormatSizeFriendly(fileLength));
                         },
                         60);
                 sw.Start();
@@ -257,6 +257,7 @@ namespace Versionr.Network
             long dataSize = fileLength;
             if (dataSize == -1)
                 return false;
+            long transmitted = 0;
             using (System.IO.Stream dataStream = stash.File.OpenRead())
             {
                 sender(BitConverter.GetBytes(dataSize), 8, false);
@@ -266,7 +267,13 @@ namespace Versionr.Network
                     var readCount = dataStream.Read(scratchBuffer, 0, scratchBuffer.Length);
                     if (readCount == 0)
                         break;
+
+                    if (printer != null)
+                        printer.Update(transmitted);
+
                     sender(scratchBuffer, readCount, false);
+
+                    transmitted += readCount;
                 }
             }
 
