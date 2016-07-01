@@ -20,6 +20,9 @@
 				".DS_Store",
 				".db",
 				".opendb",
+				".o",
+				".a",
+				".vruser"
 			],
 			"Patterns" :
 			[
