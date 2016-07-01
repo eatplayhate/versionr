@@ -6521,7 +6521,7 @@ namespace Versionr
                                                         record = new Objects.Record();
                                                         record.CanonicalName = x.FilesystemEntry.CanonicalName;
                                                         record.Attributes = x.FilesystemEntry.Attributes;
-                                                        if (FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary)
+                                                        if (record.IsFile && FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary)
                                                             record.Attributes = (Attributes)((int)record.Attributes | (int)Attributes.Binary);
                                                         if (record.IsSymlink)
                                                             record.Fingerprint = x.FilesystemEntry.SymlinkTarget;
