@@ -3803,6 +3803,8 @@ namespace Versionr
 
                 if (updateHeads.Count == 1)
                     mergeVersion = updateHeads[0];
+                else if (updateHeads.Count == 0)
+                    mergeVersion = GetVersion(CurrentBranch.Terminus.Value);
                 else
                 {
                     if (updateHeads.Count != 2)
