@@ -12,6 +12,11 @@ namespace Versionr.Commands
         [Option('f', "force", HelpText = "Forces the commit to happen even if it would create a new branch head.")]
         public bool Force { get; set; }
 
+        public override BaseCommand GetCommand()
+        {
+            return new Commit();
+        }
+
         public override string[] Description
         {
             get
