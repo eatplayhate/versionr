@@ -15,8 +15,8 @@ namespace Versionr.Commands
             get
             {
                 return string.Format("#b#versionr #i#{0}## [--server remote_name] #q#[options]##\n" +
-                    "Or: #b#versionr #i#{0}## [--host remote_host --port remote_port] #q#[options]##\n" +
-                    "Or: #b#versionr #i#{0}## [--remote vsr://remote_host:port/path] #q#[options]##", Verb);
+                    "#b#versionr #i#{0}## [--host remote_host --port remote_port] #q#[options]##\n" +
+                    "#b#versionr #i#{0}## [--remote vsr://remote_host:port/path] #q#[options]##", Verb);
             }
         }
         [Option('h', "host", Required = false, HelpText = "Specifies the hostname to push to.")]

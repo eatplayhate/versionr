@@ -27,7 +27,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("#b#versionr #i#{0}##--host <host> --port <port> [remote name]\nOr: #b#versionr #i#{0}## --remote #b#vsr://servername:port/path## [remote name]", Verb);
+                return string.Format("#b#versionr #i#{0}##--host <host> --port <port> [remote name]\n#b#versionr #i#{0}## --remote #b#vsr://servername:port/path## [remote name]", Verb);
             }
         }
 
