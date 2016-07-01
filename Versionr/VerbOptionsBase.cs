@@ -13,6 +13,7 @@ namespace Versionr
         [ParserState]
         public IParserState LastParserState { get; set; }
         public abstract string Verb { get; }
+        public abstract Commands.BaseCommand GetCommand();
         public abstract string[] Description { get; }
         [HelpOption]
         public string GetUsage()

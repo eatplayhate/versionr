@@ -10,6 +10,15 @@ namespace Versionr.Commands
 {
     abstract class RemoteCommandVerbOptions : VerbOptionBase
     {
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("#b#versionr #i#{0}## [--server remote_name] #q#[options]##\n" +
+                    "Or: #b#versionr #i#{0}## [--host remote_host --port remote_port] #q#[options]##\n" +
+                    "Or: #b#versionr #i#{0}## [--remote vsr://remote_host:port/path] #q#[options]##", Verb);
+            }
+        }
         [Option('h', "host", Required = false, HelpText = "Specifies the hostname to push to.")]
         public string Host { get; set; }
         [Option('p', "port", DefaultValue = Client.VersionrDefaultPort, Required = false, HelpText = "Specifies the port to connect to.")]

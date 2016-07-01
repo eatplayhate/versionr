@@ -14,7 +14,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Removes conflict markers from a file."
+                    "Removes conflict markers from specified objects in the workspace.",
+                    "",
+                    "Resolve will also delete generated .mine, .theirs and .base files."
                 };
             }
         }
@@ -27,6 +29,10 @@ namespace Versionr.Commands
             }
         }
 
+        public override BaseCommand GetCommand()
+        {
+            return new Resolve();
+        }
     }
     class Resolve : Unrecord
     {

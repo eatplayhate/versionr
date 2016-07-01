@@ -32,7 +32,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("#b#versionr #i#{0}#q# [options] ##file1 #q#[file2 ... fileN]", Verb);
+                return string.Format("#b#versionr #i#{0}#q# [options] ##[file1 #q#file2 ... fileN##]", Verb);
             }
         }
 

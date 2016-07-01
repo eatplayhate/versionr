@@ -9,12 +9,9 @@ namespace Versionr.Commands
 {
     class InfoVerbOptions : VerbOptionBase
     {
-        public override string Usage
+        public override BaseCommand GetCommand()
         {
-            get
-            {
-                return string.Format("Usage: versionr {0}", Verb);
-            }
+            return new Info();
         }
 
         public override string[] Description

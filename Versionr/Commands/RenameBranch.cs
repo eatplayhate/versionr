@@ -13,7 +13,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [--branch name] newname", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[--branch name]## <new name>", Verb);
             }
         }
 
@@ -23,7 +23,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Renames a branch."
+                    "Renames a branch within the vault. If no branch name is specified, it will rename the current branch."
                 };
             }
         }
@@ -32,7 +32,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return "renamebranch";
+                return "rename-branch";
             }
         }
         [Option('b', "branch", HelpText = "Selects a branch to rename, if not specified it will rename the current branch.")]
@@ -40,6 +40,11 @@ namespace Versionr.Commands
 
         [ValueOption(0)]
         public string Name { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new RenameBranch();
+        }
     }
     class RenameBranch : BaseWorkspaceCommand
     {

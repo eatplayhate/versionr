@@ -13,9 +13,14 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [--branch branchname] version", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[--branch branchname]## <version>", Verb);
             }
         }
+        public override BaseCommand GetCommand()
+        {
+            return new Behead();
+        }
+
 
         public override string[] Description
         {
@@ -23,7 +28,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Forcefully removes a head from a branch.",
+                    "",
+                    "#e#PLEASE BE AWARE:## if this is used on a version which has already been replicated to another node via #i#push##, #i#clone## or #i#pull##, the replication engine will produce undefined results."
                 };
             }
         }

@@ -16,7 +16,11 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Pull will download all revisions up to the head of the current (or a specified) branch from a remote server.",
+                    "",
+                    "By using the #b#--update## option, after data is downloaded, the vault will automatically run the #i#Update## operation.",
+                    "",
+                    "Remotes can be configured using the #b#set-remote## command."
                 };
             }
         }
@@ -40,6 +44,11 @@ namespace Versionr.Commands
         public bool PullAll { get; set; }
         [Option('u', "update", DefaultValue = false, HelpText = "Update the local revision after pulling data.")]
         public bool Update { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Pull();
+        }
     }
     class Pull : RemoteCommand
     {

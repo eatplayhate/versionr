@@ -15,8 +15,17 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "The rebase command takes the current version and collapses the entire change history between it and a specified parent version into a single, atomic operation.",
+                    "",
+                    "This is a mechanism for rewriting history - and while the original version nodes are still present in the graph, they will be hidden from all tools."
                 };
+            }
+        }
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("#b#versionr #i#{0}## <target version>", Verb);
             }
         }
 
@@ -36,6 +45,11 @@ namespace Versionr.Commands
 
         [Option('m', "message", HelpText = "Commit message for rebased version.")]
         public string Message { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Rebase();
+        }
     }
     class Rebase : BaseCommand
     {

@@ -15,7 +15,9 @@ namespace Versionr.Commands
 			{
 				return new string[]
 				{
-					"Revert the contents of the file and unincludes it from the next commit."
+					"Revert the contents of objects and unincludes them from the next commit.",
+                    "",
+                    "This uses the same file matching options as #i#record##."
 				};
 			}
 		}
@@ -31,6 +33,11 @@ namespace Versionr.Commands
         public bool Interactive { get; set; }
         [Option('d', "delete", HelpText = "Delete new files.")]
         public bool Delete { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Revert();
+        }
 
     }
 	class Revert : Unrecord

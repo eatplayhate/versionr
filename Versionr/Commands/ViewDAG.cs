@@ -17,7 +17,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Generates dot-compatible version graph information (to help diagnose or examine the revision tree)."
                 };
             }
         }
@@ -28,6 +28,11 @@ namespace Versionr.Commands
             {
                 return "viewdag";
             }
+        }
+
+        public override BaseCommand GetCommand()
+        {
+            return new ViewDAG();
         }
     }
     class ViewDAG : BaseCommand

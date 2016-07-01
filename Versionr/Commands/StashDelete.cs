@@ -14,7 +14,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [stash name or guids]", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[options]## [stash name/key/guid]", Verb);
             }
         }
 
@@ -24,7 +24,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Deletes stashes from the vault."
+                    "Deletes one or more stashes from the vault."
                 };
             }
         }
@@ -42,6 +42,11 @@ namespace Versionr.Commands
 
         [ValueList(typeof(List<string>))]
         public List<string> Names { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new StashDelete();
+        }
     }
     class StashDelete : BaseCommand
     {

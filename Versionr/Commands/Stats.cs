@@ -9,20 +9,13 @@ namespace Versionr.Commands
 {
     class StatsVerbOptions : VerbOptionBase
     {
-        public override string Usage
-        {
-            get
-            {
-                return "#b#versionr #i#stats## #q#[object]##";
-            }
-        }
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "coming soon"
+                    "Displays stats about the vault as well as the underlying object storage system."
                 };
             }
         }
@@ -37,6 +30,11 @@ namespace Versionr.Commands
 
         [ValueOption(0)]
         public string Object { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Stats();
+        }
     }
     class Stats : BaseWorkspaceCommand
     {

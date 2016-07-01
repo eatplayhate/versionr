@@ -64,7 +64,7 @@ namespace Versionr.Commands
 			{
 				return new string[]
 				{
-					"get a log"
+					"This command displays the history of the current branch (or a specified branch/version)."
 				};
 			}
 		}
@@ -77,7 +77,11 @@ namespace Versionr.Commands
 			}
 		}
 
-	}
+        public override BaseCommand GetCommand()
+        {
+            return new Log();
+        }
+    }
 
 	class Log : FileBaseCommand
 	{

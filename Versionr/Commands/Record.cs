@@ -48,7 +48,11 @@ namespace Versionr.Commands
                 return "record";
             }
         }
-
+        
+        public override BaseCommand GetCommand()
+        {
+            return new Record();
+        }
     }
     class Record : FileCommand
 	{

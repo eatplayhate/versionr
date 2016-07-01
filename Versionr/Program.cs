@@ -45,8 +45,8 @@ namespace Versionr
         [VerbOption("push", HelpText = "Pushes version metadata and object data to a server.")]
         public Commands.PushVerbOptions PushVerb { get; set; }
 
-        [VerbOption("remote", HelpText = "Used to set the remote parameters for an external vault.")]
-        public Commands.RemoteVerbOptions RemoteVerb { get; set; }
+        [VerbOption("set-remote", HelpText = "Used to set the remote parameters for an external vault.")]
+        public Commands.SetRemoteVerbOptions RemoteVerb { get; set; }
         
 		[VerbOption("log", HelpText = "Prints a log of versions.")]
 		public Commands.LogVerbOptions LogVerb { get; set; }
@@ -78,11 +78,11 @@ namespace Versionr
 		public Commands.UnrecordVerbOptions UnrecordVerb { get; set; }
 		[VerbOption("update", HelpText = "Updates the current version to the head version of the current branch.")]
 		public Commands.UpdateVerbOptions UpdateVerb { get; set; }
-		[VerbOption("renamebranch", HelpText = "Rename a branch in the vault.")]
+		[VerbOption("rename-branch", HelpText = "Rename a branch in the vault.")]
 		public Commands.RenameBranchVerbOptions RenameBranchVerb { get; set; }
-		[VerbOption("listbranch", HelpText = "Lists branches in the vault.")]
-		public Commands.ListBranchVerbOptions ListBranchVerb { get; set; }
-		[VerbOption("deletebranch", HelpText = "Deletes a branch in the vault.")]
+		[VerbOption("branch-list", HelpText = "Lists branches in the vault.")]
+		public Commands.BranchListVerbOptions ListBranchVerb { get; set; }
+		[VerbOption("delete-branch", HelpText = "Deletes a branch in the vault.")]
 		public Commands.DeleteBranchVerbOptions DeleteBranchVerb { get; set; }
 		[VerbOption("stats", HelpText = "Displays statistics.")]
         public Commands.StatsVerbOptions StatsVerb { get; set; }
@@ -162,82 +162,15 @@ namespace Versionr
         [HelpVerbOption]
         public string GetUsage(string verb)
         {
-            if (verb == "init")
-                return InitVerb.GetUsage();
-            else if (verb == "commit")
-                return CommitVerb.GetUsage();
-            else if (verb == "status")
-                return StatusVerb.GetUsage();
-            else if (verb == "record")
-                return RecordVerb.GetUsage();
-            else if (verb == "checkout")
-                return CheckoutVerb.GetUsage();
-            else if (verb == "branch")
-                return BranchVerb.GetUsage();
-            else if (verb == "server")
-                return ServerVerb.GetUsage();
-            else if (verb == "merge")
-                return MergeVerb.GetUsage();
-            else if (verb == "push")
-                return PushVerb.GetUsage();
-            else if (verb == "remote")
-                return RemoteVerb.GetUsage();
-            else if (verb == "log")
-                return LogVerb.GetUsage();
-            else if (verb == "lg")
-                return LogVerb.GetUsage();
-            else if (verb == "behead")
-                return BeheadVerb.GetUsage();
-            else if (verb == "viewdag")
-                return ViewDAGVerb.GetUsage();
-            else if (verb == "clone")
-                return CloneVerb.GetUsage();
-            else if (verb == "pull")
-                return PullVerb.GetUsage();
-            else if (verb == "syncrecords")
-                return SyncRecordsVerb.GetUsage();
-            else if (verb == "diff")
-                return DiffVerb.GetUsage();
-            else if (verb == "revert")
-                return RevertVerb.GetUsage();
-            else if (verb == "unrecord")
-                return UnrecordVerb.GetUsage();
-            else if (verb == "update")
-                return UpdateVerb.GetUsage();
-            else if (verb == "renamebranch")
-                return RenameBranchVerb.GetUsage();
-            else if (verb == "listbranch")
-                return ListBranchVerb.GetUsage();
-            else if (verb == "deletebranch")
-                return DeleteBranchVerb.GetUsage();
-            else if (verb == "stats")
-                return StatsVerb.GetUsage();
-            else if (verb == "expunge")
-                return ExpungeVerb.GetUsage();
-            else if (verb == "mergeinfo")
-                return MergeInfoVerb.GetUsage();
-            else if (verb == "rebase")
-                return RebaseVerb.GetUsage();
-            else if (verb == "info")
-                return InfoVerb.GetUsage();
-            else if (verb == "ahead")
-                return AheadVerb.GetUsage();
-            else if (verb == "resolve")
-                return ResolveVerb.GetUsage();
-            else if (verb == "stash")
-                return StashVerb.GetUsage();
-            else if (verb == "unstash")
-                return UnstashVerb.GetUsage();
-            else if (verb == "stash-list")
-                return StashListVerb.GetUsage();
-            else if (verb == "stash-delete")
-                return StashDeleteVerb.GetUsage();
-            else if (verb == "cherry-pick")
-                return CherrypickVerb.GetUsage();
-            else if (verb == "push-stash")
-                return PushStashVerb.GetUsage();
-            else if (verb == "pull-stash")
-                return PullStashVerb.GetUsage();
+            foreach (var x in GetType().GetProperties())
+            {
+                if (x.PropertyType.IsSubclassOf(typeof(VerbOptionBase)))
+                {
+                    VerbOptionBase vob = x.GetValue(this) as VerbOptionBase;
+                    if (vob != null && verb == vob.Verb)
+                        return vob.GetUsage();
+                }
+            }
             return GetUsage();
         }
     }
@@ -291,44 +224,15 @@ namespace Versionr
                     Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
 
                 Dictionary<string, Commands.BaseCommand> commands = new Dictionary<string, Commands.BaseCommand>();
-                commands["init"] = new Commands.Init();
-                commands["commit"] = new Commands.Commit();
-                commands["status"] = new Commands.Status();
-                commands["record"] = new Commands.Record();
-                commands["checkout"] = new Commands.Checkout();
-                commands["branch"] = new Commands.Branch();
-                commands["server"] = new Commands.Server();
-                commands["push"] = new Commands.Push();
-                commands["merge"] = new Commands.Merge();
-                commands["log"] = new Commands.Log();
-                commands["lg"] = new Commands.Log(true);
-                commands["remote"] = new Commands.Remote();
-                commands["behead"] = new Commands.Behead();
-                commands["viewdag"] = new Commands.ViewDAG();
-                commands["info"] = new Commands.Info();
-                commands["clone"] = new Commands.Clone();
-                commands["pull"] = new Commands.Pull();
-                commands["syncrecords"] = new Commands.SyncRecords();
-                commands["diff"] = new Commands.Diff();
-                commands["revert"] = new Commands.Revert();
-                commands["unrecord"] = new Commands.Unrecord();
-                commands["update"] = new Commands.Update();
-                commands["renamebranch"] = new Commands.RenameBranch();
-                commands["listbranch"] = new Commands.ListBranch();
-                commands["deletebranch"] = new Commands.DeleteBranch();
-                commands["stats"] = new Commands.Stats();
-                commands["expunge"] = new Commands.Expunge();
-                commands["mergeinfo"] = new Commands.MergeInfo();
-                commands["rebase"] = new Commands.Rebase();
-                commands["ahead"] = new Commands.Ahead();
-                commands["resolve"] = new Commands.Resolve();
-                commands["stash"] = new Commands.Stash();
-                commands["unstash"] = new Commands.Unstash();
-                commands["stash-list"] = new Commands.StashList();
-                commands["stash-delete"] = new Commands.StashDelete();
-                commands["cherry-pick"] = new Commands.Cherrypick();
-                commands["push-stash"] = new Commands.PushStash();
-                commands["pull-stash"] = new Commands.PullStash();
+                foreach (var x in typeof(Options).GetProperties())
+                {
+                    if (x.PropertyType.IsSubclassOf(typeof(VerbOptionBase)))
+                    {
+                        VerbOptionBase vob = x.GetValue(options) as VerbOptionBase;
+                        if (vob != null)
+                            commands[vob.Verb] = vob.GetCommand();
+                    }
+                }
 
                 Console.CancelKeyPress += Console_CancelKeyPress;
 

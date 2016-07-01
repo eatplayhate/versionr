@@ -17,8 +17,15 @@ namespace Versionr.Commands
 		public bool All { get; set; }
 		[Option('f', "flat", HelpText = "Formats list as flat, instead of partitioned by status.")]
 		public bool Flat { get; set; }
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("#b#versionr #i#{0}## #q#[options]## [object name specifier]", Verb);
+            }
+        }
 
-		public override string[] Description
+        public override string[] Description
         {
             get
             {
@@ -57,6 +64,11 @@ namespace Versionr.Commands
             {
                 return "status";
             }
+        }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Status();
         }
     }
     class Status : FileBaseCommand

@@ -15,7 +15,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "The merge command merges a specified branch head (or version) into the current workspace. This command will apply alterations from the remote version subtree by computing the common parent of the two versions."
                 };
             }
         }
@@ -36,6 +36,18 @@ namespace Versionr.Commands
 
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("#b#versionr #i#{0}## #q#[options]## <branch or version>", Verb);
+            }
+        }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Merge();
+        }
     }
     abstract class MergeSharedOptions : VerbOptionBase
     {

@@ -13,7 +13,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} stash_name", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[options]## [stash description]", Verb);
             }
         }
 
@@ -23,7 +23,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Stash all currently staged changes to a named stash file and reverts them to a pristine state."
+                    "Stash all currently staged changes to a named stash file and (optionally, but by default) reverts them to a pristine state."
                 };
             }
         }
@@ -40,6 +40,11 @@ namespace Versionr.Commands
 
         [ValueOption(0)]
         public string Name { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Stash();
+        }
     }
     class Stash : BaseCommand
     {

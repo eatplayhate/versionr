@@ -10,13 +10,18 @@ namespace Versionr.Commands
 {
     class CloneVerbOptions : RemoteCommandVerbOptions
     {
+        public override BaseCommand GetCommand()
+        {
+            return new Clone();
+        }
+
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "This command will clone a vault from a remote server and (by default) checkout the latest revision of the initial branch."
                 };
             }
         }

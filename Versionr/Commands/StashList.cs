@@ -14,7 +14,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [stash name or guid]", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[options]## [stash name/key/guid]", Verb);
             }
         }
 
@@ -24,7 +24,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Lists the stashes in a vault or extracts details from a stash object."
+                    "Lists the stashes in a vault or extracts details from a stash object.",
+                    "",
+                    "When specifying a specific stash, you may also generate a patch file from any text patches in the stashed object."
                 };
             }
         }
@@ -37,11 +39,16 @@ namespace Versionr.Commands
             }
         }
 
-        [Option('p', "patch", HelpText = "Resulting patch file")]
+        [Option('p', "patch", HelpText = "Resulting patch file to generate.")]
         public string PatchFile { get; set; }
 
         [ValueList(typeof(List<string>))]
         public List<string> Name { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new StashList();
+        }
     }
     class StashList : BaseCommand
     {

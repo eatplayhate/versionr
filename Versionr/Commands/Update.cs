@@ -9,21 +9,17 @@ namespace Versionr.Commands
 {
     class UpdateVerbOptions : MergeSharedOptions
     {
-        public override string Usage
-        {
-            get
-            {
-                return string.Format("Usage: versionr {0}", Verb);
-            }
-        }
-
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Update will take your current revision to the head of the branch (for example, if you have just pulled from the server), and/or it will merge in up to one other branch head.",
+                    "",
+                    "This allows you to easily reconcile work which has been pulled from a server with your local commits. The merge operation is equivalent to manually merging the other head revision, and requires committing once the merge has been run.",
+                    "",
+                    "Update is safe to use on non-pristine workspaces."
                 };
             }
         }
@@ -34,6 +30,11 @@ namespace Versionr.Commands
             {
                 return "update";
             }
+        }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Update();
         }
     }
     class Update : BaseCommand

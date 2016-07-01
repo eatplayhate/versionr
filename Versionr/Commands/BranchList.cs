@@ -7,16 +7,8 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class ListBranchVerbOptions : VerbOptionBase
+    class BranchListVerbOptions : VerbOptionBase
     {
-        public override string Usage
-        {
-            get
-            {
-                return string.Format("Usage: versionr {0} [options] [name]", Verb);
-            }
-        }
-
         public override string[] Description
         {
             get
@@ -32,7 +24,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return "listbranch";
+                return "branch-list";
             }
         }
         [Option('d', "deleted", HelpText = "Include deleted branches.")]
@@ -42,12 +34,17 @@ namespace Versionr.Commands
 
         [ValueOption(0)]
         public string Name { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new BranchList();
+        }
     }
-    class ListBranch : BaseWorkspaceCommand
+    class BranchList : BaseWorkspaceCommand
     {
         protected override bool RunInternal(object options)
         {
-            ListBranchVerbOptions localOptions = options as ListBranchVerbOptions;
+            BranchListVerbOptions localOptions = options as BranchListVerbOptions;
 
             var branches = Workspace.GetBranches(localOptions.Name, localOptions.Deleted, localOptions.Partial);
             foreach (var x in branches)

@@ -13,8 +13,12 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} version", Verb);
+                return string.Format("#b#versionr #i#{0}## <version>", Verb);
             }
+        }
+        public override BaseCommand GetCommand()
+        {
+            return new Expunge();
         }
 
         public override string[] Description
@@ -23,7 +27,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "This command will delete a version from the revision history.",
+                    "",
+                    "#e#PLEASE BE AWARE:## if this is used on a version which has already been replicated to another node via #i#push##, #i#clone## or #i#pull##, the replication engine will produce undefined results."
                 };
             }
         }

@@ -16,7 +16,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Pulls one or more stashes from a remote server."
+                    "Pulls one or more stashes from a specified remote vault.",
+                    "",
+                    "Remotes can be configured using the #b#set-remote## command."
                 };
             }
         }
@@ -31,6 +33,11 @@ namespace Versionr.Commands
 
         [ValueList(typeof(List<string>))]
         public List<string> Names { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new PullStash();
+        }
     }
     class PullStash : RemoteCommand
     {

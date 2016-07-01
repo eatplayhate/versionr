@@ -7,7 +7,7 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class RemoteVerbOptions : VerbOptionBase
+    class SetRemoteVerbOptions : VerbOptionBase
     {
         [Option('h', "host", Required = false, HelpText = "Specifies the hostname of the remote.", MutuallyExclusiveSet = "remotemode")]
 		public string Host { get; set; }
@@ -27,7 +27,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} --host <host> --port <port> [remote name]", Verb);
+                return string.Format("#b#versionr #i#{0}##--host <host> --port <port> [remote name]\nOr: #b#versionr #i#{0}## --remote #b#vsr://servername:port/path## [remote name]", Verb);
             }
         }
 
@@ -41,8 +41,7 @@ namespace Versionr.Commands
 					"",
 					"You must specify both hostname and port to register a new server.",
 					"",
-					"Otherwise the --clear and --list options operator on the existing",
-					"list of remote servers.",
+					"Otherwise the --clear and --list options operator on the existing list of remote servers.",
 				};
             }
         }
@@ -51,18 +50,23 @@ namespace Versionr.Commands
         {
             get
             {
-                return "remote";
+                return "set-remote";
             }
         }
 
         [ValueOption(0)]
         public string Name { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new SetRemote();
+        }
     }
-    class Remote : BaseCommand
+    class SetRemote : BaseCommand
     {
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
-            RemoteVerbOptions localOptions = options as RemoteVerbOptions;
+            SetRemoteVerbOptions localOptions = options as SetRemoteVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Area ws = Area.Load(workingDirectory);
             if (ws == null)

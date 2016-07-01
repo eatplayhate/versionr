@@ -9,21 +9,27 @@ namespace Versionr.Commands
 {
     class CherrypickVerbOptions : VerbOptionBase
     {
+        public override BaseCommand GetCommand()
+        {
+            return new Cherrypick();
+        }
+
         public override string Usage
         {
             get
             {
-                return string.Format("Usage: versionr {0} version[s]", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[options]## <version> #q#[version2 ... versionN]##", Verb);
             }
         }
-
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "Cherry picks changes from a specific version and attempts to apply them to the working vault."
+                    "Cherry picks changes from a specific version and attempts to apply them to the working vault.",
+                    "",
+                    "Optionally, it can apply the changes in reverse to undo a specified version."
                 };
             }
         }
