@@ -4887,9 +4887,7 @@ namespace Versionr
             if (!isBinary)
             {
                 bool xdiffSuccess = XDiffMerge3Way(mb, ml, mf, mr) == 0;
-                if (xdiffSuccess)
-                    return temporaryFile;
-                if (Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
+                if (xdiffSuccess || Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
                 {
                     FileInfo fi = new FileInfo(ml + ".mine");
                     if (fi.IsReadOnly)
