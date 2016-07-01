@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -137,7 +138,7 @@ namespace Versionr.Commands
                                     bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
                                     var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
                                     {
-                                        var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name, ws.Directives.ExternalDiff, nonblocking);
+                                        var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), x.Name, ws.Directives.ExternalDiff, nonblocking);
                                         if (diffResult != null)
                                         {
                                             lock (diffProcesses)
