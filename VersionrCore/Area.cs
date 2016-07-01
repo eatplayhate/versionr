@@ -67,6 +67,9 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyBinaryPatch(string file1, string file2, string output);
 
+        [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "Merge3Way", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        public static extern int XDiffMerge3Way(string basefile, string file1, string file2, string output);
+
         public class StashInfo
         {
             public string Author { get; set; }
@@ -4881,45 +4884,50 @@ namespace Versionr
                 FileClassifier.Classify(parentFile) == FileEncoding.Binary;
 
             System.IO.File.Copy(ml, ml + ".mine", true);
-            if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
+            if (!isBinary)
             {
+                bool xdiffSuccess = XDiffMerge3Way(mb, ml, mf, mr) == 0;
+                if (xdiffSuccess)
+                    return temporaryFile;
+                if (Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
+                {
+                    FileInfo fi = new FileInfo(ml + ".mine");
+                    if (fi.IsReadOnly)
+                        fi.IsReadOnly = false;
+                    fi.Delete();
+                    if (!xdiffSuccess)
+                        Printer.PrintMessage("#s# - Resolved.##");
+                    return temporaryFile;
+                }
+            }
+
+            ResolveType resolution = GetResolution(isBinary, ref resolveAll);
+            if (resolution == ResolveType.Mine)
+            {
+                Printer.PrintMessage("#s# - Resolved (mine).##");
                 FileInfo fi = new FileInfo(ml + ".mine");
                 if (fi.IsReadOnly)
                     fi.IsReadOnly = false;
                 fi.Delete();
-                Printer.PrintMessage("#s# - Resolved.##");
-                return temporaryFile;
+                return local;
+            }
+            if (resolution == ResolveType.Theirs)
+            {
+                Printer.PrintMessage("#s# - Resolved (theirs).##");
+                FileInfo fi = new FileInfo(ml + ".mine");
+                if (fi.IsReadOnly)
+                    fi.IsReadOnly = false;
+                fi.Delete();
+                return foreign;
             }
             else
             {
-                ResolveType resolution = GetResolution(isBinary, ref resolveAll);
-                if (resolution == ResolveType.Mine)
-                {
-                    Printer.PrintMessage("#s# - Resolved (mine).##");
-                    FileInfo fi = new FileInfo(ml + ".mine");
-                    if (fi.IsReadOnly)
-                        fi.IsReadOnly = false;
-                    fi.Delete();
-                    return local;
-                }
-                if (resolution == ResolveType.Theirs)
-                {
-                    Printer.PrintMessage("#s# - Resolved (theirs).##");
-                    FileInfo fi = new FileInfo(ml + ".mine");
-                    if (fi.IsReadOnly)
-                        fi.IsReadOnly = false;
-                    fi.Delete();
-                    return foreign;
-                }
-                else
-                {
-                    if (!allowConflict)
-                        throw new Exception();
-                    System.IO.File.Move(mf, ml + ".theirs");
-                    System.IO.File.Move(mb, ml + ".base");
-                    Printer.PrintMessage("#e# - File not resolved. Please manually merge and then mark as resolved.##");
-                    return null;
-                }
+                if (!allowConflict)
+                    throw new Exception();
+                System.IO.File.Move(mf, ml + ".theirs");
+                System.IO.File.Move(mb, ml + ".base");
+                Printer.PrintMessage("#e# - File not resolved. Please manually merge and then mark as resolved.##");
+                return null;
             }
         }
 
