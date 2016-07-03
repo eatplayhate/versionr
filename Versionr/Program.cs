@@ -266,36 +266,13 @@ namespace Versionr
 
                 if (!string.IsNullOrEmpty((invokedVerbInstance as VerbOptionBase).Logfile))
                     Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
-
-                Dictionary<string, Commands.BaseCommand> commands = new Dictionary<string, Commands.BaseCommand>();
-                foreach (var x in options.GetType().GetProperties())
-                {
-                    if (x.PropertyType.IsSubclassOf(typeof(VerbOptionBase)))
-                    {
-                        VerbOptionBase vob = x.GetValue(options) as VerbOptionBase;
-                        if (vob != null)
-                            commands[vob.Verb] = vob.GetCommand();
-                    }
-                }
-
+				
                 Console.CancelKeyPress += Console_CancelKeyPress;
-
-                Commands.BaseCommand command = null;
-                Console.CancelKeyPress += Console_CancelKeyPress;
-                if (!commands.TryGetValue(invokedVerb, out command))
-                {
-                    command = commands.Where(x => x.Key.Equals(invokedVerb, StringComparison.OrdinalIgnoreCase)).Select(x => x.Value).FirstOrDefault();
-                    if (command == null)
-                    {
-                        printerStream.Flush();
-                        System.Console.WriteLine("Couldn't invoke action: {0}", invokedVerb);
-                        Printer.RestoreDefaults();
-                        Environment.Exit(10);
-                    }
-                }
+                
                 try
                 {
-                    VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
+					Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
+					VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
                     if (baseOptions != null)
                         Printer.NoColours = baseOptions.NoColours;
                     if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
