@@ -34,8 +34,14 @@ namespace Vsr2Git.Commands
 			return new ReplicateToGit();
 		}
 
-		[Option('g', "git-repository", HelpText = "Location of Git repository (containing .git directory)", Required=true)]
+		[Option('g', "git-repository", HelpText = "Path to Git repository (either bare or non-bare)", Required=true)]
 		public string GitRepository { get; set; }
+
+		[Option("init-bare", HelpText = "Initialize a new, bare repository if the repository doesn't exist", MutuallyExclusiveSet = "init")]
+		public bool InitBare { get; set; }
+
+		[Option("init", HelpText = "Initialize a new, non-bare repository if the repository doesn't exist", MutuallyExclusiveSet="init")]
+		public bool InitNonBare { get; set; }
 	}
 
 	class ReplicationVersion
@@ -88,8 +94,10 @@ namespace Vsr2Git.Commands
 			if (!vsrVersion.Parent.HasValue)
 			{
 				// Initial commit, ensure repository is empty
-				// TODO
-				// 
+				if (m_GitRepository.Head != null && m_GitRepository.Head.Tip != null)
+				{
+					throw new InvalidOperationException("Cannot replicate root version into non-empty repository");
+				}
 				treeDefinition = new TreeDefinition();
 			}
 			else
@@ -187,11 +195,59 @@ namespace Vsr2Git.Commands
 			return null;
 		}
 		
+		private bool LoadGitRepository()
+		{
+			string path = m_Options.GitRepository;
+
+			try
+			{
+				// Try to load existing repository
+				m_GitRepository = new Repository(path);
+			}
+			catch (RepositoryNotFoundException)
+			{
+				if (!m_Options.InitBare && !m_Options.InitNonBare)
+				{
+					Printer.PrintMessage("No repository found at #b#{0}##, check your path or specify #b#--init## or #b#--init-bare##", path);
+					return false;
+				}
+
+				if (m_Options.InitBare && System.IO.Directory.Exists(path))
+				{
+					Printer.PrintMessage("Cannot create bare repository at #b#{0}##, directory already exists.  Check your path or specify #b#--init## instead.", path);
+					return false;
+				}
+
+				if (m_Options.InitBare)
+				{
+					Printer.PrintMessage("Initializing bare repository at #b#{0}##", path);
+					Repository.Init(path, true);
+				}
+				else
+				{
+					Printer.PrintMessage("Initializing non-bare repository at #b#{0}##", path);
+					Repository.Init(path);
+				}
+
+				m_GitRepository = new Repository(path);
+			}
+
+			return true;
+		}
+
+		private void LoadVsrRepository(DirectoryInfo workingDirectory)
+		{
+			m_VsrArea = Area.Load(workingDirectory, true);
+		}
+
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
 			m_Options = (ReplicateToGitOptions)options;
-			m_GitRepository = new Repository(m_Options.GitRepository);
-			m_VsrArea = Area.Load(workingDirectory, true);
+
+			if (!LoadGitRepository())
+				return false;
+
+			LoadVsrRepository(workingDirectory);
 			
 			// Populate replication map from git notes
 			try
@@ -266,8 +322,20 @@ namespace Vsr2Git.Commands
 					else
 						gitBranchName = branch.Name;
 
-					Printer.PrintMessage("Updating branch tip {0}", gitBranchName);
-					m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+					Printer.PrintMessage("Updating branch {0}", gitBranchName);
+					if (m_GitRepository.Head != null && m_GitRepository.Head.FriendlyName == gitBranchName)
+					{
+						// Currently tracking this branch, we have to temporarily move HEAD somewhere else while
+						// we update the branch pointer
+						string canonicalName = m_GitRepository.Head.CanonicalName;
+						m_GitRepository.Refs.UpdateTarget("HEAD", gitCommit.Id.Sha);
+						m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+						m_GitRepository.Refs.UpdateTarget("HEAD", canonicalName);
+					}
+					else
+					{
+						m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+					}
 					branchNames.Add(gitBranchName);
 				}
 			}
