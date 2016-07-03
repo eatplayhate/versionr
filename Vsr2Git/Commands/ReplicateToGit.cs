@@ -78,7 +78,7 @@ namespace Vsr2Git.Commands
 			string branchName = m_VsrArea.GetBranch(vsrVersion.Branch).Name;
 			Printer.PrintMessage("Replicate {0} on {1}: {2}", vsrVersion.ID, branchName, vsrVersion.Message);
 			
-			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp); // TODO map name to email
+			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp.ToLocalTime()); // TODO map name to email
 			var committer = author;
 			List<Commit> gitParents = new List<Commit>();
 
@@ -121,11 +121,9 @@ namespace Vsr2Git.Commands
 
 			var tree = m_GitRepository.ObjectDatabase.CreateTree(m_GitRepository.Index);
 			var gitCommit = m_GitRepository.ObjectDatabase.CreateCommit(author, committer, vsrVersion.Message, tree, gitParents, false, null);
-
-			//var gitCommit = m_GitRepository.Commit(vsrVersion.Message, author, committer, new CommitOptions() { PrettifyMessage = false });
-			m_VersionrToGitMapping[vsrVersion.ID] = gitCommit.Id.Sha;
-
+			
 			// Link git commit to vsr version that generated it
+			m_VersionrToGitMapping[vsrVersion.ID] = gitCommit.Id.Sha;
 			m_GitRepository.Notes.Add(gitCommit.Id, "versionr-id: " + vsrVersion.ID.ToString(), author, committer, "commits");
 		}
 
