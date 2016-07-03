@@ -121,8 +121,12 @@ namespace Vsr2Git.Commands
 				gitParents.Add(gitMergeCommit);
 			}
 
-			// Make alterations to tree
+			// Retrieve records
 			var alterations = m_VsrArea.GetAlterations(vsrVersion);
+			var targetRecords = GetTargetRecords(alterations);
+			m_VsrArea.GetMissingRecords(targetRecords);
+
+			// Make alterations to tree
 			foreach (var alteration in alterations)
 			{
 				treeDefinition = AlterTree(treeDefinition, alteration);
@@ -163,6 +167,26 @@ namespace Vsr2Git.Commands
 			else
 			{
 				return new Identity(author, author + "@versionr");
+			}
+		}
+
+		private IEnumerable<Versionr.Objects.Record> GetTargetRecords(IEnumerable<Versionr.Objects.Alteration> alterations)
+		{
+			foreach (var alteration in alterations)
+			{
+				switch (alteration.Type)
+				{
+					case Versionr.Objects.AlterationType.Add:
+					case Versionr.Objects.AlterationType.Update:
+					case Versionr.Objects.AlterationType.Copy:
+					case Versionr.Objects.AlterationType.Move:
+						yield return m_VsrArea.GetRecord(alteration.NewRecord.Value);
+						break;
+					case Versionr.Objects.AlterationType.Delete:
+						break;
+					default:
+						throw new NotImplementedException();
+				}
 			}
 		}
 
