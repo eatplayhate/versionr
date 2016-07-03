@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using CommandLine;
 using CommandLine.Text;
+using System.Reflection;
+using System.IO;
 
 namespace Versionr
 {
@@ -174,15 +176,48 @@ namespace Versionr
             return GetUsage();
         }
     }
-    class Program
-    {
-        class Region
-        {
-            public int Start1;
-            public int End1;
-            public int Start2;
-            public int End2;
-        }
+	class Program
+	{
+		class Region
+		{
+			public int Start1;
+			public int End1;
+			public int Start2;
+			public int End2;
+		}
+
+		static IEnumerable<Assembly> PluginAssemblies
+		{
+			get
+			{
+				string baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+				string pluginDirectory = baseDirectory;
+				foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
+				{
+					yield return Assembly.LoadFile(Path.Combine(pluginDirectory, filename));
+				}
+			}
+		}
+
+		static IEnumerable<object> PluginOptions
+		{
+			get
+			{
+				// Built-in options
+				yield return new Options();
+
+				// Enumerate plugins
+				foreach (var assembly in PluginAssemblies)
+				{
+					var pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
+					if (pluginAttribute == null)
+						continue;
+
+					yield return Activator.CreateInstance(pluginAttribute.OptionsType);
+				}
+			}
+		}
+
         static void Main(string[] args)
         {
             try
@@ -205,16 +240,25 @@ namespace Versionr
                     return;
                 }
 
-                var options = new Options();
+				object options = null;
                 string invokedVerb = string.Empty;
                 object invokedVerbInstance = null;
-                if (!parser.ParseArguments(args, options,
-                      (verb, subOptions) =>
-                      {
-                          invokedVerb = verb;
-                          invokedVerbInstance = subOptions;
-                      }))
-                {
+				foreach (object pluginOptions in PluginOptions)
+				{
+					if (parser.ParseArguments(args, pluginOptions,
+						  (verb, subOptions) =>
+						  {
+							  invokedVerb = verb;
+							  invokedVerbInstance = subOptions;
+						  }))
+					{
+						options = pluginOptions;
+						break;
+					}
+				}
+
+				if (options == null)
+				{
                     printerStream.Flush();
                     Printer.RestoreDefaults();
                     Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
@@ -224,7 +268,7 @@ namespace Versionr
                     Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
 
                 Dictionary<string, Commands.BaseCommand> commands = new Dictionary<string, Commands.BaseCommand>();
-                foreach (var x in typeof(Options).GetProperties())
+                foreach (var x in options.GetType().GetProperties())
                 {
                     if (x.PropertyType.IsSubclassOf(typeof(VerbOptionBase)))
                     {
