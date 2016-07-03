@@ -284,6 +284,21 @@ namespace Versionr
             }
         }
 
+        internal void ConsistencyCheck()
+        {
+            try
+            {
+                BeginExclusive(true);
+                RunConsistencyCheck();
+                Commit();
+            }
+            catch
+            {
+                Rollback();
+                throw;
+            }
+        }
+
         private void RunConsistencyCheck()
         {
             Printer.PrintMessage(" - Upgrading database - running full consistency check.");
@@ -531,6 +546,8 @@ namespace Versionr
                 throw;
             }
             Printer.PrintDiagnostics("Record list resolved in {0} ticks.", sw.ElapsedTicks);
+            if (testFailure)
+                return finalList;
             if (baseList.Count < alterations.Count || (alterations.Count > 4096 && parents.Count > 128))
             {
                 Printer.PrintDiagnostics(" - Attempting to build new snapshot ({0} records in base list, {1} alterations over {2} revisions)", baseList.Count, alterations.Count, parents.Count);

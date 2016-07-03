@@ -33,18 +33,23 @@ namespace Versionr.Commands
                 return "admin";
             }
         }
-        [Option("sql-local", HelpText = "Runs an JSON-wrapped SQL command on the local cache DB")]
+        [Option("sql-local", Required = false, HelpText = "Runs an JSON-wrapped SQL command on the local cache DB")]
         public string SQLLocal { get; set; }
-        [Option("sql", HelpText = "Runs an JSON-wrapped SQL command on the main DB")]
+        [Option("sql", Required = false, HelpText = "Runs an JSON-wrapped SQL command on the main DB")]
         public string SQL { get; set; }
-        [Option("replicate", HelpText = "Marks the admin command as replicatable (if possible).")]
+        [Option("replicate", Required = false, HelpText = "Marks the admin command as replicatable (if possible).")]
         public bool Replicate { get; set; }
+        [Option("check", Required = false, HelpText = "Runs a general purpose DB consistency check and repair function.")]
+        public bool Check { get; set; }
     }
     class Admin : BaseWorkspaceCommand
     {
         protected override bool RunInternal(object options)
         {
             AdminVerbOptions localOptions = options as AdminVerbOptions;
+            Printer.EnableDiagnostics = localOptions.Verbose;
+            if (localOptions.Check)
+                Workspace.RunConsistencyCheck();
             return true;
         }
     }

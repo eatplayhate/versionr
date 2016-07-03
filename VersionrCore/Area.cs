@@ -56,6 +56,11 @@ namespace Versionr
             }
         }
 
+        public void RunConsistencyCheck()
+        {
+            Database.ConsistencyCheck();
+        }
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
 
