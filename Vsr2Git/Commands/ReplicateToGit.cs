@@ -144,7 +144,8 @@ namespace Vsr2Git.Commands
 				case Versionr.Objects.AlterationType.Copy:
 					return AddRecordToTree(treeDefinition, m_VsrArea.GetRecord(alteration.NewRecord.Value));
 				case Versionr.Objects.AlterationType.Move:
-					throw new NotImplementedException();
+					treeDefinition = AddRecordToTree(treeDefinition, m_VsrArea.GetRecord(alteration.NewRecord.Value));
+					return RemoveRecordFromTree(treeDefinition, m_VsrArea.GetRecord(alteration.PriorRecord.Value));
 				case Versionr.Objects.AlterationType.Delete:
 					return RemoveRecordFromTree(treeDefinition, m_VsrArea.GetRecord(alteration.PriorRecord.Value));
 				default:
