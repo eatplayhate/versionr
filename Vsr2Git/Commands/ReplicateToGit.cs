@@ -47,10 +47,10 @@ namespace Vsr2Git.Commands
 			VsrId = vsrId;
 		}
 	}
-
-
+	
 	class ReplicateToGit : BaseCommand
 	{
+		private ReplicateToGitOptions m_Options;
 		private Area m_VsrArea;
 		private Repository m_GitRepository;
 		
@@ -61,22 +61,26 @@ namespace Vsr2Git.Commands
 			return m_VersionrToGitMapping.ContainsKey(vsrVersionId);
 		}
 
-		private string GetGitCommitForVersionrId(Guid vsrId)
+		private Commit GetGitCommitForVersionrId(Guid vsrId)
 		{
 			string gitId;
 			if (m_VersionrToGitMapping.TryGetValue(vsrId, out gitId))
-				return gitId;
+				return m_GitRepository.Lookup<Commit>(gitId);
 
 			return null;
 		}
 
-		private void Replicate(Versionr.Objects.Version vsrVersion)
+		private void Replicate(Versionr.Objects.Version vsrVersion, IEnumerable<Versionr.Objects.MergeInfo> mergeParents)
 		{
 			if (HasMapping(vsrVersion.ID))
 				return;
 
 			string branchName = m_VsrArea.GetBranch(vsrVersion.Branch).Name;
 			Printer.PrintMessage("Replicate {0} on {1}: {2}", vsrVersion.ID, branchName, vsrVersion.Message);
+			
+			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp); // TODO map name to email
+			var committer = author;
+			List<Commit> gitParents = new List<Commit>();
 
 			if (!vsrVersion.Parent.HasValue)
 			{
@@ -85,12 +89,15 @@ namespace Vsr2Git.Commands
 			}
 			else
 			{
-				// Update HEAD to parent
-				m_GitRepository.Refs.UpdateTarget(m_GitRepository.Refs.Head, m_VersionrToGitMapping[vsrVersion.Parent.Value]);
+				gitParents.Add(GetGitCommitForVersionrId(vsrVersion.Parent.Value));
 			}
-
-			// TODO merge parents
-
+			
+			// Merge parents
+			foreach (var mergeInfo in mergeParents)
+			{
+				gitParents.Add(GetGitCommitForVersionrId(mergeInfo.SourceVersion));
+			}
+			
 			var alterations = m_VsrArea.GetAlterations(vsrVersion);
 			foreach (var alteration in alterations)
 			{
@@ -109,14 +116,13 @@ namespace Vsr2Git.Commands
 						// TODO
 						break;
 				}
-				
-				//
-
 			}
-			
-			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp); // TODO map name to email
-			var committer = author;
-			var gitCommit = m_GitRepository.Commit(vsrVersion.Message, author, committer, new CommitOptions() { PrettifyMessage = false });
+
+
+			var tree = m_GitRepository.ObjectDatabase.CreateTree(m_GitRepository.Index);
+			var gitCommit = m_GitRepository.ObjectDatabase.CreateCommit(author, committer, vsrVersion.Message, tree, gitParents, false, null);
+
+			//var gitCommit = m_GitRepository.Commit(vsrVersion.Message, author, committer, new CommitOptions() { PrettifyMessage = false });
 			m_VersionrToGitMapping[vsrVersion.ID] = gitCommit.Id.Sha;
 
 			// Link git commit to vsr version that generated it
@@ -135,7 +141,7 @@ namespace Vsr2Git.Commands
 			using (var stream = m_VsrArea.ObjectStore.GetRecordStream(vsrRecord))
 			{
 				var blob = m_GitRepository.ObjectDatabase.CreateBlob(stream);
-				m_GitRepository.Index.Add(blob, vsrRecord.CanonicalName, Mode.NonExecutableFile);
+				m_GitRepository.Index.Add(blob, vsrRecord.CanonicalName, Mode.NonExecutableFile); // TODO record type
 			}
 		}
 
@@ -153,8 +159,8 @@ namespace Vsr2Git.Commands
 		
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
-			var localOptions = options as ReplicateToGitOptions;
-			m_GitRepository = new Repository(localOptions.GitRepository);
+			m_Options = (ReplicateToGitOptions)options;
+			m_GitRepository = new Repository(m_Options.GitRepository);
 			m_VsrArea = Area.Load(workingDirectory, true);
 
 			// Populate replication map from git notes
@@ -193,7 +199,8 @@ namespace Vsr2Git.Commands
 					hasParents = false;
 				}
 
-				foreach (var merge in m_VsrArea.GetMergeInfo(vsrVersion.ID))
+				var mergeParents = m_VsrArea.GetMergeInfo(vsrVersion.ID);
+				foreach (var merge in mergeParents)
 				{
 					if (merge.Type == Versionr.Objects.MergeType.Rebase)
 						continue;
@@ -207,7 +214,7 @@ namespace Vsr2Git.Commands
 
 				if (hasParents)
 				{
-					Replicate(vsrVersion);
+					Replicate(vsrVersion, mergeParents);
 					replicationStack.Pop();
 				}
 			}
@@ -219,7 +226,7 @@ namespace Vsr2Git.Commands
 				var branchHeads = m_VsrArea.GetBranchHeads(branch);
 				foreach (var head in branchHeads)
 				{
-					string gitCommit = GetGitCommitForVersionrId(head.Version);
+					var gitCommit = GetGitCommitForVersionrId(head.Version);
 					if (gitCommit == null)
 						continue;
 
