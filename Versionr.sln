@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Versionr", "Versionr\Versionr.csproj", "{9AF5BB18-ACE3-400D-AFFE-8DD9ADD453FB}"
 EndProject
@@ -34,6 +34,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "XDiffEngine", "XDiffEngine\XDiffEngine.vcxproj", "{BB1EB900-2AF9-4CA0-8637-3C045E7DF2A1}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libXDiff", "libxdiff-0.23\libXDiff\libXDiff.vcxproj", "{6290D3C2-879A-4B3F-872D-EE45AFFBC3E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vsr2Git", "Vsr2Git\Vsr2Git.csproj", "{D5D9C21C-67A3-453F-A523-1651A9763EC9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -237,6 +239,18 @@ Global
 		{6290D3C2-879A-4B3F-872D-EE45AFFBC3E8}.Release|x64.Build.0 = Release|x64
 		{6290D3C2-879A-4B3F-872D-EE45AFFBC3E8}.Release|x86.ActiveCfg = Release|Win32
 		{6290D3C2-879A-4B3F-872D-EE45AFFBC3E8}.Release|x86.Build.0 = Release|Win32
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Debug|x64.Build.0 = Debug|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Debug|x86.Build.0 = Debug|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Release|x64.ActiveCfg = Release|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Release|x64.Build.0 = Release|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Release|x86.ActiveCfg = Release|Any CPU
+		{D5D9C21C-67A3-453F-A523-1651A9763EC9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
