@@ -52,6 +52,11 @@ namespace CommandLine.Text
         private bool _addDashesToOption;
 
         /// <summary>
+        /// Determines if the help option is shown in a list of other options or not
+        /// </summary>
+        public bool ShowHelpOption { get; set; } = true;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="CommandLine.Text.HelpText"/> class.
         /// </summary>
         public HelpText()
@@ -631,7 +636,7 @@ namespace CommandLine.Text
             var optionList = ReflectionHelper.RetrievePropertyAttributeList<BaseOptionAttribute>(options);
             var optionHelp = ReflectionHelper.RetrieveMethodAttributeOnly<HelpOptionAttribute>(options);
 
-            if (optionHelp != null)
+            if (optionHelp != null && ShowHelpOption)
             {
                 optionList.Add(optionHelp);
             }

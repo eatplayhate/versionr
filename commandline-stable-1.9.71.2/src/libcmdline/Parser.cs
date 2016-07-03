@@ -159,7 +159,7 @@ namespace CommandLine
         /// <exception cref="System.ArgumentNullException">Thrown if <paramref name="args"/> is null.</exception>
         /// <exception cref="System.ArgumentNullException">Thrown if <paramref name="options"/> is null.</exception>
         /// <exception cref="System.ArgumentNullException">Thrown if <paramref name="onVerbCommand"/> is null.</exception>
-        public bool ParseArguments(string[] args, object options, Action<string, object> onVerbCommand)
+        public bool ParseArguments(string[] args, object options, Action<string, bool, object> onVerbCommand)
         {
             Assumes.NotNull(args, "args", SR.ArgumentNullException_ArgsStringArrayCannotBeNull);
             Assumes.NotNull(options, "options", SR.ArgumentNullException_OptionsInstanceCannotBeNull);
@@ -169,7 +169,7 @@ namespace CommandLine
 
             var result = DoParseArgumentsVerbs(args, options, ref verbInstance);
             
-            onVerbCommand(args.FirstOrDefault() ?? string.Empty, result ? verbInstance : null);
+            onVerbCommand(args.FirstOrDefault() ?? string.Empty, result, verbInstance);
 
             return result;
         }

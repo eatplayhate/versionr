@@ -197,25 +197,34 @@ namespace Versionr
 					yield return Assembly.LoadFile(Path.Combine(pluginDirectory, filename));
 				}
 			}
-		}
+        }
 
-		static IEnumerable<object> PluginOptions
+        static IEnumerable<Tuple<object, Assembly>> PluginOptionsAndAssemblies
+        {
+            get
+            {
+                // Enumerate plugins
+                foreach (var assembly in PluginAssemblies)
+                {
+                    var pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
+                    if (pluginAttribute == null)
+                        continue;
+
+                    yield return new Tuple<object, Assembly>(Activator.CreateInstance(pluginAttribute.OptionsType), assembly);
+                }
+            }
+        }
+
+        static IEnumerable<object> PluginOptions
 		{
 			get
 			{
-				// Built-in options
-				yield return new Options();
-
-				// Enumerate plugins
-				foreach (var assembly in PluginAssemblies)
-				{
-					var pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
-					if (pluginAttribute == null)
-						continue;
-
-					yield return Activator.CreateInstance(pluginAttribute.OptionsType);
-				}
-			}
+                foreach (var x in PluginOptionsAndAssemblies.Select(x => x.Item1))
+                    yield return x;
+                
+                // Return the base ones last
+                yield return new Options();
+            }
 		}
 
         static void Main(string[] args)
@@ -224,9 +233,14 @@ namespace Versionr
             {
                 string workingDirectoryPath = Environment.CurrentDirectory;
                 var printerStream = new Printer.PrinterStream();
+                var nullstream = new System.IO.MemoryStream();
                 VersionOptions initalOpts = new VersionOptions();
+
+                CommandLine.Parser silentparser = new CommandLine.Parser(new Action<ParserSettings>(
+                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = new System.IO.StreamWriter(nullstream); p.MutuallyExclusive = true; }));
                 CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
-                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
+                   (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
+
                 if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
                     Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
@@ -245,25 +259,69 @@ namespace Versionr
                     return;
                 }
 
-				object options = null;
+
+                if (args.Length == 0)
+                {
+                    PrintAllOptions(args, parser, printerStream);
+                    printerStream.Flush();
+                    System.Console.WriteLine("Error - missing command.");
+                    Printer.RestoreDefaults();
+                    Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
+                }
+
+                // We will attempt to parse the commandline first
+                object options = null;
                 string invokedVerb = string.Empty;
                 object invokedVerbInstance = null;
+                object activatedPlugin = null;
 				foreach (object pluginOptions in PluginOptions)
 				{
-					if (parser.ParseArguments(args, pluginOptions,
-						  (verb, subOptions) =>
+					if (silentparser.ParseArguments(args, pluginOptions,
+						  (verb, success, subOptions) =>
 						  {
-							  invokedVerb = verb;
-							  invokedVerbInstance = subOptions;
+                              if (subOptions != null)
+                              {
+                                  invokedVerb = verb;
+                                  activatedPlugin = pluginOptions;
+                              }
+                              invokedVerbInstance = subOptions;
 						  }))
 					{
 						options = pluginOptions;
 						break;
 					}
+                    if (invokedVerb != string.Empty)
+                        break;
 				}
 
 				if (options == null)
-				{
+                {
+                    if (invokedVerb != string.Empty && activatedPlugin != null)
+                    {
+                        // First, does the option object even support help?
+                        System.Reflection.MethodInfo helpOptionVerb = GetVerbHelpMethod(activatedPlugin);
+                        if (helpOptionVerb != null)
+                        {
+                            // We hit a verb, but the commandline parser is unhappy at us, re-run the parse
+                            parser.ParseArguments(args, activatedPlugin, (verb, success, subOptions) => { });
+                        }
+                        else
+                        {
+                            if (invokedVerbInstance is VerbOptionBase)
+                                printerStream.WriteLine(((VerbOptionBase)invokedVerbInstance).GetUsage());
+                            else
+                            {
+                                Printer.PrintMessage("Warning - verb #b#{0}##: command is malformed and cannot be parsed.", invokedVerb);
+                                Printer.PrintMessage("No help method defined on verb object.", invokedVerb);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        PrintAllOptions(args, parser, printerStream);
+                    }
+
+
                     printerStream.Flush();
                     Printer.RestoreDefaults();
                     Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
@@ -304,6 +362,47 @@ namespace Versionr
             }
 
             return;
+        }
+
+        private static void PrintAllOptions(string[] args, Parser parser, Printer.PrinterStream printerStream)
+        {
+            // We didn't hit a verb, print the base options and then all the plugin ones
+            printerStream.WriteLine((new Options()).GetUsage());
+            printerStream.Flush();
+
+            foreach (var pluginOptionsAndAssemblies in PluginOptionsAndAssemblies)
+            {
+                System.Reflection.MethodInfo helpOption = GetHelpMethod(pluginOptionsAndAssemblies.Item1);
+                if (helpOption != null)
+                {
+                    printerStream.WriteLine();
+                    printerStream.WriteLine(helpOption.Invoke(pluginOptionsAndAssemblies.Item1, new object[0]));
+                }
+                else
+                {
+                    Printer.PrintMessage("Warning - plugin #b#{0}## does not have built-in help.", pluginOptionsAndAssemblies.Item2.GetName().Name);
+                }
+            }
+        }
+
+        private static MethodInfo GetVerbHelpMethod(object activatedPlugin)
+        {
+            foreach (var x in activatedPlugin.GetType().GetMethods())
+            {
+                if (x.GetCustomAttribute(typeof(HelpVerbOptionAttribute)) != null)
+                    return x;
+            }
+            return null;
+        }
+
+        private static MethodInfo GetHelpMethod(object activatedPlugin)
+        {
+            foreach (var x in activatedPlugin.GetType().GetMethods())
+            {
+                if (x.GetCustomAttribute(typeof(HelpOptionAttribute)) != null)
+                    return x;
+            }
+            return null;
         }
 
         private static void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
