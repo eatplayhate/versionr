@@ -288,7 +288,7 @@ Versionr can replicate its commit history to a Git repository.  All branches and
 versionr replicate-to-git path/to/repo.git
 ```
 
-Use `replicate-to-git --help` for additional options.
+Use `replicate-to-git --help` for additional options. *Does not actually work; help system does not respect plugins.*
 
 **Author identity**
 
