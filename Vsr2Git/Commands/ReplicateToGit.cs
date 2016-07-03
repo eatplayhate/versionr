@@ -78,48 +78,42 @@ namespace Vsr2Git.Commands
 			string branchName = m_VsrArea.GetBranch(vsrVersion.Branch).Name;
 			Printer.PrintMessage("Replicate {0} on {1}: {2}", vsrVersion.ID, branchName, vsrVersion.Message);
 			
+			// Choose author
 			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp.ToLocalTime()); // TODO map name to email
 			var committer = author;
-			List<Commit> gitParents = new List<Commit>();
 
+			// Choose parent commit
+			List<Commit> gitParents = new List<Commit>();
+			TreeDefinition treeDefinition;
 			if (!vsrVersion.Parent.HasValue)
 			{
 				// Initial commit, ensure repository is empty
 				// TODO
+				// 
+				treeDefinition = new TreeDefinition();
 			}
 			else
 			{
-				gitParents.Add(GetGitCommitForVersionrId(vsrVersion.Parent.Value));
+				var gitParentCommit = GetGitCommitForVersionrId(vsrVersion.Parent.Value);
+				gitParents.Add(gitParentCommit);
+				treeDefinition = TreeDefinition.From(gitParentCommit);
 			}
-			
-			// Merge parents
+
+			// Add merge parents
 			foreach (var mergeInfo in mergeParents)
 			{
 				gitParents.Add(GetGitCommitForVersionrId(mergeInfo.SourceVersion));
 			}
-			
+
+			// Make alterations to tree
 			var alterations = m_VsrArea.GetAlterations(vsrVersion);
 			foreach (var alteration in alterations)
 			{
-				switch (alteration.Type)
-				{
-					case Versionr.Objects.AlterationType.Add:
-					case Versionr.Objects.AlterationType.Update:
-					case Versionr.Objects.AlterationType.Copy:
-						var record = m_VsrArea.GetRecord(alteration.NewRecord.Value);
-						ReplicateRecord(record);
-						break;
-					case Versionr.Objects.AlterationType.Move:
-						// TODO
-						break;
-					case Versionr.Objects.AlterationType.Delete:
-						// TODO
-						break;
-				}
+				treeDefinition = AlterTree(treeDefinition, alteration);
 			}
 
-
-			var tree = m_GitRepository.ObjectDatabase.CreateTree(m_GitRepository.Index);
+			// Create commit record
+			var tree = m_GitRepository.ObjectDatabase.CreateTree(treeDefinition);
 			var gitCommit = m_GitRepository.ObjectDatabase.CreateCommit(author, committer, vsrVersion.Message, tree, gitParents, false, null);
 			
 			// Link git commit to vsr version that generated it
@@ -133,13 +127,51 @@ namespace Vsr2Git.Commands
 			return author + "@ea.com";
 		}
 
-		private void ReplicateRecord(Versionr.Objects.Record vsrRecord)
+		private TreeDefinition AlterTree(TreeDefinition treeDefinition, Versionr.Objects.Alteration alteration)
 		{
-			Printer.PrintMessage("  Update {0}", vsrRecord.CanonicalName);
-			using (var stream = m_VsrArea.ObjectStore.GetRecordStream(vsrRecord))
+			switch (alteration.Type)
 			{
-				var blob = m_GitRepository.ObjectDatabase.CreateBlob(stream);
-				m_GitRepository.Index.Add(blob, vsrRecord.CanonicalName, Mode.NonExecutableFile); // TODO record type
+				case Versionr.Objects.AlterationType.Add:
+				case Versionr.Objects.AlterationType.Update:
+				case Versionr.Objects.AlterationType.Copy:
+					return AddRecordToTree(treeDefinition, m_VsrArea.GetRecord(alteration.NewRecord.Value));
+				case Versionr.Objects.AlterationType.Move:
+					throw new NotImplementedException();
+				case Versionr.Objects.AlterationType.Delete:
+					throw new NotImplementedException();
+				default:
+					throw new NotImplementedException();
+			}
+		}
+
+		private TreeDefinition AddRecordToTree(TreeDefinition treeDefinition, Versionr.Objects.Record vsrRecord)
+		{
+			if (vsrRecord.IsSymlink)
+			{
+				// TODO 
+				throw new NotSupportedException();
+			}
+			else if (vsrRecord.IsDirectory)
+			{
+				// git does not support committing empty directories.  We could synthesize a ".gitkeep" file as suggested
+				// on StackOverflow if the directory is empty for this commit.
+				return treeDefinition;
+			}
+			else if (vsrRecord.IsFile)
+			{
+				var mode = Mode.NonExecutableFile;
+				if ((vsrRecord.Attributes & Versionr.Objects.Attributes.Executable) != 0)
+					mode = Mode.ExecutableFile;
+
+				using (var stream = m_VsrArea.ObjectStore.GetRecordStream(vsrRecord))
+				{
+					var blob = m_GitRepository.ObjectDatabase.CreateBlob(stream);
+					return treeDefinition.Add(vsrRecord.CanonicalName, blob, mode);
+				}
+			}
+			else
+			{
+				throw new NotImplementedException();
 			}
 		}
 
@@ -160,7 +192,7 @@ namespace Vsr2Git.Commands
 			m_Options = (ReplicateToGitOptions)options;
 			m_GitRepository = new Repository(m_Options.GitRepository);
 			m_VsrArea = Area.Load(workingDirectory, true);
-
+			
 			// Populate replication map from git notes
 			try
 			{
@@ -216,7 +248,7 @@ namespace Vsr2Git.Commands
 					replicationStack.Pop();
 				}
 			}
-
+			
 			// Replicate branch pointers
 			var branchNames = new HashSet<string>();
 			foreach (var branch in m_VsrArea.Branches)
@@ -252,8 +284,7 @@ namespace Vsr2Git.Commands
 				Printer.PrintMessage("Removing old vsr branch tip {0}", branch.FriendlyName);
 				m_GitRepository.Branches.Remove(branch);
 			}
-
-
+			
 			return true;
 		}
 	}
