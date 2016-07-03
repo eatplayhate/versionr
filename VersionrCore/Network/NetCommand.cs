@@ -36,7 +36,10 @@ namespace Versionr.Network
         AuthFail,
         ListBranches,
         PushStashQuery,
-        PullStashQuery
+        PullStashQuery,
+        SendLocks,
+        RequestLock,
+        PathLocked
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

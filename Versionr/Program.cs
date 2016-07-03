@@ -125,6 +125,9 @@ namespace Versionr
         [VerbOption("pull-stash", HelpText = "Pulls one or more stashes from a server.")]
         public Commands.PullStashVerbOptions PullStashVerb { get; set; }
 
+        [VerbOption("acquire-lock", HelpText = "Acquires an exclusive lock to a specific path on a server.")]
+        public Commands.AcquireLockVerbOptions AcquireLockVerb { get; set; }
+
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 

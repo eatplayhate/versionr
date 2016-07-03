@@ -79,6 +79,119 @@ namespace Versionr.Network
             }
         }
 
+        public bool AcquireLock(string name, string branch, bool allBranches, bool full, bool steal)
+        {
+            if (SharedInfo.CommunicationProtocol < SharedNetwork.Protocol.Versionr33)
+            {
+                Printer.PrintError("#x#Error:## Server {0} does not support locking.", VersionrURL);
+                return false;
+            }
+            // First, we need to decide what branch we're locking
+            Guid? branchID = null;
+            if (!allBranches)
+            {
+                bool multipleBranches;
+                var localBranch = Workspace.GetBranchByPartialName(branch, out multipleBranches);
+                if (localBranch == null)
+                {
+                    string branchFullID;
+                    if (!GetRemoteBranchID(branch, out branchFullID))
+                        return false;
+                    branchID = new Guid(branchFullID);
+                }
+                else
+                {
+                    branch = localBranch.Name;
+                    branchID = localBranch.ID;
+                }
+
+                if (branchID == null)
+                {
+                    Printer.PrintError("#x#Error:## Couldn't lock branch \"{0}\", can't determine branch ID.", branch);
+                    return false;
+                }
+            }
+
+            string lockedPath = name;
+            if (!full)
+            {
+                if (!lockedPath.StartsWith("/"))
+                    lockedPath = "/" + lockedPath;
+                while (lockedPath.Length > 2 && lockedPath[lockedPath.Length - 1] == '/' && lockedPath[lockedPath.Length - 2] == '/')
+                    lockedPath = lockedPath.Substring(0, lockedPath.Length - 1);
+            }
+
+            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", VersionrURL);
+            if (allBranches)
+                Printer.PrintMessage(" - #i#All branches##");
+            else
+                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
+            if (full)
+                Printer.PrintMessage(" - #i#Entire workspace##");
+            else
+                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+
+            if (Printer.Prompt("Is this correct?"))
+            {
+                SendLocks();
+
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.RequestLock }, ProtoBuf.PrefixStyle.Fixed32);
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type != NetCommandType.Acknowledge)
+                {
+                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
+                    return false;
+                }
+                RequestLockInformation rli = new RequestLockInformation()
+                {
+                    Author = Workspace.Username,
+                    Branch = branchID,
+                    Path = lockedPath,
+                    Steal = steal
+                };
+                Utilities.SendEncrypted(SharedInfo, rli);
+
+                queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type == NetCommandType.Acknowledge)
+                {
+                    var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
+                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, VersionrURL);
+                    Printer.PrintMessage("Acquired lock.");
+                    return true;
+                }
+                else if (queryResult.Type == NetCommandType.PathLocked)
+                {
+                    var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
+                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n\nConflicting lock information:");
+                    foreach (var x in lockConflicts.Conflicts)
+                    {
+                        Printer.PrintMessage("#b#{0}## locked {1} on branch {2}", x.User, x.Path, x.Branch);
+                    }
+                    return false;
+                }
+                else
+                {
+                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+        private bool SendLocks()
+        {
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.SendLocks }, ProtoBuf.PrefixStyle.Fixed32);
+            var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type == NetCommandType.Error)
+            {
+                Printer.PrintError("Couldn't send lock tokens to server: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+            Utilities.SendEncrypted(SharedInfo, new LockTokenList() { Locks = Workspace.LocalLockTokens });
+            return true;
+        }
+
         public string VersionrURL
         {
             get
@@ -435,16 +548,10 @@ namespace Versionr.Network
                 }
                 else
                 {
-                    Printer.PrintMessage("Querying remote branch ID for \"{0}\"", branchName);
-                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = branchName }, ProtoBuf.PrefixStyle.Fixed32);
-                    var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                    if (queryResult.Type == NetCommandType.Error)
-                    {
-                        Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
+                    string branchFullID;
+                    if (!GetRemoteBranchID(branchName, out branchFullID))
                         return false;
-                    }
-                    branches.Add(queryResult.AdditionalPayload);
-                    Printer.PrintMessage(" - Matched query to remote branch ID {0}", queryResult.AdditionalPayload);
+                    branches.Add(branchName);
                 }
                 foreach (var branchID in branches)
                 {
@@ -558,6 +665,22 @@ namespace Versionr.Network
                 Close();
                 return false;
             }
+        }
+
+        private bool GetRemoteBranchID(string branchName, out string branchFullID)
+        {
+            Printer.PrintMessage("Querying remote branch ID for \"{0}\"", branchName);
+            branchFullID = null;
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.QueryBranchID, AdditionalPayload = branchName }, ProtoBuf.PrefixStyle.Fixed32);
+            var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type == NetCommandType.Error)
+            {
+                Printer.PrintError("Couldn't pull remote branch - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+            branchFullID = queryResult.AdditionalPayload;
+            Printer.PrintMessage(" - Matched query to remote branch ID {0}", queryResult.AdditionalPayload);
+            return true;
         }
 
         private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo, out bool receivedData)
