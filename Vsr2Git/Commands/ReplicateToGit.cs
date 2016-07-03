@@ -44,17 +44,7 @@ namespace Vsr2Git.Commands
 		[Option("init", HelpText = "Initialize a new, non-bare repository if the repository doesn't exist", MutuallyExclusiveSet="init")]
 		public bool InitNonBare { get; set; }
 	}
-	
-	class ReplicationVersion
-	{
-		public Guid VsrId;
-
-		public ReplicationVersion(Guid vsrId)
-		{
-			VsrId = vsrId;
-		}
-	}
-	
+		
 	class ReplicateToGit : BaseCommand
 	{
 		private Vsr2GitDirectives m_Directives;
@@ -312,7 +302,7 @@ namespace Vsr2Git.Commands
 		{
 			m_VsrArea = Area.Load(workingDirectory, false);
 		}
-
+		
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
 			m_Options = (ReplicateToGitOptions)options;
@@ -347,25 +337,24 @@ namespace Vsr2Git.Commands
 			{ }
 
 			// Find list of heads to replicate
-			var replicationStack = new Stack<ReplicationVersion>();
+			var replicationStack = new Stack<Guid>();
 			foreach (var branch in m_VsrArea.Branches)
 			{
 				foreach (var head in m_VsrArea.GetBranchHeads(branch))
 				{
-					replicationStack.Push(new ReplicationVersion(head.Version));
+					replicationStack.Push(head.Version);
 				}
 			}
 
 			// Recursively replicate all required versions
 			while (replicationStack.Count > 0)
 			{
-				var replicationVersion = replicationStack.Peek();
-				var vsrVersion = m_VsrArea.GetVersion(replicationVersion.VsrId);
+				var vsrVersion = m_VsrArea.GetVersion(replicationStack.Peek());
 				bool hasParents = true;
 
 				if (vsrVersion.Parent.HasValue && !HasMapping(vsrVersion.Parent.Value))
 				{
-					replicationStack.Push(new ReplicationVersion(vsrVersion.Parent.Value));
+					replicationStack.Push(vsrVersion.Parent.Value);
 					hasParents = false;
 				}
 
@@ -377,7 +366,7 @@ namespace Vsr2Git.Commands
 
 					if (!HasMapping(merge.SourceVersion))
 					{
-						replicationStack.Push(new ReplicationVersion(merge.SourceVersion));
+						replicationStack.Push(merge.SourceVersion);
 						hasParents = false;
 					}
 				}
