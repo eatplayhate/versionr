@@ -61,6 +61,15 @@ namespace Vsr2Git.Commands
 			return m_VersionrToGitMapping.ContainsKey(vsrVersionId);
 		}
 
+		private string GetGitCommitForVersionrId(Guid vsrId)
+		{
+			string gitId;
+			if (m_VersionrToGitMapping.TryGetValue(vsrId, out gitId))
+				return gitId;
+
+			return null;
+		}
+
 		private void Replicate(Versionr.Objects.Version vsrVersion)
 		{
 			if (HasMapping(vsrVersion.ID))
@@ -72,15 +81,13 @@ namespace Vsr2Git.Commands
 			if (!vsrVersion.Parent.HasValue)
 			{
 				// Initial commit, ensure repository is empty
-				// TODO 
+				// TODO
 			}
 			else
 			{
 				// Update HEAD to parent
 				m_GitRepository.Refs.UpdateTarget(m_GitRepository.Refs.Head, m_VersionrToGitMapping[vsrVersion.Parent.Value]);
 			}
-
-			// TODO change branch
 
 			// TODO merge parents
 
@@ -107,11 +114,12 @@ namespace Vsr2Git.Commands
 
 			}
 			
-			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), DateTimeOffset.Now); // TODO map name to email
+			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp); // TODO map name to email
 			var committer = author;
 			var gitCommit = m_GitRepository.Commit(vsrVersion.Message, author, committer, new CommitOptions() { PrettifyMessage = false });
 			m_VersionrToGitMapping[vsrVersion.ID] = gitCommit.Id.Sha;
 
+			// Link git commit to vsr version that generated it
 			m_GitRepository.Notes.Add(gitCommit.Id, "versionr-id: " + vsrVersion.ID.ToString(), author, committer, "commits");
 		}
 
@@ -131,43 +139,38 @@ namespace Vsr2Git.Commands
 			}
 		}
 
-		private Guid? GetVersionrIdForGitCommit(Commit commit)
+		private static string FormatNoteVersionrId(Guid vsrId)
 		{
-			foreach (var note in commit.Notes)
-			{
-				if (note.Message.StartsWith("versionr-id: "))
-					return Guid.Parse(note.Message.Substring("versionr-id: ".Length));
-			}
-			return null;
-		} 
-
-		private void RecordVersionrIdForGitCommit(Commit commit)
-		{
-			Guid? versionrId = GetVersionrIdForGitCommit(commit);
-			if (versionrId.HasValue)
-			{
-				m_VersionrToGitMapping[versionrId.Value] = commit.Id.Sha;
-			}
-			else
-			{
-				foreach (var parent in commit.Parents)
-					RecordVersionrIdForGitCommit(parent);
-			}
+			return "versionr-id: " + vsrId;
 		}
 
+		private Guid? ParseNoteVersionrId(string note)
+		{
+			if (note.StartsWith("versionr-id: "))
+				return Guid.Parse(note.Substring("versionr-id: ".Length));
+			return null;
+		}
+		
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
 			var localOptions = options as ReplicateToGitOptions;
 			m_GitRepository = new Repository(localOptions.GitRepository);
-
-			// Populate replication map from git heads
-			foreach (var branch in m_GitRepository.Branches)
-			{
-				RecordVersionrIdForGitCommit(branch.Tip);
-			}
-
 			m_VsrArea = Area.Load(workingDirectory, true);
 
+			// Populate replication map from git notes
+			try
+			{
+				foreach (var note in m_GitRepository.Notes["commits"])
+				{
+					Guid? versionrId = ParseNoteVersionrId(note.Message);
+					if (versionrId.HasValue)
+						m_VersionrToGitMapping[versionrId.Value] = note.TargetObjectId.Sha;
+				}
+			}
+			catch (NotFoundException)
+			{ }
+
+			// Find list of heads to replicate
 			var replicationStack = new Stack<ReplicationVersion>();
 			foreach (var branch in m_VsrArea.Branches)
 			{
@@ -177,6 +180,7 @@ namespace Vsr2Git.Commands
 				}
 			}
 
+			// Recursively replicate all required versions
 			while (replicationStack.Count > 0)
 			{
 				var replicationVersion = replicationStack.Peek();
@@ -207,6 +211,43 @@ namespace Vsr2Git.Commands
 					replicationStack.Pop();
 				}
 			}
+
+			// Replicate branch pointers
+			var branchNames = new HashSet<string>();
+			foreach (var branch in m_VsrArea.Branches)
+			{
+				var branchHeads = m_VsrArea.GetBranchHeads(branch);
+				foreach (var head in branchHeads)
+				{
+					string gitCommit = GetGitCommitForVersionrId(head.Version);
+					if (gitCommit == null)
+						continue;
+
+					string gitBranchName;
+					if (branchHeads.Count > 1)
+						gitBranchName = "vsr-" + branch.Name + "-" + head.Version.ToString();
+					else
+						gitBranchName = branch.Name;
+
+					Printer.PrintMessage("Updating branch tip {0}", gitBranchName);
+					m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+					branchNames.Add(gitBranchName);
+				}
+			}
+			
+			// Remove stale branch pointers from previous multi-head replication
+			foreach (
+				var branch in (
+					from b in m_GitRepository.Branches
+					let name = b.FriendlyName
+					where name.StartsWith("vsr-") && !branchNames.Contains(name)
+					select b
+				).ToArray())
+			{
+				Printer.PrintMessage("Removing old vsr branch tip {0}", branch.FriendlyName);
+				m_GitRepository.Branches.Remove(branch);
+			}
+
 
 			return true;
 		}
