@@ -347,6 +347,7 @@ namespace Versionr
                 else
                     records[key] = x;
             }
+            int bonusDeletions = 0;
             foreach (var x in Table<Objects.Version>().ToList())
             {
                 x.Snapshot = null;
@@ -360,6 +361,14 @@ namespace Versionr
                     {
                         moveAdds.Add(s.NewRecord.Value);
                         moveDeletes.Add(s.PriorRecord.Value);
+                    }
+                    if (s.Type == AlterationType.Delete)
+                    {
+                        if (Find<Record>(s.PriorRecord.Value) == null)
+                        {
+                            bonusDeletions++;
+                            Delete(s);
+                        }
                     }
                 }
                 foreach (var s in alterations)
@@ -376,6 +385,8 @@ namespace Versionr
                     }
                 }
             }
+            if (bonusDeletions >= 0)
+                Printer.PrintDiagnostics("Erased {0} unreconcilable deletions.", bonusDeletions);
         }
 
         internal List<MergeInfo> GetMergeInfoFromSource(Guid versionID)
@@ -433,24 +444,25 @@ namespace Versionr
                 return GetCachedRecords(Version);
             }
         }
-        public List<Record> GetRecords(Objects.Version version)
+        public List<Record> GetRecords(Objects.Version version, bool testFailure = false)
         {
             List<Record> baseList;
             List<Alteration> alterations;
-            return GetRecords(version, out baseList, out alterations);
+            return GetRecords(version, out baseList, out alterations, testFailure);
         }
 
-        public List<Record> GetCachedRecords(Objects.Version version)
+        public List<Record> GetCachedRecords(Objects.Version version, bool testFailure = false)
         {
             List<Record> results;
             if (LocalDatabase.GetCachedRecords(version.ID, out results))
                 return results;
-            results = GetRecords(version);
-            LocalDatabase.CacheRecords(version.ID, results);
+            results = GetRecords(version, testFailure);
+            if (!testFailure)
+                LocalDatabase.CacheRecords(version.ID, results);
             return results;
         }
 
-        public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations)
+        public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations, bool testFailure = false)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
@@ -492,6 +504,8 @@ namespace Versionr
             }
             catch
             {
+                if (testFailure)
+                    throw;
                 Printer.PrintError("Error during database operation. Deleting cached snapshots.");
                 BeginExclusive(true);
                 RunConsistencyCheck();

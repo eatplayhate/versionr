@@ -6713,6 +6713,15 @@ namespace Versionr
                             ws.Tip = vs.ID;
                             LocalData.UpdateSafe(ws);
 
+                            try
+                            {
+                                Database.GetCachedRecords(Version, true);
+                            }
+                            catch
+                            {
+                                throw new Exception("Critical: commit operation is generating an invalid set of alterations!");
+                            }
+
                             Database.Commit();
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
@@ -6726,7 +6735,7 @@ namespace Versionr
                             if (e is VersionrException)
                                 return false;
                             Printer.PrintError("Exception during commit: {0}", e.ToString());
-                            return false;
+                            throw;
                         }
                         finally
                         {
@@ -6741,12 +6750,11 @@ namespace Versionr
                     }
                     return true;
                 }, true);
-                Database.GetCachedRecords(Version);
                 return result;
             }
             catch
             {
-                Printer.PrintWarning("#w#Warning:##\n  Error during commit.");
+                Printer.PrintWarning("\n#x#Error:##\n  Error during commit. Rolling back.");
                 return false;
             }
         }

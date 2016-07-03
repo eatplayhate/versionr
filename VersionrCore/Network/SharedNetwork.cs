@@ -142,96 +142,110 @@ namespace Versionr.Network
         {
             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.PushStashQuery, AdditionalPayload = stash.GUID.ToString(), Identifier = stash.File.Length }, ProtoBuf.PrefixStyle.Fixed32);
             NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
-            if (response.Type == NetCommandType.RejectPush)
-                Printer.PrintMessage("Remote already has this stash.");
-            else if (response.Type == NetCommandType.AcceptPush)
+            if (response.Type == NetCommandType.AcceptPush)
             {
-                return TransmitStash(info, stash);
+                return TransmitFile(info, stash.File);
             }
+            else
+                Printer.PrintMessage("Remote already has this stash or will not receive the stash{0}.");
             return false;
         }
 
         internal static bool ReceiveStashData(SharedNetworkInfo sharedInfo, long dataSize)
         {
             Printer.PrintDiagnostics("Receiving a stash file.");
-            
-            RecordStatus status = new RecordStatus();
-            var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
-            {
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
-                var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
-                status.Bytes += pack.Data.Length;
-                if (pack.EndOfStream)
-                {
-                    return new Tuple<byte[], bool>(pack.Data, true);
-                }
-                else
-                {
-                    return new Tuple<byte[], bool>(pack.Data, false);
-                }
-            });
 
-            status.Stopwatch = new System.Diagnostics.Stopwatch();
-            status.Requested = (int)dataSize;
-            Printer.InteractivePrinter printer = null;
-            if (sharedInfo.Client)
+            string tempfile;
+            if (ReceiveFile(sharedInfo, dataSize, out tempfile))
             {
-                printer = Printer.CreateProgressBarPrinter("Receiving data", string.Empty,
-                    (obj) =>
-                    {
-                        RecordStatus stat = (RecordStatus)obj;
-                        return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(stat.Bytes / stat.Stopwatch.Elapsed.TotalSeconds)));
-                    },
-                    (obj) =>
-                    {
-                        RecordStatus stat = (RecordStatus)obj;
-                        return (100.0f * stat.Processed) / (float)stat.Requested;
-                    },
-                    (pct, obj) =>
-                    {
-                        RecordStatus stat = (RecordStatus)obj;
-                        return string.Format("{0}/{1}", Versionr.Utilities.Misc.FormatSizeFriendly(stat.Processed), Versionr.Utilities.Misc.FormatSizeFriendly(stat.Requested));
-                    },
-                    60);
+                return sharedInfo.Workspace.ImportStash(tempfile);
             }
-            status.Stopwatch.Start();
-
-            byte[] buffer = new byte[32 * 1024];
-            string filename = sharedInfo.Workspace.GenerateTempPath();
-            receiverStream.Read(buffer, 0, 8);
-            long expectedLength = BitConverter.ToInt64(buffer, 0);
-            if (expectedLength != dataSize)
-                throw new Exception();
-            using (System.IO.FileStream fs = System.IO.File.Open(filename, System.IO.FileMode.Create))
-            {
-                while (!receiverStream.EndOfStream)
-                {
-                    int readCount = receiverStream.Read(buffer, 0, buffer.Length);
-                    status.Processed += readCount;
-                    if (printer != null)
-                        printer.Update(status);
-
-                    fs.Write(buffer, 0, readCount);
-                }
-            }
-
-            bool result = sharedInfo.Workspace.ImportStash(filename);
-
-            if (printer != null)
-                printer.End(status);
-            if (result)
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-            else
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
-            return result;
+            return false;
         }
 
-        internal static bool TransmitStash(SharedNetworkInfo info, Area.StashInfo stash)
+        private static bool ReceiveFile(SharedNetworkInfo sharedInfo, long dataSize, out string tempfile)
+        {
+            try
+            {
+                tempfile = sharedInfo.Workspace.GenerateTempPath();
+                RecordStatus status = new RecordStatus();
+                var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+                    var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
+                    status.Bytes += pack.Data.Length;
+                    if (pack.EndOfStream)
+                    {
+                        return new Tuple<byte[], bool>(pack.Data, true);
+                    }
+                    else
+                    {
+                        return new Tuple<byte[], bool>(pack.Data, false);
+                    }
+                });
+
+                status.Stopwatch = new System.Diagnostics.Stopwatch();
+                status.Requested = (int)dataSize;
+                Printer.InteractivePrinter printer = null;
+                if (sharedInfo.Client)
+                {
+                    printer = Printer.CreateProgressBarPrinter("Receiving data", string.Empty,
+                        (obj) =>
+                        {
+                            RecordStatus stat = (RecordStatus)obj;
+                            return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(stat.Bytes / stat.Stopwatch.Elapsed.TotalSeconds)));
+                        },
+                        (obj) =>
+                        {
+                            RecordStatus stat = (RecordStatus)obj;
+                            return (100.0f * stat.Processed) / (float)stat.Requested;
+                        },
+                        (pct, obj) =>
+                        {
+                            RecordStatus stat = (RecordStatus)obj;
+                            return string.Format("{0}/{1}", Versionr.Utilities.Misc.FormatSizeFriendly(stat.Processed), Versionr.Utilities.Misc.FormatSizeFriendly(stat.Requested));
+                        },
+                        60);
+                }
+                status.Stopwatch.Start();
+
+                byte[] buffer = new byte[32 * 1024];
+                receiverStream.Read(buffer, 0, 8);
+                long expectedLength = BitConverter.ToInt64(buffer, 0);
+                if (expectedLength != dataSize)
+                    throw new Exception();
+                using (System.IO.FileStream fs = System.IO.File.Open(tempfile, System.IO.FileMode.Create))
+                {
+                    while (!receiverStream.EndOfStream)
+                    {
+                        int readCount = receiverStream.Read(buffer, 0, buffer.Length);
+                        status.Processed += readCount;
+                        if (printer != null)
+                            printer.Update(status);
+
+                        fs.Write(buffer, 0, readCount);
+                    }
+                }
+                if (printer != null)
+                    printer.End(status);
+
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                return true;
+            }
+            catch
+            {
+                tempfile = string.Empty;
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                return false;
+            }
+        }
+
+        internal static bool TransmitFile(SharedNetworkInfo info, System.IO.FileInfo file)
         {
             Printer.InteractivePrinter printer = null;
             SendStats sstats = null;
             System.Diagnostics.Stopwatch sw = null;
-            long fileLength = stash.File.Length;
+            long fileLength = file.Length;
             if (info.Client)
             {
                 sstats = new SendStats();
@@ -258,7 +272,7 @@ namespace Versionr.Network
             if (dataSize == -1)
                 return false;
             long transmitted = 0;
-            using (System.IO.Stream dataStream = stash.File.OpenRead())
+            using (System.IO.Stream dataStream = file.OpenRead())
             {
                 sender(BitConverter.GetBytes(dataSize), 8, false);
                 byte[] scratchBuffer = new byte[32 * 1024];

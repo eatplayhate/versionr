@@ -352,7 +352,7 @@ namespace Versionr.Network
                                 else if (stashes.Count == 1)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length, AdditionalPayload = stashes[0].GUID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
-                                    SharedNetwork.TransmitStash(sharedInfo, stashes[0]);
+                                    SharedNetwork.TransmitFile(sharedInfo, stashes[0].File);
                                 }
                                 else
                                 {

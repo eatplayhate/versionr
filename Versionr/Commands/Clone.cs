@@ -51,12 +51,22 @@ namespace Versionr.Commands
 
         [Option("quietfail", HelpText = "Disables error messages if the clone directory isn't empty.")]
         public bool QuietFail { get; set; }
+
+        [ValueList(typeof(List<string>))]
+        public List<string> Path { get; set; }
     }
     class Clone : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
+            if (localOptions.Path != null && localOptions.Path.Count == 1)
+                TargetDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, localOptions.Path[0]));
+            if (localOptions.Path.Count > 1)
+            {
+                Printer.PrintError("#e#Error:## Clone path is invalid. Please specify a subfolder to clone in to or leave empty to clone into the current directory.");
+                return false;
+            }
             if (localOptions.QuietFail && new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, ".versionr")).Exists)
                 return true;
             bool result = false;
