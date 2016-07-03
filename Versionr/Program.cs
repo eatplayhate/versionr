@@ -230,11 +230,16 @@ namespace Versionr
                 if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
                     Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
-                    Printer.WriteLineMessage("#q#  - A less hateful version control system.");
+                    Printer.WriteLineMessage("#q#- A less hateful version control system.");
                     Printer.PushIndent();
                     Printer.WriteLineMessage("\n#b#Core version: {0}\n", Area.CoreVersion);
                     foreach (var x in Area.ComponentVersions)
                         Printer.WriteLineMessage("{0}: #b#{1}", x.Item1, x.Item2);
+                    Printer.PopIndent();
+                    Printer.WriteLineMessage("\n#b#Plugins:\n");
+                    Printer.PushIndent();
+                    foreach (var assembly in PluginAssemblies.Where(x => x.GetCustomAttribute<VersionrPluginAttribute>() != null))
+                        Printer.WriteLineMessage("#b#{1}## ({2}) #q#{0}", Path.GetFileName(assembly.Location), assembly.GetName().Name, assembly.GetName().Version);
                     Printer.PopIndent();
                     Printer.RestoreDefaults();
                     return;

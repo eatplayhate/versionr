@@ -915,6 +915,8 @@ namespace Versionr.ObjectStore
         public override System.IO.Stream GetRecordStream(Objects.Record record)
         {
             string lookup = GetLookup(record);
+            if (record.Size == 0)
+                return new MemoryStream(0);
             return GetStreamForLookup(lookup);
         }
 
@@ -926,7 +928,12 @@ namespace Versionr.ObjectStore
             if (storeData.Mode == StorageMode.Flat)
                 return OpenCodecStream(OpenLegacyStream(storeData));
             if (storeData.Mode == StorageMode.Delta)
-                throw new Exception();
+            {
+                // in this case, we will load this all into memory (probably not a good idea but oh well)
+                System.IO.MemoryStream ms = new MemoryStream();
+                WriteRecordStream(storeData, ms);
+                return ms;
+            }
             throw new Exception();
         }
 

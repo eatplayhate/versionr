@@ -128,6 +128,10 @@ namespace Vsr2Git.Commands
 				treeDefinition = AlterTree(treeDefinition, alteration);
 			}
 
+            // Message can't be null
+            if (vsrVersion.Message == null)
+                vsrVersion.Message = string.Empty;
+
 			// Create commit record
 			var tree = m_GitRepository.ObjectDatabase.CreateTree(treeDefinition);
 			var gitCommit = m_GitRepository.ObjectDatabase.CreateCommit(author, committer, vsrVersion.Message, tree, gitParents, false, null);
