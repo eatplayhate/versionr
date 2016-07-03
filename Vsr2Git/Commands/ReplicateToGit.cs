@@ -146,7 +146,7 @@ namespace Vsr2Git.Commands
 				case Versionr.Objects.AlterationType.Move:
 					throw new NotImplementedException();
 				case Versionr.Objects.AlterationType.Delete:
-					throw new NotImplementedException();
+					return RemoveRecordFromTree(treeDefinition, m_VsrArea.GetRecord(alteration.PriorRecord.Value));
 				default:
 					throw new NotImplementedException();
 			}
@@ -180,6 +180,19 @@ namespace Vsr2Git.Commands
 			else
 			{
 				throw new NotImplementedException();
+			}
+		}
+
+		private TreeDefinition RemoveRecordFromTree(TreeDefinition treeDefinition, Versionr.Objects.Record vsrRecord)
+		{
+			if (vsrRecord.IsDirectory)
+			{
+				// git does not support removing directories
+				return treeDefinition;
+			}
+			else
+			{
+				return treeDefinition.Remove(vsrRecord.CanonicalName);
 			}
 		}
 
