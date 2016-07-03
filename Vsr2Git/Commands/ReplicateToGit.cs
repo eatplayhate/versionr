@@ -89,6 +89,8 @@ namespace Vsr2Git.Commands
 			// Choose author
 			var author = new Signature(GetAuthorIdentity(vsrVersion.Author), vsrVersion.Timestamp.ToLocalTime());
 			var committer = author;
+			Printer.PrintDiagnostics("  Author = {0}", author);
+			Printer.PrintDiagnostics("  Committer = {0}", committer);
 
 			// Choose parent commit
 			List<Commit> gitParents = new List<Commit>();
@@ -100,11 +102,13 @@ namespace Vsr2Git.Commands
 				{
 					throw new InvalidOperationException("Cannot replicate root version into non-empty repository");
 				}
+				Printer.PrintDiagnostics("  No parents; root commit");
 				treeDefinition = new TreeDefinition();
 			}
 			else
 			{
 				var gitParentCommit = GetGitCommitForVersionrId(vsrVersion.Parent.Value);
+				Printer.PrintDiagnostics("  Parent: vsr {0} = git {1}", vsrVersion.Parent.Value, gitParentCommit);
 				gitParents.Add(gitParentCommit);
 				treeDefinition = TreeDefinition.From(gitParentCommit);
 			}
@@ -112,7 +116,9 @@ namespace Vsr2Git.Commands
 			// Add merge parents
 			foreach (var mergeInfo in mergeParents)
 			{
-				gitParents.Add(GetGitCommitForVersionrId(mergeInfo.SourceVersion));
+				var gitMergeCommit = GetGitCommitForVersionrId(mergeInfo.SourceVersion);
+				Printer.PrintDiagnostics("  Parent: vsr {0} = git {1}", mergeInfo.SourceVersion, gitMergeCommit);
+				gitParents.Add(gitMergeCommit);
 			}
 
 			// Make alterations to tree
@@ -125,6 +131,7 @@ namespace Vsr2Git.Commands
 			// Create commit record
 			var tree = m_GitRepository.ObjectDatabase.CreateTree(treeDefinition);
 			var gitCommit = m_GitRepository.ObjectDatabase.CreateCommit(author, committer, vsrVersion.Message, tree, gitParents, false, null);
+			Printer.PrintDiagnostics("  Created git commit {0}", gitCommit.Id);
 			
 			// Link git commit to vsr version that generated it
 			m_VersionrToGitMapping[vsrVersion.ID] = gitCommit.Id.Sha;
@@ -184,6 +191,7 @@ namespace Vsr2Git.Commands
 			{
 				// git does not support committing empty directories.  We could synthesize a ".gitkeep" file as suggested
 				// on StackOverflow if the directory is empty for this commit.
+				Printer.PrintDiagnostics("  Ignore directory record {0}", vsrRecord.CanonicalName);
 				return treeDefinition;
 			}
 			else if (vsrRecord.IsFile)
@@ -194,6 +202,7 @@ namespace Vsr2Git.Commands
 
 				using (var stream = m_VsrArea.ObjectStore.GetRecordStream(vsrRecord))
 				{
+					Printer.PrintDiagnostics("  Add record {0} ({1} bytes{2})", vsrRecord.CanonicalName, stream.Length, mode == Mode.ExecutableFile ? " [Executable]" : "");
 					var blob = m_GitRepository.ObjectDatabase.CreateBlob(stream);
 					return treeDefinition.Add(vsrRecord.CanonicalName, blob, mode);
 				}
@@ -209,10 +218,12 @@ namespace Vsr2Git.Commands
 			if (vsrRecord.IsDirectory)
 			{
 				// git does not support removing directories
+				Printer.PrintDiagnostics("  Ignore directory record {0}", vsrRecord.CanonicalName);
 				return treeDefinition;
 			}
 			else
 			{
+				Printer.PrintDiagnostics("  Remove record {0}", vsrRecord.CanonicalName);
 				return treeDefinition.Remove(vsrRecord.CanonicalName);
 			}
 		}
@@ -277,6 +288,7 @@ namespace Vsr2Git.Commands
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
 			m_Options = (ReplicateToGitOptions)options;
+			Printer.EnableDiagnostics = m_Options.Verbose;
 
 			LoadVsrRepository(workingDirectory);
 			try
@@ -366,19 +378,27 @@ namespace Vsr2Git.Commands
 					else
 						gitBranchName = branch.Name;
 
-					Printer.PrintMessage("Updating branch {0}", gitBranchName);
-					if (m_GitRepository.Head != null && m_GitRepository.Head.FriendlyName == gitBranchName)
+					var gitBranch = m_GitRepository.Branches.FirstOrDefault(b => b.FriendlyName == gitBranchName);
+					if (gitBranch == null || gitBranch.Tip.Id != gitCommit.Id)
 					{
-						// Currently tracking this branch, we have to temporarily move HEAD somewhere else while
-						// we update the branch pointer
-						string canonicalName = m_GitRepository.Head.CanonicalName;
-						m_GitRepository.Refs.UpdateTarget("HEAD", gitCommit.Id.Sha);
-						m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
-						m_GitRepository.Refs.UpdateTarget("HEAD", canonicalName);
+						Printer.PrintMessage("Updating branch {0} to {1}", gitBranchName, gitCommit);
+						if (m_GitRepository.Head != null && m_GitRepository.Head.FriendlyName == gitBranchName)
+						{
+							// Currently tracking this branch, we have to temporarily move HEAD somewhere else while
+							// we update the branch pointer
+							string canonicalName = m_GitRepository.Head.CanonicalName;
+							m_GitRepository.Refs.UpdateTarget("HEAD", gitCommit.Id.Sha);
+							m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+							m_GitRepository.Refs.UpdateTarget("HEAD", canonicalName);
+						}
+						else
+						{
+							m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+						}
 					}
 					else
 					{
-						m_GitRepository.Branches.Add(gitBranchName, gitCommit, true);
+						Printer.PrintDiagnostics("Branch {0} already at tip {1}", gitBranchName, gitCommit);
 					}
 					branchNames.Add(gitBranchName);
 				}
@@ -396,6 +416,8 @@ namespace Vsr2Git.Commands
 				Printer.PrintMessage("Removing old vsr branch tip {0}", branch.FriendlyName);
 				m_GitRepository.Branches.Remove(branch);
 			}
+
+			Printer.PrintMessage("Replication complete");
 			
 			return true;
 		}

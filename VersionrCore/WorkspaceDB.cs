@@ -13,10 +13,10 @@ namespace Versionr
 {
 	internal class WorkspaceDB : SQLite.SQLiteConnection
 	{
-		public const int InternalDBVersion = 34;
+		public const int InternalDBVersion = 35;
 		public const int MinimumDBVersion = 3;
 		public const int MinimumRemoteDBVersion = 29;
-		public const int MaximumDBVersion = 34;
+		public const int MaximumDBVersion = 35;
 
 		public LocalDB LocalDatabase { get; set; }
 
@@ -92,11 +92,6 @@ namespace Versionr
 					}
 					PrepareTables();
 					Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
-
-					if (priorFormat < 34)
-					{
-						RunConsistencyCheck();
-					}
 					if (priorFormat < 33)
 					{
 						foreach (var x in Table<Record>().ToList())
@@ -269,6 +264,8 @@ namespace Versionr
 							Update(x);
 						}
 					}
+					RunConsistencyCheck();
+
 					DropTable<Objects.FormatInfo>();
 					fmt.InternalFormat = InternalDBVersion;
 					CreateTable<Objects.FormatInfo>();
@@ -347,7 +344,27 @@ namespace Versionr
 				else
 					records[key] = x;
 			}
+			int missingParents = 0;
 			int bonusDeletions = 0;
+
+			HashSet<long> allRecordIDs = new HashSet<long>();
+			var allRecords = Table<Objects.Record>().ToList();
+			foreach (var x in allRecords)
+			{
+				allRecordIDs.Add(x.Id);
+			}
+			foreach (var x in allRecords)
+			{
+				if (x.Parent.HasValue && !allRecordIDs.Contains(x.Parent.Value))
+				{
+					missingParents++;
+					x.Parent = null;
+					Update(x);
+				}
+			}
+			Printer.PrintDiagnostics("Removed {0} phantom record parents.", missingParents);
+
+
 			foreach (var x in Table<Objects.Version>().ToList())
 			{
 				x.Snapshot = null;
@@ -371,8 +388,6 @@ namespace Versionr
 						}
 					}
 				}
-				if (bonusDeletions >= 0)
-					Printer.PrintDiagnostics("Erased {0} unreconcilable deletions.", bonusDeletions);
 				foreach (var s in alterations)
 				{
 					if (s.Type == AlterationType.Add && moveAdds.Contains(s.NewRecord.Value))
@@ -387,6 +402,8 @@ namespace Versionr
 					}
 				}
 			}
+			if (bonusDeletions >= 0)
+				Printer.PrintDiagnostics("Erased {0} unreconcilable deletions.", bonusDeletions);
 		}
 
 		internal List<MergeInfo> GetMergeInfoFromSource(Guid versionID)
@@ -444,24 +461,25 @@ namespace Versionr
 				return GetCachedRecords(Version);
 			}
 		}
-		public List<Record> GetRecords(Objects.Version version)
+		public List<Record> GetRecords(Objects.Version version, bool testFailure = false)
 		{
 			List<Record> baseList;
 			List<Alteration> alterations;
-			return GetRecords(version, out baseList, out alterations);
+			return GetRecords(version, out baseList, out alterations, testFailure);
 		}
 
-		public List<Record> GetCachedRecords(Objects.Version version)
+		public List<Record> GetCachedRecords(Objects.Version version, bool testFailure = false)
 		{
 			List<Record> results;
 			if (LocalDatabase.GetCachedRecords(version.ID, out results))
 				return results;
-			results = GetRecords(version);
-			LocalDatabase.CacheRecords(version.ID, results);
+			results = GetRecords(version, testFailure);
+			if (!testFailure)
+				LocalDatabase.CacheRecords(version.ID, results);
 			return results;
 		}
 
-		public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations)
+		public List<Record> GetRecords(Objects.Version version, out List<Record> baseList, out List<Alteration> alterations, bool testFailure = false)
 		{
 			System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
 			sw.Start();
@@ -503,6 +521,8 @@ namespace Versionr
 			}
 			catch
 			{
+				if (testFailure)
+					throw;
 				Printer.PrintError("Error during database operation. Deleting cached snapshots.");
 				BeginExclusive(true);
 				RunConsistencyCheck();
