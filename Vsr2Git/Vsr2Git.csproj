@@ -55,6 +55,7 @@
   <ItemGroup>
     <Compile Include="Commands\ReplicateToGit.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Vsr2GitDirectives.cs" />
     <Compile Include="Vsr2GitOptions.cs" />
   </ItemGroup>
   <ItemGroup>

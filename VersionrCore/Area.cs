@@ -3402,6 +3402,8 @@ namespace Versionr
 		public T LoadConfigurationElement<T>(string v)
             where T : new()
         {
+			if (Configuration == null)
+				return new T();
             var element = Configuration[v];
             if (element == null)
                 return new T();

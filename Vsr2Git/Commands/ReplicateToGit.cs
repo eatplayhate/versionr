@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Versionr;
 using Versionr.Commands;
@@ -43,7 +44,7 @@ namespace Vsr2Git.Commands
 		[Option("init", HelpText = "Initialize a new, non-bare repository if the repository doesn't exist", MutuallyExclusiveSet="init")]
 		public bool InitNonBare { get; set; }
 	}
-
+	
 	class ReplicationVersion
 	{
 		public Guid VsrId;
@@ -56,6 +57,7 @@ namespace Vsr2Git.Commands
 	
 	class ReplicateToGit : BaseCommand
 	{
+		private Vsr2GitDirectives m_Directives;
 		private ReplicateToGitOptions m_Options;
 		private Area m_VsrArea;
 		private Repository m_GitRepository;
@@ -85,7 +87,7 @@ namespace Vsr2Git.Commands
 			Printer.PrintMessage("Replicate {0} on {1}: {2}", vsrVersion.ID, branchName, vsrVersion.Message);
 			
 			// Choose author
-			var author = new Signature(vsrVersion.Author, GetAuthorEmail(vsrVersion.Author), vsrVersion.Timestamp.ToLocalTime()); // TODO map name to email
+			var author = new Signature(GetAuthorIdentity(vsrVersion.Author), vsrVersion.Timestamp.ToLocalTime());
 			var committer = author;
 
 			// Choose parent commit
@@ -129,10 +131,28 @@ namespace Vsr2Git.Commands
 			m_GitRepository.Notes.Add(gitCommit.Id, "versionr-id: " + vsrVersion.ID.ToString(), author, committer, "commits");
 		}
 
-		private string GetAuthorEmail(string author)
+		private Regex AuthorEmailRegex = new Regex(@"(?<Name>[^<]+)\s+\<(?<Email>[^>]+)\>", RegexOptions.Compiled);
+
+		private Identity GetAuthorIdentity(string author)
 		{
-			// TODO
-			return author + "@ea.com";
+			string gitAuthor;
+			if (m_Directives.Authors != null && m_Directives.Authors.TryGetValue(author, out gitAuthor))
+			{
+				// Git author specified in .vrmeta as either "email@here.com" or "Bob James <email@here.com>"
+				var m = AuthorEmailRegex.Match(gitAuthor);
+				if (m.Success)
+					return new Identity(m.Groups["Name"].Value, m.Groups["Email"].Value);
+				else
+					return new Identity(author, gitAuthor);
+			}
+			else if (m_Directives.DefaultAuthorEmailDomain != null)
+			{
+				return new Identity(author, author + "@" + m_Directives.DefaultAuthorEmailDomain);
+			}
+			else
+			{
+				return new Identity(author, author + "@versionr");
+			}
 		}
 
 		private TreeDefinition AlterTree(TreeDefinition treeDefinition, Versionr.Objects.Alteration alteration)
@@ -251,17 +271,27 @@ namespace Vsr2Git.Commands
 
 		private void LoadVsrRepository(DirectoryInfo workingDirectory)
 		{
-			m_VsrArea = Area.Load(workingDirectory, true);
+			m_VsrArea = Area.Load(workingDirectory, false);
 		}
 
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
 			m_Options = (ReplicateToGitOptions)options;
 
+			LoadVsrRepository(workingDirectory);
+			try
+			{
+				m_Directives = m_VsrArea.LoadConfigurationElement<Vsr2GitDirectives>("Vsr2Git");
+			}
+			catch (Exception e)
+			{
+				Printer.PrintError("#x#Error:## .vrmeta is malformed!");
+				Printer.PrintMessage(e.ToString());
+				return false;
+			}
+			
 			if (!LoadGitRepository())
 				return false;
-
-			LoadVsrRepository(workingDirectory);
 			
 			// Populate replication map from git notes
 			try
