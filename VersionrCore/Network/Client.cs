@@ -483,7 +483,7 @@ namespace Versionr.Network
                     return false;
                 }
                 if (sendCount > 0)
-                    Printer.PrintMessage("Sent {0} versions to remote.", versionsToSend.Count);
+                    Printer.PrintMessage("Sent {0} versions to remote.", sendCount);
                 return true;
             }
             catch (Exception e)
