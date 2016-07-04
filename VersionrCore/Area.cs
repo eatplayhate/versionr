@@ -364,7 +364,14 @@ namespace Versionr
                 bool moveAsCopies = options.DisallowMoves;
                 bool allowDeletes = !options.DisallowDeletes;
 
-                for (int i = 0; i < entries.Count; i++)
+                int increment = 1;
+                int start = 0;
+                if (options.Reverse)
+                {
+                    start = entries.Count - 1;
+                    increment = -1;
+                }
+                for (int i = start; i < entries.Count && i >= 0; i += increment)
                 {
                     var x = entries[i];
                     Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", i, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
