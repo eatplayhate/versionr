@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Versionr.LocalState;
 
 namespace Versionr.Commands
 {
@@ -63,10 +64,11 @@ namespace Versionr.Commands
                 var remote = ws.GetRemote(string.IsNullOrEmpty(localOptions.RemoteName) ? "default" : localOptions.RemoteName);
                 if (remote == null)
                 {
-                    Printer.PrintError("#e#Error:## couldn't find a remote with name #b#\"{0}\"", localOptions.RemoteName);
-                    return false;
+                    Printer.PrintError("#e#Error:## couldn't find a remote with name #b#\"{0}\". Assuming versionr URL.", localOptions.RemoteName);
+                    filterRemote = localOptions.RemoteName;
                 }
-                filterRemote = Network.Client.ToVersionrURL(remote);
+                else
+                    filterRemote = Network.Client.ToVersionrURL(remote);
             }
             List<LocalState.RemoteLock> locks = ws.HeldLocks;
             if (locks.Count == 0)
@@ -87,37 +89,45 @@ namespace Versionr.Commands
                 Dictionary<string, string> remoteMap = new Dictionary<string, string>();
                 foreach (var x in locks)
                 {
-                    string lockPath = x.LockingPath;
-                    if (string.IsNullOrEmpty(lockPath) || lockPath == "/")
-                        lockPath = "<full vault>";
-                    string branch = "<all branches>";
-                    if (x.LockedBranch.HasValue)
-                    {
-                        var branchLocal = ws.GetBranch(x.LockedBranch.Value);
-                        if (branchLocal == null)
-                            branch = x.LockedBranch.Value.ToString();
-                        else
-                            branch = branchLocal.ShortID + " (" + branchLocal.Name + ")";
-                    }
-                    string guid = string.Empty;
-                    if (localOptions.ShowGuids)
-                        guid = "\n\t#q#" + x.ID;
-                    string remote = x.RemoteHost;
-                    string fname;
-                    if (!remoteMap.TryGetValue(remote, out fname))
-                    {
-                        var cachedRemote = ws.FindRemoteFromURL(remote);
-                        if (cachedRemote == null)
-                            fname = string.Empty;
-                        else
-                            fname = " (" + cachedRemote.Name + ")";
-                        remoteMap[remote] = fname;
-                    }
-                    remote += fname;
-                    Printer.PrintMessage(" #s#{0}##: #b#{1}##, branch #c#{2}## on #b#{3}##{4}", lockIndex++, lockPath, branch, remote, guid);
+                    FormatLock(ws, x, localOptions.ShowGuids, remoteMap, lockIndex++);
                 }
             }
             return true;
+        }
+
+        internal static void FormatLock(Area ws, RemoteLock x, bool showGUIDs, Dictionary<string, string> remoteMap, int? index)
+        {
+            string lockPath = x.LockingPath;
+            if (string.IsNullOrEmpty(lockPath) || lockPath == "/")
+                lockPath = "<full vault>";
+            string branch = "<all branches>";
+            if (x.LockedBranch.HasValue)
+            {
+                var branchLocal = ws.GetBranch(x.LockedBranch.Value);
+                if (branchLocal == null)
+                    branch = x.LockedBranch.Value.ToString();
+                else
+                    branch = branchLocal.ShortID + " (" + branchLocal.Name + ")";
+            }
+            string guid = string.Empty;
+            if (showGUIDs)
+                guid = "\n\t#q#" + x.ID;
+            string remote = x.RemoteHost;
+            string fname;
+            if (!remoteMap.TryGetValue(remote, out fname))
+            {
+                var cachedRemote = ws.FindRemoteFromURL(remote);
+                if (cachedRemote == null)
+                    fname = string.Empty;
+                else
+                    fname = " (" + cachedRemote.Name + ")";
+                remoteMap[remote] = fname;
+            }
+            remote += fname;
+            string prefix = "=";
+            if (index.HasValue)
+                prefix = string.Format("#s#\\#{0}##:", index.Value);
+            Printer.PrintMessage(" {0} #b#{1}##, branch #c#{2}## on #b#{3}##{4}", prefix, lockPath, branch, remote, guid);
         }
     }
 }

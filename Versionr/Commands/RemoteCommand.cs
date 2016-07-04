@@ -161,7 +161,7 @@ namespace Versionr.Commands
             }
         }
 
-        private Tuple<bool, string, int, string> TryParseRemoteName(string name)
+        public Tuple<bool, string, int, string> TryParseRemoteName(string name)
         {
             if (CanParseRemoteName)
                 return Client.ParseRemoteName(name);

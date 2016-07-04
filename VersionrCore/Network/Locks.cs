@@ -43,5 +43,9 @@ namespace Versionr.Network
     {
         [ProtoBuf.ProtoMember(1)]
         public List<Objects.VaultLock> Conflicts;
+        [ProtoBuf.ProtoMember(2)]
+        public string OffendingPath;
+        [ProtoBuf.ProtoMember(3)]
+        public Guid OffendingVersion;
     }
 }

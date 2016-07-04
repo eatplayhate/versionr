@@ -165,6 +165,19 @@ namespace Versionr
         {
             LocalData.BeginTransaction(true);
             LocalData.InsertSafe(new RemoteLock() { ID = lockID, LockedBranch = branchID, LockingPath = lockedPath, RemoteHost = versionrURL });
+            ReleaseLocksInternal(locksToClean);
+            LocalData.Commit();
+        }
+
+        public void ReleaseLocks(IEnumerable<Guid> locksToClean)
+        {
+            LocalData.BeginTransaction(true);
+            ReleaseLocksInternal(locksToClean);
+            LocalData.Commit();
+        }
+
+        private void ReleaseLocksInternal(IEnumerable<Guid> locksToClean)
+        {
             if (locksToClean != null)
             {
                 foreach (var x in locksToClean)
@@ -174,7 +187,6 @@ namespace Versionr
                         LocalData.DeleteSafe(localLock);
                 }
             }
-            LocalData.Commit();
         }
 
         public bool FindStashExact(string guidString)

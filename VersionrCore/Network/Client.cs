@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Versionr.LocalState;
 using Versionr.Objects;
 
 namespace Versionr.Network
@@ -92,19 +93,11 @@ namespace Versionr.Network
             {
                 bool multipleBranches;
                 var localBranch = Workspace.GetBranchByPartialName(branch, out multipleBranches);
-                if (localBranch == null)
-                {
-                    string branchFullID;
-                    if (!GetRemoteBranchID(branch, out branchFullID))
-                        return false;
-                    branchID = new Guid(branchFullID);
-                }
-                else
+                if (localBranch != null)
                 {
                     branch = localBranch.Name;
                     branchID = localBranch.ID;
                 }
-
                 if (branchID == null)
                 {
                     Printer.PrintError("#x#Error:## Couldn't lock branch \"{0}\", can't determine branch ID.", branch);
@@ -184,6 +177,8 @@ namespace Versionr.Network
 
         private bool SendLocks()
         {
+            if (SharedInfo.CommunicationProtocol <= SharedNetwork.Protocol.Versionr32)
+                return false;
             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.SendLocks }, ProtoBuf.PrefixStyle.Fixed32);
             var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
             if (queryResult.Type == NetCommandType.Error)
@@ -220,6 +215,32 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
+
+        public bool ReleaseLocks(List<RemoteLock> locks)
+        {
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.ReleaseLocks }, ProtoBuf.PrefixStyle.Fixed32);
+            var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type != NetCommandType.Acknowledge)
+            {
+                Printer.PrintError("Couldn't release lock - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+            LockTokenList ltl = new LockTokenList()
+            {
+                Locks = locks.Select(x => x.ID).ToList()
+            };
+            Utilities.SendEncrypted(SharedInfo, ltl);
+
+            queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type == NetCommandType.Acknowledge)
+            {
+                Workspace.ReleaseLocks(ltl.Locks);
+                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // ignored
+                return true;
+            }
+            return false;
+        }
+
         public bool SyncCurrentRecords()
         {
             return Workspace.SyncCurrentRecords();
@@ -442,6 +463,7 @@ namespace Versionr.Network
                 if (!SharedNetwork.GetVersionList(SharedInfo, version, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
+                SendLocks();
                 if (!SharedNetwork.SendBranches(SharedInfo, branchesToSend))
                     return false;
                 if (!SharedNetwork.SendVersions(SharedInfo, versionsToSend))

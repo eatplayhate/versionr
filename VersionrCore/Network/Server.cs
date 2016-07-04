@@ -535,7 +535,11 @@ namespace Versionr.Network
                                 if (!clientInfo.Access.HasFlag(Rights.Write))
                                     throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client attempting to send version data...");
-                                SharedNetwork.ReceiveVersions(sharedInfo);
+                                if (!SharedNetwork.ReceiveVersions(sharedInfo, clientInfo.Locks))
+                                {
+                                    Printer.PrintDiagnostics("Can't accept versions, aborting.");
+                                    throw new Exception();
+                                }
                             }
                             else if (command.Type == NetCommandType.PushHead)
                             {
@@ -704,11 +708,13 @@ namespace Versionr.Network
                                         var resultLocks = sharedInfo.Workspace.BreakLocks(lockTokens.Locks);
                                         sharedInfo.Workspace.CommitDatabaseTransaction();
 
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                                         Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = resultLocks });
                                     }
                                     catch
                                     {
                                         sharedInfo.Workspace.RollbackDatabaseTransaction();
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
                                         throw;
                                     }
                                 }
@@ -739,7 +745,7 @@ namespace Versionr.Network
                                 if (lockConflicts.Count == 0 || rli.Steal)
                                 {
                                     LockGrantInformation lgi = new LockGrantInformation();
-                                    lgi.BrokenLocks = new LockConflictInformation() { Conflicts = lockConflicts };
+                                    lgi.BrokenLocks = new LockConflictInformation() { Conflicts = lockConflicts, OffendingPath = rli.Path };
                                     try
                                     {
                                         sharedInfo.Workspace.BeginDatabaseTransaction();

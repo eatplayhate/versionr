@@ -151,7 +151,7 @@ namespace Versionr
         private static bool AllowInteractivePrinting = true;
         public static bool NoColours = false;
 
-        internal static bool Prompt(string v)
+        public static bool Prompt(string v)
         {
             PrintMessage("\n#b#{0}## - (y)es or (n)o", v);
             while (true)
