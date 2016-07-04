@@ -24,7 +24,6 @@ namespace Versionr
         {
             Printer.PrintDiagnostics("Metadata DB Open.");
             EnableWAL = true;
-            PrepareTables();
             LocalDatabase = localDB;
             
             CreateTable<Objects.FormatInfo>();
@@ -48,9 +47,9 @@ namespace Versionr
                     var fmt = Format;
 					int priorFormat = fmt.InternalFormat;
                     BeginExclusive(true);
-                    RunConsistencyCheck();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
                     PrepareTables();
+                    RunConsistencyCheck();
                     if (priorFormat < 33)
                     {
                         foreach (var x in Table<Record>().ToList())
