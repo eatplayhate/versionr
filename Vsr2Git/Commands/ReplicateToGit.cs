@@ -196,8 +196,12 @@ namespace Vsr2Git.Commands
 		{
 			if (vsrRecord.IsSymlink)
 			{
-				// TODO 
-				throw new NotSupportedException();
+				Printer.PrintDiagnostics("  Add symlink {0} -> {1}", vsrRecord.CanonicalName, vsrRecord.Fingerprint);
+				using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(vsrRecord.Fingerprint)))
+				{
+					var blob = m_GitRepository.ObjectDatabase.CreateBlob(stream);
+					return treeDefinition.Add(vsrRecord.CanonicalName, blob, Mode.SymbolicLink);
+				}
 			}
 			else if (vsrRecord.IsDirectory)
 			{
