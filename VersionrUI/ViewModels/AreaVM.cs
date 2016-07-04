@@ -110,6 +110,7 @@ namespace VersionrUI.ViewModels
                         }
                         break;
                 }
+                RefreshAll();
                 NotifyPropertyChanged("Directory");
                 NotifyPropertyChanged("IsValid");
                 NotifyPropertyChanged("Remotes");
