@@ -2965,9 +2965,14 @@ namespace Versionr
 
         public Objects.Record GetRecord(long id)
         {
-            Objects.Record rec = Database.Query<Objects.Record>("SELECT * FROM ObjectName INNER JOIN (SELECT Record.* FROM Record WHERE Record.Id = ?) AS results ON ObjectName.NameId = results.CanonicalNameId", id).FirstOrDefault();
-            return rec;
-        }
+			Objects.Record rec = Database.Find<Objects.Record>(id);
+			if (rec != null)
+			{
+				rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+			}
+
+			return rec;
+		}
 
         internal void AddHeadNoCommit(Head x)
         {
