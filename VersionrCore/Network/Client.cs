@@ -559,7 +559,7 @@ namespace Versionr.Network
                     string branchFullID;
                     if (!GetRemoteBranchID(branchName, out branchFullID))
                         return false;
-                    branches.Add(branchName);
+                    branches.Add(branchFullID);
                 }
                 foreach (var branchID in branches)
                 {
