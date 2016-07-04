@@ -68,11 +68,8 @@ namespace Vsr2Git.Commands
 			return null;
 		}
 
-		private void Replicate(Versionr.Objects.Version vsrVersion, IEnumerable<Versionr.Objects.MergeInfo> mergeParents)
+		private void Replicate(Versionr.Objects.Version vsrVersion)
 		{
-			if (HasMapping(vsrVersion.ID))
-				return;
-
 			string branchName = m_VsrArea.GetBranch(vsrVersion.Branch).Name;
 			Printer.PrintMessage("Replicate {0} on {1}: {2}", vsrVersion.ID, branchName, vsrVersion.Message);
 			
@@ -104,6 +101,7 @@ namespace Vsr2Git.Commands
 			}
 
 			// Add merge parents
+			var mergeParents = m_VsrArea.GetMergeInfo(vsrVersion.ID);
 			foreach (var mergeInfo in mergeParents)
 			{
 				var gitMergeCommit = GetGitCommitForVersionrId(mergeInfo.SourceVersion);
@@ -111,12 +109,8 @@ namespace Vsr2Git.Commands
 				gitParents.Add(gitMergeCommit);
 			}
 
-			// Retrieve records
-			var alterations = m_VsrArea.GetAlterations(vsrVersion);
-			var targetRecords = GetTargetRecords(alterations);
-			m_VsrArea.GetMissingRecords(targetRecords);
-
 			// Make alterations to tree
+			var alterations = m_VsrArea.GetAlterations(vsrVersion);
 			foreach (var alteration in alterations)
 			{
 				treeDefinition = AlterTree(treeDefinition, alteration);
@@ -303,6 +297,65 @@ namespace Vsr2Git.Commands
 			m_VsrArea = Area.Load(workingDirectory, false);
 		}
 		
+		/// <summary>
+		/// Traverse versions backwards from branch heads, and accumulate a list of versions that
+		/// need to be replicated in order.
+		/// </summary>
+		/// <returns></returns>
+		private List<Versionr.Objects.Version> GetVersionsToReplicate()
+		{
+			var result = new List<Versionr.Objects.Version>();
+			var resultHash = new HashSet<Guid>(m_VersionrToGitMapping.Keys);
+
+			// Find list of heads to replicate
+			var replicationStack = new Stack<Guid>();
+			foreach (var branch in m_VsrArea.Branches)
+			{
+				foreach (var head in m_VsrArea.GetBranchHeads(branch))
+				{
+					replicationStack.Push(head.Version);
+				}
+			}
+
+			// Recursively add all required parent versions
+			while (replicationStack.Count > 0)
+			{
+				var vsrVersion = m_VsrArea.GetVersion(replicationStack.Peek());
+				bool hasParents = true;
+
+				if (vsrVersion.Parent.HasValue && !resultHash.Contains(vsrVersion.Parent.Value))
+				{
+					replicationStack.Push(vsrVersion.Parent.Value);
+					hasParents = false;
+				}
+
+				var mergeParents = m_VsrArea.GetMergeInfo(vsrVersion.ID);
+				foreach (var merge in mergeParents)
+				{
+					if (merge.Type == Versionr.Objects.MergeType.Rebase)
+						continue;
+
+					if (!resultHash.Contains(merge.SourceVersion))
+					{
+						replicationStack.Push(merge.SourceVersion);
+						hasParents = false;
+					}
+				}
+
+				if (hasParents)
+				{
+					if (!resultHash.Contains(vsrVersion.ID))
+					{
+						resultHash.Add(vsrVersion.ID);
+						result.Add(vsrVersion);
+					}
+					replicationStack.Pop();
+				}
+			}
+
+			return result;
+		}
+
 		public bool Run(DirectoryInfo workingDirectory, object options)
 		{
 			m_Options = (ReplicateToGitOptions)options;
@@ -319,10 +372,10 @@ namespace Vsr2Git.Commands
 				Printer.PrintMessage(e.ToString());
 				return false;
 			}
-			
+
 			if (!LoadGitRepository())
 				return false;
-			
+
 			// Populate replication map from git notes
 			try
 			{
@@ -336,48 +389,30 @@ namespace Vsr2Git.Commands
 			catch (NotFoundException)
 			{ }
 
-			// Find list of heads to replicate
-			var replicationStack = new Stack<Guid>();
-			foreach (var branch in m_VsrArea.Branches)
+			// Determine list and order of versions to replicate
+			Printer.PrintMessage("Determining versions to replicate...");
+			var versionsToReplicate = GetVersionsToReplicate();
+			Printer.PrintMessage("There are {0} versions to replicate", versionsToReplicate.Count);
+
+			// Determine missing records
+			var missingRecords = new List<Versionr.Objects.Record>();
+			foreach (var vsrVersion in versionsToReplicate)
 			{
-				foreach (var head in m_VsrArea.GetBranchHeads(branch))
-				{
-					replicationStack.Push(head.Version);
-				}
+				var alterations = m_VsrArea.GetAlterations(vsrVersion);
+				var targetRecords = GetTargetRecords(alterations);
+				missingRecords.AddRange(m_VsrArea.FindMissingRecords(targetRecords));
 			}
 
-			// Recursively replicate all required versions
-			while (replicationStack.Count > 0)
+			// Download missing records
+			Printer.PrintMessage("Downloading data for {0} records ({1} total)", missingRecords.Count, Versionr.Utilities.Misc.FormatSizeFriendly(missingRecords.Sum(x => x.Size)));
+			m_VsrArea.GetMissingRecords(missingRecords);
+
+			// Perform replication
+			foreach (var vsrVersion in versionsToReplicate)
 			{
-				var vsrVersion = m_VsrArea.GetVersion(replicationStack.Peek());
-				bool hasParents = true;
-
-				if (vsrVersion.Parent.HasValue && !HasMapping(vsrVersion.Parent.Value))
-				{
-					replicationStack.Push(vsrVersion.Parent.Value);
-					hasParents = false;
-				}
-
-				var mergeParents = m_VsrArea.GetMergeInfo(vsrVersion.ID);
-				foreach (var merge in mergeParents)
-				{
-					if (merge.Type == Versionr.Objects.MergeType.Rebase)
-						continue;
-
-					if (!HasMapping(merge.SourceVersion))
-					{
-						replicationStack.Push(merge.SourceVersion);
-						hasParents = false;
-					}
-				}
-
-				if (hasParents)
-				{
-					Replicate(vsrVersion, mergeParents);
-					replicationStack.Pop();
-				}
+				Replicate(vsrVersion);
 			}
-			
+
 			// Replicate branch pointers
 			var branchNames = new HashSet<string>();
 			foreach (var branch in m_VsrArea.Branches)

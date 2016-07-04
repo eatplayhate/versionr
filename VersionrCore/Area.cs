@@ -6022,7 +6022,7 @@ namespace Versionr
             return false;
         }
 
-        private List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
+        public List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = new List<Record>();
             HashSet<string> requestedData = new HashSet<string>();
