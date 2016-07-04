@@ -41,6 +41,8 @@ namespace Versionr.Commands
         public bool Replicate { get; set; }
         [Option("check", Required = false, HelpText = "Runs a general purpose DB consistency check and repair function.")]
         public bool Check { get; set; }
+        [Option("vacuum", Required = false, HelpText = "Runs the SQLite VACUUM instruction on the master DB.")]
+        public bool Vacuum { get; set; }
     }
     class Admin : BaseWorkspaceCommand
     {
@@ -50,6 +52,8 @@ namespace Versionr.Commands
             Printer.EnableDiagnostics = localOptions.Verbose;
             if (localOptions.Check)
                 Workspace.RunConsistencyCheck();
+            if (localOptions.Vacuum)
+                Workspace.RunVacuum();
             return true;
         }
     }

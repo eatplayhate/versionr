@@ -13,10 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 35;
-        public const int MinimumDBVersion = 3;
+        public const int InternalDBVersion = 37;
+        public const int MinimumDBVersion = 30;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 35;
+        public const int MaximumDBVersion = 37;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -24,6 +24,7 @@ namespace Versionr
         {
             Printer.PrintDiagnostics("Metadata DB Open.");
             EnableWAL = true;
+            PrepareTables();
             LocalDatabase = localDB;
             
             CreateTable<Objects.FormatInfo>();
@@ -46,53 +47,10 @@ namespace Versionr
                 {
                     var fmt = Format;
 					int priorFormat = fmt.InternalFormat;
-                    if (priorFormat < 17)
-                    {
-                        ExecuteDirect("PRAGMA main.page_size = 4096;");
-                        ExecuteDirect("PRAGMA main.cache_size = 10240;");
-                        ExecuteDirect("PRAGMA temp_store = MEMORY;");
-                        EnableWAL = false;
-                        ExecuteDirect("VACUUM");
-                        EnableWAL = true;
-                    }
                     BeginExclusive(true);
                     RunConsistencyCheck();
-                    if (priorFormat <= 12)
-                    {
-                        var info = GetTableInfo("ObjectName");
-                        if (info.Where(x => x.Name == "NameId").Count() == 0)
-                        {
-                            var objNames = Query<ObjectNameOld>("SELECT * FROM ObjectName").ToList();
-                            Dictionary<long, long> nameMapping = new Dictionary<long, long>();
-                            Dictionary<string, long> nameIndexes = new Dictionary<string, long>();
-                            DropTable<ObjectName>();
-                            Commit();
-                            BeginExclusive();
-                            CreateTable<ObjectName>();
-                            foreach (var x in objNames)
-                            {
-                                if (nameIndexes.ContainsKey(x.CanonicalName))
-                                {
-                                    nameMapping[x.Id] = nameIndexes[x.CanonicalName];
-                                }
-                                else
-                                {
-                                    ObjectName oname = new ObjectName() { CanonicalName = x.CanonicalName };
-                                    Insert(oname);
-                                    nameMapping[x.Id] = oname.NameId;
-                                    nameIndexes[x.CanonicalName] = oname.NameId;
-                                }
-                            }
-                            foreach (var x in Table<Record>().ToList())
-                            {
-                                x.CanonicalNameId = nameMapping[x.CanonicalNameId];
-                                Update(x);
-                            }
-                            Commit();
-                        }
-                    }
-                    PrepareTables();
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
+                    PrepareTables();
                     if (priorFormat < 33)
                     {
                         foreach (var x in Table<Record>().ToList())
@@ -127,18 +85,6 @@ namespace Versionr
                             }
                         }
                     }
-                    if (priorFormat < 28)
-                    {
-                        var tips = Query<BranchJournal>("SELECT * FROM BranchJournal WHERE NOT EXISTS (SELECT * FROM BranchJournalLink WHERE Parent = BranchJournal.ID)").ToList();
-                        if (tips.Count > 1)
-                            Printer.PrintError("#e#Database update encountered an error - multiple possible tips for branch journal data found. Selecting final revision.");
-                        if (tips.Count != 0)
-                            BranchJournalTip = tips[tips.Count - 1].ID;
-                    }
-                    if (priorFormat < 14)
-                    {
-                        ExecuteDirect("DROP TABLE RecordIndex;");
-                    }
                     if (priorFormat < 32)
                     {
                         int count = 0;
@@ -171,10 +117,6 @@ namespace Versionr
                                 Update(x);
                             }
                         }
-                    }
-                    if (priorFormat < 30)
-                    {
-                        RunConsistencyCheck();
                     }
                     if (priorFormat < 30)
                     {
@@ -242,29 +184,6 @@ namespace Versionr
                                 Printer.PrintDiagnostics("Version {0} had {1} duplicated alterations that have been fixed.", x.ShortName, counter);
                         }
                     }
-                    else if (priorFormat == 7)
-                    {
-                        Printer.PrintMessage(" - Upgrading database - adding branch root version.");
-                        foreach (var x in Table<Objects.Branch>().ToList())
-                        {
-                            var allVersions = Table<Objects.Version>().Where(y => y.Branch == x.ID);
-                            Guid? rootVersion = null;
-                            foreach (var y in allVersions)
-                            {
-                                if (y.Parent.HasValue)
-                                {
-                                    Objects.Version parent = Get<Objects.Version>(y.Parent);
-                                    if (parent.Branch != x.ID)
-                                    {
-                                        rootVersion = parent.ID;
-                                        break;
-                                    }
-                                }
-                            }
-                            x.RootVersion = rootVersion;
-                            Update(x);
-                        }
-                    }
 
                     DropTable<Objects.FormatInfo>();
                     fmt.InternalFormat = InternalDBVersion;
@@ -282,6 +201,14 @@ namespace Versionr
                 }
                 PrepareTables();
             }
+        }
+
+        internal void Vacuum()
+        {
+            Printer.PrintMessage("Running vacuum command.");
+            EnableWAL = false;
+            ExecuteDirect("VACUUM");
+            EnableWAL = true;
         }
 
         internal void ConsistencyCheck()
@@ -440,6 +367,9 @@ namespace Versionr
             CreateTable<Objects.Domain>();
             CreateTable<Objects.BranchJournalLink>();
             CreateTable<Objects.BranchJournal>();
+            CreateTable<Objects.Annotation>();
+            CreateTable<Objects.VaultLock>();
+            CreateTable<Objects.Tag>();
         }
 
         public Guid Domain

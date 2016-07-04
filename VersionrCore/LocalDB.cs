@@ -12,7 +12,7 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 11;
+        public const int LocalDBVersion = 12;
         private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
@@ -34,6 +34,7 @@ namespace Versionr
             CreateTable<LocalState.LockingObject>();
             CreateTable<LocalState.SavedStash>();
             CreateTable<LocalState.CachedRecords>();
+            CreateTable<LocalState.RemoteLock>();
             Commit();
         }
 
@@ -183,6 +184,7 @@ namespace Versionr
             else
                 return true;
             PrepareTables();
+            DeleteAll<CachedRecords>();
             if (Configuration.Version < 11)
             {
                 try

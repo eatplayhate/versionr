@@ -10,13 +10,20 @@ namespace Versionr.Commands
 {
     abstract class RemoteCommandVerbOptions : VerbOptionBase
     {
+        public virtual string OptionsString
+        {
+            get
+            {
+                return "#q#[options]##";
+            }
+        }
         public override string Usage
         {
             get
             {
-                return string.Format("#b#versionr #i#{0}## [--server remote_name] #q#[options]##\n" +
-                    "#b#versionr #i#{0}## [--host remote_host --port remote_port] #q#[options]##\n" +
-                    "#b#versionr #i#{0}## [--remote vsr://remote_host:port/path] #q#[options]##", Verb);
+                return string.Format("#b#versionr #i#{0}## [--server remote_name] {1}\n" +
+                    "#b#versionr #i#{0}## [--host remote_host --port remote_port] {1}\n" +
+                    "#b#versionr #i#{0}## [--remote vsr://remote_host:port/path] {1}", Verb, OptionsString);
             }
         }
         [Option('h', "host", Required = false, HelpText = "Specifies the hostname to push to.")]
@@ -28,7 +35,7 @@ namespace Versionr.Commands
         [Option('m', "module", Required = false, HelpText = "The name of the remote module to select (used if a single server is hosting multiple vaults).")]
         public string Module { get; set; }
 
-        [Option('s', "server", Required = false, HelpText = "The saved name of the server.")]
+        [Option('s', "server", HelpText = "The saved name of the server.")]
         public string Name { get; set; }
     }
     abstract class RemoteCommand : BaseCommand
@@ -154,7 +161,7 @@ namespace Versionr.Commands
             }
         }
 
-        private Tuple<bool, string, int, string> TryParseRemoteName(string name)
+        public Tuple<bool, string, int, string> TryParseRemoteName(string name)
         {
             if (CanParseRemoteName)
                 return Client.ParseRemoteName(name);

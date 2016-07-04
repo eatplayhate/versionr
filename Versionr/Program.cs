@@ -125,6 +125,15 @@ namespace Versionr
         [VerbOption("pull-stash", HelpText = "Pulls one or more stashes from a server.")]
         public Commands.PullStashVerbOptions PullStashVerb { get; set; }
 
+        [VerbOption("lock", HelpText = "Acquires an exclusive lock to a specific path on a server.")]
+        public Commands.LockVerbOptions LockVerb { get; set; }
+
+        [VerbOption("lock-list", HelpText = "Lists the locks currently held by this versionr node.")]
+        public Commands.LockListVerbOptions LockListVerb { get; set; }
+
+        [VerbOption("unlock", HelpText = "Releases a held exclusive lock on a remote.")]
+        public Commands.UnlockVerbOptions UnlockVerb { get; set; }
+
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 

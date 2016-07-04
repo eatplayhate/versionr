@@ -17,7 +17,8 @@ namespace Versionr.Network
             Versionr29,
             Versionr3,
             Versionr31,
-            Versionr32
+            Versionr32,
+            Versionr33
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -25,7 +26,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -509,13 +510,24 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushVersions }, ProtoBuf.PrefixStyle.Fixed32);
                     VersionPack pack = CreatePack(sharedInfo, versionData);
                     Utilities.SendEncrypted(sharedInfo, pack);
-                    ackCount++;
-                }
-                while (ackCount-- > 0)
-                {
+
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                    if (response.Type != NetCommandType.Acknowledge)
+                    if (response.Type == NetCommandType.Acknowledge)
+                        continue;
+                    else
+                    {
+                        if (response.Type == NetCommandType.PathLocked)
+                        {
+                            var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(sharedInfo);
+                            Printer.PrintMessage("#e#Couldn't send version:## #b#path locked##\n\nVersion: #b#{0}##\nLocked Path: #b#{1}##\n\nConflicting lock information:", lockConflicts.OffendingVersion, lockConflicts.OffendingPath);
+                            foreach (var x in lockConflicts.Conflicts)
+                            {
+                                Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
+                            }
+                            return false;
+                        }
                         return false;
+                    }
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
                 while (true)
@@ -1134,21 +1146,32 @@ namespace Versionr.Network
 
         private static void ReceiveRecordParents(SharedNetwork.SharedNetworkInfo sharedInfo, RecordParentPack response)
         {
+            LockConflictInformation ignored = null;
             foreach (var x in response.Parents)
             {
-                CheckRecord(sharedInfo, x);
+                CheckRecord(sharedInfo, null, x, false, null, ref ignored);
             }
         }
 
-        internal static void ReceiveVersions(SharedNetworkInfo sharedInfo)
+        internal static bool ReceiveVersions(SharedNetworkInfo sharedInfo, HashSet<Guid> locks = null)
         {
             VersionPack pack = Utilities.ReceiveEncrypted<VersionPack>(sharedInfo);
-            ReceivePack(sharedInfo, pack);
-            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+            LockConflictInformation lci;
+            ReceivePack(sharedInfo, pack, locks, out lci);
+            if (lci != null)
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PathLocked }, ProtoBuf.PrefixStyle.Fixed32);
+                Utilities.SendEncrypted(sharedInfo, lci);
+                return false;
+            }
+            else
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+            return true;
         }
 
-        private static void ReceivePack(SharedNetworkInfo sharedInfo, VersionPack pack)
+        private static void ReceivePack(SharedNetworkInfo sharedInfo, VersionPack pack, HashSet<Guid> locks, out LockConflictInformation lci)
         {
+            lci = null;
             if (sharedInfo.ReceivedVersionSet == null)
                 sharedInfo.ReceivedVersionSet = new HashSet<Guid>();
             foreach (var x in pack.Versions)
@@ -1156,31 +1179,48 @@ namespace Versionr.Network
                 if (!sharedInfo.ReceivedVersionSet.Contains(x.Version.ID))
                 {
                     sharedInfo.PushedVersions.Add(x);
-                    CheckRecords(sharedInfo, x);
+                    CheckRecords(sharedInfo, x, locks, ref lci);
+                    if (lci != null)
+                        return;
                     sharedInfo.ReceivedVersionSet.Add(x.Version.ID);
                 }
             }
         }
 
-        private static void CheckRecords(SharedNetworkInfo sharedInfo, VersionInfo info)
+        private static void CheckRecords(SharedNetworkInfo sharedInfo, VersionInfo info, HashSet<Guid> locks, ref LockConflictInformation lci)
         {
             if (info.Alterations != null)
             {
                 foreach (var x in info.Alterations)
                 {
-                    CheckRecord(sharedInfo, x.NewRecord);
-                    CheckRecord(sharedInfo, x.PriorRecord);
+                    CheckRecord(sharedInfo, info, x.NewRecord, true, locks, ref lci);
+                    CheckRecord(sharedInfo, info, x.PriorRecord, true, locks, ref lci);
                 }
             }
         }
 
-        public static void CheckRecord(SharedNetworkInfo sharedInfo, Record record)
+        public static void CheckRecord(SharedNetworkInfo sharedInfo, VersionInfo info, Record record, bool checkLocks, HashSet<Guid> locks, ref LockConflictInformation lci)
         {
             if (record == null)
                 return;
             sharedInfo.RemoteRecordMap[record.Id] = record;
             if (!sharedInfo.UnknownRecordSet.Contains(record.Id))
             {
+                if (checkLocks)
+                {
+                    List<VaultLock> overlappingLocks = null;
+                    sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, locks, out overlappingLocks);
+                    if (overlappingLocks.Count > 0)
+                    {
+                        lci = new LockConflictInformation()
+                        {
+                            Conflicts = overlappingLocks,
+                            OffendingPath = record.CanonicalName,
+                            OffendingVersion = info.Version.ID
+                        };
+                        return;
+                    }
+                }
                 var localRecord = sharedInfo.Workspace.LocateRecord(record);
                 if (localRecord == null)
                 {

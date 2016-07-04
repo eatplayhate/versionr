@@ -151,6 +151,19 @@ namespace Versionr
         private static bool AllowInteractivePrinting = true;
         public static bool NoColours = false;
 
+        public static bool Prompt(string v)
+        {
+            PrintMessage("\n#b#{0}## - (y)es or (n)o", v);
+            while (true)
+            {
+                string s = System.Console.ReadLine();
+                if (s.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                    return true;
+                else if (s.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+        }
+
         private static int IndentLevel { get; set; }
 
         static string Indent
