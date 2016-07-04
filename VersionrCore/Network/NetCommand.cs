@@ -39,7 +39,8 @@ namespace Versionr.Network
         PullStashQuery,
         SendLocks,
         RequestLock,
-        PathLocked
+        PathLocked,
+        ReleaseLocks
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

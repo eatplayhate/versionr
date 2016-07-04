@@ -8,7 +8,7 @@ using Versionr.Network;
 
 namespace Versionr.Commands
 {
-    class AcquireLockVerbOptions : RemoteCommandVerbOptions
+    class LockVerbOptions : RemoteCommandVerbOptions
     {
         public override string[] Description
         {
@@ -34,7 +34,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return "acquire-lock";
+                return "lock";
             }
         }
         [Option("full", HelpText = "Locks the entire vault.")]
@@ -51,14 +51,14 @@ namespace Versionr.Commands
 
         public override BaseCommand GetCommand()
         {
-            return new AcquireLock();
+            return new Lock();
         }
     }
-    class AcquireLock : RemoteCommand
+    class Lock : RemoteCommand
     {
         protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
         {
-            AcquireLockVerbOptions localOptions = options as AcquireLockVerbOptions;
+            LockVerbOptions localOptions = options as LockVerbOptions;
             if (string.IsNullOrEmpty(localOptions.Path) && !localOptions.Full)
             {
                 Printer.PrintMessage("#x#Error:## missing specification of lock path!");
@@ -72,6 +72,8 @@ namespace Versionr.Commands
                     Printer.PrintMessage("#w#Warning:## File #b#\"{0}\"## does not exist (yet).", localOptions.Path);
                 localOptions.Path = client.Workspace.GetLocalPath(fullPath);
             }
+            if (string.IsNullOrEmpty(localOptions.Branch))
+                localOptions.Branch = client.Workspace.CurrentBranch.ID.ToString();
             return client.AcquireLock(localOptions.Path, localOptions.Branch, localOptions.AllBranches, localOptions.Full, localOptions.Steal);
         }
 

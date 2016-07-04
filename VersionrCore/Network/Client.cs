@@ -20,7 +20,7 @@ namespace Versionr.Network
         public string Module { get; set; }
         public int Port { get; set; }
 
-        System.IO.DirectoryInfo BaseDirectory { get; set; }
+        public System.IO.DirectoryInfo BaseDirectory { get; set; }
 
         HashSet<Guid> ServerKnownBranches { get; set; }
         HashSet<Guid> ServerKnownVersions { get; set; }
@@ -155,7 +155,10 @@ namespace Versionr.Network
                 if (queryResult.Type == NetCommandType.Acknowledge)
                 {
                     var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
-                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, VersionrURL);
+                    IEnumerable<Guid> brokenLocks = null;
+                    if (lockGranting?.BrokenLocks?.Conflicts != null)
+                        brokenLocks = lockGranting.BrokenLocks.Conflicts.Select(x => x.ID);
+                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, VersionrURL, brokenLocks);
                     Printer.PrintMessage("Acquired lock.");
                     return true;
                 }
@@ -165,7 +168,7 @@ namespace Versionr.Network
                     Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n\nConflicting lock information:");
                     foreach (var x in lockConflicts.Conflicts)
                     {
-                        Printer.PrintMessage("#b#{0}## locked {1} on branch {2}", x.User, x.Path, x.Branch);
+                        Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
                     }
                     return false;
                 }
@@ -235,6 +238,11 @@ namespace Versionr.Network
         public static string ToVersionrURL(string host, int port, string domain = null)
         {
             return "vsr://" + host + ":" + port + (string.IsNullOrEmpty(domain) ? "" : ("/" + domain));
+        }
+
+        public static string ToVersionrURL(LocalState.RemoteConfig remote)
+        {
+            return "vsr://" + remote.Host + ":" + remote.Port + (string.IsNullOrEmpty(remote.Module) ? "" : ("/" + remote.Module));
         }
 
         public void Close()

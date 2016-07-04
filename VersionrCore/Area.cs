@@ -151,9 +151,30 @@ namespace Versionr
             }
         }
 
-        internal void RecordLock(Guid lockID, Guid? branchID, string lockedPath, string versionrURL)
+        public RemoteConfig FindRemoteFromURL(string remote)
         {
-            throw new NotImplementedException();
+            foreach (var x in LocalData.Table<RemoteConfig>())
+            {
+                if (Network.Client.ToVersionrURL(x) == remote)
+                    return x;
+            }
+            return null;
+        }
+
+        internal void RecordLock(Guid lockID, Guid? branchID, string lockedPath, string versionrURL, IEnumerable<Guid> locksToClean)
+        {
+            LocalData.BeginTransaction(true);
+            LocalData.InsertSafe(new RemoteLock() { ID = lockID, LockedBranch = branchID, LockingPath = lockedPath, RemoteHost = versionrURL });
+            if (locksToClean != null)
+            {
+                foreach (var x in locksToClean)
+                {
+                    var localLock = LocalData.Find<RemoteLock>(x);
+                    if (localLock != null)
+                        LocalData.DeleteSafe(localLock);
+                }
+            }
+            LocalData.Commit();
         }
 
         public bool FindStashExact(string guidString)
@@ -1055,6 +1076,21 @@ namespace Versionr
             return vl.ID;
         }
 
+        internal List<Guid> BreakLocks(List<Guid> lockConflicts)
+        {
+            List<Guid> brokenLocks = new List<Guid>();
+            foreach (var x in lockConflicts)
+            {
+                var lk = Database.Find<VaultLock>(x);
+                if (lk != null)
+                {
+                    Database.DeleteSafe(lk);
+                    brokenLocks.Add(x);
+                }
+            }
+            return brokenLocks;
+        }
+
         internal void BreakLocks(List<VaultLock> lockConflicts)
         {
             foreach (var x in lockConflicts)
@@ -1064,16 +1100,25 @@ namespace Versionr
         internal void CheckLocks(string path, Guid? branch, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
         {
             lockConflicts = new List<VaultLock>();
-            bool directory = path.EndsWith("/");
+
+            // Full
+            if (string.IsNullOrEmpty(path))
+                path = "/";
+
+            bool requestingDirectory = path.EndsWith("/");
             foreach (var x in Database.Table<VaultLock>().ToList())
             {
                 if (locks.Contains(x.ID))
                     continue;
                 if (branch == null || x.Branch == null || branch.Value == x.Branch.Value)
                 {
-                    if (path.StartsWith(x.Path))
+                    if (string.IsNullOrEmpty(x.Path))
+                        lockConflicts.Add(x);
+                    else
                     {
-                        if (!(x.Path.EndsWith("/") ^ directory))
+                        bool lockIsDirectory = x.Path.EndsWith("/");
+                        if ((lockIsDirectory && path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase)) ||
+                            (!lockIsDirectory && !requestingDirectory && path.Equals(x.Path, StringComparison.OrdinalIgnoreCase)))
                         {
                             lockConflicts.Add(x);
                         }
@@ -7042,7 +7087,15 @@ namespace Versionr
         {
             get
             {
-                return LocalData.Table<LocalState.RemoteLock>().Select(x => x.ID).ToList();
+                return LocalData.Table<LocalState.RemoteLock>().ToList().Select(x => x.ID).ToList();
+            }
+        }
+
+        public List<RemoteLock> HeldLocks
+        {
+            get
+            {
+                return LocalData.Table<RemoteLock>().ToList();
             }
         }
 

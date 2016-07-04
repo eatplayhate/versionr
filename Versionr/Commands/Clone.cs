@@ -79,6 +79,7 @@ namespace Versionr.Commands
                 Printer.PrintError("#e#Error - couldn't create subdirectory \"{0}\"##", TargetDirectory);
                 return false;
             }
+            client.BaseDirectory = TargetDirectory;
             if (localOptions.Full.HasValue)
                 result = client.Clone(localOptions.Full.Value);
             else
