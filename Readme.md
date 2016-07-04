@@ -288,7 +288,7 @@ Versionr can replicate its commit history to a Git repository.  All branches and
 versionr replicate-to-git path/to/repo.git
 ```
 
-Use `replicate-to-git --help` for additional options. *Does not actually work; help system does not respect plugins.*
+Use `replicate-to-git --help` for additional options.
 
 **Author identity**
 
@@ -307,8 +307,8 @@ Git requires more details about authors than are maintained by versionr.  Add th
 ```
 
 **Known limitations**
-* Symlinks are not implemented
 * Renaming branches may cause problems
+* Branches explicitly deleted from Versionr are not deleted from git
 * Empty directories are not replicated (as git does not support them)
 
 ##Contributing
