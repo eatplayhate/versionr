@@ -49,7 +49,7 @@ namespace Versionr.Commands
         [Option("partial", HelpText = "Sets a partial path within the vault.")]
         public string Partial { get; set; }
 
-        [Option("metadata", HelpText = "Moves version tip but does not alter the state of files on disk. Use with caution!")]
+        [Option("metadata", HelpText = "Moves version tip and clears merge info, but does not alter the state of files on disk.")]
         public bool Metadata { get; set; }
 
         [ValueOption(0)]

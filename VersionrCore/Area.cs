@@ -1123,6 +1123,8 @@ namespace Versionr
             // Full
             if (string.IsNullOrEmpty(path))
                 path = "/";
+            else if (path[0] != '/')
+                path = "/" + path;
 
             bool requestingDirectory = path.EndsWith("/");
             foreach (var x in Database.Table<VaultLock>().ToList())
@@ -7115,6 +7117,14 @@ namespace Versionr
             get
             {
                 return LocalData.Table<RemoteLock>().ToList();
+            }
+        }
+
+        public bool HasPendingMerge
+        {
+            get
+            {
+                return LocalData.StageOperations.Any(x => x.Type == StageOperationType.Merge);
             }
         }
 

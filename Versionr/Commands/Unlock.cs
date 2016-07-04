@@ -203,6 +203,8 @@ namespace Versionr.Commands
                             ws.ReleaseLocks(x.Item2.Select(z => z.ID));
                         }
                     }
+
+                    client.Close();
                 }
             }
             return true;

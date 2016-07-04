@@ -464,11 +464,11 @@ namespace Versionr.Network
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
                 SendLocks();
+                int sendCount = versionsToSend.Count;
                 if (!SharedNetwork.SendBranches(SharedInfo, branchesToSend))
                     return false;
                 if (!SharedNetwork.SendVersions(SharedInfo, versionsToSend))
                     return false;
-
                 Printer.PrintDiagnostics("Committing changes remotely.");
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
                 NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
@@ -482,6 +482,8 @@ namespace Versionr.Network
                     Printer.PrintError("Unknown error pushing branch head.");
                     return false;
                 }
+                if (sendCount > 0)
+                    Printer.PrintMessage("Sent {0} versions to remote.", versionsToSend.Count);
                 return true;
             }
             catch (Exception e)

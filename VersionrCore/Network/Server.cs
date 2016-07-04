@@ -718,6 +718,11 @@ namespace Versionr.Network
                                         throw;
                                     }
                                 }
+                                else
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                    Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = new List<Guid>() });
+                                }
                             }
                             else if (command.Type == NetCommandType.SendLocks)
                             {

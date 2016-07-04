@@ -56,6 +56,13 @@ namespace Versionr.Commands
             if (ws == null)
                 return false;
             ws.Stash(localOptions.Name, localOptions.Revert, Unrecord.UnrecordFeedback);
+            if (localOptions.Revert)
+            {
+                if (ws.HasPendingMerge)
+                {
+                    Printer.PrintMessage("#b#Info:## Current vault has an outstanding pending merge that will be attached to the next commit.\nIf you wish to clear this merge information, you will need to use the #b#checkout## command.");
+                }
+            }
             return true;
         }
     }

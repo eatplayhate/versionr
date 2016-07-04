@@ -46,7 +46,11 @@ namespace Versionr.Commands
 		{
 			RevertVerbOptions localOptions = options as RevertVerbOptions;
 			ws.Revert(targets, true, localOptions.Interactive, localOptions.Delete, UnrecordFeedback);
-			return true;
+            if (targets.Count > 0 && ws.HasPendingMerge)
+            {
+                Printer.PrintMessage("#b#Info:## Current vault has an outstanding pending merge that will be attached to the next commit.\nIf you wish to clear this merge information, you will need to use the #b#checkout## command.");
+            }
+            return true;
 		}
 
 	}

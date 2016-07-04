@@ -510,13 +510,24 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushVersions }, ProtoBuf.PrefixStyle.Fixed32);
                     VersionPack pack = CreatePack(sharedInfo, versionData);
                     Utilities.SendEncrypted(sharedInfo, pack);
-                    ackCount++;
-                }
-                while (ackCount-- > 0)
-                {
+
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                    if (response.Type != NetCommandType.Acknowledge)
+                    if (response.Type == NetCommandType.Acknowledge)
+                        continue;
+                    else
+                    {
+                        if (response.Type == NetCommandType.PathLocked)
+                        {
+                            var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(sharedInfo);
+                            Printer.PrintMessage("#e#Couldn't send version:## #b#path locked##\n\nVersion: #b#{0}##\nLocked Path: #b#{1}##\n\nConflicting lock information:", lockConflicts.OffendingVersion, lockConflicts.OffendingPath);
+                            foreach (var x in lockConflicts.Conflicts)
+                            {
+                                Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
+                            }
+                            return false;
+                        }
                         return false;
+                    }
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
                 while (true)
@@ -1199,7 +1210,7 @@ namespace Versionr.Network
                 {
                     List<VaultLock> overlappingLocks = null;
                     sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, locks, out overlappingLocks);
-                    if (overlappingLocks != null)
+                    if (overlappingLocks.Count > 0)
                     {
                         lci = new LockConflictInformation()
                         {
