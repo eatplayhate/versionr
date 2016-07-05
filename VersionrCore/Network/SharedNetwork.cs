@@ -17,7 +17,8 @@ namespace Versionr.Network
             Versionr29,
             Versionr3,
             Versionr31,
-            Versionr32
+            Versionr32,
+            Versionr33
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -25,7 +26,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -142,96 +143,110 @@ namespace Versionr.Network
         {
             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.PushStashQuery, AdditionalPayload = stash.GUID.ToString(), Identifier = stash.File.Length }, ProtoBuf.PrefixStyle.Fixed32);
             NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
-            if (response.Type == NetCommandType.RejectPush)
-                Printer.PrintMessage("Remote already has this stash.");
-            else if (response.Type == NetCommandType.AcceptPush)
+            if (response.Type == NetCommandType.AcceptPush)
             {
-                return TransmitStash(info, stash);
+                return TransmitFile(info, stash.File);
             }
+            else
+                Printer.PrintMessage("Remote already has this stash or will not receive the stash{0}.");
             return false;
         }
 
         internal static bool ReceiveStashData(SharedNetworkInfo sharedInfo, long dataSize)
         {
             Printer.PrintDiagnostics("Receiving a stash file.");
-            
-            RecordStatus status = new RecordStatus();
-            var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
-            {
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
-                var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
-                status.Bytes += pack.Data.Length;
-                if (pack.EndOfStream)
-                {
-                    return new Tuple<byte[], bool>(pack.Data, true);
-                }
-                else
-                {
-                    return new Tuple<byte[], bool>(pack.Data, false);
-                }
-            });
 
-            status.Stopwatch = new System.Diagnostics.Stopwatch();
-            status.Requested = (int)dataSize;
-            Printer.InteractivePrinter printer = null;
-            if (sharedInfo.Client)
+            string tempfile;
+            if (ReceiveFile(sharedInfo, dataSize, out tempfile))
             {
-                printer = Printer.CreateProgressBarPrinter("Receiving data", string.Empty,
-                    (obj) =>
-                    {
-                        RecordStatus stat = (RecordStatus)obj;
-                        return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(stat.Bytes / stat.Stopwatch.Elapsed.TotalSeconds)));
-                    },
-                    (obj) =>
-                    {
-                        RecordStatus stat = (RecordStatus)obj;
-                        return (100.0f * stat.Processed) / (float)stat.Requested;
-                    },
-                    (pct, obj) =>
-                    {
-                        RecordStatus stat = (RecordStatus)obj;
-                        return string.Format("{0}/{1}", Versionr.Utilities.Misc.FormatSizeFriendly(stat.Processed), Versionr.Utilities.Misc.FormatSizeFriendly(stat.Requested));
-                    },
-                    60);
+                return sharedInfo.Workspace.ImportStash(tempfile);
             }
-            status.Stopwatch.Start();
-
-            byte[] buffer = new byte[32 * 1024];
-            string filename = sharedInfo.Workspace.GenerateTempPath();
-            receiverStream.Read(buffer, 0, 8);
-            long expectedLength = BitConverter.ToInt64(buffer, 0);
-            if (expectedLength != dataSize)
-                throw new Exception();
-            using (System.IO.FileStream fs = System.IO.File.Open(filename, System.IO.FileMode.Create))
-            {
-                while (!receiverStream.EndOfStream)
-                {
-                    int readCount = receiverStream.Read(buffer, 0, buffer.Length);
-                    status.Processed += readCount;
-                    if (printer != null)
-                        printer.Update(status);
-
-                    fs.Write(buffer, 0, readCount);
-                }
-            }
-
-            bool result = sharedInfo.Workspace.ImportStash(filename);
-
-            if (printer != null)
-                printer.End(status);
-            if (result)
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-            else
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
-            return result;
+            return false;
         }
 
-        internal static bool TransmitStash(SharedNetworkInfo info, Area.StashInfo stash)
+        private static bool ReceiveFile(SharedNetworkInfo sharedInfo, long dataSize, out string tempfile)
+        {
+            try
+            {
+                tempfile = sharedInfo.Workspace.GenerateTempPath();
+                RecordStatus status = new RecordStatus();
+                var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+                    var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
+                    status.Bytes += pack.Data.Length;
+                    if (pack.EndOfStream)
+                    {
+                        return new Tuple<byte[], bool>(pack.Data, true);
+                    }
+                    else
+                    {
+                        return new Tuple<byte[], bool>(pack.Data, false);
+                    }
+                });
+
+                status.Stopwatch = new System.Diagnostics.Stopwatch();
+                status.Requested = (int)dataSize;
+                Printer.InteractivePrinter printer = null;
+                if (sharedInfo.Client)
+                {
+                    printer = Printer.CreateProgressBarPrinter("Receiving data", string.Empty,
+                        (obj) =>
+                        {
+                            RecordStatus stat = (RecordStatus)obj;
+                            return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(stat.Bytes / stat.Stopwatch.Elapsed.TotalSeconds)));
+                        },
+                        (obj) =>
+                        {
+                            RecordStatus stat = (RecordStatus)obj;
+                            return (100.0f * stat.Processed) / (float)stat.Requested;
+                        },
+                        (pct, obj) =>
+                        {
+                            RecordStatus stat = (RecordStatus)obj;
+                            return string.Format("{0}/{1}", Versionr.Utilities.Misc.FormatSizeFriendly(stat.Processed), Versionr.Utilities.Misc.FormatSizeFriendly(stat.Requested));
+                        },
+                        60);
+                }
+                status.Stopwatch.Start();
+
+                byte[] buffer = new byte[32 * 1024];
+                receiverStream.Read(buffer, 0, 8);
+                long expectedLength = BitConverter.ToInt64(buffer, 0);
+                if (expectedLength != dataSize)
+                    throw new Exception();
+                using (System.IO.FileStream fs = System.IO.File.Open(tempfile, System.IO.FileMode.Create))
+                {
+                    while (!receiverStream.EndOfStream)
+                    {
+                        int readCount = receiverStream.Read(buffer, 0, buffer.Length);
+                        status.Processed += readCount;
+                        if (printer != null)
+                            printer.Update(status);
+
+                        fs.Write(buffer, 0, readCount);
+                    }
+                }
+                if (printer != null)
+                    printer.End(status);
+
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                return true;
+            }
+            catch
+            {
+                tempfile = string.Empty;
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                return false;
+            }
+        }
+
+        internal static bool TransmitFile(SharedNetworkInfo info, System.IO.FileInfo file)
         {
             Printer.InteractivePrinter printer = null;
             SendStats sstats = null;
             System.Diagnostics.Stopwatch sw = null;
-            long fileLength = stash.File.Length;
+            long fileLength = file.Length;
             if (info.Client)
             {
                 sstats = new SendStats();
@@ -258,7 +273,7 @@ namespace Versionr.Network
             if (dataSize == -1)
                 return false;
             long transmitted = 0;
-            using (System.IO.Stream dataStream = stash.File.OpenRead())
+            using (System.IO.Stream dataStream = file.OpenRead())
             {
                 sender(BitConverter.GetBytes(dataSize), 8, false);
                 byte[] scratchBuffer = new byte[32 * 1024];
@@ -495,13 +510,24 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushVersions }, ProtoBuf.PrefixStyle.Fixed32);
                     VersionPack pack = CreatePack(sharedInfo, versionData);
                     Utilities.SendEncrypted(sharedInfo, pack);
-                    ackCount++;
-                }
-                while (ackCount-- > 0)
-                {
+
                     NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                    if (response.Type != NetCommandType.Acknowledge)
+                    if (response.Type == NetCommandType.Acknowledge)
+                        continue;
+                    else
+                    {
+                        if (response.Type == NetCommandType.PathLocked)
+                        {
+                            var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(sharedInfo);
+                            Printer.PrintMessage("#e#Couldn't send version:## #b#path locked##\n\nVersion: #b#{0}##\nLocked Path: #b#{1}##\n\nConflicting lock information:", lockConflicts.OffendingVersion, lockConflicts.OffendingPath);
+                            foreach (var x in lockConflicts.Conflicts)
+                            {
+                                Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
+                            }
+                            return false;
+                        }
                         return false;
+                    }
                 }
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
                 while (true)
@@ -1120,21 +1146,32 @@ namespace Versionr.Network
 
         private static void ReceiveRecordParents(SharedNetwork.SharedNetworkInfo sharedInfo, RecordParentPack response)
         {
+            LockConflictInformation ignored = null;
             foreach (var x in response.Parents)
             {
-                CheckRecord(sharedInfo, x);
+                CheckRecord(sharedInfo, null, x, false, null, ref ignored);
             }
         }
 
-        internal static void ReceiveVersions(SharedNetworkInfo sharedInfo)
+        internal static bool ReceiveVersions(SharedNetworkInfo sharedInfo, HashSet<Guid> locks = null)
         {
             VersionPack pack = Utilities.ReceiveEncrypted<VersionPack>(sharedInfo);
-            ReceivePack(sharedInfo, pack);
-            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+            LockConflictInformation lci;
+            ReceivePack(sharedInfo, pack, locks, out lci);
+            if (lci != null)
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.PathLocked }, ProtoBuf.PrefixStyle.Fixed32);
+                Utilities.SendEncrypted(sharedInfo, lci);
+                return false;
+            }
+            else
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+            return true;
         }
 
-        private static void ReceivePack(SharedNetworkInfo sharedInfo, VersionPack pack)
+        private static void ReceivePack(SharedNetworkInfo sharedInfo, VersionPack pack, HashSet<Guid> locks, out LockConflictInformation lci)
         {
+            lci = null;
             if (sharedInfo.ReceivedVersionSet == null)
                 sharedInfo.ReceivedVersionSet = new HashSet<Guid>();
             foreach (var x in pack.Versions)
@@ -1142,31 +1179,48 @@ namespace Versionr.Network
                 if (!sharedInfo.ReceivedVersionSet.Contains(x.Version.ID))
                 {
                     sharedInfo.PushedVersions.Add(x);
-                    CheckRecords(sharedInfo, x);
+                    CheckRecords(sharedInfo, x, locks, ref lci);
+                    if (lci != null)
+                        return;
                     sharedInfo.ReceivedVersionSet.Add(x.Version.ID);
                 }
             }
         }
 
-        private static void CheckRecords(SharedNetworkInfo sharedInfo, VersionInfo info)
+        private static void CheckRecords(SharedNetworkInfo sharedInfo, VersionInfo info, HashSet<Guid> locks, ref LockConflictInformation lci)
         {
             if (info.Alterations != null)
             {
                 foreach (var x in info.Alterations)
                 {
-                    CheckRecord(sharedInfo, x.NewRecord);
-                    CheckRecord(sharedInfo, x.PriorRecord);
+                    CheckRecord(sharedInfo, info, x.NewRecord, true, locks, ref lci);
+                    CheckRecord(sharedInfo, info, x.PriorRecord, true, locks, ref lci);
                 }
             }
         }
 
-        public static void CheckRecord(SharedNetworkInfo sharedInfo, Record record)
+        public static void CheckRecord(SharedNetworkInfo sharedInfo, VersionInfo info, Record record, bool checkLocks, HashSet<Guid> locks, ref LockConflictInformation lci)
         {
             if (record == null)
                 return;
             sharedInfo.RemoteRecordMap[record.Id] = record;
             if (!sharedInfo.UnknownRecordSet.Contains(record.Id))
             {
+                if (checkLocks)
+                {
+                    List<VaultLock> overlappingLocks = null;
+                    sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, locks, out overlappingLocks);
+                    if (overlappingLocks.Count > 0)
+                    {
+                        lci = new LockConflictInformation()
+                        {
+                            Conflicts = overlappingLocks,
+                            OffendingPath = record.CanonicalName,
+                            OffendingVersion = info.Version.ID
+                        };
+                        return;
+                    }
+                }
                 var localRecord = sharedInfo.Workspace.LocateRecord(record);
                 if (localRecord == null)
                 {

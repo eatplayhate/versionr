@@ -13,17 +13,21 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [options] [target]", Verb);
+                return string.Format("#b#versionr #i#{0}## <branch name>", Verb);
             }
         }
-
+        public override BaseCommand GetCommand()
+        {
+            return new Branch();
+        }
+        
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Creates a new branch with a specified name and with the current version as the branch head."
                 };
             }
         }

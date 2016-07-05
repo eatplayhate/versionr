@@ -9,21 +9,27 @@ namespace Versionr.Commands
 {
     class CheckoutVerbOptions : VerbOptionBase
     {
+        public override BaseCommand GetCommand()
+        {
+            return new Checkout();
+        }
+
         public override string Usage
         {
             get
             {
-                return string.Format("Usage: versionr {0} [options] [target]", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[options]## [branch or version]", Verb);
             }
         }
-
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Checkout will move the current workspace to a specific version (or the head of a specific branch).",
+                    "",
+                    "It will also remove any staged operations (including merge information)."
                 };
             }
         }
@@ -43,7 +49,7 @@ namespace Versionr.Commands
         [Option("partial", HelpText = "Sets a partial path within the vault.")]
         public string Partial { get; set; }
 
-        [Option("metadata", HelpText = "Moves version tip but does not alter the state of files on disk. Use with caution!")]
+        [Option("metadata", HelpText = "Moves version tip and clears merge info, but does not alter the state of files on disk.")]
         public bool Metadata { get; set; }
 
         [ValueOption(0)]

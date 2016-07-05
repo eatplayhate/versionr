@@ -15,7 +15,9 @@ namespace Versionr.Commands
 			{
 				return new string[]
 				{
-					"Revert the contents of the file and unincludes it from the next commit."
+					"Revert the contents of objects and unincludes them from the next commit.",
+                    "",
+                    "This uses the same file matching options as #i#record##."
 				};
 			}
 		}
@@ -32,6 +34,11 @@ namespace Versionr.Commands
         [Option('d', "delete", HelpText = "Delete new files.")]
         public bool Delete { get; set; }
 
+        public override BaseCommand GetCommand()
+        {
+            return new Revert();
+        }
+
     }
 	class Revert : Unrecord
 	{
@@ -39,7 +46,11 @@ namespace Versionr.Commands
 		{
 			RevertVerbOptions localOptions = options as RevertVerbOptions;
 			ws.Revert(targets, true, localOptions.Interactive, localOptions.Delete, UnrecordFeedback);
-			return true;
+            if (targets.Count > 0 && ws.HasPendingMerge)
+            {
+                Printer.PrintMessage("#b#Info:## Current vault has an outstanding pending merge that will be attached to the next commit.\nIf you wish to clear this merge information, you will need to use the #b#checkout## command.");
+            }
+            return true;
 		}
 
 	}

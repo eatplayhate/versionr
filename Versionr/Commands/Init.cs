@@ -12,8 +12,12 @@ namespace Versionr.Commands
         {
             get
             {
-                return "#b#versionr #i#init## #q#[branch name]##";
+                return "#b#versionr #i#init## #q#[intial branch name]##";
             }
+        }
+        public override BaseCommand GetCommand()
+        {
+            return new Init();
         }
         public override string[] Description
         {

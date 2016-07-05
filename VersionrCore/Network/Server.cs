@@ -230,12 +230,14 @@ namespace Versionr.Network
         {
             public Dictionary<Guid, Objects.Head> UpdatedHeads { get; set; }
             public List<VersionInfo> MergeVersions { get; set; }
+            public HashSet<Guid> Locks { get; set; }
             public SharedNetwork.SharedNetworkInfo SharedInfo { get; set; }
             public Rights Access { get; set; }
             public bool BareAccessRequired { get; set; }
             public ClientStateInfo()
             {
                 MergeVersions = new List<VersionInfo>();
+                Locks = new HashSet<Guid>();
                 BareAccessRequired = false;
             }
         }
@@ -300,6 +302,8 @@ namespace Versionr.Network
                     }
                     if (valid)
                     {
+                        if (ws == null)
+                            throw new Exception("No workspace at server path!");
                         sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
                         clientInfo.Access = Rights.Read | Rights.Write;
@@ -352,7 +356,7 @@ namespace Versionr.Network
                                 else if (stashes.Count == 1)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length, AdditionalPayload = stashes[0].GUID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
-                                    SharedNetwork.TransmitStash(sharedInfo, stashes[0]);
+                                    SharedNetwork.TransmitFile(sharedInfo, stashes[0].File);
                                 }
                                 else
                                 {
@@ -531,7 +535,11 @@ namespace Versionr.Network
                                 if (!clientInfo.Access.HasFlag(Rights.Write))
                                     throw new Exception("Access denied.");
                                 Printer.PrintDiagnostics("Client attempting to send version data...");
-                                SharedNetwork.ReceiveVersions(sharedInfo);
+                                if (!SharedNetwork.ReceiveVersions(sharedInfo, clientInfo.Locks))
+                                {
+                                    Printer.PrintDiagnostics("Can't accept versions, aborting.");
+                                    throw new Exception();
+                                }
                             }
                             else if (command.Type == NetCommandType.PushHead)
                             {
@@ -680,6 +688,88 @@ namespace Versionr.Network
                                         Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
                                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
                                     }
+                                }
+                            }
+                            else if (command.Type == NetCommandType.ReleaseLocks)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                Printer.PrintDiagnostics("Client is releasing lock tokens.");
+                                var lockTokens = Utilities.ReceiveEncrypted<Network.LockTokenList>(sharedInfo);
+                                if (lockTokens?.Locks != null)
+                                {
+                                    foreach (var l in lockTokens.Locks)
+                                    {
+                                        Printer.PrintDiagnostics(" - Unlock {0}", l);
+                                        clientInfo.Locks.Add(l);
+                                    }
+                                    try
+                                    { 
+                                        sharedInfo.Workspace.BeginDatabaseTransaction();
+                                        var resultLocks = sharedInfo.Workspace.BreakLocks(lockTokens.Locks);
+                                        sharedInfo.Workspace.CommitDatabaseTransaction();
+
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                        Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = resultLocks });
+                                    }
+                                    catch
+                                    {
+                                        sharedInfo.Workspace.RollbackDatabaseTransaction();
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                                        throw;
+                                    }
+                                }
+                                else
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                    Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = new List<Guid>() });
+                                }
+                            }
+                            else if (command.Type == NetCommandType.SendLocks)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                Printer.PrintDiagnostics("Client is sending lock tokens.");
+                                var lockTokens = Utilities.ReceiveEncrypted<Network.LockTokenList>(sharedInfo);
+                                if (lockTokens?.Locks != null)
+                                {
+                                    foreach (var l in lockTokens.Locks)
+                                    {
+                                        Printer.PrintDiagnostics(" - Lock {0}", l);
+                                        clientInfo.Locks.Add(l);
+                                    }
+                                }
+                            }
+                            else if (command.Type == NetCommandType.RequestLock)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
+                                var rli = Utilities.ReceiveEncrypted<RequestLockInformation>(sharedInfo);
+
+                                List<VaultLock> lockConflicts;
+                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, clientInfo.Locks, out lockConflicts);
+
+                                if (lockConflicts.Count == 0 || rli.Steal)
+                                {
+                                    LockGrantInformation lgi = new LockGrantInformation();
+                                    lgi.BrokenLocks = new LockConflictInformation() { Conflicts = lockConflicts, OffendingPath = rli.Path };
+                                    try
+                                    {
+                                        sharedInfo.Workspace.BeginDatabaseTransaction();
+                                        sharedInfo.Workspace.BreakLocks(lockConflicts);
+                                        lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
+                                        sharedInfo.Workspace.CommitDatabaseTransaction();
+                                    }
+                                    catch
+                                    {
+                                        sharedInfo.Workspace.RollbackDatabaseTransaction();
+                                        throw;
+                                    }
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                    Utilities.SendEncrypted(sharedInfo, lgi);
+                                }
+                                else
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.PathLocked }, ProtoBuf.PrefixStyle.Fixed32);
+                                    Utilities.SendEncrypted(sharedInfo, new LockConflictInformation() { Conflicts = lockConflicts });
                                 }
                             }
                             else

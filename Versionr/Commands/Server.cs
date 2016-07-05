@@ -23,7 +23,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Runs the server daemon for this versionr vault, allowing other nodes to connect to it.",
+                    "",
+                    "By providing a server config, a single versionr instance can host multiple vaults."
                 };
             }
         }
@@ -34,6 +36,11 @@ namespace Versionr.Commands
             {
                 return "server";
             }
+        }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Server();
         }
     }
     class Server : BaseCommand

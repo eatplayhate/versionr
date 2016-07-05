@@ -15,7 +15,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "This command will determine the relationship between a specified version and all the branches in the local vault.",
+                    "",
+                    "This can be used to identify if a specific feature or bugfix is in any given branch."
                 };
             }
         }
@@ -33,6 +35,18 @@ namespace Versionr.Commands
 
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new MergeInfo();
+        }
+        public override string Usage
+        {
+            get
+            {
+                return string.Format("#b#versionr #i#{0}## #q#[options]## <version>", Verb);
+            }
+        }
     }
     class MergeInfo : BaseCommand
     {

@@ -10,13 +10,18 @@ namespace Versionr.Commands
 {
     class AheadVerbOptions : RemoteCommandVerbOptions
     {
+        public override BaseCommand GetCommand()
+        {
+            return new Ahead();
+        }
+
         public override string[] Description
         {
             get
             {
                 return new string[]
                 {
-                    "Determines if the selected branch is ahead or behind the remote."
+                    "Determines if the current (or selected) branch is ahead or behind the specified remote."
                 };
             }
         }

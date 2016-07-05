@@ -13,7 +13,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [stash name or guid]", Verb);
+                return string.Format("#b#versionr #i#{0}## #q#[options]## <stash_name_or_guid>", Verb);
             }
         }
 
@@ -56,6 +56,11 @@ namespace Versionr.Commands
 
         [ValueOption(0)]
         public string Name { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Unstash();
+        }
     }
     class Unstash : BaseCommand
     {

@@ -13,8 +13,12 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("Usage: versionr {0} [branch name]", Verb);
+                return string.Format("#b#versionr #i#{0}## <branch name>", Verb);
             }
+        }
+        public override BaseCommand GetCommand()
+        {
+            return new DeleteBranch();
         }
 
         public override string[] Description
@@ -23,7 +27,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Deletes a branch."
+                    "Deletes a branch. A deleted branch is still in the revision graph but will have no head revisions and will be regarded as inactive."
                 };
             }
         }
@@ -32,7 +36,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return "deletebranch";
+                return "delete-branch";
             }
         }
         [ValueOption(0)]

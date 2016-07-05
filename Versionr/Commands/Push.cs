@@ -16,7 +16,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "abandon all ships"
+                    "Pushes the currently active version (or the head of a specific branch) to a specified remote.",
+                    "",
+                    "Remotes can be configured using the #b#set-remote## command."
                 };
             }
         }
@@ -30,6 +32,13 @@ namespace Versionr.Commands
         }
         [Option('b', "branch", HelpText = "The name of the branch to push.")]
         public string Branch { get; set; }
+        [Option("release-locks", HelpText = "Releases locks that apply to this push.")]
+        public bool ReleaseLocks { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Push();
+        }
     }
     class Push : RemoteCommand
     {

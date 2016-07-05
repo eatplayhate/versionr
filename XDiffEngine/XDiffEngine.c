@@ -87,6 +87,56 @@ void Init()
 	xdl_set_allocator(&malt);
 }
 
+int __declspec(dllexport) Merge3Way(const char* base, const char* f1, const char* f2, const char* out)
+{
+	mmfile_t mf1, mf2, mfb;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	bdiffparam_t bdp;
+	xdemitcb_t ecb, rjecb;
+	int status = 0;
+	xecfg.ctxlen = 3;
+
+	Init();
+
+	xpp.flags = 0;
+	if (xdlt_load_mmfile(base, &mfb, 1) < 0) {
+		return 1;
+	}
+	if (xdlt_load_mmfile(f1, &mf1, 1) < 0) {
+		xdl_free_mmfile(&mfb);
+		return 1;
+	}
+	if (xdlt_load_mmfile(f2, &mf2, 1) < 0) {
+		xdl_free_mmfile(&mf1);
+		xdl_free_mmfile(&mfb);
+		return 1;
+	}
+
+	FILE* f = fopen(out, "wb");
+	ecb.priv = f;
+	ecb.outf = xdlt_outf;
+	rjecb.priv = &status;
+	rjecb.outf = markfail;
+
+	if (xdl_merge3(&mfb, &mf1, &mf2, &ecb, &rjecb) < 0) {
+		fclose(f);
+
+		xdl_free_mmfile(&mf2);
+		xdl_free_mmfile(&mf1);
+		xdl_free_mmfile(&mfb);
+		return 2;
+	}
+
+	fclose(f);
+
+	xdl_free_mmfile(&mf2);
+	xdl_free_mmfile(&mf1);
+	xdl_free_mmfile(&mfb);
+	return status;
+}
+
+
 int __declspec(dllexport) GeneratePatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;

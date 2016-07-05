@@ -60,6 +60,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Commands\Lock.cs" />
+    <Compile Include="Commands\Admin.cs" />
     <Compile Include="Commands\Ahead.cs" />
     <Compile Include="Commands\BaseWorkspaceCommand.cs" />
     <Compile Include="Commands\Behead.cs" />
@@ -71,7 +73,8 @@
     <Compile Include="Commands\FileBaseCommand.cs" />
     <Compile Include="Commands\FileCommand.cs" />
     <Compile Include="Commands\Info.cs" />
-    <Compile Include="Commands\ListBranch.cs" />
+    <Compile Include="Commands\BranchList.cs" />
+    <Compile Include="Commands\LockList.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\MergeInfo.cs" />
@@ -85,7 +88,7 @@
     <Compile Include="Commands\Checkout.cs" />
     <Compile Include="Commands\Commit.cs" />
     <Compile Include="Commands\Init.cs" />
-    <Compile Include="Commands\Remote.cs" />
+    <Compile Include="Commands\SetRemote.cs" />
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\RenameBranch.cs" />
     <Compile Include="Commands\Resolve.cs" />
@@ -97,6 +100,7 @@
     <Compile Include="Commands\Stats.cs" />
     <Compile Include="Commands\Status.cs" />
     <Compile Include="Commands\SyncRecords.cs" />
+    <Compile Include="Commands\Unlock.cs" />
     <Compile Include="Commands\Unrecord.cs" />
     <Compile Include="Commands\Unstash.cs" />
     <Compile Include="Commands\Update.cs" />

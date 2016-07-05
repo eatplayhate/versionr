@@ -8,14 +8,16 @@ using CommandLine;
 namespace Versionr.Commands
 {
 	class UnrecordVerbOptions : FileCommandVerbOptions
-	{
-		public override string[] Description
+    {
+        public override string[] Description
 		{
 			get
 			{
 				return new string[]
 				{
-					"Removes the file from inclusion in the next commit.",
+					"Removes objects from inclusion in the next commit.",
+                    "",
+                    "Unrecord uses the same name matching system as #i#record##."
 				};
 			}
 		}
@@ -30,6 +32,11 @@ namespace Versionr.Commands
 
         [Option('i', "interactive", HelpText = "Provides an interactive prompt for each matched file.")]
         public bool Interactive { get; set; }
+
+        public override BaseCommand GetCommand()
+        {
+            return new Unrecord();
+        }
     }
 	class Unrecord : FileCommand
 	{

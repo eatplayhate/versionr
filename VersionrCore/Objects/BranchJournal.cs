@@ -25,6 +25,8 @@ namespace Versionr.Objects
         public string Operand { get; set; }
         [ProtoBuf.ProtoMember(4)]
         public BranchAlterationType Type { get; set; }
+        [ProtoBuf.ProtoMember(5, IsRequired = false)]
+        public DateTime Timestamp { get; set; }
     }
 
     [ProtoBuf.ProtoContract]

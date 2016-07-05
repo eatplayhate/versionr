@@ -47,12 +47,21 @@ namespace Versionr
             return merges.Select(x => GetVersion(x.DestinationVersion)).ToList();
         }
 
-        public static string Username
+        public string Username
         {
             get
             {
-                return Environment.UserName;
+                return Directives.UserName;
             }
+        }
+
+        public void RunConsistencyCheck()
+        {
+            Database.ConsistencyCheck();
+        }
+        public void RunVacuum()
+        {
+            Database.Vacuum();
         }
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
@@ -66,6 +75,9 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyBinaryPatch(string file1, string file2, string output);
 
+        [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "Merge3Way", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        public static extern int XDiffMerge3Way(string basefile, string file1, string file2, string output);
+
         public class StashInfo
         {
             public string Author { get; set; }
@@ -78,14 +90,14 @@ namespace Versionr
             public Guid OriginatingVersion { get; set; }
             public long? LocalDBIndex { get; set; }
 
-            internal static StashInfo Create(string name, Guid originalVersion)
+            internal static StashInfo Create(Area ws, string name, Guid originalVersion)
             {
                 return new StashInfo()
                 {
                     GUID = Guid.NewGuid(),
                     Name = name,
                     Key = string.Empty,
-                    Author = Username,
+                    Author = ws.Username,
                     Time = DateTime.UtcNow,
                     Version = 2,
                     OriginatingVersion = originalVersion
@@ -135,6 +147,44 @@ namespace Versionr
                 bw.Write(Time.Ticks);
                 bw.Write(Key);
                 bw.Write(OriginatingVersion.ToString());
+            }
+        }
+
+        public RemoteConfig FindRemoteFromURL(string remote)
+        {
+            foreach (var x in LocalData.Table<RemoteConfig>())
+            {
+                if (Network.Client.ToVersionrURL(x) == remote)
+                    return x;
+            }
+            return null;
+        }
+
+        internal void RecordLock(Guid lockID, Guid? branchID, string lockedPath, string versionrURL, IEnumerable<Guid> locksToClean)
+        {
+            LocalData.BeginTransaction(true);
+            LocalData.InsertSafe(new RemoteLock() { ID = lockID, LockedBranch = branchID, LockingPath = lockedPath, RemoteHost = versionrURL });
+            ReleaseLocksInternal(locksToClean);
+            LocalData.Commit();
+        }
+
+        public void ReleaseLocks(IEnumerable<Guid> locksToClean)
+        {
+            LocalData.BeginTransaction(true);
+            ReleaseLocksInternal(locksToClean);
+            LocalData.Commit();
+        }
+
+        private void ReleaseLocksInternal(IEnumerable<Guid> locksToClean)
+        {
+            if (locksToClean != null)
+            {
+                foreach (var x in locksToClean)
+                {
+                    var localLock = LocalData.Find<RemoteLock>(x);
+                    if (localLock != null)
+                        LocalData.DeleteSafe(localLock);
+                }
             }
         }
 
@@ -197,8 +247,8 @@ namespace Versionr
             foreach (var x in stashes)
             {
                 if (string.Compare(name, (x.Author + "-" + x.Key), true) == 0
-                    || string.Compare(x.Key, name, true) == 0 
-                    || string.Compare(x.Name, name, true) == 0 
+                    || string.Compare(x.Key, name, true) == 0
+                    || string.Compare(x.Name, name, true) == 0
                     || x.GUID.ToString().ToLower().StartsWith(name.ToLower()))
                 {
                     results.Add(x);
@@ -306,14 +356,21 @@ namespace Versionr
                 long[] indexTable;
 
                 ReadStashHeader(br, out info, out entries, out indexTable);
-                
+
                 Printer.PrintMessage("Applying stash #b#{0}##.", info.GUID);
 
                 bool enableStaging = options.StageOperations;
                 bool moveAsCopies = options.DisallowMoves;
                 bool allowDeletes = !options.DisallowDeletes;
-                
-                for (int i = 0; i < entries.Count; i++)
+
+                int increment = 1;
+                int start = 0;
+                if (options.Reverse)
+                {
+                    start = entries.Count - 1;
+                    increment = -1;
+                }
+                for (int i = start; i < entries.Count && i >= 0; i += increment)
                 {
                     var x = entries[i];
                     Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", i, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
@@ -731,7 +788,7 @@ namespace Versionr
             Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, baseStream);
             using (FileStream fout = File.Open(patchFile, FileMode.Create))
                 reader.CopyTo(fout);
-            
+
             int result;
             if (binary)
                 result = ApplyBinaryPatch(Path.GetFullPath(original), patchFile, tempFile);
@@ -846,9 +903,9 @@ namespace Versionr
             var alterations = Database.GetAlterationsForVersion(version);
             List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
 
-            StashInfo header = StashInfo.Create(string.Empty, Version.ID);
+            StashInfo header = StashInfo.Create(this, string.Empty, Version.ID);
             List<Tuple<StashEntry, Func<Stream, long>>> stashWriters = new List<Tuple<StashEntry, Func<Stream, long>>>();
-            
+
             foreach (var x in alterations)
             {
                 if (x.Type == AlterationType.Add)
@@ -940,7 +997,7 @@ namespace Versionr
                     stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
                     {
                         long resultSize;
-                        
+
                         string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
 
                         int xdiffres = 0;
@@ -1015,13 +1072,79 @@ namespace Versionr
                 else
                     Printer.PrintError("Cherrypick currently doesn't support a {0} alteration.", x.Type);
             }
-            
+
             string fn = WriteStash(header, stashWriters, true);
 
             ApplyStashOptions opts = new ApplyStashOptions();
             opts.AllowUncleanPatches = relaxed;
             opts.Reverse = reverse;
             Unstash(header, opts, true);
+        }
+
+        internal Guid GrantLock(string path, Guid? branch, string author)
+        {
+            VaultLock vl = new VaultLock()
+            {
+                Branch = branch,
+                Path = path,
+                User = author,
+                ID = Guid.NewGuid()
+            };
+            Database.InsertSafe(vl);
+            return vl.ID;
+        }
+
+        internal List<Guid> BreakLocks(List<Guid> lockConflicts)
+        {
+            List<Guid> brokenLocks = new List<Guid>();
+            foreach (var x in lockConflicts)
+            {
+                var lk = Database.Find<VaultLock>(x);
+                if (lk != null)
+                {
+                    Database.DeleteSafe(lk);
+                    brokenLocks.Add(x);
+                }
+            }
+            return brokenLocks;
+        }
+
+        internal void BreakLocks(List<VaultLock> lockConflicts)
+        {
+            foreach (var x in lockConflicts)
+                Database.DeleteSafe(x);
+        }
+
+        internal void CheckLocks(string path, Guid? branch, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
+        {
+            lockConflicts = new List<VaultLock>();
+
+            // Full
+            if (string.IsNullOrEmpty(path))
+                path = "/";
+            else if (path[0] != '/')
+                path = "/" + path;
+
+            bool requestingDirectory = path.EndsWith("/");
+            foreach (var x in Database.Table<VaultLock>().ToList())
+            {
+                if (locks.Contains(x.ID))
+                    continue;
+                if (branch == null || x.Branch == null || branch.Value == x.Branch.Value)
+                {
+                    if (string.IsNullOrEmpty(x.Path))
+                        lockConflicts.Add(x);
+                    else
+                    {
+                        bool lockIsDirectory = x.Path.EndsWith("/");
+                        if ((lockIsDirectory && path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase)) ||
+                            (!lockIsDirectory && !requestingDirectory && path.Equals(x.Path, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            lockConflicts.Add(x);
+                        }
+                    }
+                }
+            }
         }
 
         public void Stash(string name, bool revert, Action<Status.StatusEntry, StatusCode> revertFeedback = null)
@@ -1036,7 +1159,7 @@ namespace Versionr
                 else if (x.Type == StageOperationType.MergeRecord)
                     mergeRecords[x.Operand1] = x.ReferenceObject;
             }
-            
+
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
 
             if (stashTargets.Count == 0)
@@ -1047,7 +1170,7 @@ namespace Versionr
 
             if (name == null)
                 name = string.Empty;
-            StashInfo header = StashInfo.Create(name, Version.ID);
+            StashInfo header = StashInfo.Create(this, name, Version.ID);
             List<Tuple<StashEntry, Func<Stream, long>>> stashWriters = new List<Tuple<StashEntry, Func<Stream, long>>>();
             List<Status.StatusEntry> reverters = new List<Status.StatusEntry>();
 
@@ -1171,7 +1294,7 @@ namespace Versionr
                     };
                     reverters.Add(x);
 
-                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => 
+                    stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) =>
                     {
                         if (x.Code == StatusCode.Modified || (entry.NewHash == entry.OriginalHash || entry.NewSize != entry.OriginalSize))
                         {
@@ -1180,7 +1303,7 @@ namespace Versionr
                             string priorRecord = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
                             string patchFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
                             RestoreRecord(x.VersionControlRecord, DateTime.Now, priorRecord);
-                            
+
                             int xdiffres = 0;
                             if (binary)
                                 xdiffres = GenerateBinaryPatch(priorRecord, x.FilesystemEntry.Info.FullName, patchFile);
@@ -1936,7 +2059,7 @@ namespace Versionr
                 };
                 Database.InsertSafe(link);
             }
-            
+
             ReplayBranchJournal(change, false, null);
 
             Database.BranchJournalTip = change.ID;
@@ -2215,26 +2338,26 @@ namespace Versionr
             return branches;
         }
 
-		public bool ForceBehead(string target)
-		{
-			var heads = Database.Query<Objects.Head>(String.Format("SELECT * FROM Head WHERE Head.Version LIKE \"{0}%\"", target));
-			if (heads.Count == 0)
-				return false;
+        public bool ForceBehead(string target)
+        {
+            var heads = Database.Query<Objects.Head>(String.Format("SELECT * FROM Head WHERE Head.Version LIKE \"{0}%\"", target));
+            if (heads.Count == 0)
+                return false;
 
-			Database.BeginTransaction();
-			try
-			{
-				foreach (var x in heads)
-					Database.Delete(x);
-				Database.Commit();
-				return true;
-			}
-			catch
+            Database.BeginTransaction();
+            try
             {
-				Database.Rollback();
-				return false;
-			}
-		}
+                foreach (var x in heads)
+                    Database.Delete(x);
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                return false;
+            }
+        }
 
         public void UpdateRemoteTimestamp(RemoteConfig config)
         {
@@ -2365,22 +2488,22 @@ namespace Versionr
             {
                 RemoteConfig config = LocalData.Find<RemoteConfig>(x => x.Name == name);
                 if (config == null)
-				{
-					config = new RemoteConfig() { Name = name };
-					config.Host = host;
+                {
+                    config = new RemoteConfig() { Name = name };
+                    config.Host = host;
                     config.Module = module;
                     config.Port = port;
-					LocalData.InsertSafe(config);
-				}
-				else
+                    LocalData.InsertSafe(config);
+                }
+                else
                 {
                     config.Module = module;
                     config.Host = host;
-					config.Port = port;
-					LocalData.UpdateSafe(config);
-				}
+                    config.Port = port;
+                    LocalData.UpdateSafe(config);
+                }
 
-				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
+                Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
                 LocalData.Commit();
 
                 return true;
@@ -2401,19 +2524,19 @@ namespace Versionr
             return ws;
         }
 
-		public List<RemoteConfig> GetRemotes()
-		{
-			return LocalData.Query<RemoteConfig>("SELECT * FROM RemoteConfig");
-		}
+        public List<RemoteConfig> GetRemotes()
+        {
+            return LocalData.Query<RemoteConfig>("SELECT * FROM RemoteConfig");
+        }
         public RemoteConfig GetRemote(string name)
         {
             Printer.PrintDiagnostics("Trying to find remote with name \"{0}\"", name);
             return LocalData.Find<RemoteConfig>(x => x.Name == name);
         }
-		public void ClearRemotes()
-		{
-			LocalData.DeleteAll<RemoteConfig>();
-		}
+        public void ClearRemotes()
+        {
+            LocalData.DeleteAll<RemoteConfig>();
+        }
 
         public List<Branch> Branches
         {
@@ -2854,7 +2977,7 @@ namespace Versionr
                 {
                     BranchJournal merge = x;
                     merge.ID = Guid.NewGuid();
-                    
+
                     ReplayBranchJournal(merge, false, null, info);
 
                     Database.InsertSafe(merge);
@@ -3168,24 +3291,24 @@ namespace Versionr
             }
         }
 
-		public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive, Action<Status.StatusEntry, StatusCode, bool> callback = null)
+        public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive, Action<Status.StatusEntry, StatusCode, bool> callback = null)
         {
             List<LocalState.StageOperation> stageOps = new List<StageOperation>();
 
-			HashSet<string> stagedPaths = new HashSet<string>();
+            HashSet<string> stagedPaths = new HashSet<string>();
             HashSet<string> removals = new HashSet<string>();
-			foreach (var x in files)
-			{
-				if (x.Staged == false && (
-					x.Code == StatusCode.Unversioned ||
-					x.Code == StatusCode.Renamed ||
-					x.Code == StatusCode.Modified ||
-					x.Code == StatusCode.Copied ||
-					((x.Code == StatusCode.Masked || x.Code == StatusCode.Missing) && missing)))
-				{
-					stagedPaths.Add(x.CanonicalName);
+            foreach (var x in files)
+            {
+                if (x.Staged == false && (
+                    x.Code == StatusCode.Unversioned ||
+                    x.Code == StatusCode.Renamed ||
+                    x.Code == StatusCode.Modified ||
+                    x.Code == StatusCode.Copied ||
+                    ((x.Code == StatusCode.Masked || x.Code == StatusCode.Missing) && missing)))
+                {
+                    stagedPaths.Add(x.CanonicalName);
 
-					if (x.Code == StatusCode.Masked || x.Code == StatusCode.Missing)
+                    if (x.Code == StatusCode.Masked || x.Code == StatusCode.Missing)
                     {
                         if (interactive)
                         {
@@ -3212,10 +3335,10 @@ namespace Versionr
                         if (callback != null)
                             callback(x, StatusCode.Deleted, false);
                         //Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
-						stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
+                        stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
                         removals.Add(x.VersionControlRecord.CanonicalName);
                     }
-					else
+                    else
                     {
                         if (interactive)
                         {
@@ -3242,10 +3365,10 @@ namespace Versionr
                         if (callback != null)
                             callback(x, x.Code == StatusCode.Unversioned ? StatusCode.Added : x.Code, false);
                         //Printer.PrintMessage("Recorded: #b#{0}##", x.FilesystemEntry.CanonicalName);
-						stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
-					}
-				}
-			}
+                        stageOps.Add(new StageOperation() { Operand1 = x.FilesystemEntry.CanonicalName, Type = StageOperationType.Add });
+                    }
+                }
+            }
             End:
             // add parent directories
             foreach (var x in stageOps.ToArray())
@@ -3477,7 +3600,7 @@ namespace Versionr
                 Objects.Record localRecord = null;
                 foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
                 localLookup.TryGetValue(x.CanonicalName, out localRecord);
-                
+
                 if (foreignRecord == null)
                 {
                     // deleted by branch
@@ -3536,41 +3659,41 @@ namespace Versionr
                                 records.Add(new Tuple<Record, bool>(clientInfo.LocalRecordMap[alteration.NewRecord.Id], true));
                                 break;
                             case AlterationType.Delete:
-                            {
-                                long removedID = clientInfo.LocalRecordMap[alteration.PriorRecord.Id].Id;
-                                bool found = false;
-                                for (int i = 0; i < records.Count; i++)
                                 {
-                                    if (records[i].Item1.Id == removedID)
+                                    long removedID = clientInfo.LocalRecordMap[alteration.PriorRecord.Id].Id;
+                                    bool found = false;
+                                    for (int i = 0; i < records.Count; i++)
                                     {
-                                        records.RemoveAt(i);
-                                        found = true;
-                                        break;
+                                        if (records[i].Item1.Id == removedID)
+                                        {
+                                            records.RemoveAt(i);
+                                            found = true;
+                                            break;
+                                        }
                                     }
+                                    if (!found)
+                                        throw new Exception("Couldn't consolidate changelists.");
+                                    break;
                                 }
-                                if (!found)
-                                    throw new Exception("Couldn't consolidate changelists.");
-                                break;
-                            }
                             case AlterationType.Move:
                             case AlterationType.Update:
-                            {
-                                long removedID = clientInfo.LocalRecordMap[alteration.PriorRecord.Id].Id;
-                                bool found = false;
-                                for (int i = 0; i < records.Count; i++)
                                 {
-                                    if (records[i].Item1.Id == removedID)
+                                    long removedID = clientInfo.LocalRecordMap[alteration.PriorRecord.Id].Id;
+                                    bool found = false;
+                                    for (int i = 0; i < records.Count; i++)
                                     {
-                                        records.RemoveAt(i);
-                                        found = true;
-                                        break;
+                                        if (records[i].Item1.Id == removedID)
+                                        {
+                                            records.RemoveAt(i);
+                                            found = true;
+                                            break;
+                                        }
                                     }
+                                    if (!found)
+                                        throw new Exception("Couldn't consolidate changelists.");
+                                    records.Add(new Tuple<Record, bool>(clientInfo.LocalRecordMap[alteration.NewRecord.Id], true));
+                                    break;
                                 }
-                                if (!found)
-                                    throw new Exception("Couldn't consolidate changelists.");
-                                records.Add(new Tuple<Record, bool>(clientInfo.LocalRecordMap[alteration.NewRecord.Id], true));
-                                break;
-                            }
                         }
                     }
                     return records;
@@ -3864,7 +3987,7 @@ namespace Versionr
                         }
                     }
                 }
-                
+
                 if (mergeVersion.ID == parentVersion.ID)
                 {
                     Printer.PrintMessage("Already up-to-date.");
@@ -3900,7 +4023,7 @@ namespace Versionr
                 foreignLookup[x.CanonicalName] = x;
 
             List<StageOperation> delayedStageOperations = new List<StageOperation>();
-            Dictionary<string, bool> parentIgnoredList = new Dictionary<string,bool>();
+            Dictionary<string, bool> parentIgnoredList = new Dictionary<string, bool>();
 
 #if MERGE_DIAGNOSTICS
             Printer.PrintDiagnostics("Merge phase 1 - processing foreign records.");
@@ -4038,7 +4161,7 @@ namespace Versionr
                                         Status.StatusEntry parentObjectEntry = null;
                                         status.Map.TryGetValue(parentName, out parentObjectEntry);
                                         directoryRemoved = Directory.Exists(GetRecordPath(parentName)) && parentObjectEntry == null;
-                                        if (directoryRemoved || 
+                                        if (directoryRemoved ||
                                             (parentObjectEntry != null && parentObjectEntry.Code == StatusCode.Masked))
                                         {
                                             parentIgnoredList[parentName] = true;
@@ -4326,8 +4449,8 @@ namespace Versionr
                     }
                 }
 
-				if (x.IsDirective)
-					LoadDirectives();
+                if (x.IsDirective)
+                    LoadDirectives();
             }
 #if MERGE_DIAGNOSTICS
             Printer.PrintDiagnostics(" > Merge phase 2, checking parent data.");
@@ -4425,46 +4548,46 @@ namespace Versionr
                 }
                 string path = GetRecordPath(x);
                 if (x.IsFile)
-				{
-					try
+                {
+                    try
                     {
                         System.IO.FileInfo fi = new FileInfo(path);
                         if (fi.IsReadOnly)
                             fi.IsReadOnly = false;
 
                         System.IO.File.Delete(path);
-					}
-					catch
-					{
-						Printer.PrintError("#x#Can't remove object \"{0}\"!", path);
-					}
-				}
-				else if (x.IsSymlink)
+                    }
+                    catch
+                    {
+                        Printer.PrintError("#x#Can't remove object \"{0}\"!", path);
+                    }
+                }
+                else if (x.IsSymlink)
                 {
                     try
-					{
-						Utilities.Symlink.Delete(path);
-					}
+                    {
+                        Utilities.Symlink.Delete(path);
+                    }
 					catch (Exception)
-					{
-						Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
-					}
-				}
-				else if (x.IsDirectory)
-				{
-					try
-					{
-						System.IO.Directory.Delete(path.Substring(0, path.Length - 1));
-					}
-					catch
-					{
-						Printer.PrintError("#x#Can't remove directory \"{0}\"!", x.CanonicalName);
-					}
-				}
+                    {
+                        Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
+                    }
+                }
+                else if (x.IsDirectory)
+                {
+                    try
+                    {
+                        System.IO.Directory.Delete(path.Substring(0, path.Length - 1));
+                    }
+                    catch
+                    {
+                        Printer.PrintError("#x#Can't remove directory \"{0}\"!", x.CanonicalName);
+                    }
+                }
                 filetimesToRemove.Add(x.CanonicalName);
-				if (!updateMode)
+                if (!updateMode)
                     delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Remove, Operand1 = x.CanonicalName });
-			}
+            }
             LocalData.AddStageOperations(delayedStageOperations);
             foreach (var x in parentData)
             {
@@ -4823,45 +4946,48 @@ namespace Versionr
                 FileClassifier.Classify(parentFile) == FileEncoding.Binary;
 
             System.IO.File.Copy(ml, ml + ".mine", true);
-            if (!isBinary && Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
+            if (!isBinary)
             {
+                bool xdiffSuccess = XDiffMerge3Way(mb, ml, mf, mr) == 0;
+                if (xdiffSuccess || Utilities.DiffTool.Merge3Way(mb, ml, mf, mr, Directives.ExternalMerge))
+                {
+                    FileInfo fi = new FileInfo(ml + ".mine");
+                    if (fi.IsReadOnly)
+                        fi.IsReadOnly = false;
+                    fi.Delete();
+                    if (!xdiffSuccess)
+                        Printer.PrintMessage("#s# - Resolved.##");
+                    return temporaryFile;
+                }
+            }
+
+            ResolveType resolution = GetResolution(isBinary, ref resolveAll);
+            if (resolution == ResolveType.Mine)
+            {
+                Printer.PrintMessage("#s# - Resolved (mine).##");
                 FileInfo fi = new FileInfo(ml + ".mine");
                 if (fi.IsReadOnly)
                     fi.IsReadOnly = false;
                 fi.Delete();
-                Printer.PrintMessage("#s# - Resolved.##");
-                return temporaryFile;
+                return local;
+            }
+            if (resolution == ResolveType.Theirs)
+            {
+                Printer.PrintMessage("#s# - Resolved (theirs).##");
+                FileInfo fi = new FileInfo(ml + ".mine");
+                if (fi.IsReadOnly)
+                    fi.IsReadOnly = false;
+                fi.Delete();
+                return foreign;
             }
             else
             {
-                ResolveType resolution = GetResolution(isBinary, ref resolveAll);
-                if (resolution == ResolveType.Mine)
-                {
-                    Printer.PrintMessage("#s# - Resolved (mine).##");
-                    FileInfo fi = new FileInfo(ml + ".mine");
-                    if (fi.IsReadOnly)
-                        fi.IsReadOnly = false;
-                    fi.Delete();
-                    return local;
-                }
-                if (resolution == ResolveType.Theirs)
-                {
-                    Printer.PrintMessage("#s# - Resolved (theirs).##");
-                    FileInfo fi = new FileInfo(ml + ".mine");
-                    if (fi.IsReadOnly)
-                        fi.IsReadOnly = false;
-                    fi.Delete();
-                    return foreign;
-                }
-                else
-                {
-                    if (!allowConflict)
-                        throw new Exception();
-                    System.IO.File.Move(mf, ml + ".theirs");
-                    System.IO.File.Move(mb, ml + ".base");
-                    Printer.PrintMessage("#e# - File not resolved. Please manually merge and then mark as resolved.##");
-                    return null;
-                }
+                if (!allowConflict)
+                    throw new Exception();
+                System.IO.File.Move(mf, ml + ".theirs");
+                System.IO.File.Move(mb, ml + ".base");
+                Printer.PrintMessage("#e# - File not resolved. Please manually merge and then mark as resolved.##");
+                return null;
             }
         }
 
@@ -5316,19 +5442,19 @@ namespace Versionr
                 CheckoutInternal(target, verbose);
             Database.GetCachedRecords(Version);
 
-			if (purge)
-				Purge();
+            if (purge)
+                Purge();
 
             Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\"", Database.Version.ID, Database.Branch.Name);
         }
 
-		private void Purge()
-		{
-			var status = Status;
+        private void Purge()
+        {
+            var status = Status;
             HashSet<Entry> deletionList = new HashSet<Entry>();
-			foreach (var x in status.Elements)
-			{
-				if (x.Code == StatusCode.Unversioned)
+            foreach (var x in status.Elements)
+            {
+                if (x.Code == StatusCode.Unversioned)
                 {
                     try
                     {
@@ -5376,22 +5502,22 @@ namespace Versionr
                     Printer.PrintMessage("#x#Couldn't delete directory {0}", x.CanonicalName);
                 }
             }
-		}
+        }
 
-		public bool ExportRecord(string cannonicalPath, Objects.Version version, string outputPath)
-		{
-			List<Record> records = Database.GetRecords(version);
-			foreach (var x in records)
-			{
-				if (x.CanonicalName == cannonicalPath)
-				{
+        public bool ExportRecord(string cannonicalPath, Objects.Version version, string outputPath)
+        {
+            List<Record> records = Database.GetRecords(version);
+            foreach (var x in records)
+            {
+                if (x.CanonicalName == cannonicalPath)
+                {
                     GetMissingRecords(new Record[] { x }.ToList());
-					RestoreRecord(x, DateTime.UtcNow, outputPath);
-					return true;
-				}
-			}
-			return false;
-		}
+                    RestoreRecord(x, DateTime.UtcNow, outputPath);
+                    return true;
+                }
+            }
+            return false;
+        }
 
         public class DAG<T, U>
         {
@@ -5428,7 +5554,7 @@ namespace Versionr
                 allVersions = allVersionsList.Reverse<Objects.Version>().Take(limit.Value).ToList();
             else
                 allVersions = allVersionsList;
-            DAG <Objects.Version, Guid> result = new DAG<Objects.Version, Guid>();
+            DAG<Objects.Version, Guid> result = new DAG<Objects.Version, Guid>();
             foreach (var x in allVersions)
             {
                 result.Lookup[x.ID] = new Tuple<Objects.Version, int>(x, result.Objects.Count);
@@ -5497,51 +5623,51 @@ namespace Versionr
         {
             return Database.GetRecords(v);
         }
-        
+
         private static IEnumerable<T> CheckoutOrder<T>(IList<T> targetRecords)
             where T : ICheckoutOrderable
-		{
-			// TODO: .vrmeta first.
-			foreach (var x in targetRecords.Where(x => x.IsDirective))
-			{
-				yield return x;
-			}
-			foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
-			{
-				yield return x;
-			}
-			foreach (var x in targetRecords.Where(x => x.IsFile && !x.IsDirective))
-			{
-				yield return x;
-			}
-			foreach (var x in targetRecords.Where(x => x.IsSymlink))
-			{
-				yield return x;
-			}
-		}
+        {
+            // TODO: .vrmeta first.
+            foreach (var x in targetRecords.Where(x => x.IsDirective))
+            {
+                yield return x;
+            }
+            foreach (var x in targetRecords.Where(x => x.IsDirectory).OrderBy(x => x.CanonicalName.Length))
+            {
+                yield return x;
+            }
+            foreach (var x in targetRecords.Where(x => x.IsFile && !x.IsDirective))
+            {
+                yield return x;
+            }
+            foreach (var x in targetRecords.Where(x => x.IsSymlink))
+            {
+                yield return x;
+            }
+        }
 
-		private static IEnumerable<Record> DeletionOrder(List<Record> records)
-		{
-			foreach (var x in records.Where(x => !x.IsDirectory))
-			{
-				yield return x;
-			}
-			foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
-			{
-				yield return x;
-			}
-		}
-		private static IEnumerable<TransientMergeObject> DeletionOrder(List<TransientMergeObject> records)
-		{
-			foreach (var x in records.Where(x => !x.Record.IsDirectory))
-			{
-				yield return x;
-			}
-			foreach (var x in records.Where(x => x.Record.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
-			{
-				yield return x;
-			}
-		}
+        private static IEnumerable<Record> DeletionOrder(List<Record> records)
+        {
+            foreach (var x in records.Where(x => !x.IsDirectory))
+            {
+                yield return x;
+            }
+            foreach (var x in records.Where(x => x.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
+            {
+                yield return x;
+            }
+        }
+        private static IEnumerable<TransientMergeObject> DeletionOrder(List<TransientMergeObject> records)
+        {
+            foreach (var x in records.Where(x => !x.Record.IsDirectory))
+            {
+                yield return x;
+            }
+            foreach (var x in records.Where(x => x.Record.IsDirectory).OrderByDescending(x => x.CanonicalName.Length))
+            {
+                yield return x;
+            }
+        }
 
         public enum RecordUpdateType
         {
@@ -5551,10 +5677,10 @@ namespace Versionr
             Deleted
         }
 
-		private void CheckoutInternal(Objects.Version tipVersion, bool verbose)
+        private void CheckoutInternal(Objects.Version tipVersion, bool verbose)
         {
             List<Record> records = Database.Records;
-            
+
             List<Record> targetRecords = Database.GetRecords(tipVersion).Where(x => Included(x.CanonicalName)).ToList();
 
             DateTime newRefTime = DateTime.UtcNow;
@@ -5566,8 +5692,8 @@ namespace Versionr
             }
 
             HashSet<string> canonicalNames = new HashSet<string>();
-			List<Task> tasks = new List<Task>();
-			List<Record> pendingSymlinks = new List<Record>();
+            List<Task> tasks = new List<Task>();
+            List<Record> pendingSymlinks = new List<Record>();
 
             Printer.InteractivePrinter printer = null;
             long totalSize = targetRecords.Sum(x => x.Size);
@@ -5697,8 +5823,8 @@ namespace Versionr
             if (spinner != null)
                 spinner.End(deletionCount);
             foreach (var x in CheckoutOrder(targetRecords))
-			{
-				canonicalNames.Add(x.CanonicalName);
+            {
+                canonicalNames.Add(x.CanonicalName);
                 if (x.IsDirectory)
                 {
                     System.Threading.Interlocked.Increment(ref count);
@@ -5752,28 +5878,28 @@ namespace Versionr
                 throw new Exception("Checkout failed!", e);
             }
             int attempts = 5;
-			while (attempts > 0)
-			{
-				attempts--;
-				List<Record> done = new List<Record>();
-				foreach (var x in pendingSymlinks)
-				{
-					try
-					{
-						RestoreRecord(x, newRefTime, null, null, feedback);
-						done.Add(x);
-						Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
-					}
+            while (attempts > 0)
+            {
+                attempts--;
+                List<Record> done = new List<Record>();
+                foreach (var x in pendingSymlinks)
+                {
+                    try
+                    {
+                        RestoreRecord(x, newRefTime, null, null, feedback);
+                        done.Add(x);
+                        Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
+                    }
 					catch (Utilities.Symlink.TargetNotFoundException)
-					{
-						// do nothing...
-						if (attempts == 0)
-							Printer.PrintError("Could not create symlink {0}, because {1} could not be resolved", x.CanonicalName, x.Fingerprint);
-					}
-				}
-				foreach (var x in done)
-					pendingSymlinks.Remove(x);
-			}
+                    {
+                        // do nothing...
+                        if (attempts == 0)
+                            Printer.PrintError("Could not create symlink {0}, because {1} could not be resolved", x.CanonicalName, x.Fingerprint);
+                    }
+                }
+                foreach (var x in done)
+                    pendingSymlinks.Remove(x);
+            }
             if (printer != null)
                 printer.End(totalSize);
             Printer.PrintMessage("#b#{0}## updates, #b#{1}## additions, #b#{2}## deletions.", updates, additions, deletions);
@@ -6046,8 +6172,8 @@ namespace Versionr
             }
 
             LocalData.BeginTransaction();
-			try
-			{
+            try
+            {
                 foreach (var x in CheckoutOrder(targets))
                 {
                     if (!Included(x.CanonicalName))
@@ -6598,7 +6724,7 @@ namespace Versionr
                                 Objects.Branch deletedBranch = Database.Get<Objects.Branch>(z);
                                 DeleteBranchNoTransaction(deletedBranch);
                             }
-                            
+
                             if (branch.Terminus.HasValue)
                             {
                                 Printer.PrintWarning("#w#Undeleting branch...");
@@ -6659,6 +6785,15 @@ namespace Versionr
                             ws.Tip = vs.ID;
                             LocalData.UpdateSafe(ws);
 
+                            try
+                            {
+                                Database.GetCachedRecords(Version, true);
+                            }
+                            catch
+                            {
+                                throw new Exception("Critical: commit operation is generating an invalid set of alterations!");
+                            }
+
                             Database.Commit();
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
@@ -6672,7 +6807,7 @@ namespace Versionr
                             if (e is VersionrException)
                                 return false;
                             Printer.PrintError("Exception during commit: {0}", e.ToString());
-                            return false;
+                            throw;
                         }
                         finally
                         {
@@ -6687,12 +6822,11 @@ namespace Versionr
                     }
                     return true;
                 }, true);
-                Database.GetCachedRecords(Version);
                 return result;
             }
             catch
             {
-                Printer.PrintWarning("#w#Warning:##\n  Error during commit.");
+                Printer.PrintWarning("\n#x#Error:##\n  Error during commit. Rolling back.");
                 return false;
             }
         }
@@ -6727,20 +6861,20 @@ namespace Versionr
         public void RestoreRecord(Record rec, DateTime referenceTime, string overridePath = null, ConcurrentQueue<FileTimestamp> updatedTimestamps = null, Action<RecordUpdateType, string, Objects.Record> feedback = null)
         {
             if (rec.IsSymlink)
-			{
+            {
                 string path = GetRecordPath(rec);
-				if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
-				{
-					if (Utilities.Symlink.Create(path, rec.Fingerprint, true))
-						Printer.PrintMessage("Created symlink {0} -> {1}", GetLocalCanonicalName(rec), rec.Fingerprint);
-				}
-				return;
-			}
-			// Otherwise, have to make sure we first get rid of the symlink to replace with the real file/dir
-			else
-				Utilities.Symlink.Delete(GetRecordPath(rec));
+                if (!Utilities.Symlink.Exists(path) || Utilities.Symlink.GetTarget(path) != rec.Fingerprint)
+                {
+                    if (Utilities.Symlink.Create(path, rec.Fingerprint, true))
+                        Printer.PrintMessage("Created symlink {0} -> {1}", GetLocalCanonicalName(rec), rec.Fingerprint);
+                }
+                return;
+            }
+            // Otherwise, have to make sure we first get rid of the symlink to replace with the real file/dir
+            else
+                Utilities.Symlink.Delete(GetRecordPath(rec));
 
-			if (rec.IsDirectory)
+            if (rec.IsDirectory)
             {
                 string recPath = GetRecordPath(rec);
                 DirectoryInfo directory = new DirectoryInfo(recPath);
@@ -6825,7 +6959,7 @@ namespace Versionr
                     feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
             }
             int retries = 0;
-        Retry:
+            Retry:
             try
             {
                 dest.Directory.Create();
@@ -6919,6 +7053,30 @@ namespace Versionr
             get
             {
                 return Database.ExecuteScalar<long>("SELECT rowid FROM Branch ORDER BY rowid DESC LIMIT 1");
+            }
+        }
+
+        public List<Guid> LocalLockTokens
+        {
+            get
+            {
+                return LocalData.Table<LocalState.RemoteLock>().ToList().Select(x => x.ID).ToList();
+            }
+        }
+
+        public List<RemoteLock> HeldLocks
+        {
+            get
+            {
+                return LocalData.Table<RemoteLock>().ToList();
+            }
+        }
+
+        public bool HasPendingMerge
+        {
+            get
+            {
+                return LocalData.StageOperations.Any(x => x.Type == StageOperationType.Merge);
             }
         }
 

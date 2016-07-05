@@ -13,6 +13,7 @@ namespace Versionr
         [ParserState]
         public IParserState LastParserState { get; set; }
         public abstract string Verb { get; }
+        public abstract Commands.BaseCommand GetCommand();
         public abstract string[] Description { get; }
         [HelpOption]
         public string GetUsage()
@@ -35,7 +36,13 @@ namespace Versionr
                     help.AddPreOptionsLine(errors);
                 }
             }
-            help.AddPreOptionsLine(string.Format("\nUsage:\n   {0}\n", Usage));
+            string[] usageOpts = Usage.Split(new char[] { '\n' });
+            help.MaximumDisplayWidth += 16;
+            help.AddPreOptionsLine(string.Format("\nUsage:\n   {0}", usageOpts[0]));
+            for (int i = 1; i < usageOpts.Length; i++)
+                help.AddPreOptionsLine(string.Format("Or:\n   {0}", usageOpts[i]));
+            help.AddPreOptionsLine("\n");
+            help.MaximumDisplayWidth -= 16;
             help.AddPreOptionsLine(string.Format("##The `#b#{0}##` Command:", Verb));
             foreach (var x in Description)
                 help.AddPreOptionsLine("  " + x);

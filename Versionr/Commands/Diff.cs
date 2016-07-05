@@ -9,14 +9,18 @@ using CommandLine;
 namespace Versionr.Commands
 {
 	class DiffVerbOptions : FileCommandVerbOptions
-	{
-		public override string[] Description
+    {
+        public override BaseCommand GetCommand()
+        {
+            return new Diff();
+        }
+        public override string[] Description
 		{
 			get
 			{
 				return new string[]
 				{
-					"Diff a file"
+					"Displays diffs for one or more objects. If a version is specified, it will display the diffs from that version, otherwise it will compare objects with the workspace's current version."
 				};
 			}
 		}

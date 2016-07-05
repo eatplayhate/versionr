@@ -65,6 +65,7 @@
     <Compile Include="LocalState\FileTimestamp.cs" />
     <Compile Include="LocalState\LockingObject.cs" />
     <Compile Include="LocalState\RemoteConfig.cs" />
+    <Compile Include="LocalState\RemoteLock.cs" />
     <Compile Include="LocalState\SavedStash.cs" />
     <Compile Include="LocalState\StageOperation.cs" />
     <Compile Include="LocalState\Workspace.cs" />
@@ -74,6 +75,7 @@
     <Compile Include="Network\ClonePayload.cs" />
     <Compile Include="Network\CompressibleAttribute.cs" />
     <Compile Include="Network\Handshake.cs" />
+    <Compile Include="Network\Locks.cs" />
     <Compile Include="Network\NetCommand.cs" />
     <Compile Include="Network\PushObjectQuery.cs" />
     <Compile Include="Network\Server.cs" />
@@ -102,10 +104,13 @@
     <Compile Include="Objects\FormatInfo.cs" />
     <Compile Include="Objects\Head.cs" />
     <Compile Include="Objects\MergeInfo.cs" />
+    <Compile Include="Objects\Annotation.cs" />
     <Compile Include="Objects\ObjectName.cs" />
     <Compile Include="Objects\Record.cs" />
     <Compile Include="Objects\RecordRef.cs" />
     <Compile Include="Objects\Snapshot.cs" />
+    <Compile Include="Objects\Tag.cs" />
+    <Compile Include="Objects\VaultLock.cs" />
     <Compile Include="Objects\Version.cs" />
     <Compile Include="Printer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
