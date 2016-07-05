@@ -30,7 +30,9 @@
                     <ListView Grid.Column="0"
                           Name="listView"
                           ItemsSource="{Binding Alterations}"
-                          SelectionMode="Single">
+                          SelectionMode="Single"
+                          ScrollViewer.IsDeferredScrollingEnabled="False"
+                          Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name, Mode=OneWay}" />
@@ -114,7 +116,9 @@
             <ListView Grid.Row="1"
                       Name="listView"
                       ItemsSource="{Binding History}"
-                      SelectionMode="Single">
+                      SelectionMode="Single"
+                      ScrollViewer.IsDeferredScrollingEnabled="False"
+                      Style="{StaticResource VirtualisedMetroListView}">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Revision" DisplayMemberBinding="{Binding Revision, Mode=OneWay}" />

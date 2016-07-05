@@ -155,7 +155,9 @@
                               ItemsSource="{Binding History}"
                               SelectedItem="{Binding SelectedVersion}"
                               SelectionMode="Single"
-                              GridViewColumnHeader.Click="listViewHeader_Click">
+                              GridViewColumnHeader.Click="listViewHeader_Click"
+                              ScrollViewer.IsDeferredScrollingEnabled="False"
+                              Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Graph">
@@ -271,7 +273,9 @@
             <ListView Grid.Row="0"
                       ItemsSource="{Binding Alterations}"
                       SelectionMode="Single"
-                      GridViewColumnHeader.Click="listViewHeader_Click">
+                      GridViewColumnHeader.Click="listViewHeader_Click"
+                      ScrollViewer.IsDeferredScrollingEnabled="False"
+                      Style="{StaticResource VirtualisedMetroListView}">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name, Mode=OneWay}" />
@@ -341,10 +345,12 @@
                                     ShowsPreview="True"
                                     Height="5" />
                     <ListView Grid.Row="2"
-                                x:Name="listView"
-                                ItemsSource="{Binding Elements}"
-                                SelectionMode="Extended"
-                                GridViewColumnHeader.Click="listViewHeader_Click">
+                              x:Name="listView"
+                              ItemsSource="{Binding Elements}"
+                              SelectionMode="Extended"
+                              GridViewColumnHeader.Click="listViewHeader_Click"
+                              ScrollViewer.IsDeferredScrollingEnabled="False"
+                              Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Staged">
