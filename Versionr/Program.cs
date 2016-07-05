@@ -198,7 +198,7 @@ namespace Versionr
         static void Main(string[] args)
         {
             try
-            {
+            {   
                 string workingDirectoryPath = Environment.CurrentDirectory;
                 var printerStream = new Printer.PrinterStream();
                 VersionOptions initalOpts = new VersionOptions();

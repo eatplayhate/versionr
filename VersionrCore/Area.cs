@@ -3270,9 +3270,14 @@ namespace Versionr
             return ObjectStore.HasDataDirect(x, out ignored);
         }
 
-        internal void CommitDatabaseTransaction()
+        public void CommitDatabaseTransaction()
         {
             Database.Commit();
+        }
+
+        public int ExecuteDatabaseSQL(string sql)
+        {
+            return Database.Execute(sql);
         }
 
         internal void ImportRecordNoCommit(Record rec, bool checkduplicates = true)
@@ -3306,12 +3311,12 @@ namespace Versionr
             Database.InsertSafe(rec);
         }
 
-        internal void RollbackDatabaseTransaction()
+        public void RollbackDatabaseTransaction()
         {
             Database.Rollback();
         }
 
-        internal void BeginDatabaseTransaction()
+        public void BeginDatabaseTransaction()
         {
             Database.BeginTransaction();
         }
