@@ -145,7 +145,7 @@ namespace VersionrUI.Dialogs
             lock (refreshLock)
             {
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetLogicalHistory(Version, limit));
+                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetLogicalHistory(Version, false, false, limit));
                 
                 _history = new List<VersionVM>();
                 foreach (Version ver in versions)

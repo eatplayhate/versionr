@@ -2573,24 +2573,53 @@ namespace Versionr
             }
         }
 
-        public List<Objects.Version> GetLogicalHistory(Objects.Version version, int? limit = null, HashSet<Guid> excludes = null)
+        IEnumerable<Objects.Version> GetHistoryChunked(Objects.Version version, int? limit)
         {
-            var versions = Database.GetHistory(version, limit);
+            int remaining = limit.HasValue ? limit.Value : int.MaxValue;
+            int chunkCount = 256;
+            Objects.Version top = version;
+            bool first = true;
+            while (remaining > 0)
+            {
+                int inChunk = Math.Min(chunkCount, remaining);
+                List<Objects.Version> block = Database.GetHistory(top, inChunk);
+                if (block.Count == 0 || (block.Count == 1 && !first))
+                    yield break;
+                for (int i = first ? 0 : 1; i < block.Count; i++)
+                {
+                    yield return block[i];
+                }
+                first = false;
+                top = block[block.Count - 1];
+                remaining -= inChunk;
+            }
+        }
+
+        public List<Objects.Version> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        {
+            var versions = GetHistoryChunked(version, limit);
+            List<Objects.Version> versionsToCheck = new List<Objects.Version>();
             List<Objects.Version> results = new List<Objects.Version>();
             HashSet<Guid> primaryLine = new HashSet<Guid>();
             HashSet<Guid> addedLine = new HashSet<Guid>();
             foreach (var x in versions)
             {
                 if (excludes == null || !excludes.Contains(x.ID))
+                {
+                    versionsToCheck.Add(x);
                     primaryLine.Add(x.ID);
+                }
+                else
+                    break;
             }
-            foreach (var x in versions)
+            foreach (var x in versionsToCheck)
             {
                 if (excludes != null && excludes.Contains(x.ID))
                     continue;
                 var merges = Database.GetMergeInfo(x.ID);
                 bool rebased = false;
                 bool automerged = false;
+                bool merged = false;
                 if (excludes != null)
                     excludes.Add(x.ID);
                 foreach (var y in merges)
@@ -2599,16 +2628,20 @@ namespace Versionr
                         rebased = true;
                     if (y.Type == MergeType.Automatic)
                         automerged = true;
+                    merged = !showMerges;
                     var mergedVersion = GetVersion(y.SourceVersion);
-                    if (mergedVersion.Branch == x.Branch && !rebased)
+                    if ((mergedVersion.Branch == x.Branch || followBranches) && !rebased)
                     {
                         // automerge or manual reconcile
-                        var mergedHistory = GetLogicalHistory(mergedVersion, limit, excludes != null ? excludes : primaryLine);
+                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, limit, excludes != null ? excludes : primaryLine);
                         foreach (var z in mergedHistory)
                         {
                             if (!addedLine.Contains(z.ID))
                             {
                                 addedLine.Add(z.ID);
+                                primaryLine.Add(z.ID);
+                                if (excludes != null)
+                                    excludes.Add(z.ID);
                                 results.Add(z);
                             }
                             else
@@ -2616,7 +2649,7 @@ namespace Versionr
                         }
                     }
                 }
-                if (!automerged)
+                if (!merged || (!rebased && !followBranches && !automerged))
                 {
                     addedLine.Add(x.ID);
                     results.Add(x);
@@ -2637,7 +2670,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.1.44";
+                return "v1.2.1";
             }
         }
 
@@ -3088,14 +3121,11 @@ namespace Versionr
 
         public Objects.Record GetRecord(long id)
         {
-			Objects.Record rec = Database.Find<Objects.Record>(id);
-			if (rec != null)
-			{
-				rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
-			}
-
-			return rec;
-		}
+            Objects.Record rec = Database.Find<Objects.Record>(id);
+            if (rec != null)
+                rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+            return rec;
+        }
 
         internal void AddHeadNoCommit(Head x)
         {

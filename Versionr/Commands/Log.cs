@@ -12,8 +12,12 @@ namespace Versionr.Commands
 	{
 		[Option('l', "limit", DefaultValue = -1, HelpText = "Limit number of versions to show, 10 default (0 for all).")]
 		public int Limit { get; set; }
-        [Option('m', "shormerged", DefaultValue = true, HelpText = "Show logical history (cleans up automatic merge data).")]
-        public bool ShowMerged { get; set; }
+        [Option('a', "logical", DefaultValue = true, HelpText = "Show logical history (cleans up automatic merge data and can follow branches).")]
+        public bool Logical { get; set; }
+        [Option('f', "follow", HelpText = "Follows merges from other branches.")]
+        public bool FollowBranches { get; set; }
+        [Option('m', "merges", HelpText = "Shows revisions where a merge occurred when following logical history.")]
+        public bool ShowMerges { get; set; }
         [Option('e', "reverse", HelpText = "Reverses the order of versions in the log.")]
         public bool Reverse { get; set; }
 
@@ -57,8 +61,11 @@ namespace Versionr.Commands
 		[Option("author", HelpText = "Filter log on specific author")]
 		public string Author { get; set; }
 
+        [Option("xml", HelpText = "Generate XML output")]
+        public bool XML { get; set; }
 
-		public override string[] Description
+
+        public override string[] Description
 		{
 			get
 			{
@@ -365,6 +372,15 @@ namespace Versionr.Commands
 			if (JruntingMode)
 				localOptions.Detail = LogVerbOptions.DetailMode.Jrunting;
 
+            if (localOptions.FollowBranches || localOptions.ShowMerges)
+            {
+                if (!localOptions.Logical)
+                {
+                    Printer.PrintError("#e#Error:## Following branches and specifically enabling display or merges are only valid options when showing the #b#--logical## history.");
+                    return false;
+                }
+            }
+
 			Printer.EnableDiagnostics = localOptions.Verbose;
 
 			bool targetedBranch = false;
@@ -441,7 +457,7 @@ namespace Versionr.Commands
             if (nullableLimit.Value <= 0)
                 nullableLimit = null;
             
-            var history = (localOptions.ShowMerged ? ws.GetLogicalHistory(version, nullableLimit) : ws.GetHistory(version, nullableLimit)).AsEnumerable();
+            var history = (localOptions.Logical ? ws.GetLogicalHistory(version, localOptions.FollowBranches, localOptions.ShowMerges, nullableLimit) : ws.GetHistory(version, nullableLimit)).AsEnumerable();
 
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;
