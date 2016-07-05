@@ -672,6 +672,25 @@ namespace Versionr.ObjectStore
                 return true;
             return HasDataDirect(GetLookup(recordInfo), out requestedData);
         }
+
+        public override void EraseData(string dataIdentifier)
+        {
+            if (string.IsNullOrEmpty(dataIdentifier))
+                return;
+            var storeData = ObjectDatabase.Find<FileObjectStoreData>(dataIdentifier);
+            if (storeData != null)
+            {
+                if (storeData.BlobID.HasValue)
+                {
+                    BlobDatabase.Delete<Blobject>(storeData.BlobID.Value);
+                    BlobDatabase.Delete<Blobsize>(storeData.BlobID.Value);
+                }
+                else
+                {
+                    GetFileForDataID(dataIdentifier).Delete();
+                }
+            }
+        }
         public override bool HasDataDirect(string x, out List<string> requestedData)
         {
             requestedData = null;

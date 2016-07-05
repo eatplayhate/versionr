@@ -34,6 +34,7 @@ namespace Versionr
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
         public DirectoryInfo RootDirectory { get; private set; }
+
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
@@ -7321,6 +7322,68 @@ namespace Versionr
                     return local;
                 return PartialPath + local;
             }
+        }
+
+        public void Prune()
+        {
+            HashSet<long> preservedRecords = new HashSet<long>();
+            HashSet<Guid> processedVersions = new HashSet<Guid>();
+            Action<Objects.Version> preserveRecords = (ver) =>
+            {
+                if (processedVersions.Contains(ver.ID))
+                    return;
+                var records = GetRecords(ver);
+                foreach (var x in records)
+                    preservedRecords.Add(x.Id);
+                int count = 25;
+                while (count > 0)
+                {
+                    if (!ver.Parent.HasValue)
+                        break;
+                    if (processedVersions.Contains(ver.Parent.Value))
+                        break;
+                    processedVersions.Add(ver.Parent.Value);
+                    ver = GetVersion(ver.Parent.Value);
+                    var alts = GetAlterations(ver);
+                    foreach (var x in alts)
+                    {
+                        if (x.PriorRecord.HasValue)
+                            preservedRecords.Add(x.PriorRecord.Value);
+                    }
+                    count--;
+                }
+            };
+            var branches = Branches;
+            for (int i = 0; i < branches.Count; i++)
+            {
+                foreach (var y in GetBranchHeads(branches[i]))
+                    preserveRecords(GetVersion(y.Version));
+                Printer.PrintMessage("Processed branch {1}/{2}: {0}", branches[i].Name, i + 1, branches.Count);
+            }
+            HashSet<string> dataIdentifiers = new HashSet<string>();
+            long size = 0;
+            var allRecords = Database.Table<Objects.Record>().ToList();
+            foreach (var x in allRecords)
+            {
+                if (preservedRecords.Contains(x.Id))
+                    continue;
+                if (x.Size < 1024 * 512)
+                    continue;
+                var name = Database.Get<Objects.ObjectName>(x.CanonicalNameId).CanonicalName;
+                if (name.EndsWith(".cpp") || name.EndsWith(".cs") || name.EndsWith(".h") || name.EndsWith(".hpp"))
+                    continue;
+                if (!dataIdentifiers.Contains(x.DataIdentifier))
+                {
+                    dataIdentifiers.Add(x.DataIdentifier);
+                    size += x.Size;
+                }
+            }
+
+            Printer.PrintMessage("Preserved {0} of {1} records.", preservedRecords.Count, allRecords.Count);
+            Printer.PrintMessage("About to prune {0} objects with a combined unpacked size of {1}.", dataIdentifiers.Count, Utilities.Misc.FormatSizeFriendly(size));
+
+            foreach (var x in dataIdentifiers)
+                ObjectStore.EraseData(x);
         }
 
         public static Area Init(DirectoryInfo workingDir, string branchname = "master")

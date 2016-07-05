@@ -82,6 +82,7 @@
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\MergeInfo.cs" />
+    <Compile Include="Commands\Prune.cs" />
     <Compile Include="Commands\Pull.cs" />
     <Compile Include="Commands\Push.cs" />
     <Compile Include="Commands\PushStash.cs" />
