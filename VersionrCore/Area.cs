@@ -2596,11 +2596,23 @@ namespace Versionr
             }
         }
 
+        public List<Tuple<Objects.Version, int>> GetLogicalHistorySequenced(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        {
+            int sequence = 0;
+            return GetLogicalHistory(version, followBranches, showMerges, limit, excludes, ref sequence);
+        }
+
         public List<Objects.Version> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        {
+            int sequence = 0;
+            return GetLogicalHistory(version, followBranches, showMerges, limit, excludes, ref sequence).Select(x => x.Item1).ToList();
+        }
+
+        internal List<Tuple<Objects.Version, int>> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit, HashSet<Guid> excludes, ref int sequence)
         {
             var versions = GetHistoryChunked(version, limit);
             List<Objects.Version> versionsToCheck = new List<Objects.Version>();
-            List<Objects.Version> results = new List<Objects.Version>();
+            List<Tuple<Objects.Version, int>> results = new List<Tuple<Objects.Version, int>>();
             HashSet<Guid> primaryLine = new HashSet<Guid>();
             HashSet<Guid> addedLine = new HashSet<Guid>();
             foreach (var x in versions)
@@ -2613,6 +2625,7 @@ namespace Versionr
                 else
                     break;
             }
+            int? seq = null;
             foreach (var x in versionsToCheck)
             {
                 if (excludes != null && excludes.Contains(x.ID))
@@ -2621,6 +2634,7 @@ namespace Versionr
                 bool rebased = false;
                 bool automerged = false;
                 bool merged = false;
+                bool added = false;
                 if (excludes != null)
                     excludes.Add(x.ID);
                 foreach (var y in merges)
@@ -2629,20 +2643,31 @@ namespace Versionr
                         rebased = true;
                     if (y.Type == MergeType.Automatic)
                         automerged = true;
-                    merged = !showMerges;
+                    merged = true;
+                    if ((showMerges || (!rebased && !followBranches)) && !automerged)
+                    {
+                        if (!added)
+                        {
+                            addedLine.Add(x.ID);
+                            if (seq == null)
+                                seq = sequence++;
+                            results.Add(new Tuple<Objects.Version, int>(x, seq.Value));
+                        }
+                        added = true;
+                    }
                     var mergedVersion = GetVersion(y.SourceVersion);
                     if ((mergedVersion.Branch == x.Branch || followBranches) && !rebased)
                     {
                         // automerge or manual reconcile
-                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, limit, excludes != null ? excludes : primaryLine);
+                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, limit, excludes != null ? excludes : primaryLine, ref sequence);
                         foreach (var z in mergedHistory)
                         {
-                            if (!addedLine.Contains(z.ID))
+                            if (!addedLine.Contains(z.Item1.ID))
                             {
-                                addedLine.Add(z.ID);
-                                primaryLine.Add(z.ID);
+                                addedLine.Add(z.Item1.ID);
+                                primaryLine.Add(z.Item1.ID);
                                 if (excludes != null)
-                                    excludes.Add(z.ID);
+                                    excludes.Add(z.Item1.ID);
                                 results.Add(z);
                             }
                             else
@@ -2650,13 +2675,15 @@ namespace Versionr
                         }
                     }
                 }
-                if (!merged || (!rebased && !followBranches && !automerged))
+                if (!merged)
                 {
                     addedLine.Add(x.ID);
-                    results.Add(x);
+                    if (seq == null)
+                        seq = sequence++;
+                    results.Add(new Tuple<Objects.Version, int>(x, seq.Value));
                 }
             }
-            var ordered = results.OrderByDescending(x => x.Timestamp);
+            var ordered = results.OrderByDescending(x => x.Item1.Timestamp);
             if (limit == null)
                 return ordered.ToList();
             else return ordered.Take(limit.Value).ToList();
@@ -7278,8 +7305,8 @@ namespace Versionr
         {
             string rootFolder = Root.FullName.Replace('\\', '/');
             string localFolder = fullName.Replace('\\', '/');
-            if (!localFolder.StartsWith(rootFolder))
-                throw new Exception();
+            if (!localFolder.StartsWith(rootFolder, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(string.Format("{0} doesn't start with {1}", localFolder, rootFolder));
             else
             {
                 if (localFolder == rootFolder)

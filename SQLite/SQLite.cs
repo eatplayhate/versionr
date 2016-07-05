@@ -669,13 +669,16 @@ namespace SQLite
 		/// <returns>
 		/// A <see cref="SQLiteCommand"/>
 		/// </returns>
-		public SQLiteCommand CreateCommand (string cmdText, params object[] ps)
+		public SQLiteCommand CreateCommand (bool cache, string cmdText, params object[] ps)
 		{
 			if (!_open)
 				throw SQLiteException.New (SQLite3.Result.Error, "Cannot create commands from unopened database");
 
 			var cmd = NewCommand ();
-			cmd.CommandText = cmdText;
+            if (cache)
+                cmd.PrepareAndCache(cmdText);
+            else
+    			cmd.CommandText = cmdText;
 			foreach (var o in ps) {
 				cmd.Bind (o);
 			}
@@ -701,7 +704,7 @@ namespace SQLite
 		/// </returns>
 		public int Execute (string query, params object[] args)
 		{
-			var cmd = CreateCommand (query, args);
+			var cmd = CreateCommand (false, query, args);
 			
 			if (TimeExecution) {
 				if (_sw == null) {
@@ -724,7 +727,7 @@ namespace SQLite
 
 		public T ExecuteScalar<T> (string query, params object[] args)
 		{
-			var cmd = CreateCommand (query, args);
+			var cmd = CreateCommand (false, query, args);
 			
 			if (TimeExecution) {
 				if (_sw == null) {
@@ -762,7 +765,7 @@ namespace SQLite
 		/// </returns>
 		public List<T> Query<T> (string query, params object[] args) where T : new()
 		{
-			var cmd = CreateCommand (query, args);
+			var cmd = CreateCommand (true, query, args);
 			return cmd.ExecuteQuery<T> ();
 		}
 
@@ -785,7 +788,7 @@ namespace SQLite
 		/// </returns>
 		public IEnumerable<T> DeferredQuery<T>(string query, params object[] args) where T : new()
 		{
-			var cmd = CreateCommand(query, args);
+			var cmd = CreateCommand(false, query, args);
 			return cmd.ExecuteDeferredQuery<T>();
 		}
 
@@ -811,7 +814,7 @@ namespace SQLite
 		/// </returns>
 		public List<object> Query (TableMapping map, string query, params object[] args)
 		{
-			var cmd = CreateCommand (query, args);
+			var cmd = CreateCommand (true, query, args);
 			return cmd.ExecuteQuery<object> (map);
 		}
 
@@ -839,7 +842,7 @@ namespace SQLite
 		/// </returns>
 		public IEnumerable<object> DeferredQuery(TableMapping map, string query, params object[] args)
 		{
-			var cmd = CreateCommand(query, args);
+			var cmd = CreateCommand(false, query, args);
 			return cmd.ExecuteDeferredQuery<object>(map);
 		}
 
@@ -1833,11 +1836,18 @@ namespace SQLite
 			Close ();
 		}
 
+        List<Sqlite3DatabaseHandle> _preparedStatementsTotal = new List<Sqlite3DatabaseHandle>();
+
 		public void Close ()
 		{
 			if (_open && Handle != NullHandle) {
-				try {
-					if (_mappings != null) {
+				try
+                {
+                    foreach (var x in _preparedStatementsTotal)
+                    {
+                        SQLite3.Finalize(x);
+                    }
+                    if (_mappings != null) {
 						foreach (var sqlInsertCommand in _mappings.Values) {
 							sqlInsertCommand.Dispose();
 						}
@@ -1863,7 +1873,34 @@ namespace SQLite
 		}
 
 		public event EventHandler<NotifyTableChangedEventArgs> TableChanged;
-	}
+
+        internal System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentBag<Sqlite3DatabaseHandle>> _preparedStatements = new System.Collections.Concurrent.ConcurrentDictionary<string, System.Collections.Concurrent.ConcurrentBag<Sqlite3DatabaseHandle>>();
+
+        internal Sqlite3DatabaseHandle GetCachedStatement(string commandText)
+        {
+            var bag = _preparedStatements.GetOrAdd(commandText, new System.Collections.Concurrent.ConcurrentBag<Sqlite3DatabaseHandle>());
+            Sqlite3DatabaseHandle statement;
+            if (!bag.TryTake(out statement))
+            {
+                lock (_preparedStatementsTotal)
+                {
+                    statement = SQLite3.Prepare2(Handle, commandText);
+                    _preparedStatementsTotal.Add(statement);
+                }
+            }
+            return statement;
+        }
+
+        internal void ReturnCachedStatement(Sqlite3DatabaseHandle _stmt, string commandText)
+        {
+            System.Collections.Concurrent.ConcurrentBag<Sqlite3DatabaseHandle> bag;
+            SQLite3.Reset(_stmt);
+            if (!_preparedStatements.TryGetValue(commandText, out bag))
+                throw new Exception();
+            else
+                bag.Add(_stmt);
+        }
+    }
 
 	public class NotifyTableChangedEventArgs : EventArgs
 	{
@@ -2515,15 +2552,26 @@ namespace SQLite
 	{
 		SQLiteConnection _conn;
 		private List<Binding> _bindings;
+        bool _prepared;
+        Sqlite3DatabaseHandle _stmt;
 
 		public string CommandText { get; set; }
+
+        public void PrepareAndCache(string cmd)
+        {
+            CommandText = cmd;
+            _prepared = true;
+        }
 
 		internal SQLiteCommand (SQLiteConnection conn)
 		{
 			_conn = conn;
-			_bindings = new List<Binding> ();
+            _stmt = IntPtr.Zero;
+            _bindings = new List<Binding> ();
 			CommandText = "";
-		}
+            _prepared = false;
+
+        }
 
 		public int ExecuteNonQuery ()
 		{
@@ -2611,7 +2659,7 @@ namespace SQLite
 			}
 			finally
 			{
-				SQLite3.Finalize(stmt);
+				Finalize(stmt);
             }
         }
 
@@ -2674,14 +2722,21 @@ namespace SQLite
 
 		Sqlite3Statement Prepare()
 		{
-			var stmt = SQLite3.Prepare2 (_conn.Handle, CommandText);
+            if (_prepared)
+                _stmt = _conn.GetCachedStatement(CommandText);
+            var stmt = _stmt;
+            if (stmt == IntPtr.Zero)
+                stmt = SQLite3.Prepare2 (_conn.Handle, CommandText);
 			BindAll (stmt);
 			return stmt;
 		}
 
 		void Finalize (Sqlite3Statement stmt)
 		{
-			SQLite3.Finalize (stmt);
+            if (_stmt == stmt) // prepared
+                _conn.ReturnCachedStatement(_stmt, CommandText);
+            else
+    			SQLite3.Finalize (stmt);
 		}
 
 		void BindAll (Sqlite3Statement stmt)
@@ -2980,7 +3035,7 @@ namespace SQLite
 				var w = CompileExpr (pred, args);
 				var cmdText = "delete from \"" + Table.TableName + "\"";
 				cmdText += " where " + w.CommandText;
-				var command = Connection.CreateCommand (cmdText, args.ToArray ());
+				var command = Connection.CreateCommand (false, cmdText, args.ToArray ());
 
 				int result = command.ExecuteNonQuery();
 				return result;
@@ -3130,7 +3185,7 @@ namespace SQLite
 					}
 					cmdText += " offset " + _offset.Value;
 				}
-				return Connection.CreateCommand (cmdText, args.ToArray ());
+				return Connection.CreateCommand (false, cmdText, args.ToArray ());
 			}
 		}
 

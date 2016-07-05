@@ -294,7 +294,7 @@ namespace SQLite
 			return Task<T>.Factory.StartNew (() => {
 				var conn = GetConnection ();
 				using (conn.Lock ()) {
-					var command = conn.CreateCommand (sql, args);
+					var command = conn.CreateCommand (false, sql, args);
 					return command.ExecuteScalar<T> ();
 				}
 			});

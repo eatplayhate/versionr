@@ -166,11 +166,13 @@ namespace Versionr
 
         private static int IndentLevel { get; set; }
 
+        public static string Prefix { get; set; } = "";
+
         static string Indent
         {
             get
             {
-                string s = "";
+                string s = Prefix;
                 for (int i = 0; i < IndentLevel; i++)
                     s += "  ";
                 return s;
