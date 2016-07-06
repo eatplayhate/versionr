@@ -44,6 +44,8 @@ namespace Versionr.Commands
 
         [Option('p', "patch", HelpText = "Resulting patch file to generate.")]
         public string PatchFile { get; set; }
+        [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL or saved name to query stashes on a remote server.")]
+        public string Remote { get; set; }
 
         [ValueList(typeof(List<string>))]
         public List<string> Name { get; set; }
@@ -90,6 +92,32 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
+            if (localOptions.Remote != null)
+            {
+                if (localOptions.Remote == string.Empty)
+                    localOptions.Remote = "default";
+                LocalState.RemoteConfig config = null;
+                if (ws != null)
+                {
+                    config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Remote) ? "default" : localOptions.Remote);
+                }
+                if (config != null)
+                    localOptions.Remote = config.URL;
+                Network.IRemoteClient client = ws.Connect(localOptions.Remote, false);
+                var stashes = client.ListStashes(localOptions.Name);
+                if (stashes.Count == 0)
+                    Printer.PrintMessage("Remote vault has no stashes{0}.", (localOptions.Name == null || localOptions.Name.Count == 0) ? "" : " matching the query name.");
+                else
+                {
+                    Printer.PrintMessage("Remote vault has #b#{0}## stash{1} {2}:", stashes.Count, stashes.Count == 1 ? "" : "es", (localOptions.Name == null || localOptions.Name.Count == 0) ? "available" : " matching the query name.");
+                    foreach (var x in stashes)
+                    {
+                        Printer.PrintMessage(" #b#{0}##: {5} - #q#{4}##\n    {1} - by {2} on #q#{3}##", x.Author + "-" + x.Key, string.IsNullOrEmpty(x.Name) ? "(no name)" : ("\"" + x.Name + "\""), x.Author, x.Time.ToLocalTime(), x.GUID, Versionr.Utilities.Misc.FormatSizeFriendly(x.File.Length));
+                    }
+                }
+                client.Close();
+                return true;
+            }
             if (localOptions.Name == null || localOptions.Name.Count == 0)
             {
                 var stashes = ws.ListStashes();
@@ -106,47 +134,50 @@ namespace Versionr.Commands
             }
             else
             {
-                var stash = LookupStash(ws, localOptions.Name[0]);
-                if (stash != null)
+                foreach (var n in localOptions.Name)
                 {
-                    if (localOptions.DisplayDiff)
-                        Printer.PrintMessage("{1} patch for stash #b#{2}## ({0})", stash.GUID, string.IsNullOrEmpty(localOptions.PatchFile) ? "Showing" : "Generating", stash.Key);
-                    else
-                        Printer.PrintMessage("Showing stash #b#{1}## ({0})", stash.GUID, stash.Key);
-
-                    Stream baseStream = null;
-                    if (string.IsNullOrEmpty(localOptions.PatchFile))
-                        baseStream = new MemoryStream();
-                    else
-                        baseStream = File.Open(localOptions.PatchFile, FileMode.Create, FileAccess.ReadWrite);
-
-                    ws.DisplayStashOperations(stash);
-                    if (localOptions.DisplayDiff)
+                    var stash = LookupStash(ws, n);
+                    if (stash != null)
                     {
-                        using (StreamWriter sw = new StreamWriter(baseStream))
+                        if (localOptions.DisplayDiff)
+                            Printer.PrintMessage("{1} patch for stash #b#{2}## ({0})", stash.GUID, string.IsNullOrEmpty(localOptions.PatchFile) ? "Showing" : "Generating", stash.Key);
+                        else
+                            Printer.PrintMessage("Showing stash #b#{1}## ({0})", stash.GUID, stash.Key);
+
+                        Stream baseStream = null;
+                        if (string.IsNullOrEmpty(localOptions.PatchFile))
+                            baseStream = new MemoryStream();
+                        else
+                            baseStream = File.Open(localOptions.PatchFile, FileMode.Create, FileAccess.ReadWrite);
+
+                        ws.DisplayStashOperations(stash);
+                        if (localOptions.DisplayDiff)
                         {
-                            ws.StashToPatch(sw, stash);
-                            sw.Flush();
-                            baseStream.Position = 0;
-                            if (string.IsNullOrEmpty(localOptions.PatchFile))
+                            using (StreamWriter sw = new StreamWriter(baseStream))
                             {
-                                using (TextReader tr = new StreamReader(baseStream))
+                                ws.StashToPatch(sw, stash);
+                                sw.Flush();
+                                baseStream.Position = 0;
+                                if (string.IsNullOrEmpty(localOptions.PatchFile))
                                 {
-                                    string[] patchLines = tr.ReadToEnd().Split('\n');
-                                    foreach (var x in patchLines)
+                                    using (TextReader tr = new StreamReader(baseStream))
                                     {
-                                        if (x.StartsWith("@@"))
-                                            Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
-                                        else if (x.StartsWith("+++"))
-                                            Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
-                                        else if (x.StartsWith("---"))
-                                            Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
-                                        else if (x.StartsWith("-"))
-                                            Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
-                                        else if (x.StartsWith("+"))
-                                            Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
-                                        else
-                                            Printer.PrintMessage(Printer.Escape(x));
+                                        string[] patchLines = tr.ReadToEnd().Split('\n');
+                                        foreach (var x in patchLines)
+                                        {
+                                            if (x.StartsWith("@@"))
+                                                Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
+                                            else if (x.StartsWith("+++"))
+                                                Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
+                                            else if (x.StartsWith("---"))
+                                                Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
+                                            else if (x.StartsWith("-"))
+                                                Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
+                                            else if (x.StartsWith("+"))
+                                                Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
+                                            else
+                                                Printer.PrintMessage(Printer.Escape(x));
+                                        }
                                     }
                                 }
                             }

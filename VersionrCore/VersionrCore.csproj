@@ -86,6 +86,7 @@
     <Compile Include="Network\SimpleAuth.cs" />
     <Compile Include="Network\StartClientTransaction.cs" />
     <Compile Include="Network\StartTransaction.cs" />
+    <Compile Include="Network\StashQuery.cs" />
     <Compile Include="Network\Utilities.cs" />
     <Compile Include="Network\WebConfig.cs" />
     <Compile Include="Network\WebService.cs" />

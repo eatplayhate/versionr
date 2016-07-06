@@ -41,7 +41,8 @@ namespace Versionr.Network
         RequestLock,
         PathLocked,
         ReleaseLocks,
-        ListOrBreakLocks
+        ListOrBreakLocks,
+        ListStashes
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

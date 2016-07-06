@@ -25,11 +25,8 @@ namespace Versionr.Commands
                     "#b#versionr #i#{0}## [--remote vsr://remote_host:port/path] {1}", Verb, OptionsString);
             }
         }
-		[Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
+		[Option('r', "remote", Required = false, HelpText = "Specifies the remote URL or saved server name.")]
 		public string Remote { get; set; }
-
-		[Option('s', "server", Required = false, HelpText = "The saved name of the server.")]
-        public string Name { get; set; }
     }
     abstract class RemoteCommand : BaseCommand
     {
@@ -50,50 +47,6 @@ namespace Versionr.Commands
                     return false;
                 }
             }
-            else
-            {
-                if (NeedsNoWorkspace)
-                {
-					// Choose target directory from server name or path
-                    string subdir = localOptions.Name;
-                    if (string.IsNullOrEmpty(subdir) && !string.IsNullOrEmpty(localOptions.Remote))
-                        subdir = System.IO.Path.GetFileNameWithoutExtension(new Uri(localOptions.Remote).AbsolutePath);
-                    if (!string.IsNullOrEmpty(subdir))
-                    {
-                        System.IO.DirectoryInfo info;
-                        try
-                        {
-                            info = new System.IO.DirectoryInfo(System.IO.Path.Combine(workingDirectory.FullName, subdir));
-                        }
-                        catch
-                        {
-                            Printer.PrintError("#e#Error - invalid subdirectory \"{0}\"##", subdir);
-                            return false;
-                        }
-                        Printer.PrintMessage("Target directory: #b#{0}##.", info);
-                        workingDirectory = info;
-                    }
-                    try
-                    {
-                        ws = Area.Load(workingDirectory, Headless);
-                        if (ws != null)
-                        {
-                            CloneVerbOptions cloneOptions = options as CloneVerbOptions;
-                            if (cloneOptions != null && cloneOptions.QuietFail)
-                            {
-                                Printer.PrintMessage("Directory already contains a vault. Skipping.");
-                                return false;
-                            }
-                            Printer.PrintError("This command cannot function with an active Versionr vault.");
-                            return false;
-                        }
-                    }
-                    catch
-                    {
-
-                    }
-                }
-            }
             TargetDirectory = workingDirectory;
             bool requireRemoteName = false;
             if (string.IsNullOrEmpty(localOptions.Remote))
@@ -102,7 +55,7 @@ namespace Versionr.Commands
             if (ws != null)
             {
                 if (requireRemoteName)
-                    config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name);
+                    config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Remote) ? "default" : localOptions.Remote);
                 if (UpdateRemoteTimestamp && config != null)
                     ws.UpdateRemoteTimestamp(config);
             }

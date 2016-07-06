@@ -75,7 +75,7 @@ namespace Versionr.Commands
                     filterRemote = localOptions.RemoteName;
                 }
                 else
-                    filterRemote = Network.Client.ToVersionrURL(remote);
+                    filterRemote = remote.URL;
             }
 
             List<LocalState.RemoteLock> remoteLocks = ws.HeldLocks;

@@ -80,12 +80,18 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "Merge3Way", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int XDiffMerge3Way(string basefile, string file1, string file2, string output);
 
+        [ProtoBuf.ProtoContract]
         public class StashInfo
         {
+            [ProtoBuf.ProtoMember(1)]
             public string Author { get; set; }
+            [ProtoBuf.ProtoMember(2)]
             public DateTime Time { get; set; }
+            [ProtoBuf.ProtoMember(3)]
             public string Name { get; set; }
+            [ProtoBuf.ProtoMember(4)]
             public string Key { get; set; }
+            [ProtoBuf.ProtoMember(5)]
             public Guid GUID { get; set; }
             public FileInfo File { get; set; }
             public int Version { get; set; }

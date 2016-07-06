@@ -62,6 +62,32 @@ namespace Versionr.Network
             }
         }
 
+        public List<Area.StashInfo> ListStashes(List<string> stashNames)
+        {
+            if (Workspace == null)
+                return null;
+            try
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.ListStashes }, ProtoBuf.PrefixStyle.Fixed32);
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type != NetCommandType.Acknowledge)
+                {
+                    Printer.PrintError("Couldn't list stashes - error: {0}", queryResult.AdditionalPayload);
+                    return null;
+                }
+                Utilities.SendEncrypted(SharedInfo, new Network.StashQuery() { FilterNames = stashNames });
+                var result = Utilities.ReceiveEncrypted<Network.StashQueryResults>(SharedInfo);
+
+                return result.Results;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                Close();
+                return null;
+            }
+        }
+
         public bool PullStash(string x)
         {
             if (Workspace == null)

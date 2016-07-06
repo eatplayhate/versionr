@@ -60,15 +60,55 @@ namespace Versionr.Commands
         protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
-            if (localOptions.Path != null && localOptions.Path.Count == 1)
-                TargetDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, localOptions.Path[0]));
             if (localOptions.Path.Count > 1)
             {
                 Printer.PrintError("#e#Error:## Clone path is invalid. Please specify a subfolder to clone in to or leave empty to clone into the current directory.");
                 return false;
             }
+
+            // Choose target directory from server name or path
+            if (localOptions.Path != null && localOptions.Path.Count == 1)
+            {
+                string subdir = localOptions.Path[0];
+                if (!string.IsNullOrEmpty(subdir))
+                {
+                    System.IO.DirectoryInfo info;
+                    try
+                    {
+                        info = new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, subdir));
+                    }
+                    catch
+                    {
+                        Printer.PrintError("#e#Error - invalid subdirectory \"{0}\"##", subdir);
+                        return false;
+                    }
+                    Printer.PrintMessage("Target directory: #b#{0}##.", info);
+                    TargetDirectory = info;
+                }
+            }
+
             if (localOptions.QuietFail && new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, ".versionr")).Exists)
                 return true;
+
+            try
+            {
+                var ws = Area.Load(TargetDirectory, Headless);
+                if (ws != null)
+                {
+                    CloneVerbOptions cloneOptions = options as CloneVerbOptions;
+                    if (cloneOptions != null && cloneOptions.QuietFail)
+                    {
+                        Printer.PrintMessage("Directory already contains a vault. Skipping.");
+                        return false;
+                    }
+                    Printer.PrintError("This command cannot function with an active Versionr vault.");
+                    return false;
+                }
+            }
+            catch
+            {
+
+            }
             bool result = false;
             try
             {

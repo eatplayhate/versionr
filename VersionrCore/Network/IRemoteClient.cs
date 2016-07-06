@@ -17,7 +17,8 @@ namespace Versionr.Network
 
         bool PushStash(Area.StashInfo stash);
 		bool PullStash(string x);
-		bool Clone(bool full);
+        List<Area.StashInfo> ListStashes(List<string> names);
+        bool Clone(bool full);
 		bool Push(string branchName = null);
 		bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false);
 		bool SyncAllRecords();

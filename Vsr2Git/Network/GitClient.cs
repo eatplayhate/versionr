@@ -494,5 +494,10 @@ namespace Vsr2Git.Network
         {
             throw new NotImplementedException();
         }
+
+        public List<Area.StashInfo> ListStashes(List<string> names)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
