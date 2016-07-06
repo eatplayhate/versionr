@@ -21,7 +21,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("#b#versionr #i#{0}## [--server remote_name] {1}\n" +
+                return string.Format("#b#versionr #i#{0}## [--remote remote_name] {1}\n" +
                     "#b#versionr #i#{0}## [--remote vsr://remote_host:port/path] {1}", Verb, OptionsString);
             }
         }
@@ -49,16 +49,15 @@ namespace Versionr.Commands
             }
             TargetDirectory = workingDirectory;
             bool requireRemoteName = false;
-            if (string.IsNullOrEmpty(localOptions.Remote))
-                requireRemoteName = true;
             LocalState.RemoteConfig config = null;
             if (ws != null)
             {
-                if (requireRemoteName)
-                    config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Remote) ? "default" : localOptions.Remote);
+                config = ws.GetRemote(string.IsNullOrEmpty(localOptions.Remote) ? "default" : localOptions.Remote);
                 if (UpdateRemoteTimestamp && config != null)
                     ws.UpdateRemoteTimestamp(config);
             }
+            if (config == null && string.IsNullOrEmpty(localOptions.Remote))
+                requireRemoteName = true;
 
             if (config == null && requireRemoteName)
             {
@@ -82,7 +81,7 @@ namespace Versionr.Commands
 			
             if (client == null)
             {
-                Printer.PrintError("Couldn't connect to server #b#{0}##", config.URL);
+                Printer.PrintError("Couldn't connect to server:## #b#{0}##", config.URL);
                 return false;
             }
             bool result = RunInternal(client, localOptions);
