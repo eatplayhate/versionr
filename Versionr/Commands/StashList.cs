@@ -103,6 +103,7 @@ namespace Versionr.Commands
                 }
                 if (config != null)
                     localOptions.Remote = config.URL;
+                Printer.PrintMessage("Querying stashes on remote #b#{0}##.", localOptions.Remote);
                 Network.IRemoteClient client = ws.Connect(localOptions.Remote, false);
                 var stashes = client.ListStashes(localOptions.Name);
                 if (stashes.Count == 0)
