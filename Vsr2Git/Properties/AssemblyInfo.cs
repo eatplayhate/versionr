@@ -35,4 +35,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
-[assembly: Versionr.VersionrPlugin(typeof(Vsr2Git.Vsr2GitOptions))]
+[assembly: Versionr.VersionrPlugin("Vsr2Git", typeof(Vsr2Git.Vsr2GitOptions))]

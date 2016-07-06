@@ -1017,9 +1017,10 @@ namespace Versionr.Network
             return new string(pwd.ToArray());
         }
 
-        internal List<string> GetRecordData(List<Record> missingRecords)
+        public List<string> GetRecordData(List<Record> missingRecords)
         {
             return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords.Select(x => x.DataIdentifier).ToList());
         }
     }
+
 }

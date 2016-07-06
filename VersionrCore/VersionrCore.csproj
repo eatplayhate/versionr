@@ -59,7 +59,8 @@
     <Compile Include="Directives.cs" />
     <Compile Include="FileStatus.cs" />
     <Compile Include="ICheckoutOrderable.cs" />
-    <Compile Include="IRemoteClient.cs" />
+    <Compile Include="Network\ClientProvider.cs" />
+    <Compile Include="Network\IRemoteClient.cs" />
     <Compile Include="LocalDB.cs" />
     <Compile Include="LocalState\CachedRecords.cs" />
     <Compile Include="LocalState\Configuration.cs" />
@@ -108,6 +109,8 @@
     <Compile Include="Objects\RecordRef.cs" />
     <Compile Include="Objects\Snapshot.cs" />
     <Compile Include="Objects\Version.cs" />
+    <Compile Include="Plugin.cs" />
+    <Compile Include="PluginCache.cs" />
     <Compile Include="Printer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Status.cs" />
@@ -124,6 +127,7 @@
     <Compile Include="Utilities\SQLiteExtensions.cs" />
     <Compile Include="Utilities\SvnIntegration.cs" />
     <Compile Include="Utilities\Symlink.cs" />
+    <Compile Include="VersionrPluginAttribute.cs" />
     <Compile Include="WorkspaceDB.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -105,7 +105,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PullStash.cs" />
     <Compile Include="VerbOptionsBase.cs" />
-    <Compile Include="VersionrPluginAttribute.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

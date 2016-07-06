@@ -5991,6 +5991,18 @@ namespace Versionr
             return false;
         }
 
+		public IRemoteClient Connect(string url, bool requiresWriteAccess = false)
+		{
+			// Find a provider that can make this connection
+			foreach (var clientProvider in PluginCache.GetImplementations<IRemoteClientProvider>())
+			{
+				var client = clientProvider.Connect(this, url, requiresWriteAccess);
+				if (client != null)
+					return client;
+			}
+			return null;
+		}
+
         public bool GetMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
@@ -6002,24 +6014,30 @@ namespace Versionr
                 {
                     Printer.PrintMessage(" - Attempting to pull data from remote \"{2}\" ({0}:{1})", x.Host, x.Port, x.Name);
 
-                    Client client = new Client(this);
-                    try
-                    {
-                        if (!client.Connect(x.URL))
-                            Printer.PrintMessage(" - Connection failed.");
-                        List<string> retrievedRecords = client.GetRecordData(missingRecords);
-                        HashSet<string> retrievedData = new HashSet<string>();
-                        Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
-                        foreach (var y in retrievedRecords)
-                            retrievedData.Add(y);
-                        missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
-                        client.Close();
-                    }
-                    catch
-                    {
-                        client.Close();
-                    }
-                    if (missingRecords.Count > 0)
+					IRemoteClient client = Connect(x.URL);
+					if (client == null)
+					{
+						Printer.PrintMessage(" - Connection failed.");
+					}
+					else
+					{
+						try
+						{
+							List<string> retrievedRecords = client.GetRecordData(missingRecords);
+							HashSet<string> retrievedData = new HashSet<string>();
+							Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
+							foreach (var y in retrievedRecords)
+								retrievedData.Add(y);
+							missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
+							client.Close();
+						}
+						catch
+						{
+							client.Close();
+						}
+					}
+
+					if (missingRecords.Count > 0)
                         Printer.PrintMessage("This checkout still requires {0} additional records.", missingRecords.Count);
                     else
                         return true;

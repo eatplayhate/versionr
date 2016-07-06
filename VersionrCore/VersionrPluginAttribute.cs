@@ -8,10 +8,12 @@ namespace Versionr
 {
 	public class VersionrPluginAttribute : Attribute
 	{
+		public string Name { get; private set; }
 		public Type OptionsType { get; private set; }
 
-		public VersionrPluginAttribute(Type optionsType)
+		public VersionrPluginAttribute(string name, Type optionsType = null)
 		{
+			Name = name;
 			OptionsType = optionsType;
 		}
 	}

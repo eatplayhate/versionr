@@ -31,7 +31,7 @@ namespace Versionr.Commands
         {
             RemoteCommandVerbOptions localOptions = options as RemoteCommandVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
-            Network.Client client = null;
+            IRemoteClient client = null;
             Area ws = null;
             
             if (NeedsWorkspace)
@@ -42,7 +42,6 @@ namespace Versionr.Commands
                     Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:##\n  The current directory #b#`{0}`## is not part of a vault.\n", workingDirectory.FullName));
                     return false;
                 }
-                client = new Network.Client(ws);
             }
             else
             {
@@ -87,7 +86,6 @@ namespace Versionr.Commands
 
                     }
                 }
-                client = new Client(workingDirectory);
             }
             TargetDirectory = workingDirectory;
             bool requireRemoteName = false;
@@ -109,9 +107,22 @@ namespace Versionr.Commands
             }
             if (config == null)
                 config = new LocalState.RemoteConfig() { Module = localOptions.Remote };
-            if (!client.Connect(config.URL, RequiresWriteAccess))
+
+			if (ws == null)
+			{
+				// No workspace; must use Versionr Client
+				client = new Client(workingDirectory);
+				if (!((Client)client).Connect(config.URL, RequiresWriteAccess))
+					client = null;
+			}
+			else
+			{
+				client = ws.Connect(config.URL, RequiresWriteAccess);
+			}
+			
+            if (client == null)
             {
-                Printer.PrintError("Couldn't connect to server!");
+                Printer.PrintError("Couldn't connect to server #b#{0}##", config.URL);
                 return false;
             }
             bool result = RunInternal(client, localOptions);

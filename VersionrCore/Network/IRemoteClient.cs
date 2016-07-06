@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Versionr
+namespace Versionr.Network
 {
 	public interface IRemoteClient
 	{
-		Area Workspace { get; set; }
+		Area Workspace { get; }
 
 		string URL { get; }
 		
@@ -20,5 +20,12 @@ namespace Versionr
 		bool SyncAllRecords();
 		bool SyncCurrentRecords();
 		Tuple<List<Objects.Branch>, List<KeyValuePair<Guid, Guid>>, Dictionary<Guid, Objects.Version>> ListBranches();
+		List<string> GetRecordData(List<Objects.Record> missingRecords);
+		void Close();
+	}
+
+	public interface IRemoteClientProvider
+	{
+		IRemoteClient Connect(Area workspace, string url, bool requireWrite);
 	}
 }

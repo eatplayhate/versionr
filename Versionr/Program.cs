@@ -185,32 +185,16 @@ namespace Versionr
 			public int Start2;
 			public int End2;
 		}
-
-		static IEnumerable<Assembly> PluginAssemblies
-		{
-			get
-			{
-				string baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-				string pluginDirectory = baseDirectory;
-				foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
-				{
-					yield return Assembly.LoadFile(Path.Combine(pluginDirectory, filename));
-				}
-			}
-        }
-
+		
         static IEnumerable<Tuple<object, Assembly>> PluginOptionsAndAssemblies
         {
             get
             {
                 // Enumerate plugins
-                foreach (var assembly in PluginAssemblies)
+                foreach (var plugin in PluginCache.Plugins)
                 {
-                    var pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
-                    if (pluginAttribute == null)
-                        continue;
-
-                    yield return new Tuple<object, Assembly>(Activator.CreateInstance(pluginAttribute.OptionsType), assembly);
+					if (plugin.Attributes.OptionsType != null)
+						yield return new Tuple<object, Assembly>(Activator.CreateInstance(plugin.Attributes.OptionsType), plugin.Assembly);
                 }
             }
         }
@@ -252,8 +236,8 @@ namespace Versionr
                     Printer.PopIndent();
                     Printer.WriteLineMessage("\n#b#Plugins:\n");
                     Printer.PushIndent();
-                    foreach (var assembly in PluginAssemblies.Where(x => x.GetCustomAttribute<VersionrPluginAttribute>() != null))
-                        Printer.WriteLineMessage("#b#{1}## ({2}) #q#{0}", Path.GetFileName(assembly.Location), assembly.GetName().Name, assembly.GetName().Version);
+                    foreach (var plugin in PluginCache.Plugins)
+                        Printer.WriteLineMessage("#b#{1}## ({2}) #q#{0}", Path.GetFileName(plugin.Assembly.Location), plugin.Attributes.Name, plugin.Assembly.GetName().Version);
                     Printer.PopIndent();
                     Printer.RestoreDefaults();
                     return;
