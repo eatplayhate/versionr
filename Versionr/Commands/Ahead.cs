@@ -38,7 +38,7 @@ namespace Versionr.Commands
     }
     class Ahead : RemoteCommand
     {
-        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
+        protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             AheadVerbOptions localOptions = options as AheadVerbOptions;
             Info.DisplayInfo(client.Workspace);

@@ -1767,11 +1767,11 @@ namespace Versionr
             }
         }
 
-        internal bool SyncCurrentRecords()
-        {
-            return GetMissingRecords(Database.Records);
-        }
-
+		internal List<Record> GetCurrentRecords()
+		{
+			return Database.Records;
+		}
+		
         public bool PathContains(string possibleparent, string location)
         {
             string outerpath = GetLocalPath(Path.Combine(Root.FullName, possibleparent));
@@ -2352,9 +2352,9 @@ namespace Versionr
             {
                 return new Status(this, Database, LocalData, FileSnapshot);
             }
-        }
-
-        public bool SetRemote(string host, int port, string module, string name)
+		}
+		
+		public bool SetRemote(string url, string name)
         {
             Regex validNames = new Regex("^[A-Za-z0-9-_]+$");
             if (!validNames.IsMatch(name))
@@ -2362,8 +2362,21 @@ namespace Versionr
                 Printer.PrintError("#e#Name \"{0}\" invalid for remote. Only alphanumeric characters, underscores and dashes are allowed.", name);
                 return false;
             }
-            if (port == -1)
-                port = Client.VersionrDefaultPort;
+
+			// Try to parse Versionr URL so we can store host/port/module in RemoteConfig
+			string host;
+			int port;
+			string module;
+			if (Client.TryParseVersionrURL(url, out host, out port, out module))
+			{
+				// Ok, parsed Versionr URL
+			}
+			else
+			{
+				// Store URL in module, leave host null
+				module = url;
+			}
+
             LocalData.BeginTransaction();
             try
             {
@@ -2372,19 +2385,19 @@ namespace Versionr
 				{
 					config = new RemoteConfig() { Name = name };
 					config.Host = host;
-                    config.Module = module;
                     config.Port = port;
+                    config.Module = module;
 					LocalData.InsertSafe(config);
 				}
 				else
                 {
-                    config.Module = module;
                     config.Host = host;
 					config.Port = port;
+                    config.Module = module;
 					LocalData.UpdateSafe(config);
 				}
 
-				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
+				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}", url);
                 LocalData.Commit();
 
                 return true;
@@ -5873,12 +5886,7 @@ namespace Versionr
                     System.IO.DirectoryInfo directory = new System.IO.DirectoryInfo(GetRecordPath(cleanLocation));
                     if (!directory.Exists)
                         directory.Create();
-                    var result = Client.ParseRemoteName(x.Value.Host);
-                    if (result.Item1 == false)
-                    {
-                        Printer.PrintError("#x#Error:##\n  Couldn't parse remote hostname \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
-                        continue;
-                    }
+					string url = x.Value.Host;
                     Client client = null;
                     Area external = LoadWorkspace(directory, false, true);
                     bool fresh = false;
@@ -5890,7 +5898,7 @@ namespace Versionr
                     else
                         client = new Client(external);
 
-                    if (!client.Connect(result.Item2, result.Item3, result.Item4))
+                    if (!client.Connect(url))
                     {
                         Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
                         if (external == null)
@@ -5908,7 +5916,7 @@ namespace Versionr
                     if (client != null)
                     {
                         client.Workspace.SetPartialPath(x.Value.PartialPath);
-                        client.Workspace.SetRemote(result.Item2, result.Item3, result.Item4, "default");
+                        client.Workspace.SetRemote(url, "default");
                         if (!fresh && !client.Pull(false, x.Value.Branch))
                         {
                             client.Close();
@@ -5924,7 +5932,7 @@ namespace Versionr
                     if (external == null)
                         external = client.Workspace;
                     external.SetPartialPath(x.Value.PartialPath);
-                    external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
+                    external.SetRemote(url, "default");
                     if (fresh)
                     {
                         external.Checkout(x.Value.Target, false, false);
@@ -5997,7 +6005,7 @@ namespace Versionr
                     Client client = new Client(this);
                     try
                     {
-                        if (!client.Connect(x.Host, x.Port, x.Module))
+                        if (!client.Connect(x.URL))
                             Printer.PrintMessage(" - Connection failed.");
                         List<string> retrievedRecords = client.GetRecordData(missingRecords);
                         HashSet<string> retrievedData = new HashSet<string>();

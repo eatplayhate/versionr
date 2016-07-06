@@ -7,7 +7,7 @@ using Versionr.Objects;
 
 namespace Versionr.Network
 {
-    public class Client
+    public class Client : IRemoteClient
     {
         System.Net.Sockets.TcpClient Connection { get; set; }
         public Area Workspace { get; set; }
@@ -77,17 +77,17 @@ namespace Versionr.Network
                 Close();
                 return false;
             }
-        }
+		}
 
-        public string VersionrURL
-        {
-            get
-            {
-                return ToVersionrURL(Host, Port, Module);
-            }
-        }
+		public string URL
+		{
+			get
+			{
+				return "vsr://" + Host + ":" + Port + (string.IsNullOrEmpty(Module) ? "" : ("/" + Module));
+			}
+		}
 
-        public Client(Area area)
+		public Client(Area area)
         {
             Workspace = area;
             ServerKnownBranches = new HashSet<Guid>();
@@ -104,24 +104,25 @@ namespace Versionr.Network
             ServerKnownBranches = new HashSet<Guid>();
             ServerKnownVersions = new HashSet<Guid>();
         }
+
+		private bool SyncRecords(List<Record> records)
+		{
+			Printer.PrintMessage("Vault is missing data for {0} records.", records.Count);
+			List<string> returnedData = GetRecordData(records);
+			Printer.PrintMessage(" - Got {0} records from remote.", records.Count);
+			if (returnedData.Count != records.Count)
+				return false;
+			return true;
+		}
+
         public bool SyncCurrentRecords()
         {
-            return Workspace.SyncCurrentRecords();
-        }
-        public bool SyncRecords()
+			return SyncRecords(Workspace.GetCurrentRecords());
+			
+		}
+        public bool SyncAllRecords()
         {
-            List<Record> missingRecords = Workspace.GetAllMissingRecords();
-            Printer.PrintMessage("Vault is missing data for {0} records.", missingRecords.Count);
-            List<string> returnedData = GetRecordData(missingRecords);
-            Printer.PrintMessage(" - Got {0} records from remote.", returnedData.Count);
-            if (returnedData.Count != missingRecords.Count)
-                return false;
-            return true;
-        }
-
-        public static string ToVersionrURL(string host, int port, string domain = null)
-        {
-            return "vsr://" + host + ":" + port + (string.IsNullOrEmpty(domain) ? "" : ("/" + domain));
+            return SyncRecords(Workspace.GetAllMissingRecords());
         }
 
         public void Close()
@@ -242,44 +243,23 @@ namespace Versionr.Network
             }
         }
 
-        public static Tuple<bool, string, int, string> ParseRemoteName(string name)
-        {
-            if (!string.IsNullOrEmpty(name))
-            {
-                System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(
-                    "((vsr|versionr)\\://)?" +
-                    "(?<host>" +
-                        "(?:(?:\\w|\\.|-|_|~|\\d)+)|" +
-                        "(?:(?:(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|" +
-                        "(?:(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])))" +
-                    ")" +
-                    "(?:\\:(?<port>[0-9]+))?" +
-                    "(?:/(?<vault>[A-Za-z_0-9]+))?$");
-                var match = regex.Match(name);
-                if (match.Success)
-                {
-                    string host = match.Groups["host"].Value;
-                    int port = -1;
-                    var portGroup = match.Groups["port"];
-                    if (portGroup.Success)
-                    {
-                        bool fail = false;
-                        if (!int.TryParse(portGroup.Value, out port))
-                            fail = true;
-                        if (port < 1 || port > ushort.MaxValue)
-                            fail = true;
-                        if (fail)
-                        {
-                            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
-                        }
-                    }
-                    string domain = match.Groups["vault"].Success ? match.Groups["vault"].Value : null;
-                    return new Tuple<bool, string, int, string>(true, host, port, domain);
-                }
-            }
-            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
-        }
+		public static bool TryParseVersionrURL(string url, out string host, out int port, out string module)
+		{
+			Uri uri = new Uri(url);
+			if (uri.Scheme == "vsr" || uri.Scheme == "versionr")
+			{
+				host = uri.Host;
+				port = uri.IsDefaultPort ? Client.VersionrDefaultPort : uri.Port;
+				module = uri.AbsolutePath.Substring(1); // Strip leading '/'
+				return true;
+			}
 
+			host = null;
+			port = 0;
+			module = null;
+			return false;
+		}
+		
         public bool Push(string branchName = null)
         {
             if (Workspace == null)
@@ -803,10 +783,16 @@ namespace Versionr.Network
         }
 
         public const int VersionrDefaultPort = 5122;
-        public bool Connect(string host, int port, string module, bool requirewrite = false)
+        public bool Connect(string url, bool requirewrite = false)
         {
-            if (port == -1)
-                port = VersionrDefaultPort;
+			string host;
+			int port;
+			string module;
+			if (!TryParseVersionrURL(url, out host, out port, out module))
+			{
+				throw new Exception("Invalid Versionr URL");
+			}
+
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
             Retry:
             if (!protocols.MoveNext())
@@ -824,7 +810,7 @@ namespace Versionr.Network
                 var connectionTask = Connection.ConnectAsync(Host, Port);
                 if (!connectionTask.Wait(5000))
                 {
-                    throw new Exception(string.Format("Couldn't connect to target: {0}", this.VersionrURL));
+                    throw new Exception(string.Format("Couldn't connect to target: {0}", this.URL));
                 }
             }
             catch (Exception e)
@@ -893,7 +879,7 @@ namespace Versionr.Network
                             {
                                 bool q = Printer.Quiet;
                                 Printer.Quiet = false;
-                                Printer.PrintMessage("Server at #b#{0}## requires authentication.", VersionrURL);
+                                Printer.PrintMessage("Server at #b#{0}## requires authentication.", URL);
                                 while (true)
                                 {
                                     if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))

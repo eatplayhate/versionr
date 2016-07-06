@@ -54,7 +54,7 @@ namespace Versionr.Commands
     }
     class Clone : RemoteCommand
     {
-        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
+        protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             CloneVerbOptions localOptions = options as CloneVerbOptions;
             if (localOptions.QuietFail && new System.IO.DirectoryInfo(System.IO.Path.Combine(TargetDirectory.FullName, ".versionr")).Exists)
@@ -82,8 +82,8 @@ namespace Versionr.Commands
                 Printer.PrintMessage("Successfully cloned from remote vault. Initializing default remote.");
                 string remoteName = "default";
                 
-                if (client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName))
-                    Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, client.VersionrURL);
+                if (client.Workspace.SetRemote(client.URL, remoteName))
+                    Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, client.URL);
 
                 if (localOptions.Partial != null)
                     client.Workspace.SetPartialPath(localOptions.Partial);
@@ -96,7 +96,7 @@ namespace Versionr.Commands
                 }
 
                 if (localOptions.Synchronize)
-                    return client.SyncRecords();
+                    return client.SyncAllRecords();
             }
             return result;
         }

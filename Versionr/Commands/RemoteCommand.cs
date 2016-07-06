@@ -15,20 +15,13 @@ namespace Versionr.Commands
             get
             {
                 return string.Format("#b#versionr #i#{0}## [--server remote_name] #q#[options]##\n" +
-                    "#b#versionr #i#{0}## [--host remote_host --port remote_port] #q#[options]##\n" +
                     "#b#versionr #i#{0}## [--remote vsr://remote_host:port/path] #q#[options]##", Verb);
             }
         }
-        [Option('h', "host", Required = false, HelpText = "Specifies the hostname to push to.")]
-        public string Host { get; set; }
-        [Option('p', "port", DefaultValue = Client.VersionrDefaultPort, Required = false, HelpText = "Specifies the port to connect to.")]
-        public int Port { get; set; }
-        [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
-        public string Remote { get; set; }
-        [Option('m', "module", Required = false, HelpText = "The name of the remote module to select (used if a single server is hosting multiple vaults).")]
-        public string Module { get; set; }
+		[Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
+		public string Remote { get; set; }
 
-        [Option('s', "server", Required = false, HelpText = "The saved name of the server.")]
+		[Option('s', "server", Required = false, HelpText = "The saved name of the server.")]
         public string Name { get; set; }
     }
     abstract class RemoteCommand : BaseCommand
@@ -41,17 +34,6 @@ namespace Versionr.Commands
             Network.Client client = null;
             Area ws = null;
             
-            Tuple<bool, string, int, string> parsedRemoteName = null;
-            if (!string.IsNullOrEmpty(localOptions.Remote))
-            {
-                if (parsedRemoteName == null)
-                    parsedRemoteName = TryParseRemoteName(localOptions.Remote);
-                localOptions.Host = parsedRemoteName.Item2;
-                if (parsedRemoteName.Item3 != -1)
-                    localOptions.Port = parsedRemoteName.Item3;
-                localOptions.Module = parsedRemoteName.Item4;
-            }
-
             if (NeedsWorkspace)
             {
                 ws = Area.Load(workingDirectory, Headless);
@@ -66,9 +48,10 @@ namespace Versionr.Commands
             {
                 if (NeedsNoWorkspace)
                 {
+					// Choose target directory from server name or path
                     string subdir = localOptions.Name;
-                    if (string.IsNullOrEmpty(subdir) && !string.IsNullOrEmpty(localOptions.Module))
-                        subdir = localOptions.Module;
+                    if (string.IsNullOrEmpty(subdir) && !string.IsNullOrEmpty(localOptions.Remote))
+                        subdir = System.IO.Path.GetFileNameWithoutExtension(new Uri(localOptions.Remote).AbsolutePath);
                     if (!string.IsNullOrEmpty(subdir))
                     {
                         System.IO.DirectoryInfo info;
@@ -108,7 +91,7 @@ namespace Versionr.Commands
             }
             TargetDirectory = workingDirectory;
             bool requireRemoteName = false;
-            if (string.IsNullOrEmpty(localOptions.Host) || localOptions.Port == -1)
+            if (string.IsNullOrEmpty(localOptions.Remote))
                 requireRemoteName = true;
             LocalState.RemoteConfig config = null;
             if (ws != null)
@@ -121,15 +104,12 @@ namespace Versionr.Commands
 
             if (config == null && requireRemoteName)
             {
-                if (parsedRemoteName != null && parsedRemoteName.Item1 == false)
-                {
-                    Printer.PrintError("You must specify either a host and port or a remote name.");
-                    return false;
-                }
+                Printer.PrintError("You must specify either a remote server or name.");
+                return false;
             }
             if (config == null)
-                config = new LocalState.RemoteConfig() { Host = localOptions.Host, Port = localOptions.Port, Module = localOptions.Module };
-            if (!client.Connect(config.Host, config.Port, config.Module, RequiresWriteAccess))
+                config = new LocalState.RemoteConfig() { Module = localOptions.Remote };
+            if (!client.Connect(config.URL, RequiresWriteAccess))
             {
                 Printer.PrintError("Couldn't connect to server!");
                 return false;
@@ -153,14 +133,7 @@ namespace Versionr.Commands
                 return false;
             }
         }
-
-        private Tuple<bool, string, int, string> TryParseRemoteName(string name)
-        {
-            if (CanParseRemoteName)
-                return Client.ParseRemoteName(name);
-            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
-        }
-
+		
         protected virtual bool NeedsWorkspace
         {
             get
@@ -193,6 +166,6 @@ namespace Versionr.Commands
             }
         }
 
-        protected abstract bool RunInternal(Client client, RemoteCommandVerbOptions options);
+        protected abstract bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options);
     }
 }
