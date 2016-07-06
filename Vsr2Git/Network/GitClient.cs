@@ -484,5 +484,15 @@ namespace Vsr2Git.Network
         {
             throw new NotImplementedException();
         }
+
+        public bool ListLocks(string path, string branch, bool allBranches, bool full)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool BreakLocks(string path, string branch, bool allBranches, bool full)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

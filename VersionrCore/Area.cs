@@ -1139,7 +1139,7 @@ namespace Versionr
                     else
                     {
                         bool lockIsDirectory = x.Path.EndsWith("/");
-                        if ((lockIsDirectory && path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase)) ||
+                        if ((lockIsDirectory && (path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase) || x.Path.StartsWith(path, StringComparison.OrdinalIgnoreCase))) ||
                             (!lockIsDirectory && !requestingDirectory && path.Equals(x.Path, StringComparison.OrdinalIgnoreCase)))
                         {
                             lockConflicts.Add(x);
@@ -7175,6 +7175,14 @@ namespace Versionr
             get
             {
                 return LocalData.StageOperations.Any(x => x.Type == StageOperationType.Merge);
+            }
+        }
+
+        public List<Guid> StagedMergeInputs
+        {
+            get
+            {
+                return LocalData.StageOperations.Where(x => x.Type == StageOperationType.Merge).Select(x => new Guid(x.Operand1)).ToList();
             }
         }
 

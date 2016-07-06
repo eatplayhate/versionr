@@ -53,7 +53,7 @@ namespace Versionr
 
         private void Help_FormatOptionHelpText(object sender, FormatOptionHelpTextEventArgs e)
         {
-            e.Option.HelpText = "##" + e.Option.HelpText + "#b#";
+            e.Text = "##" + e.Text + "#b#";
         }
 
         [Option("verbose", HelpText = "Display verbose diagnostics information.")]

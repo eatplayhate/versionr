@@ -82,13 +82,127 @@ namespace Versionr.Network
 
         public bool AcquireLock(string name, string branch, bool allBranches, bool full, bool steal)
         {
+            Guid? branchID;
+            if (!PrepareLock(ref name, ref branch, out branchID, allBranches, full))
+                return false;
+
+            string lockedPath = name;
+
+            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", URL);
+            if (allBranches)
+                Printer.PrintMessage(" - #i#All branches##");
+            else
+                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
+            if (full)
+                Printer.PrintMessage(" - #i#Entire workspace##");
+            else
+                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+
+            if (Printer.Prompt("Is this correct?"))
+            {
+                SendLocks();
+
+                return ListBreakOrAcquireLock(lockedPath, branchID, true, steal);
+            }
+
+            return false;
+        }
+
+        private bool ListBreakOrAcquireLock(string lockedPath, Guid? branchID, bool grant, bool steal)
+        {
+            NetCommandType commandType = NetCommandType.ListOrBreakLocks;
+            if (grant)
+                commandType = NetCommandType.RequestLock;
+
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = commandType }, ProtoBuf.PrefixStyle.Fixed32);
+            var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type != NetCommandType.Acknowledge)
+            {
+                Printer.PrintError("Couldn't perform lock operation - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+            RequestLockInformation rli = new RequestLockInformation()
+            {
+                Author = Workspace.Username,
+                Branch = branchID,
+                Path = lockedPath,
+                Steal = steal
+            };
+            Utilities.SendEncrypted(SharedInfo, rli);
+
+            queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type == NetCommandType.Acknowledge)
+            {
+                var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
+                IEnumerable<Objects.VaultLock> brokenLocks = new Objects.VaultLock[0];
+                int brokenCount = 0;
+                if (lockGranting?.BrokenLocks?.Conflicts != null)
+                {
+                    brokenLocks = lockGranting.BrokenLocks.Conflicts;
+                    brokenCount = lockGranting.BrokenLocks.Conflicts.Count;
+                }
+                if (grant)
+                {
+                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, URL, brokenLocks.Select(x => x.ID));
+                    Printer.PrintMessage("Acquired lock.{0}", brokenCount > 0 ? string.Format(" Broke #b#{0}## other locks.", brokenCount) : "");
+                }
+                else if (steal)
+                    Printer.PrintMessage("{0}", brokenCount > 0 ? string.Format("Broke #b#{0}## locks.", brokenCount) : "No locks to break in specified path.");
+                if (brokenCount > 0)
+                {
+                    Printer.PrintMessage("\nBroken Locks: ");
+                    foreach (var broken in brokenLocks)
+                    {
+                        PrintLock(" - ", broken.ID, broken.Path, broken.Branch, broken.User);
+                    }
+                }
+                return true;
+            }
+            else if (queryResult.Type == NetCommandType.PathLocked)
+            {
+                var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
+                if (grant)
+                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n");
+                Printer.PrintMessage("\nOverlapping locks:");
+                foreach (var x in lockConflicts.Conflicts)
+                {
+                    Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
+                }
+                return false;
+            }
+            else
+            {
+                Printer.PrintError("Couldn't perform lock operation - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+        }
+
+        public bool BreakLocks(string path, string branch, bool allBranches, bool full)
+        {
+            return ListOrBreakLocks(path, branch, allBranches, full, true);
+        }
+        public bool ListLocks(string path, string branch, bool allBranches, bool full)
+        {
+            return ListOrBreakLocks(path, branch, allBranches, full, false);
+        }
+        internal bool ListOrBreakLocks(string path, string branch, bool allBranches, bool full, bool breakLocks)
+        {
+            Guid? branchID;
+            if (!PrepareLock(ref path, ref branch, out branchID, allBranches, full))
+                return false;
+
+            return ListBreakOrAcquireLock(path, branchID, false, breakLocks);
+        }
+
+        private bool PrepareLock(ref string name, ref string branch, out Guid? branchID, bool allBranches, bool full)
+        {
+            branchID = null;
             if (SharedInfo.CommunicationProtocol < SharedNetwork.Protocol.Versionr33)
             {
                 Printer.PrintError("#x#Error:## Server {0} does not support locking.", URL);
                 return false;
             }
             // First, we need to decide what branch we're locking
-            Guid? branchID = null;
             if (!allBranches)
             {
                 bool multipleBranches;
@@ -114,65 +228,28 @@ namespace Versionr.Network
                     lockedPath = lockedPath.Substring(0, lockedPath.Length - 1);
             }
 
-            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", URL);
-            if (allBranches)
-                Printer.PrintMessage(" - #i#All branches##");
-            else
-                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
-            if (full)
-                Printer.PrintMessage(" - #i#Entire workspace##");
-            else
-                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+            name = lockedPath;
+            return true;
+        }
 
-            if (Printer.Prompt("Is this correct?"))
+        private void PrintLock(string prefix, Guid id, string path, Guid? branch, string user)
+        {
+            string lockPath = path;
+            if (string.IsNullOrEmpty(lockPath) || lockPath == "/")
+                lockPath = "<full vault>";
+            string lockbranch = "<all branches>";
+            if (branch.HasValue)
             {
-                SendLocks();
-
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.RequestLock }, ProtoBuf.PrefixStyle.Fixed32);
-                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                if (queryResult.Type != NetCommandType.Acknowledge)
-                {
-                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
-                    return false;
-                }
-                RequestLockInformation rli = new RequestLockInformation()
-                {
-                    Author = Workspace.Username,
-                    Branch = branchID,
-                    Path = lockedPath,
-                    Steal = steal
-                };
-                Utilities.SendEncrypted(SharedInfo, rli);
-
-                queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                if (queryResult.Type == NetCommandType.Acknowledge)
-                {
-                    var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
-                    IEnumerable<Guid> brokenLocks = null;
-                    if (lockGranting?.BrokenLocks?.Conflicts != null)
-                        brokenLocks = lockGranting.BrokenLocks.Conflicts.Select(x => x.ID);
-                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, URL, brokenLocks);
-                    Printer.PrintMessage("Acquired lock.");
-                    return true;
-                }
-                else if (queryResult.Type == NetCommandType.PathLocked)
-                {
-                    var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
-                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n\nConflicting lock information:");
-                    foreach (var x in lockConflicts.Conflicts)
-                    {
-                        Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
-                    }
-                    return false;
-                }
+                var branchLocal = Workspace.GetBranch(branch.Value);
+                if (branchLocal == null)
+                    lockbranch = branch.Value.ToString();
                 else
-                {
-                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
-                    return false;
-                }
+                    lockbranch = branchLocal.ShortID + " (" + branchLocal.Name + ")";
             }
-
-            return false;
+            string userString = "";
+            if (!string.IsNullOrEmpty(user))
+                userString = string.Format(" by #b#{0}##", user);
+            Printer.PrintMessage("{4}{0} - #b#{1}##{3} on branch #c#{2}##", id, lockPath, lockbranch, userString, prefix);
         }
 
         private bool SendLocks()
@@ -236,7 +313,15 @@ namespace Versionr.Network
             if (queryResult.Type == NetCommandType.Acknowledge)
             {
                 Workspace.ReleaseLocks(ltl.Locks);
-                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // ignored
+                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // these are the locks we actually released
+                foreach (var x in ltl.Locks)
+                {
+                    var rl = locks.Where(z => z.ID == x).FirstOrDefault();
+                    if (rl != null)
+                    {
+                        PrintLock("Released lock: ", rl.ID, rl.LockingPath, rl.LockedBranch, null);
+                    }
+                }
                 return true;
             }
             return false;

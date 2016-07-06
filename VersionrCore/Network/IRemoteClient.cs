@@ -26,6 +26,8 @@ namespace Versionr.Network
 		List<string> GetRecordData(List<Objects.Record> missingRecords);
 		void Close();
         bool AcquireLock(string path, string branch, bool allBranches, bool full, bool steal);
+        bool ListLocks(string path, string branch, bool allBranches, bool full);
+        bool BreakLocks(string path, string branch, bool allBranches, bool full);
         bool ReleaseLocks(List<RemoteLock> locks);
     }
 

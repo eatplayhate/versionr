@@ -136,6 +136,9 @@ namespace Versionr
         [VerbOption("unlock", HelpText = "Releases a held exclusive lock on a remote.")]
         public Commands.UnlockVerbOptions UnlockVerb { get; set; }
 
+        [VerbOption("lock-check", HelpText = "Lists or breaks locks on a remote.")]
+        public Commands.LockCheckVerbOptions LockCheckVerb { get; set; }
+
         [VerbOption("prune", HelpText = "Cleans up old object files.")]
         public Commands.PruneVerbOptions PruneVerb { get; set; }
 
