@@ -195,7 +195,13 @@ namespace Versionr.Commands
             }
 
             var heads = Workspace.GetBranchHeads(Workspace.CurrentBranch);
-            if (heads.Count == 0)
+            if (Workspace.CurrentBranch.Terminus.HasValue)
+            {
+                Printer.WriteLineMessage("\n #w#Warning:## Current branch \"#b#{0}##\" has been marked as deleted.", Workspace.CurrentBranch.Name);
+                if (Workspace.CurrentBranch.Terminus.Value == Workspace.Version.ID)
+                    Printer.PrintMessage("You are on the final revision of this branch.");
+            }
+            else if (heads.Count == 0)
                 Printer.WriteLineMessage("\n #w#Warning:## Current branch \"#b#{0}##\" does not have a head!", Workspace.CurrentBranch.Name);
             else if (heads.Count != 1 || heads[0].Version != Workspace.Version.ID)
             {

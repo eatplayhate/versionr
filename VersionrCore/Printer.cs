@@ -164,11 +164,13 @@ namespace Versionr
 
         private static int IndentLevel { get; set; }
 
+        public static string Prefix { get; set; } = "";
+
         static string Indent
         {
             get
             {
-                string s = "";
+                string s = Prefix;
                 for (int i = 0; i < IndentLevel; i++)
                     s += "  ";
                 return s;
@@ -217,7 +219,7 @@ namespace Versionr
                         continue;
                     }
                     int end = v.IndexOf('#', nextFindLocation + 1);
-                    if (end <= nextFindLocation + 2)
+                    if (end <= nextFindLocation + 2 && end != -1)
                     {
                         // valid formatting tag
                         outputs.Add(new Tuple<OutputColour, string>(currentColour, v.Substring(pos, nextFindLocation - pos)));

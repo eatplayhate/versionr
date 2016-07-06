@@ -134,6 +134,9 @@ namespace Versionr
         [VerbOption("unlock", HelpText = "Releases a held exclusive lock on a remote.")]
         public Commands.UnlockVerbOptions UnlockVerb { get; set; }
 
+        [VerbOption("prune", HelpText = "Cleans up old object files.")]
+        public Commands.PruneVerbOptions PruneVerb { get; set; }
+
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 
@@ -198,7 +201,7 @@ namespace Versionr
         static void Main(string[] args)
         {
             try
-            {
+            {   
                 string workingDirectoryPath = Environment.CurrentDirectory;
                 var printerStream = new Printer.PrinterStream();
                 VersionOptions initalOpts = new VersionOptions();

@@ -34,6 +34,7 @@ namespace Versionr
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
         public DirectoryInfo RootDirectory { get; private set; }
+
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
@@ -51,7 +52,7 @@ namespace Versionr
         {
             get
             {
-                return Directives.UserName;
+                return (Directives != null) ? Directives.UserName : Environment.UserName;
             }
         }
 
@@ -1776,7 +1777,7 @@ namespace Versionr
             rebaseVersion.Message = message;
             rebaseVersion.Parent = parentVersion.ID;
             rebaseVersion.Published = false;
-            rebaseVersion.Author = Directives.UserName;
+            rebaseVersion.Author = Username;
             rebaseVersion.Branch = parentVersion.Branch;
             rebaseVersion.Timestamp = DateTime.UtcNow;
             MergeInfo mergeInfo = new MergeInfo();
@@ -2595,11 +2596,23 @@ namespace Versionr
             }
         }
 
+        public List<Tuple<Objects.Version, int>> GetLogicalHistorySequenced(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        {
+            int sequence = 0;
+            return GetLogicalHistory(version, followBranches, showMerges, limit, excludes, ref sequence);
+        }
+
         public List<Objects.Version> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        {
+            int sequence = 0;
+            return GetLogicalHistory(version, followBranches, showMerges, limit, excludes, ref sequence).Select(x => x.Item1).ToList();
+        }
+
+        internal List<Tuple<Objects.Version, int>> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit, HashSet<Guid> excludes, ref int sequence)
         {
             var versions = GetHistoryChunked(version, limit);
             List<Objects.Version> versionsToCheck = new List<Objects.Version>();
-            List<Objects.Version> results = new List<Objects.Version>();
+            List<Tuple<Objects.Version, int>> results = new List<Tuple<Objects.Version, int>>();
             HashSet<Guid> primaryLine = new HashSet<Guid>();
             HashSet<Guid> addedLine = new HashSet<Guid>();
             foreach (var x in versions)
@@ -2612,6 +2625,7 @@ namespace Versionr
                 else
                     break;
             }
+            int? seq = null;
             foreach (var x in versionsToCheck)
             {
                 if (excludes != null && excludes.Contains(x.ID))
@@ -2620,6 +2634,7 @@ namespace Versionr
                 bool rebased = false;
                 bool automerged = false;
                 bool merged = false;
+                bool added = false;
                 if (excludes != null)
                     excludes.Add(x.ID);
                 foreach (var y in merges)
@@ -2628,20 +2643,31 @@ namespace Versionr
                         rebased = true;
                     if (y.Type == MergeType.Automatic)
                         automerged = true;
-                    merged = !showMerges;
+                    merged = true;
+                    if ((showMerges || (!rebased && !followBranches)) && !automerged)
+                    {
+                        if (!added)
+                        {
+                            addedLine.Add(x.ID);
+                            if (seq == null)
+                                seq = sequence++;
+                            results.Add(new Tuple<Objects.Version, int>(x, seq.Value));
+                        }
+                        added = true;
+                    }
                     var mergedVersion = GetVersion(y.SourceVersion);
                     if ((mergedVersion.Branch == x.Branch || followBranches) && !rebased)
                     {
                         // automerge or manual reconcile
-                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, limit, excludes != null ? excludes : primaryLine);
+                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, limit, excludes != null ? excludes : primaryLine, ref sequence);
                         foreach (var z in mergedHistory)
                         {
-                            if (!addedLine.Contains(z.ID))
+                            if (!addedLine.Contains(z.Item1.ID))
                             {
-                                addedLine.Add(z.ID);
-                                primaryLine.Add(z.ID);
+                                addedLine.Add(z.Item1.ID);
+                                primaryLine.Add(z.Item1.ID);
                                 if (excludes != null)
-                                    excludes.Add(z.ID);
+                                    excludes.Add(z.Item1.ID);
                                 results.Add(z);
                             }
                             else
@@ -2649,13 +2675,15 @@ namespace Versionr
                         }
                     }
                 }
-                if (!merged || (!rebased && !followBranches && !automerged))
+                if (!merged)
                 {
                     addedLine.Add(x.ID);
-                    results.Add(x);
+                    if (seq == null)
+                        seq = sequence++;
+                    results.Add(new Tuple<Objects.Version, int>(x, seq.Value));
                 }
             }
-            var ordered = results.OrderByDescending(x => x.Timestamp);
+            var ordered = results.OrderByDescending(x => x.Item1.Timestamp);
             if (limit == null)
                 return ordered.ToList();
             else return ordered.Take(limit.Value).ToList();
@@ -2806,7 +2834,7 @@ namespace Versionr
             Objects.Version version = GetVersion(initialRevision);
             Objects.Branch branch = GetBranch(version.Branch);
 
-            ws.Name = (Directives != null) ? Directives.UserName : Environment.UserName;
+            ws.Name = Username;
             ws.Branch = branch.ID;
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
@@ -2845,7 +2873,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Imported version {0}", version.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = (Directives != null) ? Directives.UserName : Environment.UserName;
+            ws.Name = Username;
 
             head.Branch = branch.ID;
             head.Version = version.ID;
@@ -3054,7 +3082,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Created branch \"{0}\", ID: {1}.", branch.Name, branch.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = (Directives != null) ? Directives.UserName : Environment.UserName; ;
+            ws.Name = Username;
             version.Parent = null;
             version.Timestamp = DateTime.UtcNow;
             version.Author = ws.Name;
@@ -3242,9 +3270,14 @@ namespace Versionr
             return ObjectStore.HasDataDirect(x, out ignored);
         }
 
-        internal void CommitDatabaseTransaction()
+        public void CommitDatabaseTransaction()
         {
             Database.Commit();
+        }
+
+        public int ExecuteDatabaseSQL(string sql)
+        {
+            return Database.Execute(sql);
         }
 
         internal void ImportRecordNoCommit(Record rec, bool checkduplicates = true)
@@ -3278,12 +3311,12 @@ namespace Versionr
             Database.InsertSafe(rec);
         }
 
-        internal void RollbackDatabaseTransaction()
+        public void RollbackDatabaseTransaction()
         {
             Database.Rollback();
         }
 
-        internal void BeginDatabaseTransaction()
+        public void BeginDatabaseTransaction()
         {
             Database.BeginTransaction();
         }
@@ -3999,7 +4032,7 @@ namespace Versionr
                                 mergeVersion = x;
                             break;
                         }
-                        if (x.Author == Directives.UserName)
+                        if (x.Author == Username)
                         {
                             backup = x;
                         }
@@ -4598,7 +4631,7 @@ namespace Versionr
                     {
                         Utilities.Symlink.Delete(path);
                     }
-					catch (Exception)
+                    catch (Exception)
                     {
                         Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
                     }
@@ -5920,7 +5953,7 @@ namespace Versionr
                         done.Add(x);
                         Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
                     }
-					catch (Utilities.Symlink.TargetNotFoundException)
+                    catch (Utilities.Symlink.TargetNotFoundException)
                     {
                         // do nothing...
                         if (attempts == 0)
@@ -7225,8 +7258,8 @@ namespace Versionr
         {
             string rootFolder = Root.FullName.Replace('\\', '/');
             string localFolder = fullName.Replace('\\', '/');
-            if (!localFolder.StartsWith(rootFolder))
-                throw new Exception();
+            if (!localFolder.StartsWith(rootFolder, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(string.Format("{0} doesn't start with {1}", localFolder, rootFolder));
             else
             {
                 if (localFolder == rootFolder)
@@ -7236,6 +7269,68 @@ namespace Versionr
                     return local;
                 return PartialPath + local;
             }
+        }
+
+        public void Prune()
+        {
+            HashSet<long> preservedRecords = new HashSet<long>();
+            HashSet<Guid> processedVersions = new HashSet<Guid>();
+            Action<Objects.Version> preserveRecords = (ver) =>
+            {
+                if (processedVersions.Contains(ver.ID))
+                    return;
+                var records = GetRecords(ver);
+                foreach (var x in records)
+                    preservedRecords.Add(x.Id);
+                int count = 25;
+                while (count > 0)
+                {
+                    if (!ver.Parent.HasValue)
+                        break;
+                    if (processedVersions.Contains(ver.Parent.Value))
+                        break;
+                    processedVersions.Add(ver.Parent.Value);
+                    ver = GetVersion(ver.Parent.Value);
+                    var alts = GetAlterations(ver);
+                    foreach (var x in alts)
+                    {
+                        if (x.PriorRecord.HasValue)
+                            preservedRecords.Add(x.PriorRecord.Value);
+                    }
+                    count--;
+                }
+            };
+            var branches = Branches;
+            for (int i = 0; i < branches.Count; i++)
+            {
+                foreach (var y in GetBranchHeads(branches[i]))
+                    preserveRecords(GetVersion(y.Version));
+                Printer.PrintMessage("Processed branch {1}/{2}: {0}", branches[i].Name, i + 1, branches.Count);
+            }
+            HashSet<string> dataIdentifiers = new HashSet<string>();
+            long size = 0;
+            var allRecords = Database.Table<Objects.Record>().ToList();
+            foreach (var x in allRecords)
+            {
+                if (preservedRecords.Contains(x.Id))
+                    continue;
+                if (x.Size < 1024 * 512)
+                    continue;
+                var name = Database.Get<Objects.ObjectName>(x.CanonicalNameId).CanonicalName;
+                if (name.EndsWith(".cpp") || name.EndsWith(".cs") || name.EndsWith(".h") || name.EndsWith(".hpp"))
+                    continue;
+                if (!dataIdentifiers.Contains(x.DataIdentifier))
+                {
+                    dataIdentifiers.Add(x.DataIdentifier);
+                    size += x.Size;
+                }
+            }
+
+            Printer.PrintMessage("Preserved {0} of {1} records.", preservedRecords.Count, allRecords.Count);
+            Printer.PrintMessage("About to prune {0} objects with a combined unpacked size of {1}.", dataIdentifiers.Count, Utilities.Misc.FormatSizeFriendly(size));
+
+            foreach (var x in dataIdentifiers)
+                ObjectStore.EraseData(x);
         }
 
         public static Area Init(DirectoryInfo workingDir, string branchname = "master")

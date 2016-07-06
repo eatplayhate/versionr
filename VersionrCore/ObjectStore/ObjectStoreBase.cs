@@ -42,5 +42,7 @@ namespace Versionr.ObjectStore
             List<string> ignored;
             return HasData(recordInfo, out ignored);
         }
+
+        public abstract void EraseData(string dataIdentifier);
     }
 }
