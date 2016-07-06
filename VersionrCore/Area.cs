@@ -152,6 +152,23 @@ namespace Versionr
             }
         }
 
+        public void DisplayStashOperations(StashInfo stash)
+        {
+            using (FileStream fs = stash.File.OpenRead())
+            using (BinaryReader br = new BinaryReader(fs))
+            {
+                StashInfo info;
+                List<StashEntry> entries;
+                long[] indexTable;
+
+                ReadStashHeader(br, out info, out entries, out indexTable);
+
+                int i = 0;
+                foreach (var x in entries)
+                    Printer.PrintMessage(" [{0}]: #b#{1}## - {2}", i++, x.Alteration, x.CanonicalName);
+            }
+        }
+
         public RemoteConfig FindRemoteFromURL(string remote)
         {
             foreach (var x in LocalData.Table<RemoteConfig>())
@@ -256,6 +273,26 @@ namespace Versionr
                     results.Add(x);
                 }
             }
+            if (results.Count == 0)
+            {
+                if (name.Length > 3 && char.IsLetter(name[0]) && char.IsLetter(name[1]) && char.IsLetter(name[2]))
+                {
+                    string key = name.Substring(0, 3);
+                    string end = name.Substring(3);
+                    int stashID;
+                    if (int.TryParse(end, out stashID))
+                    {
+                        string newkey = string.Format("{0}{1:D4}", key.ToUpper(), stashID);
+                        foreach (var x in stashes)
+                        {
+                            if (x.Key == newkey)
+                            {
+                                results.Add(x);
+                            }
+                        }
+                    }
+                }
+            }
             return results;
         }
 
@@ -286,6 +323,7 @@ namespace Versionr
             public bool Reverse { get; set; } = false;
             public bool AllowUncleanPatches { get; set; } = false;
             public bool AttemptThreeWayMergeOnPatchFailure { get; set; } = false;
+            public bool Interactive { get; set; }
         }
 
         public void Unstash(StashInfo stashInfo, ApplyStashOptions options, bool deleteAfterApply)
@@ -376,6 +414,9 @@ namespace Versionr
                 {
                     var x = entries[i];
                     Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", i, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
+
+                    if (options.Interactive && !Printer.Prompt("Apply?"))
+                        continue;
 
                     Status.StatusEntry ws = null;
                     st.Map.TryGetValue(x.CanonicalName, out ws);

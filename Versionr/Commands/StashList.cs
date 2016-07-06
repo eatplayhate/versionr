@@ -39,6 +39,9 @@ namespace Versionr.Commands
             }
         }
 
+        [Option('d', "diff", HelpText = "Show text file differences.")]
+        public bool DisplayDiff { get; set; }
+
         [Option('p', "patch", HelpText = "Resulting patch file to generate.")]
         public string PatchFile { get; set; }
 
@@ -106,7 +109,10 @@ namespace Versionr.Commands
                 var stash = LookupStash(ws, localOptions.Name[0]);
                 if (stash != null)
                 {
-                    Printer.PrintMessage("{1} patch for stash {0}", stash.GUID, string.IsNullOrEmpty(localOptions.PatchFile) ? "Showing" : "Generating");
+                    if (localOptions.DisplayDiff)
+                        Printer.PrintMessage("{1} patch for stash #b#{2}## ({0})", stash.GUID, string.IsNullOrEmpty(localOptions.PatchFile) ? "Showing" : "Generating", stash.Key);
+                    else
+                        Printer.PrintMessage("Showing stash #b#{1}## ({0})", stash.GUID, stash.Key);
 
                     Stream baseStream = null;
                     if (string.IsNullOrEmpty(localOptions.PatchFile))
@@ -114,30 +120,34 @@ namespace Versionr.Commands
                     else
                         baseStream = File.Open(localOptions.PatchFile, FileMode.Create, FileAccess.ReadWrite);
 
-                    using (StreamWriter sw = new StreamWriter(baseStream))
+                    ws.DisplayStashOperations(stash);
+                    if (localOptions.DisplayDiff)
                     {
-                        ws.StashToPatch(sw, stash);
-                        sw.Flush();
-                        baseStream.Position = 0;
-                        if (string.IsNullOrEmpty(localOptions.PatchFile))
+                        using (StreamWriter sw = new StreamWriter(baseStream))
                         {
-                            using (TextReader tr = new StreamReader(baseStream))
+                            ws.StashToPatch(sw, stash);
+                            sw.Flush();
+                            baseStream.Position = 0;
+                            if (string.IsNullOrEmpty(localOptions.PatchFile))
                             {
-                                string[] patchLines = tr.ReadToEnd().Split('\n');
-                                foreach (var x in patchLines)
+                                using (TextReader tr = new StreamReader(baseStream))
                                 {
-                                    if (x.StartsWith("@@"))
-                                        Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
-                                    else if (x.StartsWith("+++"))
-                                        Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
-                                    else if (x.StartsWith("---"))
-                                        Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
-                                    else if (x.StartsWith("-"))
-                                        Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
-                                    else if (x.StartsWith("+"))
-                                        Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
-                                    else
-                                        Printer.PrintMessage(Printer.Escape(x));
+                                    string[] patchLines = tr.ReadToEnd().Split('\n');
+                                    foreach (var x in patchLines)
+                                    {
+                                        if (x.StartsWith("@@"))
+                                            Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
+                                        else if (x.StartsWith("+++"))
+                                            Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
+                                        else if (x.StartsWith("---"))
+                                            Printer.PrintMessage("#b#{0}##", Printer.Escape(x));
+                                        else if (x.StartsWith("-"))
+                                            Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
+                                        else if (x.StartsWith("+"))
+                                            Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
+                                        else
+                                            Printer.PrintMessage(Printer.Escape(x));
+                                    }
                                 }
                             }
                         }
