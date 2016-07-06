@@ -55,76 +55,112 @@ namespace Versionr.Commands
             AdminVerbOptions localOptions = options as AdminVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
             if (localOptions.Check)
+            {
+                if (localOptions.Replicate)
+                    Printer.PrintMessage("#w#Warning:## Database commands are not replicatable.");
                 Workspace.RunConsistencyCheck();
+            }
             if (localOptions.Vacuum)
+            {
+                if (localOptions.Replicate)
+                    Printer.PrintMessage("#w#Warning:## Database commands are not replicatable.");
                 Workspace.RunVacuum();
+            }
             if (!string.IsNullOrEmpty(localOptions.SQL))
             {
-                System.IO.FileInfo fi = new System.IO.FileInfo(localOptions.SQL);
-                if (!fi.Exists)
+                if (localOptions.Replicate)
+                    Printer.PrintMessage("#w#Warning:## SQL commands are not replicatable.");
+                return RunSQL(true, localOptions.Echo, localOptions.SQL);
+            }
+            if (!string.IsNullOrEmpty(localOptions.SQLLocal))
+            {
+                if (localOptions.Replicate)
+                    Printer.PrintMessage("#w#Warning:## SQL commands are not replicatable.");
+                return RunSQL(false, localOptions.Echo, localOptions.SQLLocal);
+            }
+            return true;
+        }
+
+        private bool RunSQL(bool mainDB, bool echo, string SQL)
+        {
+            System.IO.FileInfo fi = new System.IO.FileInfo(SQL);
+            if (!fi.Exists)
+            {
+                Printer.PrintMessage("#e#Error:## Can't load JSON-wrapped SQL file at \"{0}\"", SQL);
+                return false;
+            }
+            using (var fs = fi.OpenRead())
+            using (var sr = new System.IO.StreamReader(fs))
+            using (var jr = new JsonTextReader(sr))
+            {
+                JsonSerializer js = new JsonSerializer();
+                JObject obj;
+                try
                 {
-                    Printer.PrintMessage("#e#Error:## Can't load JSON-wrapped SQL file at \"{0}\"", localOptions.SQL);
+                    obj = js.Deserialize<JObject>(jr);
+                }
+                catch
+                {
+                    Printer.PrintMessage("#e#Error:## Couldn't load JSON data at \"{0}\"", SQL);
                     return false;
                 }
-                using (var fs = fi.OpenRead())
-                using (var sr = new System.IO.StreamReader(fs))
-                using (var jr = new JsonTextReader(sr))
+                JArray statements = obj.GetValue("SQLStatements") as JArray;
+                Printer.PrintMessage("Loaded {1} SQL statements from \"{0}\"", SQL, statements.Count);
+                if (Printer.Prompt("Apply SQL statments to" + (mainDB ? "master" : "client") + " database?"))
                 {
-                    JsonSerializer js = new JsonSerializer();
-                    JObject obj;
                     try
                     {
-                        obj = js.Deserialize<JObject>(jr);
-                    }
-                    catch
-                    {
-                        Printer.PrintMessage("#e#Error:## Couldn't load JSON data at \"{0}\"", localOptions.SQL);
-                        return false;
-                    }
-                    JArray statements = obj.GetValue("SQLStatements") as JArray;
-                    Printer.PrintMessage("Loaded {1} SQL statements from \"{0}\"", localOptions.SQL, statements.Count);
-                    if (Printer.Prompt("Apply?"))
-                    {
-                        try
-                        {
-                            int totalCount = 0;
+                        int totalCount = 0;
+                        if (mainDB)
                             Workspace.BeginDatabaseTransaction();
-                            foreach (var x in statements)
-                            {
-                                if (localOptions.Echo)
-                                    Printer.PrintMessage(Printer.Escape(x.ToString()));
-                                try
-                                {
-                                    int results = Workspace.ExecuteDatabaseSQL(x.ToString());
-                                    if (localOptions.Echo)
-                                        Printer.PrintMessage("#s#+ {0} rows modified", results);
-                                    totalCount += results;
-                                }
-                                catch (Exception e)
-                                {
-                                    if (!localOptions.Echo)
-                                        Printer.PrintMessage("#e#{0}", Printer.Escape(x.ToString()));
-                                    Printer.PrintMessage("Error in SQL statement: {0}", e.ToString());
-                                    if (Printer.Prompt("Abort?"))
-                                        throw;
-                                }
-                            }
-                            Printer.PrintMessage("SQL statements have modified {0} rows in the master database.", totalCount);
-                            if (!Printer.Prompt("Write changes to DB?"))
-                                throw new Exception("Aborted");
-                            Workspace.CommitDatabaseTransaction();
-                            Printer.PrintMessage("Done.");
-                        }
-                        catch (Exception e)
+                        else
+                            Workspace.BeginLocalDBTransaction();
+                        foreach (var x in statements)
                         {
-                            Workspace.RollbackDatabaseTransaction();
-                            Printer.PrintMessage("#e#Error:## Couldn't apply SQL - exception {0}", e);
-                            return false;
+                            if (echo)
+                                Printer.PrintMessage(Printer.Escape(x.ToString()));
+                            try
+                            {
+                                int results = 0;
+                                if (mainDB)
+                                    results = Workspace.ExecuteDatabaseSQL(x.ToString());
+                                else
+                                    results = Workspace.ExecuteLocalDBSQL(x.ToString());
+                                if (echo)
+                                    Printer.PrintMessage("#s#+ {0} rows modified", results);
+                                totalCount += results;
+                            }
+                            catch (Exception e)
+                            {
+                                if (!echo)
+                                    Printer.PrintMessage("#e#{0}", Printer.Escape(x.ToString()));
+                                Printer.PrintMessage("Error in SQL statement: {0}", e.ToString());
+                                if (Printer.Prompt("Abort?"))
+                                    throw;
+                            }
                         }
+                        Printer.PrintMessage("SQL statements have modified {0} rows in the target database.", totalCount);
+                        if (!Printer.Prompt("Write changes to DB?"))
+                            throw new Exception("Aborted");
+                        if (mainDB)
+                            Workspace.CommitDatabaseTransaction();
+                        else
+                            Workspace.CommitLocalDBTransaction();
+                        Printer.PrintMessage("Done.");
+                        return true;
+                    }
+                    catch (Exception e)
+                    {
+                        if (mainDB)
+                            Workspace.RollbackDatabaseTransaction();
+                        else
+                            Workspace.RollbackLocalDBTransaction();
+                        Printer.PrintMessage("#e#Error:## Couldn't apply SQL - exception {0}", e);
+                        return false;
                     }
                 }
             }
-            return true;
+            return false;
         }
     }
 }

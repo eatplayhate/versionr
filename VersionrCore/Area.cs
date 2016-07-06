@@ -3335,6 +3335,16 @@ namespace Versionr
             return Database.Execute(sql);
         }
 
+        public void CommitLocalDBTransaction()
+        {
+            LocalData.Commit();
+        }
+
+        public int ExecuteLocalDBSQL(string sql)
+        {
+            return LocalData.Execute(sql);
+        }
+
         internal void ImportRecordNoCommit(Record rec, bool checkduplicates = true)
         {
             if (checkduplicates)
@@ -3374,6 +3384,16 @@ namespace Versionr
         public void BeginDatabaseTransaction()
         {
             Database.BeginTransaction();
+        }
+
+        public void RollbackLocalDBTransaction()
+        {
+            LocalData.Rollback();
+        }
+
+        public void BeginLocalDBTransaction()
+        {
+            LocalData.BeginTransaction();
         }
 
         internal void ImportRecordData(Versionr.ObjectStore.ObjectStoreTransaction transaction, string directName, Stream data, out string dependency)
