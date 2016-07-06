@@ -120,7 +120,7 @@ namespace Versionr.Utilities
 					{
 						Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
 					}
-					catch (COMException e)
+					catch (COMException)
 					{
 						return CreateSymlinkFallback(path, target, asDirectory);
 					}

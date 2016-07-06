@@ -33,6 +33,8 @@ namespace Versionr
             set
             {
                 m_Patterns = value;
+                if (m_Patterns == null)
+                    return;
                 var regexes = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
                 if (RegexFilePatterns != null)
                     RegexFilePatterns = RegexFilePatterns.Concat(regexes).ToArray();
@@ -64,6 +66,8 @@ namespace Versionr
             set
             {
                 m_FilePatterns = value;
+                if (m_FilePatterns == null)
+                    return;
                 var regexes = m_FilePatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
 
                 if (RegexFilePatterns != null)
@@ -81,6 +85,8 @@ namespace Versionr
             set
             {
                 m_DirectoryPatterns = value;
+                if (m_DirectoryPatterns == null)
+                    return;
                 var regexes = m_DirectoryPatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
 
                 if (RegexDirectoryPatterns != null)
@@ -144,6 +150,14 @@ namespace Versionr
         public string ExternalMerge2Way { get; set; }
         public SvnCompatibility Svn { get; set; }
         public Dictionary<string, Extern> Externals { get; set; }
+
+        private string m_UserName;
+        public string UserName
+        {
+            get { return (String.IsNullOrEmpty(m_UserName)) ? Environment.UserName : m_UserName; }
+            set { m_UserName = value; }
+        }
+
         public Directives()
         {
             Ignore = new Ignores();
@@ -174,6 +188,8 @@ namespace Versionr
                 ExternalMerge2Way = other.ExternalMerge2Way;
             if (other.NonBlockingDiff != null)
                 NonBlockingDiff = other.NonBlockingDiff;
+            if (other.m_UserName != null)
+                m_UserName = other.m_UserName;
 
             if (other.Externals != null)
             {

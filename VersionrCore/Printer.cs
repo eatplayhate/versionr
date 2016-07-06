@@ -357,6 +357,8 @@ namespace Versionr
             {
                 LogStream.Write(message);
             }
+            if (MessagePrinted != null)
+                MessagePrinted(null, new MessagePrintedEventArgs(message));
         }
 
         static OutputColour PreviousColour = (OutputColour)(-1);
@@ -562,6 +564,18 @@ namespace Versionr
             string result = string.Format(message, args);
             WriteLineMessage(result);
         }
+
+
+        public class MessagePrintedEventArgs
+        {
+            public MessagePrintedEventArgs(string message)
+            {
+                Message = message;
+            }
+            public string Message { get; private set; }
+        }
+        public delegate void MessagePrintedEventHandler(object sender, MessagePrintedEventArgs e);
+        public static event MessagePrintedEventHandler MessagePrinted;
 
         public abstract class InteractivePrinter
         {

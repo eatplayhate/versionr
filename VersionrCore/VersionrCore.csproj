@@ -117,6 +117,7 @@
     <Compile Include="Status.cs" />
     <Compile Include="Utilities\ChunkedStream.cs" />
     <Compile Include="Utilities\DiffMerge.cs" />
+    <Compile Include="Utilities\DirectivesUtils.cs" />
     <Compile Include="Utilities\FileClassifier.cs" />
     <Compile Include="Utilities\LimitedConcurrencyScheduler.cs" />
     <Compile Include="Utilities\LZHL.cs" />

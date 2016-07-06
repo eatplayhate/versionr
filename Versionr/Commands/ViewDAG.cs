@@ -77,7 +77,7 @@ namespace Versionr.Commands
 
 				string name = x.Object.ID.ToString().Substring(0, 8);
                 name += string.Format("\\n{0}", x.Object.Author);
-                var mappedHeads = ws.MapVersionToHeads(x.Object);
+                var mappedHeads = ws.MapVersionToHeads(x.Object.ID);
                 if (mappedHeads.Count > 0)
                 {
 					foreach (var y in mappedHeads)

@@ -53,7 +53,7 @@ namespace Versionr
         {
             get
             {
-                return Environment.UserName;
+                return (Directives != null) ? Directives.UserName : Environment.UserName;
             }
         }
 
@@ -1778,7 +1778,7 @@ namespace Versionr
             rebaseVersion.Message = message;
             rebaseVersion.Parent = parentVersion.ID;
             rebaseVersion.Published = false;
-            rebaseVersion.Author = Environment.UserName;
+            rebaseVersion.Author = Username;
             rebaseVersion.Branch = parentVersion.Branch;
             rebaseVersion.Timestamp = DateTime.UtcNow;
             MergeInfo mergeInfo = new MergeInfo();
@@ -2333,9 +2333,9 @@ namespace Versionr
             return Database.Table<Objects.Head>().Where(x => x.Version == v.ID).Any();
         }
 
-        public List<Branch> MapVersionToHeads(Objects.Version v)
+        public List<Branch> MapVersionToHeads(Guid versionID)
         {
-            var heads = Database.Table<Objects.Head>().Where(x => x.Version == v.ID).ToList();
+            var heads = Database.Table<Objects.Head>().Where(x => x.Version == versionID).ToList();
             var branches = heads.Select(x => Database.Get<Objects.Branch>(x.Branch)).ToList();
             return branches;
         }
@@ -2835,7 +2835,7 @@ namespace Versionr
             Objects.Version version = GetVersion(initialRevision);
             Objects.Branch branch = GetBranch(version.Branch);
 
-            ws.Name = Environment.UserName;
+            ws.Name = Username;
             ws.Branch = branch.ID;
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
@@ -2874,7 +2874,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Imported version {0}", version.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = Environment.UserName;
+            ws.Name = Username;
 
             head.Branch = branch.ID;
             head.Version = version.ID;
@@ -3083,7 +3083,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Created branch \"{0}\", ID: {1}.", branch.Name, branch.ID);
 
             domain.InitialRevision = version.ID;
-            ws.Name = Environment.UserName;
+            ws.Name = Username;
             version.Parent = null;
             version.Timestamp = DateTime.UtcNow;
             version.Author = ws.Name;
@@ -3514,88 +3514,26 @@ namespace Versionr
         {
             return Database.GetMergeInfo(iD);
         }
+        
+		public void LoadDirectives()
+		{
+            string error;
 
+            // Load .vrmeta
+            Directives directives = DirectivesUtils.LoadVRMeta(this, out error);
+            Directives = (directives != null) ? directives : new Directives();
 
-        private void LoadVRMeta()
-        {
-            Configuration = null;
-            FileInfo info = new FileInfo(Path.Combine(Root.FullName, ".vrmeta"));
-            if (info.Exists)
-            {
-                string data = string.Empty;
-                using (var sr = info.OpenText())
-                {
-                    data = sr.ReadToEnd();
-                }
-                try
-                {
-                    Configuration = Newtonsoft.Json.Linq.JObject.Parse(data);
-                    Directives = LoadConfigurationElement<Directives>("Versionr");
-                }
-                catch (Exception e)
-                {
-                    Printer.PrintError("#x#Error:## .vrmeta is malformed!");
-                    Printer.PrintMessage(e.ToString());
+            // Load global .vruser
+            directives = DirectivesUtils.LoadGlobalVRUser(out error);
+            if (directives != null)
+                Directives.Merge(directives);
 
-                    if (Directives == null)
-                        Directives = new Directives();
-                }
-            }
-            else
-                Directives = new Directives();
-        }
-
-        private void LoadVRUser(string path)
-        {
-            FileInfo localInfo = new FileInfo(path);
-            if (localInfo.Exists)
-            {
-                string data = string.Empty;
-                using (var sr = localInfo.OpenText())
-                {
-                    data = sr.ReadToEnd();
-                }
-                try
-                {
-                    var localObj = Newtonsoft.Json.Linq.JObject.Parse(data);
-                    var localDirJSON = localObj["Versionr"];
-                    if (localDirJSON != null)
-                    {
-                        var localDirectives = Newtonsoft.Json.JsonConvert.DeserializeObject<Directives>(localDirJSON.ToString());
-                        if (localDirectives != null)
-                        {
-                            if (Directives != null)
-                                Directives.Merge(localDirectives);
-                            else
-                                Directives = localDirectives;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    Printer.PrintError("#x#Error:## .vruser is malformed!");
-                    Printer.PrintMessage(e.ToString());
-                }
-            }
-        }
-
-        private void LoadDirectives()
-        {
-            LoadVRMeta();
-            LoadVRUser(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".vruser"));
-            LoadVRUser(Path.Combine(Root.FullName, ".vruser"));
-        }
-
-
-        public T LoadConfigurationElement<T>(string v)
-            where T : new()
-        {
-            var element = Configuration[v];
-            if (element == null)
-                return new T();
-            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
-        }
-
+            // Load .vruser
+            directives = DirectivesUtils.LoadVRUser(this, out error);
+            if (directives != null)
+                Directives.Merge(directives);
+		}
+        
         private bool Load(bool headless = false)
         {
             try
@@ -4095,7 +4033,7 @@ namespace Versionr
                                 mergeVersion = x;
                             break;
                         }
-                        if (x.Author == Environment.UserName)
+                        if (x.Author == Username)
                         {
                             backup = x;
                         }
@@ -4694,7 +4632,7 @@ namespace Versionr
                     {
                         Utilities.Symlink.Delete(path);
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
                         Printer.PrintError("#x#Can't remove object \"{0}\"!", x.CanonicalName);
                     }
@@ -5980,7 +5918,7 @@ namespace Versionr
                         RestoreRecord(x, newRefTime, null, null, feedback);
                         System.Threading.Interlocked.Increment(ref count);
                     }
-                    catch (Utilities.Symlink.TargetNotFoundException e)
+                    catch (Utilities.Symlink.TargetNotFoundException)
                     {
                         Printer.PrintDiagnostics("Couldn't resolve symlink {0}, will try later", x.CanonicalName);
                         pendingSymlinks.Add(x);
@@ -6016,7 +5954,7 @@ namespace Versionr
                         done.Add(x);
                         Printer.PrintDiagnostics("Pending symlink {0} resolved with {1} attempts remaining", x.CanonicalName, attempts);
                     }
-                    catch (Utilities.Symlink.TargetNotFoundException e)
+                    catch (Utilities.Symlink.TargetNotFoundException)
                     {
                         // do nothing...
                         if (attempts == 0)
@@ -6113,7 +6051,16 @@ namespace Versionr
                     external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
                     if (fresh)
                     {
-                        external.Checkout(x.Value.Target, false, false);
+                        if (!String.IsNullOrEmpty(x.Value.Branch))
+                        {
+                            bool multiple;
+                            Objects.Branch externBranch = external.GetBranchByPartialName(string.IsNullOrEmpty(x.Value.Branch) ? external.GetVersion(external.Domain).Branch.ToString() : x.Value.Branch, out multiple);
+                            external.Checkout(externBranch.ID.ToString(), false, verbose);
+                        }
+                        else
+                        {
+                            external.Checkout(x.Value.Target, false, false);
+                        }
                     }
                     else
                     {
@@ -6433,7 +6380,7 @@ namespace Versionr
                                         mineFile.IsReadOnly = false;
                                     mineFile.Delete();
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     Printer.PrintMessage("Couldn't delete: {0}", mineFile.FullName);
                                 }
@@ -6447,7 +6394,7 @@ namespace Versionr
                                         theirsFile.IsReadOnly = false;
                                     theirsFile.Delete();
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     Printer.PrintMessage("Couldn't delete: {0}", theirsFile.FullName);
                                 }
@@ -6461,7 +6408,7 @@ namespace Versionr
                                         baseFile.IsReadOnly = false;
                                     baseFile.Delete();
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     Printer.PrintMessage("Couldn't delete: {0}", baseFile.FullName);
                                 }
