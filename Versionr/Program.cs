@@ -142,6 +142,12 @@ namespace Versionr
         [VerbOption("prune", HelpText = "Cleans up old object files.")]
         public Commands.PruneVerbOptions PruneVerb { get; set; }
 
+        [VerbOption("tag", HelpText = "Modifies tags associated with a version.")]
+        public Commands.TagVerbOptions TagVerb { get; set; }
+
+        [VerbOption("tag-find", HelpText = "Searches for versions with a specific tag.")]
+        public Commands.TagFindVerbOptions TagFindVerb { get; set; }
+
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 

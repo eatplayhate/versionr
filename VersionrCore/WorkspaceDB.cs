@@ -13,10 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 37;
-        public const int MinimumDBVersion = 30;
+        public const int InternalDBVersion = 39;
+        public const int MinimumDBVersion = 29;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 37;
+        public const int MaximumDBVersion = 39;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -32,6 +32,7 @@ namespace Versionr
                 ExecuteDirect("PRAGMA main.page_size = 4096;");
                 ExecuteDirect("PRAGMA main.cache_size = 10240;");
                 ExecuteDirect("PRAGMA temp_store = MEMORY;");
+                ExecuteDirect("PRAGMA threads = 2;");
                 EnableWAL = true;
                 PrepareTables();
                 return;
@@ -191,7 +192,7 @@ namespace Versionr
 
                     Commit();
 
-                    ExecuteDirect("VACUUM");
+                    Vacuum();
                 }
                 catch (Exception e)
                 {
@@ -206,6 +207,10 @@ namespace Versionr
         {
             Printer.PrintMessage("Running vacuum command.");
             EnableWAL = false;
+            ExecuteDirect("PRAGMA main.page_size = 4096;");
+            ExecuteDirect("PRAGMA main.cache_size = 10240;");
+            ExecuteDirect("PRAGMA temp_store = MEMORY;");
+            ExecuteDirect("PRAGMA threads = 2;");
             ExecuteDirect("VACUUM");
             EnableWAL = true;
         }

@@ -12,6 +12,7 @@ namespace Versionr.Objects
         public long Id { get; set; }
         [SQLite.Indexed]
         public Guid Version { get; set; }
+        [SQLite.Indexed]
         public string TagValue { get; set; }
     }
 }

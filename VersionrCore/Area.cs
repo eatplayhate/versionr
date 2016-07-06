@@ -61,9 +61,25 @@ namespace Versionr
         {
             Database.ConsistencyCheck();
         }
+
+        public List<Objects.Tag> FindTags(string tag, bool ignoreCase)
+        {
+            if (ignoreCase)
+                return Database.Query<Objects.Tag>("SELECT * FROM Tag WHERE TagValue LIKE ?", tag);
+            return Database.Table<Objects.Tag>().Where(x => x.TagValue == tag).ToList();
+        }
+
         public void RunVacuum()
         {
             Database.Vacuum();
+        }
+
+        public Annotation GetAnnotation(Guid vid, string key, bool ignoreCase)
+        {
+            if (ignoreCase)
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Enabled = ", vid, key).FirstOrDefault();
+            else
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ?", vid, key).FirstOrDefault();
         }
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
@@ -71,6 +87,7 @@ namespace Versionr
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed);
 
@@ -2062,6 +2079,7 @@ namespace Versionr
                 BranchJournal change = new BranchJournal();
                 change.Branch = branch.ID;
                 change.ID = Guid.NewGuid();
+                change.Timestamp = DateTime.UtcNow;
                 change.Operand = GetBranchHead(branch).Version.ToString();
                 change.Type = BranchAlterationType.Terminate;
                 return InsertBranchJournalChange(journal, change);
@@ -2074,10 +2092,209 @@ namespace Versionr
 
             BranchJournal change = new BranchJournal();
             change.Branch = branch.ID;
+            change.Timestamp = DateTime.UtcNow;
             change.ID = Guid.NewGuid();
             change.Operand = GetBranchHead(branch).Version.ToString();
             change.Type = BranchAlterationType.Terminate;
             InsertBranchJournalChangeNoTransaction(journal, change, true);
+        }
+
+        public bool AddTag(Guid vid, string tag)
+        {
+            List<string> tags = GetTagsForVersion(vid);
+            foreach (var x in tags)
+            {
+                if (x == tag)
+                {
+                    Printer.PrintMessage("Version #b#{0}## already has a #b#\\#{1}## tag.", vid, tag);
+                    return false;
+                }
+            }
+            Printer.PrintMessage("Adding tag for #b#{0}## - #s#\\#{1}##.", vid, tag);
+            return RunLocked(() =>
+            {
+                BranchJournal journal = GetBranchJournalTip();
+                BranchJournal change = new BranchJournal();
+                change.Branch = vid;
+                change.ID = Guid.NewGuid();
+                change.Timestamp = DateTime.UtcNow;
+                change.Operand = tag;
+                change.Type = BranchAlterationType.TagVersionAdd;
+                return InsertBranchJournalChange(journal, change);
+            }, true);
+        }
+
+        private void AddTagNoTransaction(Guid vid, string tag)
+        {
+            BranchJournal journal = GetBranchJournalTip();
+            BranchJournal change = new BranchJournal();
+            change.Branch = vid;
+            change.ID = Guid.NewGuid();
+            change.Timestamp = DateTime.UtcNow;
+            change.Operand = tag;
+            change.Type = BranchAlterationType.TagVersionAdd;
+            InsertBranchJournalChangeNoTransaction(journal, change, false);
+        }
+
+        public List<string> GetTagsForVersion(Guid vid)
+        {
+            return Database.Table<Objects.Tag>().Where(x => x.Version == vid).ToList().Select(x => x.TagValue).ToList();
+        }
+
+        public bool RemoveTag(Guid vid, string tag)
+        {
+            List<string> tags = GetTagsForVersion(vid);
+            foreach (var x in tags)
+            {
+                if (x == tag)
+                {
+                    Printer.PrintMessage("Removing tag for #b#{0}## - #e#\\#{1}##.", vid, tag);
+                    return RunLocked(() =>
+                    {
+                        BranchJournal journal = GetBranchJournalTip();
+                        BranchJournal change = new BranchJournal();
+                        change.Branch = vid;
+                        change.ID = Guid.NewGuid();
+                        change.Timestamp = DateTime.UtcNow;
+                        change.Operand = tag;
+                        change.Type = BranchAlterationType.TagVersionRemove;
+                        return InsertBranchJournalChange(journal, change);
+                    }, true);
+                }
+            }
+            Printer.PrintMessage("Version #b#{0}## doesn't have a #b#\\#{1}## tag.", vid, tag);
+            return false;
+        }
+
+        public bool SetAnnotation(Guid vid, string key, string value)
+        {
+            return SetAnnotation(vid, key, false, new MemoryStream(Encoding.UTF8.GetBytes(value)));
+        }
+        public bool SetAnnotation(Guid vid, string key, byte[] value)
+        {
+            return SetAnnotation(vid, key, FileClassifier.ClassifyData(value) == FileEncoding.Binary, new MemoryStream(value));
+        }
+        public bool SetAnnotation(Guid vid, string key, bool binary, System.IO.Stream value)
+        {
+            value.Position = 0;
+            Printer.PrintMessage("Adding {2} byte annotation for #b#{0}## - #c#{1}##.", vid, key, value.Length);
+            return RunLocked(() =>
+            {
+                var oldAnnotation = GetAnnotation(vid, key, false);
+                string operand = oldAnnotation == null ? "" : oldAnnotation.ID.ToString();
+
+                Guid newAnnotationID = Guid.NewGuid();
+
+                AnnotationFlags flags = AnnotationFlags.Normal;
+                byte[] payload = null;
+                if (value.Length > 16 * 1024)
+                {
+                    flags = AnnotationFlags.File;
+
+                    DirectoryInfo metaDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Metaobjects"));
+                    metaDir.Create();
+
+                    MemoryStream ms = new MemoryStream();
+                    BinaryWriter bw = new BinaryWriter(ms);
+                    bw.Write(value.Length);
+                    bw.Write(1);
+
+                    long resultSize;
+                    using (FileStream output = File.Open(Path.Combine(metaDir.FullName, newAnnotationID.ToString()), FileMode.Open, FileAccess.Write))
+                    {
+                        Versionr.ObjectStore.LZHAMWriter.CompressToStream(value.Length, 16 * 1024 * 1024, out resultSize, value, output);
+                    }
+                    bw.Write(resultSize);
+                    payload = ms.ToArray();
+                }
+                else
+                {
+                    payload = new byte[value.Length];
+                    value.Read(payload, 0, (int)value.Length);
+                }
+                if (binary)
+                    flags = (AnnotationFlags)(flags | AnnotationFlags.Binary);
+                var annotation = new Objects.Annotation()
+                {
+                    Author = Username,
+                    Flags = flags,
+                    Key = key,
+                    Version = vid,
+                    Enabled = true,
+                    Timestamp = DateTime.UtcNow,
+                    Value = payload,
+                    ID = newAnnotationID
+                };
+
+                Database.Insert(annotation);
+
+                operand = operand + ":" + newAnnotationID;
+                BranchJournal journal = GetBranchJournalTip();
+                BranchJournal change = new BranchJournal();
+                change.Branch = vid;
+                change.ID = Guid.NewGuid();
+                change.Timestamp = DateTime.UtcNow;
+                change.Operand = operand;
+                change.Type = BranchAlterationType.AnnotateVersion;
+                return InsertBranchJournalChange(journal, change);
+            }, true);
+        }
+
+        public Stream GetAnnotationStream(Annotation annotation)
+        {
+            if (annotation.Flags.HasFlag(AnnotationFlags.File))
+            {
+                MemoryStream ms = new MemoryStream(annotation.Value);
+                BinaryReader br = new BinaryReader(ms);
+
+                long originalSize = br.ReadInt64();
+                int compressionMode = br.ReadInt32();
+                long compressedSize = br.ReadInt64();
+
+                DirectoryInfo metaDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Metaobjects"));
+                FileInfo file = new FileInfo(Path.Combine(metaDir.FullName, annotation.ID.ToString()));
+
+                if (!file.Exists)
+                    throw new Exception("Missing annotation data!");
+
+                if (compressionMode == 1)
+                    return new Versionr.ObjectStore.LZHAMReaderStream(originalSize, file.OpenRead());
+
+                throw new Exception("Can't decode annotation!");
+            }
+            return new MemoryStream(annotation.Value);
+        }
+        public string GetAnnotationAsString(Annotation annotation)
+        {
+            if (annotation.Flags.HasFlag(AnnotationFlags.File))
+                throw new Exception();
+            FileEncoding encoding = FileClassifier.ClassifyData(annotation.Value);
+            switch (encoding)
+            {
+                case FileEncoding.ASCII:
+                case FileEncoding.Latin1:
+                case FileEncoding.Binary:
+                    return Encoding.ASCII.GetString(annotation.Value);
+                case FileEncoding.UTF7_BOM:
+                case FileEncoding.UTF7:
+                    return Encoding.UTF7.GetString(annotation.Value);
+                case FileEncoding.UTF8_BOM:
+                case FileEncoding.UTF8:
+                    return Encoding.UTF8.GetString(annotation.Value);
+                case FileEncoding.UTF16_LE_BOM:
+                case FileEncoding.UTF16_LE:
+                    return Encoding.Unicode.GetString(annotation.Value);
+                case FileEncoding.UTF16_BE_BOM:
+                case FileEncoding.UTF16_BE:
+                    return Encoding.BigEndianUnicode.GetString(annotation.Value);
+                case FileEncoding.UCS4_BE_BOM:
+                case FileEncoding.UCS4_BE:
+                    return new UTF32Encoding(true, true).GetString(annotation.Value);
+                case FileEncoding.UCS4_LE_BOM:
+                case FileEncoding.UCS4_LE:
+                    return new UTF32Encoding(false, true).GetString(annotation.Value);
+            }
+            throw new Exception();
         }
 
         private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
@@ -2192,6 +2409,26 @@ namespace Versionr
 
         internal bool ReplayBranchJournal(BranchJournal change, bool interactive, List<BranchJournal> conflicts, SharedNetwork.SharedNetworkInfo sharedInfo = null)
         {
+            if (change.Type == BranchAlterationType.TagVersionAdd)
+            {
+                Database.Insert(new Objects.Tag() { Version = change.Branch, TagValue = change.Operand });
+                return true;
+            }
+            else if (change.Type == BranchAlterationType.TagVersionRemove)
+            {
+                var tag = Database.Table<Objects.Tag>().Where(x => x.Version == change.Branch && x.TagValue == change.Operand).FirstOrDefault();
+                Database.Delete(tag);
+                return true;
+            }
+            else if (change.Type == BranchAlterationType.AnnotateVersion)
+            {
+                int splitIndex = change.Operand.IndexOf(':');
+                string before = change.Operand.Substring(0, splitIndex);
+                string after = change.Operand.Substring(splitIndex + 1);
+                if (before.Length != 0)
+                    Database.
+                return true;
+            }
             Objects.Branch branch = Database.Find<Objects.Branch>(change.Branch);
             if (branch == null)
                 return true;
@@ -6539,7 +6776,7 @@ namespace Versionr
             }
         }
 
-        public bool Commit(string message = "", bool force = false)
+        public bool Commit(string message = "", bool force = false, List<string> initialTags = null)
         {
             List<Guid> mergeIDs = new List<Guid>();
             List<Guid> reintegrates = new List<Guid>();
@@ -6626,6 +6863,14 @@ namespace Versionr
                                 }
                             }
                             head.Version = vs.ID;
+
+                            if (initialTags != null)
+                            {
+                                foreach (var x in initialTags.Distinct())
+                                {
+                                    AddTagNoTransaction(vs.ID, x);
+                                }
+                            }
 
                             List<Objects.Alteration> alterations = new List<Alteration>();
                             List<Objects.Record> records = new List<Record>();
@@ -6898,6 +7143,7 @@ namespace Versionr
                                 change.Branch = branch.ID;
                                 change.ID = Guid.NewGuid();
                                 change.Operand = null;
+                                change.Timestamp = DateTime.UtcNow;
                                 change.Type = BranchAlterationType.Terminate;
                                 InsertBranchJournalChangeNoTransaction(journal, change, false);
 
