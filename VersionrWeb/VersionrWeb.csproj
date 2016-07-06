@@ -61,6 +61,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Bootstrap\CustomBootstrapper.cs" />
+    <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
     <Compile Include="Modules\RootModule.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
