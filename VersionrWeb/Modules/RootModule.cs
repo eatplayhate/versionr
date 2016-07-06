@@ -11,7 +11,7 @@ namespace VersionrWeb.Modules
 	{
 		public RootModule()
 		{
-			Get["/"] = _ => "Hello world!";
+			Get["/"] = _ => { return View["Root"]; };
 		}
 	}
 }
