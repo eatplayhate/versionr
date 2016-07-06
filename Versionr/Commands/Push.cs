@@ -42,7 +42,7 @@ namespace Versionr.Commands
     }
     class Push : RemoteCommand
     {
-        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
+        protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             PushVerbOptions localOptions = options as PushVerbOptions;
             return client.Push(localOptions.Branch);

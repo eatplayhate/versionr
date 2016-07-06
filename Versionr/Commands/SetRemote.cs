@@ -9,14 +9,8 @@ namespace Versionr.Commands
 {
     class SetRemoteVerbOptions : VerbOptionBase
     {
-        [Option('h', "host", Required = false, HelpText = "Specifies the hostname of the remote.", MutuallyExclusiveSet = "remotemode")]
-		public string Host { get; set; }
-        [Option('p', "port", DefaultValue = 5122, Required = false, HelpText = "Specifies the port of the remote.")]
-        public int Port { get; set; }
-        [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.")]
+        [Option('r', "remote", Required = false, HelpText = "Specifies the remote URL.", MutuallyExclusiveSet = "remotemode")]
         public string Remote { get; set; }
-        [Option('m', "module", Required = false, HelpText = "The name of the remote module to select (used if a single server is hosting multiple vaults).")]
-        public string Module { get; set; }
 
         [Option('l', "list", HelpText = "List the known remotes", MutuallyExclusiveSet = "remotemode")]
 		public bool List { get; set; }
@@ -27,7 +21,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("#b#versionr #i#{0}##--host <host> --port <port> [remote name]\n#b#versionr #i#{0}## --remote #b#vsr://servername:port/path## [remote name]", Verb);
+                return string.Format("versionr #i#{0}## --remote #b#vsr://servername:port/path## [remote name]", Verb);
             }
         }
 
@@ -39,7 +33,7 @@ namespace Versionr.Commands
 				{
 					"This command stores details of remote Versionr servers.",
 					"",
-					"You must specify both hostname and port to register a new server.",
+					"You must specify #b#--remote## to register a new server.",
 					"",
 					"Otherwise the --clear and --list options operator on the existing list of remote servers.",
 				};
@@ -80,30 +74,20 @@ namespace Versionr.Commands
 			{
 				foreach (var x in ws.GetRemotes())
                 {
-					Printer.PrintMessage("Remote \"#b#{0}##\" is #b#{1}##", x.Name, Network.Client.ToVersionrURL(x.Host, x.Port, x.Module));
+					Printer.PrintMessage("Remote \"#b#{0}##\" is #b#{1}##", x.Name, x.URL);
 				}
 			}
 			else
             {
-                if (!string.IsNullOrEmpty(localOptions.Remote))
+                if (string.IsNullOrEmpty(localOptions.Remote))
                 {
-                    var remote = Network.Client.ParseRemoteName(localOptions.Remote);
-                    if (remote.Item1)
-                    {
-                        localOptions.Host = remote.Item2;
-                        localOptions.Port = remote.Item3 == -1 ? localOptions.Port : remote.Item3;
-                        localOptions.Module = remote.Item4;
-                    }
-                }
-                if (string.IsNullOrEmpty(localOptions.Host))
-                {
-                    Printer.PrintError("A remote URL or hostname must be specified!");
+                    Printer.PrintError("A remote URL must be specified!");
                     Printer.PrintMessage(localOptions.GetUsage());
                     return false;
                 }
                 string remoteName = string.IsNullOrEmpty(localOptions.Name) ? "default" : localOptions.Name;
-                if (ws.SetRemote(localOptions.Host, localOptions.Port, localOptions.Module, remoteName))
-                    Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, Network.Client.ToVersionrURL(localOptions.Host, localOptions.Port));
+                if (ws.SetRemote(localOptions.Remote, remoteName))
+                    Printer.PrintMessage("Configured remote \"#b#{0}##\" as: #b#{1}##", remoteName, localOptions.Remote);
             }
 			return true;
 		}

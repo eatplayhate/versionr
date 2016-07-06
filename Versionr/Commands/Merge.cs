@@ -78,6 +78,8 @@ namespace Versionr.Commands
                 MetadataOnly = localOptions.Metadata,
                 ResolutionStrategy = localOptions.Mine ? Area.MergeSpecialOptions.ResolutionSystem.Mine : (localOptions.Theirs ? Area.MergeSpecialOptions.ResolutionSystem.Theirs : Area.MergeSpecialOptions.ResolutionSystem.Normal)
             };
+            if (localOptions.Target.Count == 0)
+                Printer.PrintMessage("#x#Error:## No targets to merge from!");
             foreach (var x in localOptions.Target)
                 ws.Merge(x, false, opt);
             return true;

@@ -1888,11 +1888,11 @@ namespace Versionr
             }
         }
 
-        internal bool SyncCurrentRecords()
-        {
-            return GetMissingRecords(Database.Records);
-        }
-
+		internal List<Record> GetCurrentRecords()
+		{
+			return Database.Records;
+		}
+		
         public bool PathContains(string possibleparent, string location)
         {
             string outerpath = GetLocalPath(Path.Combine(Root.FullName, possibleparent));
@@ -2473,9 +2473,9 @@ namespace Versionr
             {
                 return new Status(this, Database, LocalData, FileSnapshot);
             }
-        }
-
-        public bool SetRemote(string host, int port, string module, string name)
+		}
+		
+		public bool SetRemote(string url, string name)
         {
             Regex validNames = new Regex("^[A-Za-z0-9-_]+$");
             if (!validNames.IsMatch(name))
@@ -2483,8 +2483,21 @@ namespace Versionr
                 Printer.PrintError("#e#Name \"{0}\" invalid for remote. Only alphanumeric characters, underscores and dashes are allowed.", name);
                 return false;
             }
-            if (port == -1)
-                port = Client.VersionrDefaultPort;
+
+			// Try to parse Versionr URL so we can store host/port/module in RemoteConfig
+			string host;
+			int port;
+			string module;
+			if (Client.TryParseVersionrURL(url, out host, out port, out module))
+			{
+				// Ok, parsed Versionr URL
+			}
+			else
+			{
+				// Store URL in module, leave host null
+				module = url;
+			}
+
             LocalData.BeginTransaction();
             try
             {
@@ -2493,19 +2506,19 @@ namespace Versionr
                 {
                     config = new RemoteConfig() { Name = name };
                     config.Host = host;
-                    config.Module = module;
                     config.Port = port;
+                    config.Module = module;
                     LocalData.InsertSafe(config);
                 }
                 else
                 {
-                    config.Module = module;
                     config.Host = host;
                     config.Port = port;
+                    config.Module = module;
                     LocalData.UpdateSafe(config);
                 }
 
-                Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
+				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}", url);
                 LocalData.Commit();
 
                 return true;
@@ -3533,7 +3546,16 @@ namespace Versionr
             if (directives != null)
                 Directives.Merge(directives);
 		}
-        
+        public T LoadConfigurationElement<T>(string v)
+            where T : new()
+        {
+			if (Configuration == null)
+				return new T();
+            var element = Configuration[v];
+            if (element == null)
+                return new T();
+            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
+        }
         private bool Load(bool headless = false)
         {
             try
@@ -5997,12 +6019,7 @@ namespace Versionr
                     System.IO.DirectoryInfo directory = new System.IO.DirectoryInfo(GetRecordPath(cleanLocation));
                     if (!directory.Exists)
                         directory.Create();
-                    var result = Client.ParseRemoteName(x.Value.Host);
-                    if (result.Item1 == false)
-                    {
-                        Printer.PrintError("#x#Error:##\n  Couldn't parse remote hostname \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
-                        continue;
-                    }
+					string url = x.Value.Host;
                     Client client = null;
                     Area external = LoadWorkspace(directory, false, true);
                     bool fresh = false;
@@ -6014,7 +6031,7 @@ namespace Versionr
                     else
                         client = new Client(external);
 
-                    if (!client.Connect(result.Item2, result.Item3, result.Item4))
+                    if (!client.Connect(url))
                     {
                         Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
                         if (external == null)
@@ -6032,7 +6049,7 @@ namespace Versionr
                     if (client != null)
                     {
                         client.Workspace.SetPartialPath(x.Value.PartialPath);
-                        client.Workspace.SetRemote(result.Item2, result.Item3, result.Item4, "default");
+                        client.Workspace.SetRemote(url, "default");
                         if (!fresh && !client.Pull(false, x.Value.Branch))
                         {
                             client.Close();
@@ -6048,7 +6065,7 @@ namespace Versionr
                     if (external == null)
                         external = client.Workspace;
                     external.SetPartialPath(x.Value.PartialPath);
-                    external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
+                    external.SetRemote(url, "default");
                     if (fresh)
                     {
                         if (!String.IsNullOrEmpty(x.Value.Branch))
@@ -6116,6 +6133,18 @@ namespace Versionr
             return false;
         }
 
+		public IRemoteClient Connect(string url, bool requiresWriteAccess = false)
+		{
+			// Find a provider that can make this connection
+			foreach (var clientProvider in PluginCache.GetImplementations<IRemoteClientProvider>())
+			{
+				var client = clientProvider.Connect(this, url, requiresWriteAccess);
+				if (client != null)
+					return client;
+			}
+			return null;
+		}
+
         public bool GetMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
@@ -6127,24 +6156,30 @@ namespace Versionr
                 {
                     Printer.PrintMessage(" - Attempting to pull data from remote \"{2}\" ({0}:{1})", x.Host, x.Port, x.Name);
 
-                    Client client = new Client(this);
-                    try
-                    {
-                        if (!client.Connect(x.Host, x.Port, x.Module))
-                            Printer.PrintMessage(" - Connection failed.");
-                        List<string> retrievedRecords = client.GetRecordData(missingRecords);
-                        HashSet<string> retrievedData = new HashSet<string>();
-                        Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
-                        foreach (var y in retrievedRecords)
-                            retrievedData.Add(y);
-                        missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
-                        client.Close();
-                    }
-                    catch
-                    {
-                        client.Close();
-                    }
-                    if (missingRecords.Count > 0)
+					IRemoteClient client = Connect(x.URL);
+					if (client == null)
+					{
+						Printer.PrintMessage(" - Connection failed.");
+					}
+					else
+					{
+						try
+						{
+							List<string> retrievedRecords = client.GetRecordData(missingRecords);
+							HashSet<string> retrievedData = new HashSet<string>();
+							Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
+							foreach (var y in retrievedRecords)
+								retrievedData.Add(y);
+							missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
+							client.Close();
+						}
+						catch
+						{
+							client.Close();
+						}
+					}
+
+					if (missingRecords.Count > 0)
                         Printer.PrintMessage("This checkout still requires {0} additional records.", missingRecords.Count);
                     else
                         return true;
@@ -6155,7 +6190,7 @@ namespace Versionr
             return false;
         }
 
-        private List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
+        public List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = new List<Record>();
             HashSet<string> requestedData = new HashSet<string>();

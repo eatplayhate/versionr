@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("VersionrCore")]
+[assembly: AssemblyTitle("Vsr2Git")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("VersionrCore")]
-[assembly: AssemblyCopyright("Copyright ©  2015")]
+[assembly: AssemblyProduct("Vsr2Git")]
+[assembly: AssemblyCopyright("Copyright ©  2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("55c6b198-e938-427f-96a5-c1252cb06acd")]
+[assembly: Guid("d5d9c21c-67a3-453f-a523-1651a9763ec9")]
 
 // Version information for an assembly consists of the following four values:
 //
@@ -35,4 +35,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
-[assembly: Versionr.VersionrPlugin("VersionrCore")]
+[assembly: Versionr.VersionrPlugin("Vsr2Git", typeof(Vsr2Git.Vsr2GitOptions))]

@@ -8,7 +8,7 @@ using CommandLine.Text;
 
 namespace Versionr
 {
-    abstract class VerbOptionBase
+    public abstract class VerbOptionBase
     {
         [ParserState]
         public IParserState LastParserState { get; set; }

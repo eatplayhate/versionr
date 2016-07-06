@@ -41,7 +41,7 @@ namespace Versionr.Commands
     }
     class PushStash : RemoteCommand
     {
-        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
+        protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             PushStashVerbOptions localOptions = options as PushStashVerbOptions;
             foreach (var x in localOptions.Names)
