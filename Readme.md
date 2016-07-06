@@ -285,10 +285,8 @@ versionr push --remote otherhostname:7777
 ##Git Replication
 Versionr can replicate its commit history to a Git repository.  All branches and merge information are replicated; temporary branch names are generated to handle branches with multiple heads.
 ```
-versionr replicate-to-git path/to/repo.git
+versionr push --remote path/to/repo.git
 ```
-
-Use `replicate-to-git --help` for additional options.
 
 **Author identity**
 

@@ -56,7 +56,7 @@ namespace Versionr.Commands
     }
     class Lock : RemoteCommand
     {
-        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
+        protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             LockVerbOptions localOptions = options as LockVerbOptions;
             if (string.IsNullOrEmpty(localOptions.Path) && !localOptions.Full)
