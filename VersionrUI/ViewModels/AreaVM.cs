@@ -42,7 +42,7 @@ namespace VersionrUI.ViewModels
                 case AreaInitMode.Clone:
                     // Spawn another dialog for the source (or put it in the Clone New button)
                     Client client = new Client(dir);
-                    if (client.Connect(host, port, null, true))
+                    if (client.Connect(Client.ToVersionrURL(host, port, null), true))
                     {
                         bool result = client.Clone(true);
                         if (!result)
@@ -50,11 +50,10 @@ namespace VersionrUI.ViewModels
                         if (result)
                         {
                             string remoteName = "default";
-                            client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName);
+                            client.Workspace.SetRemote(Client.ToVersionrURL(client.Host, client.Port, client.Module), remoteName);
                             client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
                             _area = Area.Load(client.Workspace.Root);
                             _area.Checkout(null, false, false);
-                            client.SyncRecords();
                         }
                     }
                     else
@@ -198,7 +197,7 @@ namespace VersionrUI.ViewModels
             if (SelectedRemote != null)
             {
                 Client client = new Client(_area);
-                if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
+                if (client.Connect(Client.ToVersionrURL(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module), requiresWriteAccess))
                 {
                     action.Invoke(client);
                 }
