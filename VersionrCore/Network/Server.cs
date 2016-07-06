@@ -752,7 +752,7 @@ namespace Versionr.Network
                                 var rli = Utilities.ReceiveEncrypted<RequestLockInformation>(sharedInfo);
 
                                 List<VaultLock> lockConflicts;
-                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, clientInfo.Locks, out lockConflicts);
+                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, command.Type == NetCommandType.RequestLock, clientInfo.Locks, out lockConflicts);
 
                                 if (lockConflicts.Count == 0 || rli.Steal)
                                 {

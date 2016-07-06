@@ -1117,7 +1117,7 @@ namespace Versionr
                 Database.DeleteSafe(x);
         }
 
-        internal void CheckLocks(string path, Guid? branch, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
+        internal void CheckLocks(string path, Guid? branch, bool testingLock, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
         {
             lockConflicts = new List<VaultLock>();
 
@@ -1139,7 +1139,7 @@ namespace Versionr
                     else
                     {
                         bool lockIsDirectory = x.Path.EndsWith("/");
-                        if ((lockIsDirectory && (path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase) || x.Path.StartsWith(path, StringComparison.OrdinalIgnoreCase))) ||
+                        if ((lockIsDirectory && (path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase) || (testingLock && x.Path.StartsWith(path, StringComparison.OrdinalIgnoreCase)))) ||
                             (!lockIsDirectory && !requestingDirectory && path.Equals(x.Path, StringComparison.OrdinalIgnoreCase)))
                         {
                             lockConflicts.Add(x);

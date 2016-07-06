@@ -1209,7 +1209,7 @@ namespace Versionr.Network
                 if (checkLocks)
                 {
                     List<VaultLock> overlappingLocks = null;
-                    sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, locks, out overlappingLocks);
+                    sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, false, locks, out overlappingLocks);
                     if (overlappingLocks.Count > 0)
                     {
                         lci = new LockConflictInformation()
