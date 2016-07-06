@@ -254,6 +254,7 @@ namespace Vsr2Git.Network
 
 				using (var stream = m_VsrArea.ObjectStore.GetRecordStream(vsrRecord))
 				{
+					stream.Position = 0;
 					Printer.PrintDiagnostics("  Add record {0} ({1} bytes{2})", vsrRecord.CanonicalName, stream.Length, mode == Mode.ExecutableFile ? " [Executable]" : "");
 					var blob = m_GitRepository.ObjectDatabase.CreateBlob(stream);
 					return treeDefinition.Add(vsrRecord.CanonicalName, blob, mode);
