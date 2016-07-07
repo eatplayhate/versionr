@@ -109,9 +109,9 @@
     <None Include="Content\plugins\pdfjs-1.4.20\LICENSE" />
     <None Include="packages.config" />
     <None Include="Views\Browse\Directory.cshtml" />
-    <None Include="Views\Browse\_Footer.cshtml" />
-    <None Include="Views\Browse\_Header.cshtml" />
-    <None Include="Views\_Repo_Header.cshtml" />
+    <None Include="Views\Browse\_BrowseFooter.cshtml" />
+    <None Include="Views\Browse\_BrowseHeader.cshtml" />
+    <None Include="Views\_RepoTabs.cshtml" />
     <None Include="Views\_Footer.cshtml" />
     <None Include="Views\_Header.cshtml" />
     <None Include="Views\Root.cshtml">

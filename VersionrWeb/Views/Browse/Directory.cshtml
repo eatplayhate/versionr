@@ -1,19 +1,6 @@
-﻿@Html.Partial("_Header", Model)
+﻿@Html.Partial("_BrowseHeader", Model)
 
 <table id="repo-files-table" class="ui fixed single line table">
-	<thead>
-		<tr>
-			<th class="four wide">
-				<img class="ui avatar image img-12" src="/Content/img/avatar_default.png" />
-				<strong>Lewis@* last committer *@</strong>
-				<a rel="nofollow" class="ui sha label" href="/commit/{{.LastCommit.ID}}" rel="nofollow">123abc</a>
-				<span class="grey has-emoji">Commit message</span>
-			</th>
-			<th class="nine wide">
-			</th>
-			<th class="three wide text grey right age">1 hour ago</th>
-		</tr>
-	</thead>
 	<tbody>
 		@if (Model.ParentPath != null) {
 			<tr class="has-parent">
@@ -22,7 +9,7 @@
 		}
 		@foreach (var record in Model.Entries) {
 			<tr>
-				<td class="name">
+				<td class="name" class="four wide">
 					@if (record.IsDirectory) {
 						<span class="icon octicon octicon-file-directory"></span>
 					}
@@ -31,11 +18,11 @@
 					}
 					<a href="@Model.BasePath@record.Name">@record.Name</a>
 				</td>
-				<td class="message collapsing has-emoji">
+				<td class="nine wide message collapsing has-emoji" >
 					<a rel="nofollow" class="ui sha label" href="{{AppSubUrl}}/{{$.Username}}/{{$.Reponame}}/commit/{{$commit.ID}}">@Util.ShortGuid(record.Version)</a>
 					@record.Message
 				</td>
-				<td class="text grey right age">@Util.ApproxRelativeTime(record.Timestamp)</td>
+				<td class="three wide text grey right age">@Util.ApproxRelativeTime(record.Timestamp)</td>
 			</tr>
 		}
 	</tbody>
@@ -48,4 +35,4 @@
 *@
 
 
-@Html.Partial("_Footer")
+@Html.Partial("_BrowseFooter")
