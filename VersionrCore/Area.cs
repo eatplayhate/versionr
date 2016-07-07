@@ -763,7 +763,6 @@ namespace Versionr
                     if (insertedAnnotation.Active)
                     {
                         insertedAnnotation.Active = false;
-                        Database.Insert(x);
                         UpdateJournalMap(x.JournalID, x.SequenceID, null);
                         Database.Update(insertedAnnotation);
                     }
@@ -771,12 +770,12 @@ namespace Versionr
                 else
                 {
                     Database.Insert(payload);
-                    Database.Insert(x);
                     UpdateJournalMap(x.JournalID, x.SequenceID, null);
                     string data = GetDataIdentifierFromAnnotation(payload);
                     if (!HasObjectDataDirect(data))
                         missingAnnotationData.Add(data);
                 }
+                Database.Insert(x);
             }
         }
 
@@ -798,6 +797,7 @@ namespace Versionr
                         continue;
                     AddTagInternalNoTransaction(x.Version, x.Value, x);
                 }
+                Database.Insert(x);
             }
         }
 

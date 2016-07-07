@@ -588,6 +588,8 @@ namespace Versionr.Network
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))
                                     throw new Exception("Access denied.");
+                                Printer.PrintDiagnostics("Requesting journal data...");
+                                SharedNetwork.PullJournalData(sharedInfo);
                                 Printer.PrintDiagnostics("Received {0} versions in version pack, but need {1} records to commit data.", sharedInfo.PushedVersions.Count, sharedInfo.UnknownRecords.Count);
                                 Printer.PrintDiagnostics("Beginning record synchronization...");
                                 if (sharedInfo.UnknownRecords.Count > 0)

@@ -477,8 +477,11 @@ namespace Versionr.Network
                 IEnumerable<TagJournal> missingTags = new TagJournal[0];
 
                 if (localTip.JournalID == remoteTips.LocalJournal)
+                {
                     results.ReturnedJournalMap = localTip;
-
+                    continue;
+                }
+                
                 if (tipInfo.TryGetValue(localTip.JournalID, out remoteJournalMap))
                 {
                     if (remoteJournalMap.AnnotationSequenceID != localTip.AnnotationSequenceID)
@@ -613,6 +616,12 @@ namespace Versionr.Network
                 {
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
                     var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (dataResponse.Type == NetCommandType.QueryJournal)
+                    {
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                        ProcessJournalQuery(sharedInfo);
+                        dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    }
                     if (dataResponse.Type == NetCommandType.Synchronized)
                         return true;
                     return false;
@@ -659,6 +668,11 @@ namespace Versionr.Network
                         RecordParentPack rp = new RecordParentPack();
                         rp.Parents = rrp.RecordParents.Select(x => sharedInfo.Workspace.GetRecord(x)).ToArray();
                         Utilities.SendEncrypted<RecordParentPack>(sharedInfo, rp);
+                    }
+                    else if (command.Type == NetCommandType.QueryJournal)
+                    {
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                        ProcessJournalQuery(sharedInfo);
                     }
                     else if (command.Type == NetCommandType.RequestRecord)
                     {
