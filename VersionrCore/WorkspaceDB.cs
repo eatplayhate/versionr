@@ -13,10 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 37;
-        public const int MinimumDBVersion = 30;
+        public const int InternalDBVersion = 42;
+        public const int MinimumDBVersion = 29;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 37;
+        public const int MaximumDBVersion = 42;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -32,6 +32,7 @@ namespace Versionr
                 ExecuteDirect("PRAGMA main.page_size = 4096;");
                 ExecuteDirect("PRAGMA main.cache_size = 10240;");
                 ExecuteDirect("PRAGMA temp_store = MEMORY;");
+                ExecuteDirect("PRAGMA threads = 2;");
                 EnableWAL = true;
                 PrepareTables();
                 return;
@@ -45,7 +46,15 @@ namespace Versionr
                 try
                 {
                     var fmt = Format;
-					int priorFormat = fmt.InternalFormat;
+                    int priorFormat = fmt.InternalFormat;
+
+                    if (priorFormat < 44)
+                    {
+                        ExecuteDirect("DROP TABLE Annotation");
+                        ExecuteDirect("DROP TABLE AnnotationJournal");
+                        ExecuteDirect("DROP TABLE TagJournal");
+                        ExecuteDirect("DROP TABLE Tag");
+                    }
                     BeginExclusive(true);
                     Printer.PrintMessage("Updating workspace database version from v{0} to v{1}", Format.InternalFormat, InternalDBVersion);
                     PrepareTables();
@@ -191,7 +200,7 @@ namespace Versionr
 
                     Commit();
 
-                    ExecuteDirect("VACUUM");
+                    Vacuum();
                 }
                 catch (Exception e)
                 {
@@ -206,6 +215,10 @@ namespace Versionr
         {
             Printer.PrintMessage("Running vacuum command.");
             EnableWAL = false;
+            ExecuteDirect("PRAGMA main.page_size = 4096;");
+            ExecuteDirect("PRAGMA main.cache_size = 10240;");
+            ExecuteDirect("PRAGMA temp_store = MEMORY;");
+            ExecuteDirect("PRAGMA threads = 2;");
             ExecuteDirect("VACUUM");
             EnableWAL = true;
         }
@@ -369,6 +382,9 @@ namespace Versionr
             CreateTable<Objects.Annotation>();
             CreateTable<Objects.VaultLock>();
             CreateTable<Objects.Tag>();
+            CreateTable<Objects.TagJournal>();
+            CreateTable<Objects.AnnotationJournal>();
+            CreateTable<Objects.JournalMap>();
         }
 
         public Guid Domain

@@ -22,6 +22,7 @@ namespace Versionr.Objects
         public long Owner { get; set; }
         public AlterationType Type { get; set; }
         public long? PriorRecord { get; set; }
+        [SQLite.Indexed]
         public long? NewRecord { get; set; }
     }
 }

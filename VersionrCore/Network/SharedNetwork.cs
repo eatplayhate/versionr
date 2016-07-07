@@ -18,7 +18,8 @@ namespace Versionr.Network
             Versionr3,
             Versionr31,
             Versionr32,
-            Versionr33
+            Versionr33,
+            Versionr34
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -26,7 +27,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -393,6 +394,124 @@ namespace Versionr.Network
                 Printer.PrintError("Error: {0}", e);
                 return false;
             }
+        }
+
+        public static bool PullJournalData(SharedNetworkInfo info)
+        {
+            try
+            {
+                if (info.CommunicationProtocol < Protocol.Versionr34)
+                    return true;
+                Printer.PrintDiagnostics("Sending remote vault local tag information.");
+                var journalTips = info.Workspace.GetJournalTips();
+
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.QueryJournal }, ProtoBuf.PrefixStyle.Fixed32);
+                Utilities.SendEncrypted(info, new JournalTips() { Tips = journalTips, LocalJournal = info.Workspace.LocalJournalID });
+
+                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                if (response.Type == NetCommandType.Acknowledge)
+                {
+                    JournalResults results = Utilities.ReceiveEncrypted<JournalResults>(info);
+                    if (results.Tags == null)
+                        results.Tags = new List<TagJournal>();
+                    if (results.Annotations == null)
+                        results.Annotations = new List<AnnotationJournal>();
+                    if (info.Client)
+                        Printer.PrintMessage("Received {0} tag updates and {1} annotation updates.", results.Tags.Count, results.Annotations.Count);
+                    if (results.Tags.Count + results.Annotations.Count > 0)
+                    {
+                        List<string> missingAnnotationData;
+                        try
+                        {
+                            info.Workspace.BeginDatabaseTransaction();
+                            info.Workspace.ReplayTags(results.Tags);
+                            info.Workspace.ReplayAnnotations(results.Annotations, results.AnnotationData, out missingAnnotationData);
+                            info.Workspace.CommitDatabaseTransaction();
+                        }
+                        catch
+                        {
+                            info.Workspace.RollbackDatabaseTransaction();
+                            throw;
+                        }
+                        if (missingAnnotationData.Count == 0)
+                            RequestRecordDataUnmapped(info, missingAnnotationData);
+                    }
+                }
+                else
+                    throw new Exception();
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                return false;
+            }
+        }
+
+        static public bool ProcessJournalQuery(SharedNetworkInfo info)
+        {
+            JournalTips remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
+            Dictionary<Guid, JournalMap> tipInfo = new Dictionary<Guid, JournalMap>();
+            JournalResults results = new JournalResults();
+            results.ReturnedJournalMap = new JournalMap();
+            results.Annotations = new List<AnnotationJournal>();
+            results.Tags = new List<TagJournal>();
+            results.AnnotationData = new Dictionary<Guid, Annotation>();
+
+            if (remoteTips.Tips != null)
+            {
+                foreach (var x in remoteTips.Tips)
+                {
+                    if (x.JournalID != remoteTips.LocalJournal)
+                        tipInfo[x.JournalID] = x;
+                }
+            }
+
+            Printer.PrintDiagnostics("Looking for missing items from tags and annotation journal.");
+
+            foreach (var localTip in info.Workspace.GetJournalTips())
+            {
+                JournalMap remoteJournalMap = null;
+                IEnumerable<AnnotationJournal> missingAnnotations = new AnnotationJournal[0];
+                IEnumerable<TagJournal> missingTags = new TagJournal[0];
+
+                if (localTip.JournalID == remoteTips.LocalJournal)
+                    results.ReturnedJournalMap = localTip;
+
+                if (tipInfo.TryGetValue(localTip.JournalID, out remoteJournalMap))
+                {
+                    if (remoteJournalMap.AnnotationSequenceID != localTip.AnnotationSequenceID)
+                    {
+                        missingAnnotations = info.Workspace.FindMissingAnnotations(localTip.JournalID, remoteJournalMap.AnnotationSequenceID);
+                    }
+                    if (remoteJournalMap.TagSequenceID != localTip.TagSequenceID)
+                    {
+                        missingTags = info.Workspace.FindMissingTags(localTip.JournalID, remoteJournalMap.TagSequenceID);
+                    }
+                }
+                else
+                {
+                    missingAnnotations = info.Workspace.FindMissingAnnotations(localTip.JournalID, null);
+                    missingTags = info.Workspace.FindMissingTags(localTip.JournalID, null);
+                }
+
+                long psizeA = results.Annotations.Count;
+                long psizeT = results.Tags.Count;
+                foreach (var x in missingAnnotations.ToArray().Reverse())
+                {
+                    results.Annotations.Add(x);
+                    results.AnnotationData[x.Value] = info.Workspace.GetAnnotation(x.Value);
+                }
+                results.Tags.AddRange(missingTags.ToArray().Reverse());
+
+                if (results.Annotations.Count != psizeA)
+                    Printer.PrintDiagnostics("Found {0} annotations missing from journal originator {1}.", results.Annotations.Count - psizeA, localTip.JournalID);
+                if (results.Tags.Count != psizeT)
+                    Printer.PrintDiagnostics("Found {0} tags missing from journal originator {1}.", results.Annotations.Count - psizeA, localTip.JournalID);
+            }
+            Utilities.SendEncrypted(info, results);
+            return true;
         }
 
         internal static void ReceiveBranchJournal(SharedNetworkInfo sharedInfo)
@@ -1383,6 +1502,30 @@ namespace Versionr.Network
                     for (int i = 0; i < query.IDs.Length; i++)
                     {
                         if (sharedInfo.Workspace.GetVersion(new Guid(query.IDs[i])) != null)
+                            response.Recognized[i] = true;
+                        else
+                            response.Recognized[i] = false;
+                    }
+                }
+                else if (query.Type == ObjectType.Annotation)
+                {
+                    for (int i = 0; i < query.IDs.Length; i++)
+                    {
+                        if (sharedInfo.Workspace.HasAnnotation(new Guid(query.IDs[i])))
+                            response.Recognized[i] = true;
+                        else
+                            response.Recognized[i] = false;
+                    }
+                }
+                else if (query.Type == ObjectType.Tag)
+                {
+                    HashSet<string> tagJournalHashes = new HashSet<string>();
+                    var tagJournal = sharedInfo.Workspace.GetTagJournal();
+                    foreach (var x in tagJournal.Select(x => string.Format("{0}-{1}-{2}-{3}", x.Time.Ticks, x.Removing, x.Value, x.Version)))
+                        tagJournalHashes.Add(x);
+                    for (int i = 0; i < query.IDs.Length; i++)
+                    {
+                        if (tagJournalHashes.Contains(query.IDs[i]))
                             response.Recognized[i] = true;
                         else
                             response.Recognized[i] = false;

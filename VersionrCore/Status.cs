@@ -213,7 +213,7 @@ namespace Versionr
             foreach (var x in currentSnapshot.Entries)
                 snapshotData[x.CanonicalName] = x;
             HashSet<Entry> foundEntries = new HashSet<Entry>();
-            var records = db.GetCachedRecords(CurrentVersion);
+            var records = db.GetCachedRecords(CurrentVersion, !findCopies);
             var stage = ldb.StageOperations;
             Stage = stage;
             VersionControlRecords = records;

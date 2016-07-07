@@ -61,16 +61,72 @@ namespace Versionr
         {
             Database.ConsistencyCheck();
         }
+
+        public List<Objects.Tag> FindTags(string tag, bool ignoreCase)
+        {
+            if (ignoreCase)
+                return Database.Query<Objects.Tag>("SELECT * FROM Tag WHERE TagValue LIKE ?", tag);
+            return Database.Table<Objects.Tag>().Where(x => x.TagValue == tag).ToList();
+        }
+
         public void RunVacuum()
         {
             Database.Vacuum();
         }
+
+        public List<Annotation> GetAnnotations(Guid vid, bool active)
+        {
+            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Active = ? ORDER BY Timestamp", vid, active).ToList();
+        }
+
+        public Annotation GetAnnotation(Guid vid, string key, bool ignoreCase)
+        {
+            if (ignoreCase)
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, true).FirstOrDefault();
+            else
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, true).FirstOrDefault();
+        }
+
+        public List<Annotation> GetAllAnnotations(Guid vid, string key, bool ignoreCase)
+        {
+            if (ignoreCase)
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp", vid, key).ToList();
+            else
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp", vid, key).ToList();
+        }
+
+        public List<Annotation> GetAnnotation(string partialid)
+        {
+            return Database.Query<Objects.Annotation>(string.Format("SELECT * FROM Annotation WHERE ID LIKE '%{0}' ORDER BY Timestamp", partialid)).ToList();
+        }
+
+        public Annotation GetAnnotation(Guid id)
+        {
+            return Database.Find<Objects.Annotation>(id);
+        }
+        
+        public bool HasAnnotation(Guid id)
+        {
+            return Database.ExecuteScalar<int>("SELECT EXISTS FROM Annotation WHERE ID = ? LIMIT 1", id) > 0;
+        }
+
+        public List<Objects.TagJournal> GetTagJournal()
+        {
+            return Database.Table<Objects.TagJournal>().ToList();
+        }
+
+        internal List<Objects.JournalMap> GetJournalTips()
+        {
+            return Database.Table<Objects.JournalMap>().ToList();
+        }
+
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed);
 
@@ -532,7 +588,7 @@ namespace Versionr
                             if (x.Alteration == AlterationType.Copy || (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize))
                             {
                                 Record dataRecord = GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString());
-                                GetMissingRecords(new Record[] { dataRecord });
+                                GetMissingObjects(new Record[] { dataRecord }, null);
                                 RestoreRecord(dataRecord, DateTime.Now, path);
                             }
                             else
@@ -545,7 +601,7 @@ namespace Versionr
 
                                 if (oldEntry == null || oldEntry.Removed)
                                 {
-                                    GetMissingRecords(new Record[] { oldRecord });
+                                    GetMissingObjects(new Record[] { oldRecord }, null);
                                     string tempFile = Path.Combine(tempFolder.FullName, Path.GetRandomFileName());
 
                                     RestoreRecord(oldRecord, DateTime.Now, tempFile);
@@ -691,6 +747,96 @@ namespace Versionr
                         Printer.PrintMessage("  - Skipped");
                 }
                 End:;
+            }
+        }
+
+        internal void ReplayAnnotations(List<AnnotationJournal> annotations, Dictionary<Guid, Annotation> annotationData, out List<string> missingAnnotationData)
+        {
+            missingAnnotationData = new List<string>();
+            foreach (var x in annotations)
+            {
+                Annotation payload = annotationData[x.Value];
+
+                if (x.Delete)
+                {
+                    // we are deleting an annotation
+                    Annotation insertedAnnotation = Database.Get<Objects.Annotation>(x.Value);
+                    if (insertedAnnotation.Active)
+                    {
+                        insertedAnnotation.Active = false;
+                        Database.Insert(x);
+                        UpdateJournalMap(x.JournalID, x.SequenceID, null);
+                        Database.Update(insertedAnnotation);
+                    }
+                }
+                else
+                {
+                    Database.Insert(payload);
+                    Database.Insert(x);
+                    UpdateJournalMap(x.JournalID, x.SequenceID, null);
+                    string data = GetDataIdentifierFromAnnotation(payload);
+                    if (!HasObjectDataDirect(data))
+                        missingAnnotationData.Add(data);
+                }
+            }
+        }
+
+        internal void ReplayTags(List<TagJournal> tags)
+        {
+            // TODO: deal with conflicts
+            foreach (var x in tags.OrderBy(x => x.Time))
+            {
+                var tagObject = Database.Table<Objects.Tag>().Where(z => z.TagValue == x.Value && z.Version == x.Version).FirstOrDefault();
+                if (x.Removing)
+                {
+                    if (tagObject == null)
+                        continue;
+                    RemoveTagInternal(x, tagObject);
+                }
+                else
+                {
+                    if (tagObject != null)
+                        continue;
+                    AddTagInternalNoTransaction(x.Version, x.Value, x);
+                }
+            }
+        }
+
+        internal IEnumerable<AnnotationJournal> FindMissingAnnotations(Guid journalID, long? annotationSequenceID)
+        {
+            var enumerable = Database.DeferredQuery<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE journalID = ? ORDER BY 1 DESC", journalID);
+            if (annotationSequenceID == null)
+            {
+                foreach (var x in enumerable)
+                    yield return x;
+            }
+            else
+            {
+                foreach (var x in enumerable)
+                {
+                    if (x.SequenceID == annotationSequenceID.Value)
+                        yield break;
+                    yield return x;
+                }
+            }
+        }
+
+        internal IEnumerable<TagJournal> FindMissingTags(Guid journalID, long? tagSequenceID)
+        {
+            var enumerable = Database.DeferredQuery<TagJournal>("SELECT * FROM TagJournal WHERE journalID = ? ORDER BY 1 DESC", journalID);
+            if (tagSequenceID == null)
+            {
+                foreach (var x in enumerable)
+                    yield return x;
+            }
+            else
+            {
+                foreach (var x in enumerable)
+                {
+                    if (x.SequenceID == tagSequenceID.Value)
+                        yield break;
+                    yield return x;
+                }
             }
         }
 
@@ -979,7 +1125,7 @@ namespace Versionr
                     }
                     else
                     {
-                        GetMissingRecords(new Record[] { newRecord });
+                        GetMissingObjects(new Record[] { newRecord }, null);
 
                         var tempFile = GetTemporaryFile(newRecord);
                         RestoreRecord(newRecord, DateTime.Now, tempFile.FullName);
@@ -1018,7 +1164,7 @@ namespace Versionr
                     Record newRecord = GetRecord(x.NewRecord.Value);
                     Record oldRecord = GetRecord(x.PriorRecord.Value);
 
-                    GetMissingRecords(new Record[] { newRecord, oldRecord });
+                    GetMissingObjects(new Record[] { newRecord, oldRecord }, null);
 
                     var tempFileNew = GetTemporaryFile(newRecord);
                     RestoreRecord(newRecord, DateTime.Now, tempFileNew.FullName);
@@ -2062,6 +2208,7 @@ namespace Versionr
                 BranchJournal change = new BranchJournal();
                 change.Branch = branch.ID;
                 change.ID = Guid.NewGuid();
+                change.Timestamp = DateTime.UtcNow;
                 change.Operand = GetBranchHead(branch).Version.ToString();
                 change.Type = BranchAlterationType.Terminate;
                 return InsertBranchJournalChange(journal, change);
@@ -2074,10 +2221,268 @@ namespace Versionr
 
             BranchJournal change = new BranchJournal();
             change.Branch = branch.ID;
+            change.Timestamp = DateTime.UtcNow;
             change.ID = Guid.NewGuid();
             change.Operand = GetBranchHead(branch).Version.ToString();
             change.Type = BranchAlterationType.Terminate;
             InsertBranchJournalChangeNoTransaction(journal, change, true);
+        }
+
+        public bool AddTag(Guid vid, string tag)
+        {
+            List<string> tags = GetTagsForVersion(vid);
+            foreach (var x in tags)
+            {
+                if (x == tag)
+                {
+                    Printer.PrintMessage("Version #b#{0}## already has a #b#\\#{1}## tag.", vid, tag);
+                    return false;
+                }
+            }
+            Printer.PrintMessage("Adding tag for #b#{0}## - #s#\\#{1}##.", vid, tag);
+            return AddTagJournaled(vid, tag);
+        }
+
+        private void AddTagNoTransaction(Guid vid, string tag)
+        {
+            AddTagJournaledNoTransaction(vid, tag);
+        }
+
+        private bool AddTagJournaled(Guid vid, string tag)
+        {
+            try
+            {
+                Database.BeginTransaction();
+                AddTagJournaledNoTransaction(vid, tag);
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                return false;
+            }
+        }
+
+        private void AddTagJournaledNoTransaction(Guid vid, string tag)
+        {
+            long sequence = Utilities.Misc.RandomLongNonZero();
+            var tagJournal = new TagJournal() { Removing = false, Time = DateTime.UtcNow, Value = tag, Version = vid, SequenceID = sequence, JournalID = LocalJournalID };
+            Database.Insert(tagJournal);
+            UpdateJournalMap(LocalJournalID, null, sequence);
+            AddTagInternalNoTransaction(vid, tag, tagJournal);
+        }
+
+        private void AddTagInternalNoTransaction(Guid vid, string tag, TagJournal tagJournal)
+        {
+            Database.Insert(new Tag() { TagValue = tag, Version = vid });
+            UpdateJournalMap(tagJournal.JournalID, null, tagJournal.SequenceID);
+        }
+
+        private void UpdateJournalMap(Guid journalIndex, long? annotation, long? tag)
+        {
+            var jm = Database.Find<Objects.JournalMap>(journalIndex);
+            if (jm == null)
+                Database.Insert(new JournalMap() { JournalID = journalIndex, AnnotationSequenceID = annotation ?? 0, TagSequenceID = tag ?? 0 });
+            else
+            {
+                if (tag.HasValue)
+                    jm.TagSequenceID = tag.Value;
+                if (annotation.HasValue)
+                    jm.AnnotationSequenceID = annotation.Value;
+                Database.Update(jm);
+            }
+        }
+
+        public List<string> GetTagsForVersion(Guid vid)
+        {
+            return Database.Table<Objects.Tag>().Where(x => x.Version == vid).ToList().Select(x => x.TagValue).ToList();
+        }
+
+        public bool RemoveTag(Guid vid, string tag)
+        {
+            List<string> tags = GetTagsForVersion(vid);
+            foreach (var x in tags)
+            {
+                if (x == tag)
+                {
+                    Printer.PrintMessage("Removing tag for #b#{0}## - #e#\\#{1}##.", vid, tag);
+                    return RemoveTagJournaled(vid, tag);
+                }
+            }
+            Printer.PrintMessage("Version #b#{0}## doesn't have a #b#\\#{1}## tag.", vid, tag);
+            return false;
+        }
+
+        private bool RemoveTagJournaled(Guid vid, string tag)
+        {
+            var tagObject = Database.Table<Objects.Tag>().Where(x => x.Version == vid && x.TagValue == tag).FirstOrDefault();
+            if (tagObject == null)
+                return false;
+            try
+            {
+                Database.BeginTransaction();
+                RemoveTagJournaledNoTransaction(tagObject);
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                return false;
+            }
+        }
+
+        private bool RemoveTagJournaledNoTransaction(Objects.Tag tag)
+        {
+            long seq = Utilities.Misc.RandomLongNonZero();
+            var tagJournal = new TagJournal() { Removing = true, Time = DateTime.UtcNow, Value = tag.TagValue, Version = tag.Version, JournalID = LocalJournalID, SequenceID = seq };
+            if (!RemoveTagInternal(tagJournal, tag))
+                return false;
+            Database.Insert(tagJournal);
+            return true;
+        }
+
+        public bool RemoveTagInternal(TagJournal journal, Objects.Tag tag)
+        {
+            if (tag == null)
+                return false;
+            UpdateJournalMap(journal.JournalID, null, journal.SequenceID);
+            Database.Delete(tag);
+            return true;
+        }
+
+        public bool SetAnnotation(Guid vid, string key, string value)
+        {
+            return SetAnnotation(vid, key, false, new MemoryStream(Encoding.UTF8.GetBytes(value)));
+        }
+        public bool SetAnnotation(Guid vid, string key, byte[] value)
+        {
+            return SetAnnotation(vid, key, FileClassifier.ClassifyData(value) == FileEncoding.Binary, new MemoryStream(value));
+        }
+        public bool SetAnnotation(Guid vid, string key, bool binary, System.IO.Stream value)
+        {
+            value.Position = 0;
+            Printer.PrintMessage("Adding {2} byte annotation for #b#{0}## - #c#{1}##.", vid, key, value.Length);
+            return RunLocked(() =>
+            {
+                Guid newAnnotationID = Guid.NewGuid();
+
+                AnnotationFlags flags = AnnotationFlags.Normal;
+                byte[] payload = null;
+                if (value.Length > 16 * 1024)
+                {
+                    flags = AnnotationFlags.File;
+                    var trans = ObjectStore.BeginStorageTransaction();
+                    string dataID = ObjectStore.CreateDataStream(trans, value);
+                    ObjectStore.EndStorageTransaction(trans);
+
+                    MemoryStream ms = new MemoryStream();
+                    BinaryWriter bw = new BinaryWriter(ms);
+                    bw.Write(0);
+                    bw.Write(value.Length);
+                    bw.Write(dataID);
+
+                    payload = ms.ToArray();
+                }
+                else
+                {
+                    payload = new byte[value.Length];
+                    value.Read(payload, 0, (int)value.Length);
+                }
+                if (binary)
+                    flags = (AnnotationFlags)(flags | AnnotationFlags.Binary);
+                var annotation = new Objects.Annotation()
+                {
+                    Author = Username,
+                    Flags = flags,
+                    Key = key,
+                    Version = vid,
+                    Active = true,
+                    Timestamp = DateTime.UtcNow,
+                    Value = payload,
+                    ID = newAnnotationID
+                };
+
+                Database.Insert(annotation);
+                long sequenceID = Utilities.Misc.RandomLongNonZero();
+                Database.Insert(new Objects.AnnotationJournal() { Value = newAnnotationID, JournalID = LocalData.Workspace.ID, SequenceID = sequenceID });
+                UpdateJournalMap(LocalJournalID, sequenceID, null);
+                return true;
+            }, true);
+        }
+
+        public Guid LocalJournalID
+        {
+            get
+            {
+                return LocalData.Workspace.JournalID;
+            }
+        }
+
+        private string GetDataIdentifierFromAnnotation(Annotation annotation)
+        {
+            if (annotation.Flags.HasFlag(AnnotationFlags.File))
+            {
+                MemoryStream ms = new MemoryStream(annotation.Value);
+                BinaryReader br = new BinaryReader(ms);
+
+                int compressionMode = br.ReadInt32();
+
+                if (compressionMode == 1)
+                {
+                    long originalSize = br.ReadInt64();
+                    return br.ReadString();
+                }
+                else
+                {
+                    throw new Exception("Can't decode annotation!");
+                }
+            }
+            return null;
+        }
+
+        public Stream GetAnnotationStream(Annotation annotation)
+        {
+            string data = GetDataIdentifierFromAnnotation(annotation);
+            if (data == null)
+                return new MemoryStream(annotation.Value);
+            // Stored in the object repo
+            if (!GetMissingObjects(null, new string[] { data }))
+                throw new Exception("Missing annotation data!");
+            return ObjectStore.GetDirectStream(data);
+        }
+        public string GetAnnotationAsString(Annotation annotation)
+        {
+            if (annotation.Flags.HasFlag(AnnotationFlags.File))
+                throw new Exception();
+            FileEncoding encoding = FileClassifier.ClassifyData(annotation.Value);
+            switch (encoding)
+            {
+                case FileEncoding.ASCII:
+                case FileEncoding.Latin1:
+                case FileEncoding.Binary:
+                    return Encoding.ASCII.GetString(annotation.Value);
+                case FileEncoding.UTF7_BOM:
+                case FileEncoding.UTF7:
+                    return Encoding.UTF7.GetString(annotation.Value);
+                case FileEncoding.UTF8_BOM:
+                case FileEncoding.UTF8:
+                    return Encoding.UTF8.GetString(annotation.Value);
+                case FileEncoding.UTF16_LE_BOM:
+                case FileEncoding.UTF16_LE:
+                    return Encoding.Unicode.GetString(annotation.Value);
+                case FileEncoding.UTF16_BE_BOM:
+                case FileEncoding.UTF16_BE:
+                    return Encoding.BigEndianUnicode.GetString(annotation.Value);
+                case FileEncoding.UCS4_BE_BOM:
+                case FileEncoding.UCS4_BE:
+                    return new UTF32Encoding(true, true).GetString(annotation.Value);
+                case FileEncoding.UCS4_LE_BOM:
+                case FileEncoding.UCS4_LE:
+                    return new UTF32Encoding(false, true).GetString(annotation.Value);
+            }
+            throw new Exception();
         }
 
         private bool InsertBranchJournalChange(BranchJournal journal, BranchJournal change)
@@ -2888,7 +3293,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Importing root from database...");
             LocalState.Configuration config = LocalData.Configuration;
 
-            LocalState.Workspace ws = LocalState.Workspace.Create();
+            LocalState.Workspace ws = LocalDB.CreateWorkspace(LocalData.DatabasePath);
 
             Guid initialRevision = Database.Domain;
 
@@ -2922,7 +3327,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Cloning root state...");
             LocalState.Configuration config = LocalData.Configuration;
 
-            LocalState.Workspace ws = LocalState.Workspace.Create();
+            LocalState.Workspace ws = LocalDB.CreateWorkspace(LocalData.DatabasePath);
 
             Objects.Branch branch = remote.InitialBranch;
             Objects.Version version = remote.RootVersion;
@@ -3132,7 +3537,7 @@ namespace Versionr
             Printer.PrintDiagnostics("Creating initial state...");
             LocalState.Configuration config = LocalData.Configuration;
 
-            LocalState.Workspace ws = LocalState.Workspace.Create();
+            LocalState.Workspace ws = LocalDB.CreateWorkspace(LocalData.DatabasePath);
 
             Objects.Branch branch = Objects.Branch.Create(branchName, null, null);
             Objects.Version version = Objects.Version.Create();
@@ -3412,6 +3817,11 @@ namespace Versionr
         {
             List<string> ignored;
             return HasObjectData(rec, out ignored);
+        }
+
+        internal bool HasObjectData(string dataObject, out List<string> requestedDataIdentifiers)
+        {
+            return ObjectStore.HasDataDirect(dataObject, out requestedDataIdentifiers);
         }
 
         internal bool HasObjectData(Record rec, out List<string> requestedDataIdentifiers)
@@ -4162,7 +4572,7 @@ namespace Versionr
             DateTime newRefTime = DateTime.UtcNow;
             ResolveType? resolveAll = null;
 
-            if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(foreignRecords).ToList()))
+            if (!GetMissingObjects(parentData.Select(x => x.Record).Concat(foreignRecords).ToList(), null))
             {
                 Printer.PrintError("Missing record data!");
                 throw new Exception();
@@ -4846,7 +5256,7 @@ namespace Versionr
             var localRecords = Database.GetRecords(v1);
             var foreignRecords = Database.GetRecords(v2);
 
-            if (!GetMissingRecords(parentData.Select(x => x.Record).Concat(localRecords.Concat(foreignRecords)).ToList()))
+            if (!GetMissingObjects(parentData.Select(x => x.Record).Concat(localRecords.Concat(foreignRecords)).ToList(), null))
             {
                 Printer.PrintError("Missing record data!");
                 throw new Exception();
@@ -5664,7 +6074,7 @@ namespace Versionr
             {
                 if (x.CanonicalName == cannonicalPath)
                 {
-                    GetMissingRecords(new Record[] { x }.ToList());
+                    GetMissingObjects(new Record[] { x }, null);
                     RestoreRecord(x, DateTime.UtcNow, outputPath);
                     return true;
                 }
@@ -5838,7 +6248,7 @@ namespace Versionr
 
             DateTime newRefTime = DateTime.UtcNow;
 
-            if (!GetMissingRecords(targetRecords))
+            if (!GetMissingObjects(targetRecords, null))
             {
                 Printer.PrintError("Missing record data!");
                 return;
@@ -6212,16 +6622,21 @@ namespace Versionr
 			return null;
 		}
 
-        public bool GetMissingRecords(IEnumerable<Record> targetRecords)
+        public bool GetMissingObjects(IEnumerable<Record> targetRecords, IEnumerable<string> targetData)
         {
-            List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
-            if (missingRecords.Count > 0)
+            List<Record> missingRecords = new List<Record>();
+            List<string> missingData = new List<string>();
+            if (targetRecords != null)
+                missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
+            if (targetData != null)
+                missingData = FindMissingData(missingData);
+            if (missingRecords.Count > 0 || missingData.Count > 0)
             {
-                Printer.PrintMessage("Checking out this version requires {0} remote objects.", missingRecords.Count);
+                Printer.PrintMessage("This operation requires {0} remote objects.", missingRecords.Count + missingData.Count);
                 var configs = LocalData.Table<LocalState.RemoteConfig>().OrderByDescending(x => x.LastPull).ToList();
                 foreach (var x in configs)
                 {
-                    Printer.PrintMessage(" - Attempting to pull data from remote \"{2}\" ({0}:{1})", x.Host, x.Port, x.Name);
+                    Printer.PrintMessage(" - Attempting to pull data from remote \"{0}\" ({1})", x.Name, x.URL);
 
 					IRemoteClient client = Connect(x.URL);
 					if (client == null)
@@ -6232,13 +6647,14 @@ namespace Versionr
 					{
 						try
 						{
-							List<string> retrievedRecords = client.GetRecordData(missingRecords);
+							List<string> retrievedRecords = client.GetMissingData(missingRecords, missingData);
 							HashSet<string> retrievedData = new HashSet<string>();
 							Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
 							foreach (var y in retrievedRecords)
 								retrievedData.Add(y);
 							missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
-							client.Close();
+                            missingData = missingData.Where(z => !retrievedData.Contains(z)).ToList();
+                            client.Close();
 						}
 						catch
 						{
@@ -6246,8 +6662,8 @@ namespace Versionr
 						}
 					}
 
-					if (missingRecords.Count > 0)
-                        Printer.PrintMessage("This checkout still requires {0} additional records.", missingRecords.Count);
+					if (missingRecords.Count > 0 || missingData.Count > 0)
+                        Printer.PrintMessage("This operation still requires {0} additional data entries.", missingRecords.Count + missingData.Count);
                     else
                         return true;
                 }
@@ -6255,6 +6671,30 @@ namespace Versionr
             else
                 return true;
             return false;
+        }
+
+        public List<string> FindMissingData(List<string> missingData)
+        {
+            List<string> missingRecords = new List<string>();
+            HashSet<string> requestedData = new HashSet<string>();
+            foreach (var x in missingData)
+            {
+                List<string> dataRequests = null;
+                if (!HasObjectData(x, out dataRequests))
+                {
+                    if (dataRequests != null)
+                    {
+                        foreach (var y in dataRequests)
+                        {
+                            if (!requestedData.Contains(y))
+                            {
+                                missingRecords.Add(y);
+                            }
+                        }
+                    }
+                }
+            }
+            return missingRecords;
         }
 
         public List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
@@ -6539,11 +6979,12 @@ namespace Versionr
             }
         }
 
-        public bool Commit(string message = "", bool force = false)
+        public bool Commit(string message = "", bool force = false, List<string> initialTags = null)
         {
             List<Guid> mergeIDs = new List<Guid>();
             List<Guid> reintegrates = new List<Guid>();
             Printer.PrintDiagnostics("Checking stage info for pending conflicts...");
+            bool committableData = false;
             foreach (var x in LocalData.StageOperations)
             {
                 if (x.Type == StageOperationType.Conflict)
@@ -6552,9 +6993,23 @@ namespace Versionr
                     return false;
                 }
                 if (x.Type == StageOperationType.Merge)
+                {
+                    committableData = true;
                     mergeIDs.Add(new Guid(x.Operand1));
+                }
                 if (x.Type == StageOperationType.Reintegrate)
                     reintegrates.Add(new Guid(x.Operand1));
+                if (x.Type == StageOperationType.Add)
+                    committableData = true;
+                if (x.Type == StageOperationType.Rename)
+                    committableData = true;
+                if (x.Type == StageOperationType.Remove)
+                    committableData = true;
+            }
+            if (!committableData)
+            {
+                Printer.PrintMessage("#e#Error:## nothing to do.");
+                return false;
             }
             try
             {
@@ -6626,6 +7081,14 @@ namespace Versionr
                                 }
                             }
                             head.Version = vs.ID;
+
+                            if (initialTags != null)
+                            {
+                                foreach (var x in initialTags.Distinct())
+                                {
+                                    AddTagNoTransaction(vs.ID, x);
+                                }
+                            }
 
                             List<Objects.Alteration> alterations = new List<Alteration>();
                             List<Objects.Record> records = new List<Record>();
@@ -6898,6 +7361,7 @@ namespace Versionr
                                 change.Branch = branch.ID;
                                 change.ID = Guid.NewGuid();
                                 change.Operand = null;
+                                change.Timestamp = DateTime.UtcNow;
                                 change.Type = BranchAlterationType.Terminate;
                                 InsertBranchJournalChangeNoTransaction(journal, change, false);
 
@@ -7138,7 +7602,7 @@ namespace Versionr
                         dest.IsReadOnly = false;
                     using (var fsd = dest.Open(FileMode.Create))
                     {
-                        ObjectStore.WriteRecordStream(rec, fsd);
+                        ObjectStore.ExportRecordStream(rec, fsd);
                     }
                 }
                 ApplyAttributes(dest, referenceTime, rec);
