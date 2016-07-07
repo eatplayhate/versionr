@@ -121,7 +121,7 @@ namespace Versionr.Commands
             if (!localOptions.Plain)
             {
                 Printer.PrintMessage("Version #b#{0}## - annotation #b#{1}## #q#({2})##", annotation.Version, annotation.Key, annotation.ID);
-                Printer.PrintMessage("Added by #b#{0}## on {1}", annotation.Author, annotation.Timestamp);
+                Printer.PrintMessage("Added by #b#{0}## on {1}", annotation.Author, annotation.Timestamp.ToLocalTime());
                 Printer.PrintMessage("");
             }
             if (annotation.Active == false)

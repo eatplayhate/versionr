@@ -76,7 +76,7 @@ namespace Versionr.Commands
             foreach (var x in results)
             {
                 Objects.Version ver = Workspace.GetVersion(x);
-                Printer.PrintMessage(" - #b#{0}## on #c#{1}## ##[#s#{4}##] #q#by {2} at {3}", ver.ID, Workspace.GetBranch(ver.Branch).Name, ver.Author, ver.Timestamp, string.Join(" ", Workspace.GetTagsForVersion(ver.ID).Select(t => "\\#" + t).ToArray()));
+                Printer.PrintMessage(" - #b#{0}## on #c#{1}## ##[#s#{4}##] #q#by {2} at {3}", ver.ID, Workspace.GetBranch(ver.Branch).Name, ver.Author, ver.Timestamp.ToLocalTime(), string.Join(" ", Workspace.GetTagsForVersion(ver.ID).Select(t => "\\#" + t).ToArray()));
             }
             return true;
         }

@@ -509,7 +509,7 @@ namespace Versionr.Commands
                     foreach (var x in targetHeadObjects)
                     {
                         var v = Workspace.GetVersion(x.Version);
-                        Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp, v.Author);
+                        Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp.ToLocalTime(), v.Author);
                     }
                 }
             }
