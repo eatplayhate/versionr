@@ -8,7 +8,7 @@ using CommandLine.Text;
 
 namespace Versionr
 {
-    abstract class VerbOptionBase
+    public abstract class VerbOptionBase
     {
         [ParserState]
         public IParserState LastParserState { get; set; }
@@ -53,7 +53,7 @@ namespace Versionr
 
         private void Help_FormatOptionHelpText(object sender, FormatOptionHelpTextEventArgs e)
         {
-            e.Option.HelpText = "##" + e.Option.HelpText + "#b#";
+            e.Text = "##" + e.Text + "#b#";
         }
 
         [Option("verbose", HelpText = "Display verbose diagnostics information.")]

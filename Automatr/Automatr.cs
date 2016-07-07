@@ -57,7 +57,7 @@ namespace Automatr
             AutomatrLog.Log("\tHost = " + remote.Host);
             AutomatrLog.Log("\tPort = " + remote.Port);
             AutomatrLog.Log("\tModule = " + remote.Module);
-            return m_Client.Connect(remote.Host, remote.Port, remote.Module);
+            return m_Client.Connect(Client.ToVersionrURL(remote));
         }
 
         public BranchStatus GetStatus()

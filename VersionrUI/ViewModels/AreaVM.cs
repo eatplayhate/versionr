@@ -63,7 +63,7 @@ namespace VersionrUI.ViewModels
                     case AreaInitMode.Clone:
                         OperationStatusDialog.Start("Clone");
                         Client client = new Client(dir);
-                        if (client.Connect(host, port, null, true))
+                    	if (client.Connect(Client.ToVersionrURL(host, port, null), true))
                         {
                             bool result = client.Clone(true);
                             if (!result)
@@ -71,11 +71,10 @@ namespace VersionrUI.ViewModels
                             if (result)
                             {
                                 string remoteName = "default";
-                                client.Workspace.SetRemote(client.Host, client.Port, client.Module, remoteName);
+                            	client.Workspace.SetRemote(Client.ToVersionrURL(client.Host, client.Port, client.Module), remoteName);
                                 client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
                                 _area = Area.Load(client.Workspace.Root);
                                 _area.Checkout(null, false, false);
-                                client.SyncRecords();
                             }
                         }
                         else
@@ -330,7 +329,7 @@ namespace VersionrUI.ViewModels
                 Client client = new Client(_area);
                 try
                 {
-                    if (client.Connect(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module, requiresWriteAccess))
+                    if (client.Connect(Client.ToVersionrURL(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module), requiresWriteAccess))
                         action.Invoke(client);
                     else
                         OperationStatusDialog.Write(String.Format("Couldn't connect to remote {0}:{1} while processing {2} command!", SelectedRemote.Host, SelectedRemote.Port, command));

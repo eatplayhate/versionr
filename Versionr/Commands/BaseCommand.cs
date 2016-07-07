@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Versionr.Commands
 {
-    interface BaseCommand
+    public interface BaseCommand
     {
         bool Run(System.IO.DirectoryInfo workingDirectory, object options);
     }

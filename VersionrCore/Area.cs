@@ -79,12 +79,18 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "Merge3Way", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int XDiffMerge3Way(string basefile, string file1, string file2, string output);
 
+        [ProtoBuf.ProtoContract]
         public class StashInfo
         {
+            [ProtoBuf.ProtoMember(1)]
             public string Author { get; set; }
+            [ProtoBuf.ProtoMember(2)]
             public DateTime Time { get; set; }
+            [ProtoBuf.ProtoMember(3)]
             public string Name { get; set; }
+            [ProtoBuf.ProtoMember(4)]
             public string Key { get; set; }
+            [ProtoBuf.ProtoMember(5)]
             public Guid GUID { get; set; }
             public FileInfo File { get; set; }
             public int Version { get; set; }
@@ -148,6 +154,23 @@ namespace Versionr
                 bw.Write(Time.Ticks);
                 bw.Write(Key);
                 bw.Write(OriginatingVersion.ToString());
+            }
+        }
+
+        public void DisplayStashOperations(StashInfo stash)
+        {
+            using (FileStream fs = stash.File.OpenRead())
+            using (BinaryReader br = new BinaryReader(fs))
+            {
+                StashInfo info;
+                List<StashEntry> entries;
+                long[] indexTable;
+
+                ReadStashHeader(br, out info, out entries, out indexTable);
+
+                int i = 0;
+                foreach (var x in entries)
+                    Printer.PrintMessage(" [{0}]: #b#{1}## - {2}", i++, x.Alteration, x.CanonicalName);
             }
         }
 
@@ -255,6 +278,26 @@ namespace Versionr
                     results.Add(x);
                 }
             }
+            if (results.Count == 0)
+            {
+                if (name.Length > 3 && char.IsLetter(name[0]) && char.IsLetter(name[1]) && char.IsLetter(name[2]))
+                {
+                    string key = name.Substring(0, 3);
+                    string end = name.Substring(3);
+                    int stashID;
+                    if (int.TryParse(end, out stashID))
+                    {
+                        string newkey = string.Format("{0}{1:D4}", key.ToUpper(), stashID);
+                        foreach (var x in stashes)
+                        {
+                            if (x.Key == newkey)
+                            {
+                                results.Add(x);
+                            }
+                        }
+                    }
+                }
+            }
             return results;
         }
 
@@ -285,6 +328,7 @@ namespace Versionr
             public bool Reverse { get; set; } = false;
             public bool AllowUncleanPatches { get; set; } = false;
             public bool AttemptThreeWayMergeOnPatchFailure { get; set; } = false;
+            public bool Interactive { get; set; }
         }
 
         public void Unstash(StashInfo stashInfo, ApplyStashOptions options, bool deleteAfterApply)
@@ -375,6 +419,9 @@ namespace Versionr
                 {
                     var x = entries[i];
                     Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", i, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
+
+                    if (options.Interactive && !Printer.Prompt("Apply?"))
+                        continue;
 
                     Status.StatusEntry ws = null;
                     st.Map.TryGetValue(x.CanonicalName, out ws);
@@ -1116,7 +1163,7 @@ namespace Versionr
                 Database.DeleteSafe(x);
         }
 
-        internal void CheckLocks(string path, Guid? branch, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
+        internal void CheckLocks(string path, Guid? branch, bool testingLock, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
         {
             lockConflicts = new List<VaultLock>();
 
@@ -1138,7 +1185,7 @@ namespace Versionr
                     else
                     {
                         bool lockIsDirectory = x.Path.EndsWith("/");
-                        if ((lockIsDirectory && path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase)) ||
+                        if ((lockIsDirectory && (path.StartsWith(x.Path, StringComparison.OrdinalIgnoreCase) || (testingLock && x.Path.StartsWith(path, StringComparison.OrdinalIgnoreCase)))) ||
                             (!lockIsDirectory && !requestingDirectory && path.Equals(x.Path, StringComparison.OrdinalIgnoreCase)))
                         {
                             lockConflicts.Add(x);
@@ -1887,11 +1934,11 @@ namespace Versionr
             }
         }
 
-        internal bool SyncCurrentRecords()
-        {
-            return GetMissingRecords(Database.Records);
-        }
-
+		internal List<Record> GetCurrentRecords()
+		{
+			return Database.Records;
+		}
+		
         public bool PathContains(string possibleparent, string location)
         {
             string outerpath = GetLocalPath(Path.Combine(Root.FullName, possibleparent));
@@ -2472,9 +2519,9 @@ namespace Versionr
             {
                 return new Status(this, Database, LocalData, FileSnapshot);
             }
-        }
-
-        public bool SetRemote(string host, int port, string module, string name)
+		}
+		
+		public bool SetRemote(string url, string name)
         {
             Regex validNames = new Regex("^[A-Za-z0-9-_]+$");
             if (!validNames.IsMatch(name))
@@ -2482,8 +2529,21 @@ namespace Versionr
                 Printer.PrintError("#e#Name \"{0}\" invalid for remote. Only alphanumeric characters, underscores and dashes are allowed.", name);
                 return false;
             }
-            if (port == -1)
-                port = Client.VersionrDefaultPort;
+
+			// Try to parse Versionr URL so we can store host/port/module in RemoteConfig
+			string host;
+			int port;
+			string module;
+			if (Client.TryParseVersionrURL(url, out host, out port, out module))
+			{
+				// Ok, parsed Versionr URL
+			}
+			else
+			{
+				// Store URL in module, leave host null
+				module = url;
+			}
+
             LocalData.BeginTransaction();
             try
             {
@@ -2492,19 +2552,19 @@ namespace Versionr
                 {
                     config = new RemoteConfig() { Name = name };
                     config.Host = host;
-                    config.Module = module;
                     config.Port = port;
+                    config.Module = module;
                     LocalData.InsertSafe(config);
                 }
                 else
                 {
-                    config.Module = module;
                     config.Host = host;
                     config.Port = port;
+                    config.Module = module;
                     LocalData.UpdateSafe(config);
                 }
 
-                Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}:{2}", name, host, port);
+				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}", url);
                 LocalData.Commit();
 
                 return true;
@@ -3280,6 +3340,16 @@ namespace Versionr
             return Database.Execute(sql);
         }
 
+        public void CommitLocalDBTransaction()
+        {
+            LocalData.Commit();
+        }
+
+        public int ExecuteLocalDBSQL(string sql)
+        {
+            return LocalData.Execute(sql);
+        }
+
         internal void ImportRecordNoCommit(Record rec, bool checkduplicates = true)
         {
             if (checkduplicates)
@@ -3319,6 +3389,16 @@ namespace Versionr
         public void BeginDatabaseTransaction()
         {
             Database.BeginTransaction();
+        }
+
+        public void RollbackLocalDBTransaction()
+        {
+            LocalData.Rollback();
+        }
+
+        public void BeginLocalDBTransaction()
+        {
+            LocalData.BeginTransaction();
         }
 
         internal void ImportRecordData(Versionr.ObjectStore.ObjectStoreTransaction transaction, string directName, Stream data, out string dependency)
@@ -3513,9 +3593,9 @@ namespace Versionr
         {
             return Database.GetMergeInfo(iD);
         }
-        
-		public void LoadDirectives()
-		{
+
+        public void LoadDirectives()
+        {
             string error;
 
             // Load .vrmeta
@@ -3531,8 +3611,8 @@ namespace Versionr
             directives = DirectivesUtils.LoadVRUser(this, out error);
             if (directives != null)
                 Directives.Merge(directives);
-		}
-        
+        }
+
         private bool Load(bool headless = false)
         {
             try
@@ -5996,12 +6076,7 @@ namespace Versionr
                     System.IO.DirectoryInfo directory = new System.IO.DirectoryInfo(GetRecordPath(cleanLocation));
                     if (!directory.Exists)
                         directory.Create();
-                    var result = Client.ParseRemoteName(x.Value.Host);
-                    if (result.Item1 == false)
-                    {
-                        Printer.PrintError("#x#Error:##\n  Couldn't parse remote hostname \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
-                        continue;
-                    }
+					string url = x.Value.Host;
                     Client client = null;
                     Area external = LoadWorkspace(directory, false, true);
                     bool fresh = false;
@@ -6013,7 +6088,7 @@ namespace Versionr
                     else
                         client = new Client(external);
 
-                    if (!client.Connect(result.Item2, result.Item3, result.Item4))
+                    if (!client.Connect(url))
                     {
                         Printer.PrintError("#x#Error:##\n  Couldn't connect to remote \"#b#{0}##\" while processing extern \"#b#{1}##\"!", x.Value.Host, x.Key);
                         if (external == null)
@@ -6031,7 +6106,7 @@ namespace Versionr
                     if (client != null)
                     {
                         client.Workspace.SetPartialPath(x.Value.PartialPath);
-                        client.Workspace.SetRemote(result.Item2, result.Item3, result.Item4, "default");
+                        client.Workspace.SetRemote(url, "default");
                         if (!fresh && !client.Pull(false, x.Value.Branch))
                         {
                             client.Close();
@@ -6047,8 +6122,7 @@ namespace Versionr
                     if (external == null)
                         external = client.Workspace;
                     external.SetPartialPath(x.Value.PartialPath);
-                    external.SetRemote(result.Item2, result.Item3, result.Item4, "default");
-
+                    external.SetRemote(url, "default");
                     if (fresh)
                     {
                         if (!String.IsNullOrEmpty(x.Value.Branch))
@@ -6116,6 +6190,18 @@ namespace Versionr
             return false;
         }
 
+		public IRemoteClient Connect(string url, bool requiresWriteAccess = false)
+		{
+			// Find a provider that can make this connection
+			foreach (var clientProvider in PluginCache.GetImplementations<IRemoteClientProvider>())
+			{
+				var client = clientProvider.Connect(this, url, requiresWriteAccess);
+				if (client != null)
+					return client;
+			}
+			return null;
+		}
+
         public bool GetMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
@@ -6127,24 +6213,30 @@ namespace Versionr
                 {
                     Printer.PrintMessage(" - Attempting to pull data from remote \"{2}\" ({0}:{1})", x.Host, x.Port, x.Name);
 
-                    Client client = new Client(this);
-                    try
-                    {
-                        if (!client.Connect(x.Host, x.Port, x.Module))
-                            Printer.PrintMessage(" - Connection failed.");
-                        List<string> retrievedRecords = client.GetRecordData(missingRecords);
-                        HashSet<string> retrievedData = new HashSet<string>();
-                        Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
-                        foreach (var y in retrievedRecords)
-                            retrievedData.Add(y);
-                        missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
-                        client.Close();
-                    }
-                    catch
-                    {
-                        client.Close();
-                    }
-                    if (missingRecords.Count > 0)
+					IRemoteClient client = Connect(x.URL);
+					if (client == null)
+					{
+						Printer.PrintMessage(" - Connection failed.");
+					}
+					else
+					{
+						try
+						{
+							List<string> retrievedRecords = client.GetRecordData(missingRecords);
+							HashSet<string> retrievedData = new HashSet<string>();
+							Printer.PrintMessage(" - Got {0} records from remote.", retrievedRecords.Count);
+							foreach (var y in retrievedRecords)
+								retrievedData.Add(y);
+							missingRecords = missingRecords.Where(z => !retrievedData.Contains(z.DataIdentifier)).ToList();
+							client.Close();
+						}
+						catch
+						{
+							client.Close();
+						}
+					}
+
+					if (missingRecords.Count > 0)
                         Printer.PrintMessage("This checkout still requires {0} additional records.", missingRecords.Count);
                     else
                         return true;
@@ -6155,7 +6247,7 @@ namespace Versionr
             return false;
         }
 
-        private List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
+        public List<Record> FindMissingRecords(IEnumerable<Record> targetRecords)
         {
             List<Record> missingRecords = new List<Record>();
             HashSet<string> requestedData = new HashSet<string>();
@@ -7140,6 +7232,14 @@ namespace Versionr
             get
             {
                 return LocalData.StageOperations.Any(x => x.Type == StageOperationType.Merge);
+            }
+        }
+
+        public List<Guid> StagedMergeInputs
+        {
+            get
+            {
+                return LocalData.StageOperations.Where(x => x.Type == StageOperationType.Merge).Select(x => new Guid(x.Operand1)).ToList();
             }
         }
 

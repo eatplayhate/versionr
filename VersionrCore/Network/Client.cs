@@ -8,7 +8,7 @@ using Versionr.Objects;
 
 namespace Versionr.Network
 {
-    public class Client
+    public class Client : IRemoteClient
     {
         System.Net.Sockets.TcpClient Connection { get; set; }
         public Area Workspace { get; set; }
@@ -62,6 +62,32 @@ namespace Versionr.Network
             }
         }
 
+        public List<Area.StashInfo> ListStashes(List<string> stashNames)
+        {
+            if (Workspace == null)
+                return null;
+            try
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.ListStashes }, ProtoBuf.PrefixStyle.Fixed32);
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type != NetCommandType.Acknowledge)
+                {
+                    Printer.PrintError("Couldn't list stashes - error: {0}", queryResult.AdditionalPayload);
+                    return null;
+                }
+                Utilities.SendEncrypted(SharedInfo, new Network.StashQuery() { FilterNames = stashNames });
+                var result = Utilities.ReceiveEncrypted<Network.StashQueryResults>(SharedInfo);
+
+                return result.Results;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                Close();
+                return null;
+            }
+        }
+
         public bool PullStash(string x)
         {
             if (Workspace == null)
@@ -78,17 +104,131 @@ namespace Versionr.Network
                 Close();
                 return false;
             }
-        }
+		}
 
         public bool AcquireLock(string name, string branch, bool allBranches, bool full, bool steal)
         {
+            Guid? branchID;
+            if (!PrepareLock(ref name, ref branch, out branchID, allBranches, full))
+                return false;
+
+            string lockedPath = name;
+
+            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", URL);
+            if (allBranches)
+                Printer.PrintMessage(" - #i#All branches##");
+            else
+                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
+            if (full)
+                Printer.PrintMessage(" - #i#Entire workspace##");
+            else
+                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+
+            if (Printer.Prompt("Is this correct?"))
+            {
+                SendLocks();
+
+                return ListBreakOrAcquireLock(lockedPath, branchID, true, steal);
+            }
+
+            return false;
+        }
+
+        private bool ListBreakOrAcquireLock(string lockedPath, Guid? branchID, bool grant, bool steal)
+        {
+            NetCommandType commandType = NetCommandType.ListOrBreakLocks;
+            if (grant)
+                commandType = NetCommandType.RequestLock;
+
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = commandType }, ProtoBuf.PrefixStyle.Fixed32);
+            var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type != NetCommandType.Acknowledge)
+            {
+                Printer.PrintError("Couldn't perform lock operation - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+            RequestLockInformation rli = new RequestLockInformation()
+            {
+                Author = Workspace.Username,
+                Branch = branchID,
+                Path = lockedPath,
+                Steal = steal
+            };
+            Utilities.SendEncrypted(SharedInfo, rli);
+
+            queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type == NetCommandType.Acknowledge)
+            {
+                var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
+                IEnumerable<Objects.VaultLock> brokenLocks = new Objects.VaultLock[0];
+                int brokenCount = 0;
+                if (lockGranting?.BrokenLocks?.Conflicts != null)
+                {
+                    brokenLocks = lockGranting.BrokenLocks.Conflicts;
+                    brokenCount = lockGranting.BrokenLocks.Conflicts.Count;
+                }
+                if (grant)
+                {
+                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, URL, brokenLocks.Select(x => x.ID));
+                    Printer.PrintMessage("Acquired lock.{0}", brokenCount > 0 ? string.Format(" Broke #b#{0}## other locks.", brokenCount) : "");
+                }
+                else if (steal)
+                    Printer.PrintMessage("{0}", brokenCount > 0 ? string.Format("Broke #b#{0}## locks.", brokenCount) : "No locks to break in specified path.");
+                if (brokenCount > 0)
+                {
+                    Printer.PrintMessage("\nBroken Locks: ");
+                    foreach (var broken in brokenLocks)
+                    {
+                        PrintLock(" - ", broken.ID, broken.Path, broken.Branch, broken.User);
+                    }
+                }
+                return true;
+            }
+            else if (queryResult.Type == NetCommandType.PathLocked)
+            {
+                var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
+                if (grant)
+                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n");
+                Printer.PrintMessage("\nOverlapping locks:");
+                foreach (var x in lockConflicts.Conflicts)
+                {
+                    Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
+                }
+                return false;
+            }
+            else
+            {
+                Printer.PrintError("Couldn't perform lock operation - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+        }
+
+        public bool BreakLocks(string path, string branch, bool allBranches, bool full)
+        {
+            return ListOrBreakLocks(path, branch, allBranches, full, true);
+        }
+        public bool ListLocks(string path, string branch, bool allBranches, bool full)
+        {
+            return ListOrBreakLocks(path, branch, allBranches, full, false);
+        }
+        internal bool ListOrBreakLocks(string path, string branch, bool allBranches, bool full, bool breakLocks)
+        {
+            Guid? branchID;
+            if (!PrepareLock(ref path, ref branch, out branchID, allBranches, full))
+                return false;
+
+            return ListBreakOrAcquireLock(path, branchID, false, breakLocks);
+        }
+
+        private bool PrepareLock(ref string name, ref string branch, out Guid? branchID, bool allBranches, bool full)
+        {
+            branchID = null;
             if (SharedInfo.CommunicationProtocol < SharedNetwork.Protocol.Versionr33)
             {
-                Printer.PrintError("#x#Error:## Server {0} does not support locking.", VersionrURL);
+                Printer.PrintError("#x#Error:## Server {0} does not support locking.", URL);
                 return false;
             }
             // First, we need to decide what branch we're locking
-            Guid? branchID = null;
             if (!allBranches)
             {
                 bool multipleBranches;
@@ -114,65 +254,28 @@ namespace Versionr.Network
                     lockedPath = lockedPath.Substring(0, lockedPath.Length - 1);
             }
 
-            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", VersionrURL);
-            if (allBranches)
-                Printer.PrintMessage(" - #i#All branches##");
-            else
-                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
-            if (full)
-                Printer.PrintMessage(" - #i#Entire workspace##");
-            else
-                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+            name = lockedPath;
+            return true;
+        }
 
-            if (Printer.Prompt("Is this correct?"))
+        private void PrintLock(string prefix, Guid id, string path, Guid? branch, string user)
+        {
+            string lockPath = path;
+            if (string.IsNullOrEmpty(lockPath) || lockPath == "/")
+                lockPath = "<full vault>";
+            string lockbranch = "<all branches>";
+            if (branch.HasValue)
             {
-                SendLocks();
-
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.RequestLock }, ProtoBuf.PrefixStyle.Fixed32);
-                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                if (queryResult.Type != NetCommandType.Acknowledge)
-                {
-                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
-                    return false;
-                }
-                RequestLockInformation rli = new RequestLockInformation()
-                {
-                    Author = Workspace.Username,
-                    Branch = branchID,
-                    Path = lockedPath,
-                    Steal = steal
-                };
-                Utilities.SendEncrypted(SharedInfo, rli);
-
-                queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                if (queryResult.Type == NetCommandType.Acknowledge)
-                {
-                    var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
-                    IEnumerable<Guid> brokenLocks = null;
-                    if (lockGranting?.BrokenLocks?.Conflicts != null)
-                        brokenLocks = lockGranting.BrokenLocks.Conflicts.Select(x => x.ID);
-                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, VersionrURL, brokenLocks);
-                    Printer.PrintMessage("Acquired lock.");
-                    return true;
-                }
-                else if (queryResult.Type == NetCommandType.PathLocked)
-                {
-                    var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
-                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n\nConflicting lock information:");
-                    foreach (var x in lockConflicts.Conflicts)
-                    {
-                        Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
-                    }
-                    return false;
-                }
+                var branchLocal = Workspace.GetBranch(branch.Value);
+                if (branchLocal == null)
+                    lockbranch = branch.Value.ToString();
                 else
-                {
-                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
-                    return false;
-                }
+                    lockbranch = branchLocal.ShortID + " (" + branchLocal.Name + ")";
             }
-
-            return false;
+            string userString = "";
+            if (!string.IsNullOrEmpty(user))
+                userString = string.Format(" by #b#{0}##", user);
+            Printer.PrintMessage("{4}{0} - #b#{1}##{3} on branch #c#{2}##", id, lockPath, lockbranch, userString, prefix);
         }
 
         private bool SendLocks()
@@ -190,7 +293,8 @@ namespace Versionr.Network
             return true;
         }
 
-        public string VersionrURL
+
+        public string URL
         {
             get
             {
@@ -198,7 +302,7 @@ namespace Versionr.Network
             }
         }
 
-        public Client(Area area)
+		public Client(Area area)
         {
             Workspace = area;
             ServerKnownBranches = new HashSet<Guid>();
@@ -235,35 +339,50 @@ namespace Versionr.Network
             if (queryResult.Type == NetCommandType.Acknowledge)
             {
                 Workspace.ReleaseLocks(ltl.Locks);
-                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // ignored
+                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // these are the locks we actually released
+                foreach (var x in ltl.Locks)
+                {
+                    var rl = locks.Where(z => z.ID == x).FirstOrDefault();
+                    if (rl != null)
+                    {
+                        PrintLock("Released lock: ", rl.ID, rl.LockingPath, rl.LockedBranch, null);
+                    }
+                }
                 return true;
             }
             return false;
         }
 
+		private bool SyncRecords(List<Record> records)
+		{
+			Printer.PrintMessage("Vault is missing data for {0} records.", records.Count);
+			List<string> returnedData = GetRecordData(records);
+			Printer.PrintMessage(" - Got {0} records from remote.", records.Count);
+			if (returnedData.Count != records.Count)
+				return false;
+			return true;
+		}
+
         public bool SyncCurrentRecords()
         {
-            return Workspace.SyncCurrentRecords();
-        }
-        public bool SyncRecords()
+			return SyncRecords(Workspace.GetCurrentRecords());
+			
+		}
+        public bool SyncAllRecords()
         {
-            List<Record> missingRecords = Workspace.GetAllMissingRecords();
-            Printer.PrintMessage("Vault is missing data for {0} records.", missingRecords.Count);
-            List<string> returnedData = GetRecordData(missingRecords);
-            Printer.PrintMessage(" - Got {0} records from remote.", returnedData.Count);
-            if (returnedData.Count != missingRecords.Count)
-                return false;
-            return true;
+            return SyncRecords(Workspace.GetAllMissingRecords());
         }
 
-        public static string ToVersionrURL(string host, int port, string domain = null)
+        public static string ToVersionrURL(string host, int port, string module)
         {
-            return "vsr://" + host + ":" + port + (string.IsNullOrEmpty(domain) ? "" : ("/" + domain));
+            if (string.IsNullOrEmpty(host))
+                return module;
+            return "vsr://" + host + ":" + port + (string.IsNullOrEmpty(module) ? "" : ("/" + module));
         }
 
         public static string ToVersionrURL(LocalState.RemoteConfig remote)
         {
-            return "vsr://" + remote.Host + ":" + remote.Port + (string.IsNullOrEmpty(remote.Module) ? "" : ("/" + remote.Module));
+            return ToVersionrURL(remote.Host, remote.Port, remote.Module);
         }
 
         public void Close()
@@ -384,44 +503,23 @@ namespace Versionr.Network
             }
         }
 
-        public static Tuple<bool, string, int, string> ParseRemoteName(string name)
-        {
-            if (!string.IsNullOrEmpty(name))
-            {
-                System.Text.RegularExpressions.Regex regex = new System.Text.RegularExpressions.Regex(
-                    "((vsr|versionr)\\://)?" +
-                    "(?<host>" +
-                        "(?:(?:\\w|\\.|-|_|~|\\d)+)|" +
-                        "(?:(?:(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}(?:[0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|" +
-                        "(?:(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])))" +
-                    ")" +
-                    "(?:\\:(?<port>[0-9]+))?" +
-                    "(?:/(?<vault>[A-Za-z_0-9]+))?$");
-                var match = regex.Match(name);
-                if (match.Success)
-                {
-                    string host = match.Groups["host"].Value;
-                    int port = -1;
-                    var portGroup = match.Groups["port"];
-                    if (portGroup.Success)
-                    {
-                        bool fail = false;
-                        if (!int.TryParse(portGroup.Value, out port))
-                            fail = true;
-                        if (port < 1 || port > ushort.MaxValue)
-                            fail = true;
-                        if (fail)
-                        {
-                            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
-                        }
-                    }
-                    string domain = match.Groups["vault"].Success ? match.Groups["vault"].Value : null;
-                    return new Tuple<bool, string, int, string>(true, host, port, domain);
-                }
-            }
-            return new Tuple<bool, string, int, string>(false, string.Empty, -1, string.Empty);
-        }
+		public static bool TryParseVersionrURL(string url, out string host, out int port, out string module)
+		{
+			Uri uri = new Uri(url);
+			if (uri.Scheme == "vsr" || uri.Scheme == "versionr")
+			{
+				host = uri.Host;
+				port = uri.IsDefaultPort ? Client.VersionrDefaultPort : uri.Port;
+				module = uri.AbsolutePath.Substring(1); // Strip leading '/'
+				return true;
+			}
 
+			host = null;
+			port = 0;
+			module = null;
+			return false;
+		}
+		
         public bool Push(string branchName = null)
         {
             if (Workspace == null)
@@ -958,10 +1056,16 @@ namespace Versionr.Network
         }
 
         public const int VersionrDefaultPort = 5122;
-        public bool Connect(string host, int port, string module, bool requirewrite = false)
+        public bool Connect(string url, bool requirewrite = false)
         {
-            if (port == -1)
-                port = VersionrDefaultPort;
+			string host;
+			int port;
+			string module;
+			if (!TryParseVersionrURL(url, out host, out port, out module))
+			{
+				throw new Exception("Invalid Versionr URL");
+			}
+
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
             Retry:
             if (!protocols.MoveNext())
@@ -979,7 +1083,7 @@ namespace Versionr.Network
                 var connectionTask = Connection.ConnectAsync(Host, Port);
                 if (!connectionTask.Wait(5000))
                 {
-                    throw new Exception(string.Format("Couldn't connect to target: {0}", this.VersionrURL));
+                    throw new Exception(string.Format("Couldn't connect to target: {0}", this.URL));
                 }
             }
             catch (Exception e)
@@ -1048,7 +1152,7 @@ namespace Versionr.Network
                             {
                                 bool q = Printer.Quiet;
                                 Printer.Quiet = false;
-                                Printer.PrintMessage("Server at #b#{0}## requires authentication.", VersionrURL);
+                                Printer.PrintMessage("Server at #b#{0}## requires authentication.", URL);
                                 while (true)
                                 {
                                     if (challenge.AvailableModes.Contains(AuthenticationMode.Simple))
@@ -1186,9 +1290,10 @@ namespace Versionr.Network
             return new string(pwd.ToArray());
         }
 
-        internal List<string> GetRecordData(List<Record> missingRecords)
+        public List<string> GetRecordData(List<Record> missingRecords)
         {
             return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords.Select(x => x.DataIdentifier).ToList());
         }
     }
+
 }

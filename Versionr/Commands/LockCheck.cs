@@ -8,7 +8,7 @@ using Versionr.Network;
 
 namespace Versionr.Commands
 {
-    class LockVerbOptions : RemoteCommandVerbOptions
+    class LockCheckVerbOptions : RemoteCommandVerbOptions
     {
         public override string[] Description
         {
@@ -16,9 +16,9 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Acquires a remote lock on a specified path or file.",
+                    "Checks if a remote has a lock on a specified file/path or branch.",
                     "",
-                    "Optionally, the lock may affect every branch."
+                    "Optionally, you can check for locks affecting every branch."
                 };
             }
         }
@@ -34,31 +34,31 @@ namespace Versionr.Commands
         {
             get
             {
-                return "lock";
+                return "lock-check";
             }
         }
-        [Option("full", HelpText = "Locks the entire vault.")]
+        [Option("full", HelpText = "Checks the entire vault.")]
         public bool Full { get; set; }
-        [Option("all-branches", HelpText = "Acquires a lock for all branches on the remote.")]
+        [Option("all-branches", HelpText = "Tests all branches on the remote.")]
         public bool AllBranches { get; set; }
-        [Option('b', "branch", HelpText = "Selects a branch to acquire the lock on - it will use the current branch by default.")]
+        [Option('b', "branch", HelpText = "Selects a branch to test - it will use the current branch by default.")]
         public string Branch { get; set; }
-        [Option("steal", HelpText = "Invalidates other locks on the server that conflict with your lock.")]
-        public bool Steal { get; set; }
+        [Option("break", HelpText = "Invalidates other locks on the server that conflict with the specified path/branch.")]
+        public bool Break { get; set; }
 
         [ValueOption(0)]
         public string Path { get; set; }
 
         public override BaseCommand GetCommand()
         {
-            return new Lock();
+            return new LockCheck();
         }
     }
-    class Lock : RemoteCommand
+    class LockCheck : RemoteCommand
     {
         protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
-            LockVerbOptions localOptions = options as LockVerbOptions;
+            LockCheckVerbOptions localOptions = options as LockCheckVerbOptions;
             if (string.IsNullOrEmpty(localOptions.Path) && !localOptions.Full)
             {
                 Printer.PrintMessage("#x#Error:## missing specification of lock path!");
@@ -74,7 +74,10 @@ namespace Versionr.Commands
             }
             if (string.IsNullOrEmpty(localOptions.Branch))
                 localOptions.Branch = client.Workspace.CurrentBranch.ID.ToString();
-            return client.AcquireLock(localOptions.Path, localOptions.Branch, localOptions.AllBranches, localOptions.Full, localOptions.Steal);
+            if (localOptions.Break)
+                return client.BreakLocks(localOptions.Path, localOptions.Branch, localOptions.AllBranches, localOptions.Full);
+            else
+                return client.ListLocks(localOptions.Path, localOptions.Branch, localOptions.AllBranches, localOptions.Full);
         }
 
         protected override bool RequiresWriteAccess

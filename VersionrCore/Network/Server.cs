@@ -703,7 +703,7 @@ namespace Versionr.Network
                                         clientInfo.Locks.Add(l);
                                     }
                                     try
-                                    { 
+                                    {
                                         sharedInfo.Workspace.BeginDatabaseTransaction();
                                         var resultLocks = sharedInfo.Workspace.BreakLocks(lockTokens.Locks);
                                         sharedInfo.Workspace.CommitDatabaseTransaction();
@@ -738,14 +738,21 @@ namespace Versionr.Network
                                     }
                                 }
                             }
-                            else if (command.Type == NetCommandType.RequestLock)
+                            else if (command.Type == NetCommandType.ListOrBreakLocks || command.Type == NetCommandType.RequestLock)
                             {
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
+                                bool grant = false;
+                                if (command.Type == NetCommandType.RequestLock)
+                                {
+                                    grant = true;
+                                    Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
+                                }
+                                else
+                                    Printer.PrintDiagnostics("Client is asking for a list of locks (potentially to break them).");
                                 var rli = Utilities.ReceiveEncrypted<RequestLockInformation>(sharedInfo);
 
                                 List<VaultLock> lockConflicts;
-                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, clientInfo.Locks, out lockConflicts);
+                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, command.Type == NetCommandType.RequestLock, clientInfo.Locks, out lockConflicts);
 
                                 if (lockConflicts.Count == 0 || rli.Steal)
                                 {
@@ -755,7 +762,8 @@ namespace Versionr.Network
                                     {
                                         sharedInfo.Workspace.BeginDatabaseTransaction();
                                         sharedInfo.Workspace.BreakLocks(lockConflicts);
-                                        lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
+                                        if (grant)
+                                            lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
                                         sharedInfo.Workspace.CommitDatabaseTransaction();
                                     }
                                     catch

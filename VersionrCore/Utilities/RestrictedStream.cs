@@ -12,11 +12,13 @@ namespace Versionr.Utilities
         Stream UnderlyingStream { get; set; }
         long WindowSize { get; set; }
         long InternalPosition { get; set; }
+		private long m_BasePosition;
 
         public RestrictedStream(Stream baseStream, long size)
         {
             UnderlyingStream = baseStream;
             WindowSize = size;
+			m_BasePosition = baseStream.Position;
         }
 
         public override bool CanRead
@@ -60,7 +62,8 @@ namespace Versionr.Utilities
 
             set
             {
-                throw new NotImplementedException();
+				InternalPosition = value;
+				UnderlyingStream.Position = m_BasePosition + value;
             }
         }
 

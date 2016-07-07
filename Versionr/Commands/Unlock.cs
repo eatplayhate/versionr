@@ -75,7 +75,7 @@ namespace Versionr.Commands
                     filterRemote = localOptions.RemoteName;
                 }
                 else
-                    filterRemote = Network.Client.ToVersionrURL(remote);
+                    filterRemote = remote.URL;
             }
 
             List<LocalState.RemoteLock> remoteLocks = ws.HeldLocks;
@@ -154,7 +154,6 @@ namespace Versionr.Commands
             if (Printer.Prompt("Is this correct?"))
             {
                 string lastRemote = string.Empty;
-                Client client = new Client(ws);
                 HashSet<LocalState.RemoteLock> bucketed = new HashSet<LocalState.RemoteLock>();
                 List<Tuple<string, List<LocalState.RemoteLock>>> lockBuckets = new List<Tuple<string, List<LocalState.RemoteLock>>>();
 
@@ -177,19 +176,8 @@ namespace Versionr.Commands
 
                 foreach (var x in lockBuckets)
                 {
-                    var parsedRemoteName = Client.ParseRemoteName(x.Item1);
-                    if (parsedRemoteName.Item1 == false)
-                    {
-                        if (Printer.Prompt(string.Format("#e#Error:## can't parse remote name #b#{0}##, release locks anyway", x.Item1)))
-                        {
-                            ws.ReleaseLocks(x.Item2.Select(z => z.ID));
-                        }
-                    }
-                    string host = parsedRemoteName.Item2;
-                    int port = parsedRemoteName.Item3;
-                    string modulePath = parsedRemoteName.Item4;
-                    
-                    if (!client.Connect(host, port, modulePath))
+                    IRemoteClient client = ws.Connect(x.Item1, true);
+                    if (client == null)
                     {
                         if (Printer.Prompt(string.Format("#e#Error:## couldn't connect to remote #b#{0}##, release locks anyway", x.Item1)))
                         {

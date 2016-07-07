@@ -39,13 +39,13 @@ namespace Versionr.Commands
     }
     class SyncRecords : RemoteCommand
     {
-        protected override bool RunInternal(Client client, RemoteCommandVerbOptions options)
+        protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             SyncRecordsOptions localOptions = options as SyncRecordsOptions;
             if (localOptions.Current)
                 return client.SyncCurrentRecords();
             else
-                return client.SyncRecords();
+                return client.SyncAllRecords();
         }
     }
 }

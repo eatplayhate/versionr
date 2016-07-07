@@ -12,6 +12,7 @@ Versionr is currently in **alpha**, and is under active development. What this m
 1. [How functional is it?](#how-functional-is-it)
 1. [Getting started](#getting-started)
 1. [Cheatsheet](#cheatsheet)
+1. [Git Replication](#git-replication)
 1. [Contributing](#contributing)
 1. [Credits & Attributions](#credits-attributions)
 1. [Technical Info](#technical-info)
@@ -281,6 +282,32 @@ versionr push -b otherbranch
 versionr push --remote otherhostname:7777
 ```
 
+##Git Replication
+Versionr can replicate its commit history to a Git repository.  All branches and merge information are replicated; temporary branch names are generated to handle branches with multiple heads.
+```
+versionr push --remote path/to/repo.git
+```
+
+**Author identity**
+
+Git requires more details about authors than are maintained by versionr.  Add the following directives to your `.vrmeta` to provide a mapping:
+
+```
+    "Vsr2Git" :
+    {
+        "DefaultAuthorEmailDomain" : "example.com",
+        "Authors" :
+        {
+            "alice" : "Alice Bethany <alice@example.com>",
+            "bob" : "Robert Charles  <rcharles@elsewhere.edu>"
+        }
+    }
+```
+
+**Known limitations**
+* Renaming branches may cause problems
+* Branches explicitly deleted from Versionr are not deleted from git
+* Empty directories are not replicated (as git does not support them)
 
 ##Contributing
 Please do, for the love of god. I can't do this all myself. I am not a precious person, the code is terrible, just help it get better.

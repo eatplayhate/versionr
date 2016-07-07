@@ -39,7 +39,8 @@
 				"^x64",
 				"^lib/",
 				"^bin/",
-				"^bin_debug"
+				"^bin_debug",
+				"^packages/"
 			]
 		}
 	}
