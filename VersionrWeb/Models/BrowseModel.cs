@@ -11,10 +11,11 @@ namespace VersionrWeb.Models
 	public class BrowseModel
 	{
 		private Area m_Area;
-
-		public bool HasParentPath = true;
+		
 		public bool IsDirectory;
 		public string[] Breadcrumbs;
+		public string BasePath;
+		public string ParentPath;
 
 		public class Entry
 		{
@@ -24,6 +25,7 @@ namespace VersionrWeb.Models
 				Name = name;
 				if (IsDirectory)
 					Name = name.Substring(0, Name.Length - 1);
+				
 				Version = version;
 				Author = author;
 				Message = message;
@@ -45,7 +47,11 @@ namespace VersionrWeb.Models
 			{
 				path = "";
 				IsDirectory = true;
-				HasParentPath = false;
+				ParentPath = null;
+			}
+			else
+			{
+				ParentPath = string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
 			}
 
 			Breadcrumbs = path.Split('/');
@@ -53,6 +59,10 @@ namespace VersionrWeb.Models
 			m_Area = Area.Load(new DirectoryInfo(Environment.CurrentDirectory), true);
 			if (branchOrVersion == null)
 				branchOrVersion = "master";
+
+			BasePath = string.Format("/src/{0}/{1}", branchOrVersion, path);
+			if (!BasePath.EndsWith("/"))
+				BasePath += "/";
 
 			Guid versionId;
 			if (!Guid.TryParse(branchOrVersion, out versionId))

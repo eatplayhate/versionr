@@ -15,9 +15,9 @@
 		</tr>
 	</thead>
 	<tbody>
-		@if (Model.HasParentPath) {
+		@if (Model.ParentPath != null) {
 			<tr class="has-parent">
-				<td colspan="3"><i class="icon octicon octicon-mail-reply"></i><a href="..">..</a></td>
+				<td colspan="3"><i class="icon octicon octicon-mail-reply"></i><a href="@Model.ParentPath">..</a></td>
 			</tr>
 		}
 		@foreach (var record in Model.Entries) {
@@ -29,7 +29,7 @@
 					else {
 						<span class="icon octicon octicon-file-text"></span>
 					}
-					<a href="{{EscapePound $.BranchLink}}/{{EscapePound $.TreePath}}{{EscapePound $entry.Name}}">@record.Name</a>
+					<a href="@Model.BasePath@record.Name">@record.Name</a>
 				</td>
 				<td class="message collapsing has-emoji">
 					<a rel="nofollow" class="ui sha label" href="{{AppSubUrl}}/{{$.Username}}/{{$.Reponame}}/commit/{{$commit.ID}}">@Util.ShortGuid(record.Version)</a>
