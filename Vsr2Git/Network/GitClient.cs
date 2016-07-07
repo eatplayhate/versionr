@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Versionr;
 using Versionr.LocalState;
+using Versionr.Utilities;
 
 namespace Vsr2Git.Network
 {
@@ -27,7 +28,8 @@ namespace Vsr2Git.Network
 			m_GitRepository = repository;
 			m_URL = url;
 
-			m_Directives = m_VsrArea.LoadConfigurationElement<Vsr2GitDirectives>("Vsr2Git");
+            string error;
+            m_Directives = DirectivesUtils.LoadDirectives<Vsr2GitDirectives>(DirectivesUtils.GetVRMetaPath(m_VsrArea), "Vsr2Git", out error);
 		}
 
 		public string URL
