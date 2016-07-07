@@ -98,10 +98,10 @@ namespace Versionr.Commands
                         if (Workspace.GetAnnotation(x.Version, x.Key, false).ID == x.ID)
                             suffix = "#s#(tip)##";
                     }
-                    suffix += string.Format(" #q#{0}##", Workspace.GetAnnotationPayloadSize(x));
+                    suffix += string.Format(" #q#({0})##", Versionr.Utilities.Misc.FormatSizeFriendly(Workspace.GetAnnotationPayloadSize(x)));
                     if (!Workspace.HasAnnotationData(x))
                         suffix += " #w#(missing data)##";
-                    Printer.PrintMessage(" #b#{1}## on version #b#{2}## by #b#{3}## on {4}{5}", i, x.Key, x.Version, x.Author, x.Timestamp.ToLocalTime(), suffix);
+                    Printer.PrintMessage(" #b#{1}## on version #b#{2}## {5}\n   by #b#{3}## on {4}", i, x.Key, x.Version, x.Author, x.Timestamp.ToLocalTime(), suffix);
                 }
             }
             return true;

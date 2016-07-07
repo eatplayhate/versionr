@@ -110,7 +110,7 @@ namespace Versionr.Commands
                                     suffix = "#s#(tip)##";
                             }
                             suffix += string.Format(" #q#{0}##", Workspace.GetAnnotationPayloadSize(x));
-                            Printer.PrintMessage(" [{0}]: #b#{1}## on version #b#{2}## by #b#{3}## on {4}{5}", i, x.Key, x.Version, x.Author, x.Timestamp.ToLocalTime(), suffix);
+                            Printer.PrintMessage(" [{0}]: #b#{1}## on version #b#{2}## {5}\n   by #b#{3}## on {4}", i, x.Key, x.Version, x.Author, x.Timestamp.ToLocalTime(), suffix);
                         }
                     }
                     return false;

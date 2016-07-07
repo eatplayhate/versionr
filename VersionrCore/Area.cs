@@ -76,34 +76,34 @@ namespace Versionr
         public List<Annotation> GetAnnotationsForVersion(Guid vid, bool activeOnly)
         {
             if (activeOnly)
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Active = ? ORDER BY Timestamp", vid, true).ToList();
-            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? ORDER BY Timestamp", vid).ToList();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Active = ? ORDER BY Timestamp DESC", vid, true).ToList();
+            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? ORDER BY Timestamp DESC", vid).ToList();
         }
 
         public Annotation GetSimilarAnnotation(Guid vid, string key)
         {
-            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Key IS NOT ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, key, true).FirstOrDefault();
+            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Key IS NOT ? AND Active = ? ORDER BY Timestamp DESC LIMIT 1", vid, key, key, true).FirstOrDefault();
         }
 
         public Annotation GetAnnotation(Guid vid, string key, bool ignoreCase)
         {
             if (ignoreCase)
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp LIMIT 1", vid, key).FirstOrDefault();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp DESC LIMIT 1", vid, key).FirstOrDefault();
             else
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp LIMIT 1", vid, key).FirstOrDefault();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp DESC LIMIT 1", vid, key).FirstOrDefault();
         }
         
         public List<Annotation> GetAllAnnotations(Guid vid, string key, bool ignoreCase)
         {
             if (ignoreCase)
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp", vid, key).ToList();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp DESC", vid, key).ToList();
             else
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp", vid, key).ToList();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp DESC", vid, key).ToList();
         }
 
         public List<Annotation> GetPartialAnnotation(string partialid)
         {
-            return Database.Query<Objects.Annotation>(string.Format("SELECT * FROM Annotation WHERE ID LIKE '%{0}' ORDER BY Timestamp", partialid)).ToList();
+            return Database.Query<Objects.Annotation>(string.Format("SELECT * FROM Annotation WHERE ID LIKE '%{0}' ORDER BY Timestamp DESC", partialid)).ToList();
         }
 
         public Annotation GetAnnotation(Guid id)
@@ -758,6 +758,7 @@ namespace Versionr
 
         internal void ReplayAnnotations(List<AnnotationJournal> annotations, Dictionary<Guid, Annotation> annotationData, out List<string> missingAnnotationData)
         {
+            HashSet<string> dataUniqueRequests = new HashSet<string>();
             missingAnnotationData = new List<string>();
             foreach (var x in annotations)
             {
@@ -780,11 +781,12 @@ namespace Versionr
                     UpdateJournalMap(x.JournalID, x.SequenceID, null);
                     long size;
                     string data = GetDataIdentifierFromAnnotation(payload, out size);
-                    if (!HasObjectDataDirect(data))
-                        missingAnnotationData.Add(data);
+                    if (data != null && !HasObjectDataDirect(data))
+                        dataUniqueRequests.Add(data);
                 }
                 Database.Insert(x);
             }
+            missingAnnotationData = dataUniqueRequests.ToList();
         }
 
         internal void ReplayTags(List<TagJournal> tags)
@@ -2413,7 +2415,7 @@ namespace Versionr
 
                 Database.Insert(annotation);
                 long sequenceID = Utilities.Misc.RandomLongNonZero();
-                Database.Insert(new Objects.AnnotationJournal() { Value = newAnnotationID, JournalID = LocalData.Workspace.ID, SequenceID = sequenceID });
+                Database.Insert(new Objects.AnnotationJournal() { Value = newAnnotationID, JournalID = LocalJournalID, SequenceID = sequenceID });
                 UpdateJournalMap(LocalJournalID, sequenceID, null);
                 return true;
             }, true);
@@ -2453,7 +2455,7 @@ namespace Versionr
 
                 int compressionMode = br.ReadInt32();
 
-                if (compressionMode == 1)
+                if (compressionMode == 0)
                 {
                     size = br.ReadInt64();
                     return br.ReadString();
@@ -2480,7 +2482,10 @@ namespace Versionr
         public string GetAnnotationAsString(Annotation annotation)
         {
             if (annotation.Flags.HasFlag(AnnotationFlags.File))
-                throw new Exception();
+            {
+                StreamReader sr = new StreamReader(GetAnnotationStream(annotation));
+                return sr.ReadToEnd();
+            }
             FileEncoding encoding = FileClassifier.ClassifyData(annotation.Value);
             switch (encoding)
             {

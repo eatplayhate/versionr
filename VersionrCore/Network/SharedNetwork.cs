@@ -433,7 +433,7 @@ namespace Versionr.Network
                             info.Workspace.RollbackDatabaseTransaction();
                             throw;
                         }
-                        if (missingAnnotationData.Count == 0)
+                        if (missingAnnotationData.Count != 0)
                             RequestRecordDataUnmapped(info, missingAnnotationData);
                     }
                 }
