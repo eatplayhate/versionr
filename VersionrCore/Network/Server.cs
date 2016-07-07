@@ -343,6 +343,7 @@ namespace Versionr.Network
                         while (true)
                         {
                             NetCommand command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                            //Printer.PrintDiagnostics("Command: {0}", command.Type);
                             if (command.Type == NetCommandType.Close)
                             {
                                 Printer.PrintDiagnostics("Client closing connection.");
@@ -750,6 +751,7 @@ namespace Versionr.Network
                                         clientInfo.Locks.Add(l);
                                     }
                                 }
+                                Printer.PrintDiagnostics("Client sent {0} tokens.");
                             }
                             else if (command.Type == NetCommandType.ListOrBreakLocks || command.Type == NetCommandType.RequestLock)
                             {

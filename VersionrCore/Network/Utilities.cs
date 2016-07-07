@@ -162,10 +162,13 @@ namespace Versionr.Network
             if (info.DecryptorFunction != null)
             {
                 decryptedData = new byte[packet.PayloadSize];
-                using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
-                using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Decryptor, System.Security.Cryptography.CryptoStreamMode.Read))
+                if (packet.PayloadSize > 0)
                 {
-                    cs.Read(decryptedData, 0, decryptedData.Length);
+                    using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream(packet.Data))
+                    using (System.Security.Cryptography.CryptoStream cs = new System.Security.Cryptography.CryptoStream(memoryStream, info.Decryptor, System.Security.Cryptography.CryptoStreamMode.Read))
+                    {
+                        cs.Read(decryptedData, 0, decryptedData.Length);
+                    }
                 }
             }
             

@@ -612,6 +612,7 @@ namespace Versionr.Network
             {
                 int ackCount = 0;
                 byte[] tempBuffer = new byte[16 * 1024 * 1024];
+                Printer.PrintDiagnostics("Synchronizing {0} versions to server.", versionsToSend.Count);
                 if (versionsToSend.Count == 0)
                 {
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
@@ -631,7 +632,6 @@ namespace Versionr.Network
                         return true;
                     return false;
                 }
-                Printer.PrintDiagnostics("Synchronizing {0} versions to server.", versionsToSend.Count);
                 while (versionsToSend.Count > 0)
                 {
                     List<Objects.Version> versionData = new List<Objects.Version>();
