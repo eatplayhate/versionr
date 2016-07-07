@@ -89,6 +89,7 @@
     <Compile Include="Commands\Prune.cs" />
     <Compile Include="Commands\Pull.cs" />
     <Compile Include="Commands\Push.cs" />
+    <Compile Include="Commands\PushRecords.cs" />
     <Compile Include="Commands\PushStash.cs" />
     <Compile Include="Commands\Rebase.cs" />
     <Compile Include="Commands\Record.cs" />

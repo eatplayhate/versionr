@@ -3687,7 +3687,7 @@ namespace Versionr
 
         internal bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
-            return ObjectStore.TransmitObjectData(record.Fingerprint, sender, scratchBuffer, beginTransmission);
+            return ObjectStore.TransmitObjectData(record.DataIdentifier, sender, scratchBuffer, beginTransmission);
         }
 
         Dictionary<string, long?> KnownCanonicalNames = new Dictionary<string, long?>();

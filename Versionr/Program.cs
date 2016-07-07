@@ -127,6 +127,9 @@ namespace Versionr
         [VerbOption("pull-stash", HelpText = "Pulls one or more stashes from a server.")]
         public Commands.PullStashVerbOptions PullStashVerb { get; set; }
 
+        [VerbOption("push-records", HelpText = "Pushes file content that this node has to a server.")]
+        public Commands.PushRecordsVerbOptions PushRecordsVerb { get; set; }
+
         [VerbOption("lock", HelpText = "Acquires an exclusive lock to a specific path on a server.")]
         public Commands.LockVerbOptions LockVerb { get; set; }
 

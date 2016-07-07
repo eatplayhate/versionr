@@ -12,6 +12,7 @@ namespace Versionr.Network
 		Area Workspace { get; }
 
 		string URL { get; }
+        bool Connected { get; }
 
         System.IO.DirectoryInfo BaseDirectory { get; set; }
 
@@ -20,6 +21,7 @@ namespace Versionr.Network
         List<Area.StashInfo> ListStashes(List<string> names);
         bool Clone(bool full);
 		bool Push(string branchName = null);
+		bool PushRecords();
 		bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false);
 		bool SyncAllRecords();
 		bool SyncCurrentRecords();

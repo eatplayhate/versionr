@@ -302,7 +302,7 @@ namespace Versionr.Network
                     }
                     if (valid)
                     {
-                        if (ws == null)
+                        if (!domainInfo.Bare && ws == null)
                             throw new Exception("No workspace at server path!");
                         sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
@@ -584,6 +584,11 @@ namespace Versionr.Network
                                     }, false);
                                 }
                             }
+                            else if (command.Type == NetCommandType.PushRecords)
+                            {
+                                SharedNetwork.RequestRecordDataUnmapped(sharedInfo, ws.GetAllMissingRecords().Select(x => x.DataIdentifier).ToList());
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
+                            }
                             else if (command.Type == NetCommandType.SynchronizeRecords)
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))
@@ -597,7 +602,8 @@ namespace Versionr.Network
                                     Printer.PrintDiagnostics("Requesting record metadata...");
                                     SharedNetwork.RequestRecordMetadata(clientInfo.SharedInfo);
                                     Printer.PrintDiagnostics("Requesting record data...");
-                                    SharedNetwork.RequestRecordData(sharedInfo);
+                                    if (!SharedNetwork.RequestRecordData(sharedInfo))
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "Record data was not sent!" }, ProtoBuf.PrefixStyle.Fixed32);
                                     if (!sharedInfo.Workspace.RunLocked(() =>
                                     {
                                         return SharedNetwork.ImportRecords(sharedInfo);

@@ -21,6 +21,14 @@ namespace Vsr2Git.Network
 
 		private Vsr2GitDirectives m_Directives;
 		private Dictionary<Guid, string> m_VersionrToGitMapping = new Dictionary<Guid, string>();
+
+        public bool Connected
+        {
+            get
+            {
+                return m_GitRepository != null;
+            }
+        }
 		
 		public GitClient(Area workspace, Repository repository, string url)
 		{
@@ -87,6 +95,11 @@ namespace Vsr2Git.Network
 		}
 
 		public bool PullStash(string x)
+		{
+			throw new NotSupportedException();
+		}
+		
+		public bool PushRecords()
 		{
 			throw new NotSupportedException();
 		}

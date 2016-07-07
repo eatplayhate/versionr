@@ -44,6 +44,21 @@ namespace Versionr.Network
             }
         }
 
+        public bool PushRecords()
+        {
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushRecords }, ProtoBuf.PrefixStyle.Fixed32);
+            while (true)
+            {
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type == NetCommandType.Synchronized)
+                    return true;
+                else if (queryResult.Type == NetCommandType.RequestRecordUnmapped)
+                    SharedNetwork.SendRecordDataUnmapped(SharedInfo);
+                else
+                    throw new Exception();
+            }
+        }
+
         public bool PushStash(Area.StashInfo stash)
         {
             if (Workspace == null)
