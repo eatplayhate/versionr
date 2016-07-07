@@ -44,7 +44,7 @@ namespace Versionr.Network
         ListOrBreakLocks,
         ListStashes,
         QueryJournal,
-        GetAnnotations,
+        JournalUpdateComplete,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

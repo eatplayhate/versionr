@@ -2369,6 +2369,25 @@ namespace Versionr
         {
             return SetAnnotation(vid, key, FileClassifier.ClassifyData(value) == FileEncoding.Binary, new MemoryStream(value));
         }
+        public bool DeleteAnnotation(Annotation anno)
+        {
+            try
+            {
+                Database.BeginTransaction();
+                anno.Active = false;
+                Database.Update(anno);
+                long sequenceID = Utilities.Misc.RandomLongNonZero();
+                Database.Insert(new Objects.AnnotationJournal() { Value = anno.ID, JournalID = LocalJournalID, SequenceID = sequenceID, Delete = true });
+                UpdateJournalMap(LocalJournalID, sequenceID, null);
+                Database.Commit();
+                return true;
+            }
+            catch
+            {
+                Database.Rollback();
+                return false;
+            }
+        }
         public bool SetAnnotation(Guid vid, string key, bool binary, System.IO.Stream value)
         {
             value.Position = 0;
@@ -3658,12 +3677,17 @@ namespace Versionr
 
         internal long GetTransmissionLength(Record record)
         {
-            return ObjectStore.GetTransmissionLength(record);
+            return ObjectStore.GetTransmissionLength(record.Fingerprint);
+        }
+
+        internal bool TransmitObjectData(string dataID, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
+        {
+            return ObjectStore.TransmitObjectData(dataID, sender, scratchBuffer, beginTransmission);
         }
 
         internal bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
-            return ObjectStore.TransmitRecordData(record, sender, scratchBuffer, beginTransmission);
+            return ObjectStore.TransmitObjectData(record.Fingerprint, sender, scratchBuffer, beginTransmission);
         }
 
         Dictionary<string, long?> KnownCanonicalNames = new Dictionary<string, long?>();
@@ -6650,7 +6674,7 @@ namespace Versionr
             if (targetRecords != null)
                 missingRecords = FindMissingRecords(targetRecords.Where(x => Included(x.CanonicalName)));
             if (targetData != null)
-                missingData = FindMissingData(missingData);
+                missingData = FindMissingData(targetData.ToList());
             if (missingRecords.Count > 0 || missingData.Count > 0)
             {
                 Printer.PrintMessage("This operation requires {0} remote objects.", missingRecords.Count + missingData.Count);

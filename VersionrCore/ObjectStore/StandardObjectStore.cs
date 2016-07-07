@@ -273,6 +273,10 @@ namespace Versionr.ObjectStore
                 Printer.PrintDiagnostics("Processing annotation data.");
                 string lookup = Entry.CheckHash(info) + "-" + info.Length.ToString();
 
+                List<string> outlist;
+                if (HasDataDirect(lookup, out outlist))
+                    return lookup;
+
                 if (!CreateDataStreamInternal(trans, info, info.Length, lookup, null))
                     throw new Exception();
                 return lookup;
@@ -919,14 +923,6 @@ namespace Versionr.ObjectStore
             return GetTransmissionLengthInternal(storeData);
         }
 
-        public override long GetTransmissionLength(Record record)
-        {
-            if (!record.HasData)
-                return 0;
-            string lookup = GetLookup(record);
-            return GetTransmissionLength(lookup);
-        }
-
         private long GetTransmissionLengthInternal(FileObjectStoreData storeData)
         {
             if (storeData.BlobID.HasValue)
@@ -934,16 +930,14 @@ namespace Versionr.ObjectStore
             return GetFileForDataID(storeData.Lookup).Length;
         }
 
-        public override bool TransmitRecordData(Record record, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
+        public override bool TransmitObjectData(string dataID, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
-            if (!record.HasData)
-            {
+            long dataSize = GetTransmissionLength(dataID);
+            if (dataSize == 0)
                 return true;
-            }
-            long dataSize = GetTransmissionLength(record);
             if (dataSize == -1)
                 return false;
-            using (System.IO.Stream dataStream = GetDataStream(record))
+            using (System.IO.Stream dataStream = GetFlatDataStream(dataID))
             {
                 if (dataStream == null)
                     return false;
@@ -961,12 +955,10 @@ namespace Versionr.ObjectStore
             return true;
         }
 
-        private Stream GetDataStream(Record record)
+        private Stream GetFlatDataStream(string lookup)
         {
-            string lookup = GetLookup(record);
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
             return OpenLegacyStream(storeData);
-            throw new Exception();
         }
         public override System.IO.Stream GetRecordStream(Objects.Record record)
         {

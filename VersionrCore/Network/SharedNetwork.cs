@@ -621,6 +621,11 @@ namespace Versionr.Network
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                         ProcessJournalQuery(sharedInfo);
                         dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                        while (dataResponse.Type == NetCommandType.RequestRecordUnmapped)
+                        {
+                            SharedNetwork.SendRecordDataUnmapped(sharedInfo);
+                            dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                        }
                     }
                     if (dataResponse.Type == NetCommandType.Synchronized)
                         return true;
@@ -1245,8 +1250,7 @@ namespace Versionr.Network
             {
                 sender(BitConverter.GetBytes(index), 4, false);
                 index++;
-                Objects.Record record = sharedInfo.Workspace.GetRecordFromIdentifier(x);
-                if (record == null)
+                if (!sharedInfo.Workspace.HasObjectDataDirect(x))
                 {
                     int failure = 0;
                     sender(BitConverter.GetBytes(failure), 4, false);
@@ -1254,9 +1258,9 @@ namespace Versionr.Network
                 }
                 else
                 {
-                    Printer.PrintDiagnostics("Sending data for: {0}", record.Fingerprint);
+                    Printer.PrintDiagnostics("Sending data for: {0}", x);
 
-                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender, blockBuffer, () =>
+                    if (!sharedInfo.Workspace.TransmitObjectData(x, sender, blockBuffer, () =>
                     {
                         int success = 1;
                         sender(BitConverter.GetBytes(success), 4, false);

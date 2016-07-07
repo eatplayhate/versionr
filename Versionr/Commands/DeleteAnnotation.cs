@@ -7,19 +7,11 @@ using CommandLine;
 
 namespace Versionr.Commands
 {
-    class GetAnnotationVerbOptions : VerbOptionBase
+    class DeleteAnnotationVerbOptions : GetAnnotationVerbOptions
     {
-        public override string Usage
-        {
-            get
-            {
-                return string.Format("#b#versionr #i#{0}## -v #b#version## <key>\n" +
-                    "#b#versionr #i#{0}## <annotation partial ID>", Verb);
-            }
-        }
         public override BaseCommand GetCommand()
         {
-            return new GetAnnotation();
+            return new DeleteAnnotation();
         }
 
         public override string[] Description
@@ -28,11 +20,11 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Retrieves the annotation object for a specified version.",
+                    "Deletes the annotation object for a specified version.",
                     "",
                     "Annotations are blobs of data that are associated with a specific version and a specific key.",
                     "",
-                    "The returned object can be saved as a file or displayed."
+                    "Deleted annotations may still be recovered as they remain in the vault."
                 };
             }
         }
@@ -41,25 +33,15 @@ namespace Versionr.Commands
         {
             get
             {
-                return "get-annotation";
+                return "delete-annotation";
             }
         }
-        [Option('i', "ignore-case", HelpText = "Ignore case for annotation key.")]
-        public bool IgnoreCase { get; set; }
-        [Option("plain", HelpText = "Don't output anything except annotation contents")]
-        public bool Plain { get; set; }
-        [Option('v', "version", Required = false, HelpText = "The version to retrieve an annotation from.")]
-        public string Version { get; set; }
-        [Option("file", Required = false, HelpText = "Specifies a filename to export the annotation object to.")]
-        public string Filename { get; set; }
-        [ValueOption(0)]
-        public string Key { get; set; }
     }
-    class GetAnnotation : BaseWorkspaceCommand
+    class DeleteAnnotation : BaseWorkspaceCommand
     {
         protected override bool RunInternal(object options)
         {
-            GetAnnotationVerbOptions localOptions = options as GetAnnotationVerbOptions;
+            DeleteAnnotationVerbOptions localOptions = options as DeleteAnnotationVerbOptions;
             Objects.Annotation annotation = null;
             if (string.IsNullOrEmpty(localOptions.Key))
             {
@@ -73,7 +55,7 @@ namespace Versionr.Commands
                 if (ver == null)
                 {
                     if (!localOptions.Plain)
-                        Printer.PrintMessage("#e#Error:## can't find version #b#\"{0}\"## to retrieve annotation.", localOptions.Version);
+                        Printer.PrintMessage("#e#Error:## can't find version #b#\"{0}\"## to remove annotation.", localOptions.Version);
                     return false;
                 }
                 annotation = Workspace.GetAnnotation(ver.ID, localOptions.Key, localOptions.IgnoreCase);
@@ -118,36 +100,13 @@ namespace Versionr.Commands
                 else
                     annotation = annotations[0];
             }
-            if (!localOptions.Plain)
+            if (annotation.Active != false)
             {
-                Printer.PrintMessage("Version #b#{0}## - annotation #b#{1}## #q#({2})##", annotation.Version, annotation.Key, annotation.ID);
-                Printer.PrintMessage("Added by #b#{0}## on {1}", annotation.Author, annotation.Timestamp);
-                Printer.PrintMessage("");
+                Workspace.DeleteAnnotation(annotation);
+                Printer.PrintMessage("Deleted.");
+                return true;
             }
-            if (annotation.Active == false)
-            {
-                if (!localOptions.Plain)
-                    Printer.PrintMessage("#e#Annotation has been deleted.##");
-                return false;
-            }
-            if (!localOptions.Plain && annotation.Flags.HasFlag(Objects.AnnotationFlags.Binary) && string.IsNullOrEmpty(localOptions.Filename))
-                Printer.PrintMessage("#q#[Annotation contents is a binary blob.]##");
-            else
-            {
-                if (string.IsNullOrEmpty(localOptions.Filename))
-                {
-                    Printer.PrintMessage(Printer.Escape(Workspace.GetAnnotationAsString(annotation)));
-                }
-                else
-                {
-                    using (System.IO.Stream s = Workspace.GetAnnotationStream(annotation))
-                    using (System.IO.FileStream fs = System.IO.File.Open(localOptions.Filename, System.IO.FileMode.Create))
-                        s.CopyTo(fs);
-                    if (!localOptions.Plain)
-                        Printer.PrintMessage("Wrote annotation contents to file #b#{0}##.", localOptions.Filename);
-                }
-            }
-            return true;
+            return false;
         }
     }
 }

@@ -74,18 +74,14 @@ namespace Versionr.Commands
                 Printer.PrintMessage("No annotations matching query.");
             else
             {
-                Printer.PrintMessage("Found #b#{0}## annotations.", annotations.Count);
+                List<Objects.Annotation> filterList = new List<Objects.Annotation>();
                 HashSet<string> key = new HashSet<string>();
-                for (int i = 0; i < annotations.Count; i++)
+                foreach (var x in annotations)
                 {
-                    var x = annotations[i];
-                    string suffix = "";
                     if (x.Active == false)
                     {
                         if (localOptions.Deleted)
                             continue;
-                        else
-                            suffix = "#e#(deleted)##";
                     }
                     else
                     {
@@ -95,13 +91,28 @@ namespace Versionr.Commands
                                 continue;
                             key.Add(x.Key);
                         }
+                    }
+                    filterList.Add(x);
+                }
+                annotations = filterList;
+                Printer.PrintMessage("Found #b#{0}## annotations.", annotations.Count);
+                for (int i = 0; i < annotations.Count; i++)
+                {
+                    var x = annotations[i];
+                    string suffix = "";
+                    if (x.Active == false)
+                    {
+                        suffix = "#e#(deleted)##";
+                    }
+                    else
+                    {
                         if (Workspace.GetAnnotation(x.Version, x.Key, false).ID == x.ID)
                             suffix = "#s#(tip)##";
                     }
                     suffix += string.Format(" #q#({0})##", Versionr.Utilities.Misc.FormatSizeFriendly(Workspace.GetAnnotationPayloadSize(x)));
                     if (!Workspace.HasAnnotationData(x))
                         suffix += " #w#(missing data)##";
-                    Printer.PrintMessage(" #b#{1}## on version #b#{2}## {5}\n   by #b#{3}## on {4}", i, x.Key, x.Version, x.Author, x.Timestamp.ToLocalTime(), suffix);
+                    Printer.PrintMessage(" #b#{1}## on version #b#{2}## {5}\n   by #b#{3}## on {4} #q#(ID: {6})##", i, x.Key, x.Version, x.Author, x.Timestamp.ToLocalTime(), suffix, x.ID);
                 }
             }
             return true;

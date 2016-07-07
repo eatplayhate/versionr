@@ -77,9 +77,9 @@ namespace Versionr.Commands
             if (!localOptions.Precise)
             {
                 annotation = Workspace.GetSimilarAnnotation(ver.ID, localOptions.Key);
-                if (annotation != null && localOptions.NoOverwrite)
+                if (annotation != null)
                 {
-                    Printer.PrintMessage("A similar annotation (with key #b#{0}##) exists. Delete this annotation or enable #b#--precise## mode to continue.", annotation.Key);
+                    Printer.PrintMessage("A similar annotation (with key #b#\"{0}\"##) exists. Delete this annotation or enable #b#--precise## mode to continue.", annotation.Key);
                     return false;
                 }
             }

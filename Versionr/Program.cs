@@ -157,6 +157,9 @@ namespace Versionr
         [VerbOption("set-annotation", HelpText = "Sets a keyed metadata blob attached to a specific version.")]
         public Commands.SetAnnotationVerbOptions SetAnnotationVerb { get; set; }
 
+        [VerbOption("delete-annotation", HelpText = "Deletes a keyed metadata blob attached to a specific version.")]
+        public Commands.DeleteAnnotationVerbOptions DeleteAnnotationVerb { get; set; }
+
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 
