@@ -30,13 +30,13 @@ namespace Versionr.Objects
     [ProtoBuf.ProtoContract]
     public class JournalResults
     {
-        [ProtoBuf.ProtoMember(4)]
-        public Guid LocalJournalID { get; set; }
         [ProtoBuf.ProtoMember(1)]
         public List<TagJournal> Tags { get; set; }
         [ProtoBuf.ProtoMember(2)]
         public List<AnnotationJournal> Annotations { get; set; }
         [ProtoBuf.ProtoMember(3)]
         public Dictionary<Guid, Annotation> AnnotationData { get; set; }
+        [ProtoBuf.ProtoMember(4)]
+        public JournalMap ReturnedJournalMap { get; set; }
     }
 }

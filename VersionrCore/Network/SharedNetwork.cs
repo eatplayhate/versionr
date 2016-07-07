@@ -416,7 +416,8 @@ namespace Versionr.Network
                         results.Tags = new List<TagJournal>();
                     if (results.Annotations == null)
                         results.Annotations = new List<AnnotationJournal>();
-                    Printer.PrintDiagnostics("Received {0} tag updates and {1} annotation updates.", results.Tags.Count, results.Annotations.Count);
+                    if (info.Client)
+                        Printer.PrintMessage("Received {0} tag updates and {1} annotation updates.", results.Tags.Count, results.Annotations.Count);
                     if (results.Tags.Count + results.Annotations.Count > 0)
                     {
                         List<string> missingAnnotationData;
@@ -453,7 +454,7 @@ namespace Versionr.Network
             JournalTips remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
             Dictionary<Guid, JournalMap> tipInfo = new Dictionary<Guid, JournalMap>();
             JournalResults results = new JournalResults();
-            results.LocalJournalID = info.Workspace.LocalJournalID;
+            results.ReturnedJournalMap = new JournalMap();
             results.Annotations = new List<AnnotationJournal>();
             results.Tags = new List<TagJournal>();
             results.AnnotationData = new Dictionary<Guid, Annotation>();
@@ -474,6 +475,9 @@ namespace Versionr.Network
                 JournalMap remoteJournalMap = null;
                 IEnumerable<AnnotationJournal> missingAnnotations = new AnnotationJournal[0];
                 IEnumerable<TagJournal> missingTags = new TagJournal[0];
+
+                if (localTip.JournalID == remoteTips.LocalJournal)
+                    results.ReturnedJournalMap = localTip;
 
                 if (tipInfo.TryGetValue(localTip.JournalID, out remoteJournalMap))
                 {

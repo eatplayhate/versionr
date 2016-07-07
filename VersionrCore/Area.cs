@@ -74,12 +74,30 @@ namespace Versionr
             Database.Vacuum();
         }
 
+        public List<Annotation> GetAnnotations(Guid vid, bool active)
+        {
+            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Active = ? ORDER BY Timestamp", vid, active).ToList();
+        }
+
         public Annotation GetAnnotation(Guid vid, string key, bool ignoreCase)
         {
             if (ignoreCase)
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Active = ?", vid, key, true).FirstOrDefault();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, true).FirstOrDefault();
             else
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? AND Active = ?", vid, key, true).FirstOrDefault();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, true).FirstOrDefault();
+        }
+
+        public List<Annotation> GetAllAnnotations(Guid vid, string key, bool ignoreCase)
+        {
+            if (ignoreCase)
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp", vid, key).ToList();
+            else
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp", vid, key).ToList();
+        }
+
+        public List<Annotation> GetAnnotation(string partialid)
+        {
+            return Database.Query<Objects.Annotation>(string.Format("SELECT * FROM Annotation WHERE ID LIKE '%{0}' ORDER BY Timestamp", partialid)).ToList();
         }
 
         public Annotation GetAnnotation(Guid id)
@@ -737,7 +755,29 @@ namespace Versionr
             missingAnnotationData = new List<string>();
             foreach (var x in annotations)
             {
-                SetAnnotation()
+                Annotation payload = annotationData[x.Value];
+
+                if (x.Delete)
+                {
+                    // we are deleting an annotation
+                    Annotation insertedAnnotation = Database.Get<Objects.Annotation>(x.Value);
+                    if (insertedAnnotation.Active)
+                    {
+                        insertedAnnotation.Active = false;
+                        Database.Insert(x);
+                        UpdateJournalMap(x.JournalID, x.SequenceID, null);
+                        Database.Update(insertedAnnotation);
+                    }
+                }
+                else
+                {
+                    Database.Insert(payload);
+                    Database.Insert(x);
+                    UpdateJournalMap(x.JournalID, x.SequenceID, null);
+                    string data = GetDataIdentifierFromAnnotation(payload);
+                    if (!HasObjectDataDirect(data))
+                        missingAnnotationData.Add(data);
+                }
             }
         }
 
@@ -751,7 +791,7 @@ namespace Versionr
                 {
                     if (tagObject == null)
                         continue;
-                    RemoveTagInternal(x, tag);
+                    RemoveTagInternal(x, tagObject);
                 }
                 else
                 {
@@ -2296,7 +2336,7 @@ namespace Versionr
         private bool RemoveTagJournaledNoTransaction(Objects.Tag tag)
         {
             long seq = Utilities.Misc.RandomLongNonZero();
-            var tagJournal = new TagJournal() { Removing = true, Time = DateTime.UtcNow, Value = tag, Version = vid, JournalID = LocalJournalID, SequenceID = seq };
+            var tagJournal = new TagJournal() { Removing = true, Time = DateTime.UtcNow, Value = tag.TagValue, Version = tag.Version, JournalID = LocalJournalID, SequenceID = seq };
             if (!RemoveTagInternal(tagJournal, tag))
                 return false;
             Database.Insert(tagJournal);
@@ -2308,7 +2348,7 @@ namespace Versionr
             if (tag == null)
                 return false;
             UpdateJournalMap(journal.JournalID, null, journal.SequenceID);
-            Database.Delete(tagObject);
+            Database.Delete(tag);
             return true;
         }
 
@@ -2380,7 +2420,7 @@ namespace Versionr
             }
         }
 
-        public Stream GetAnnotationStream(Annotation annotation)
+        private string GetDataIdentifierFromAnnotation(Annotation annotation)
         {
             if (annotation.Flags.HasFlag(AnnotationFlags.File))
             {
@@ -2392,18 +2432,25 @@ namespace Versionr
                 if (compressionMode == 1)
                 {
                     long originalSize = br.ReadInt64();
-                    string dataID = br.ReadString();
-                    // Stored in the object repo
-                    if (!GetMissingObjects(null, new string[] { dataID }))
-                        throw new Exception("Missing annotation data!");
-                    return ObjectStore.GetDirectStream(dataID);
+                    return br.ReadString();
                 }
                 else
                 {
                     throw new Exception("Can't decode annotation!");
                 }
             }
-            return new MemoryStream(annotation.Value);
+            return null;
+        }
+
+        public Stream GetAnnotationStream(Annotation annotation)
+        {
+            string data = GetDataIdentifierFromAnnotation(annotation);
+            if (data == null)
+                return new MemoryStream(annotation.Value);
+            // Stored in the object repo
+            if (!GetMissingObjects(null, new string[] { data }))
+                throw new Exception("Missing annotation data!");
+            return ObjectStore.GetDirectStream(data);
         }
         public string GetAnnotationAsString(Annotation annotation)
         {
