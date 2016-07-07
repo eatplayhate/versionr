@@ -39,7 +39,6 @@ namespace Versionr
         private LocalDB LocalData { get; set; }
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
-        public Newtonsoft.Json.Linq.JObject Configuration { get; set; }
 
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
 
@@ -3594,9 +3593,9 @@ namespace Versionr
         {
             return Database.GetMergeInfo(iD);
         }
-        
-		public void LoadDirectives()
-		{
+
+        public void LoadDirectives()
+        {
             string error;
 
             // Load .vrmeta
@@ -3612,17 +3611,8 @@ namespace Versionr
             directives = DirectivesUtils.LoadVRUser(this, out error);
             if (directives != null)
                 Directives.Merge(directives);
-		}
-        public T LoadConfigurationElement<T>(string v)
-            where T : new()
-        {
-			if (Configuration == null)
-				return new T();
-            var element = Configuration[v];
-            if (element == null)
-                return new T();
-            return Newtonsoft.Json.JsonConvert.DeserializeObject<T>(element.ToString());
         }
+
         private bool Load(bool headless = false)
         {
             try
