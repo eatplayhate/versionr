@@ -1,0 +1,54 @@
+﻿@Html.Partial("../_Header")
+
+<div class="repository file list">
+	
+	@Html.Partial("_Repo_Header")
+
+	<div class="ui container">
+		
+		<div class="ui secondary menu">
+			<!--{{template "repo/branch_dropdown" .}}-->
+			<div class="item fitted">
+				<div class="ui breadcrumb">
+					<a class="section" href="{{.RepoLink}}/src/{{EscapePound .BranchName}}">Versionr</a>
+					@{int i = 0;}
+					@foreach (var breadcrumb in Model.Breadcrumbs) {
+						<div class="divider"> / </div>
+						@if (i == Model.Breadcrumbs.Length - 1) {
+							<span class="active section">@breadcrumb</span>
+						}
+						else {
+							<span class="section"><a href="{{EscapePound $.BranchLink}}/{{EscapePound $p}}">@breadcrumb</a></span>
+						}
+						@{i += 1;}
+					}
+				</div>
+			</div>
+			@*
+			{{if eq $n 0}}
+				<div class="right fitted item">
+					<div class="ui action small input" id="clone-panel">
+						<button class="ui basic clone button" id="repo-clone-https" data-link="{{.CloneLink.HTTPS}}">
+							{{if UseHTTPS}}HTTPS{{else}}HTTP{{end}}
+						</button>
+						{{if not $.DisableSSH}}
+							<button class="ui basic clone button" id="repo-clone-ssh" data-link="{{.CloneLink.SSH}}">
+								SSH
+							</button>
+						{{end}}
+						<input id="repo-clone-url" value="{{$.CloneLink.HTTPS}}" readonly>
+						<button class="ui basic icon button poping up clipboard" id="clipboard-btn" data-original="{{.i18n.Tr "repo.copy_link"}}" data-success="{{.i18n.Tr "repo.copy_link_success"}}" data-error="{{.i18n.Tr "repo.copy_link_error"}}" data-content="{{.i18n.Tr "repo.copy_link"}}" data-variation="inverted tiny" data-clipboard-target="#repo-clone-url">
+							<i class="octicon octicon-clippy"></i>
+						</button>
+						<div class="ui basic jump dropdown icon button">
+							<i class="download icon"></i>
+							<div class="menu">
+								<a class="item" href="{{$.RepoLink}}/archive/{{EscapePound $.BranchName}}.zip"><i class="icon octicon octicon-file-zip"></i> ZIP</a>
+								<a class="item" href="{{$.RepoLink}}/archive/{{EscapePound $.BranchName}}.tar.gz"><i class="icon octicon octicon-file-zip"></i> TAR.GZ</a>
+							</div>
+						</div>
+					</div>
+				</div>
+			{{end}}
+			*@
+		</div>

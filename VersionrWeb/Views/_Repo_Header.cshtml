@@ -1,0 +1,30 @@
+<div class="header-wrapper">
+	<div class="ui container"><!-- start container -->
+		<div class="ui vertically padded grid head"><!-- start grid -->
+			<div class="column"><!-- start column -->
+				<div class="ui header">
+					<div class="ui huge breadcrumb">
+						<i class="mega-octicon octicon-repo}"></i>
+						@*<a href="{{AppSubUrl}}/{{.Owner.Name}}">{{.Owner.Name}}</a>
+						<div class="divider"> / </div>*@
+						<a href="/">Versionr</a>
+					</div>
+				</div>
+			</div><!-- end column -->
+		</div><!-- end grid -->
+	</div><!-- end container -->
+	<div class="ui tabs container">
+		<div class="ui tabular menu navbar">
+			<a class="active item" href="{{.RepoLink}}">
+				<i class="icon octicon octicon-code"></i> Code
+			</a>
+			<a class="item" href="/commits/"> @* TODO add branch to href *@
+				<i class="icon octicon octicon-history"></i> Commits <span class="ui blue small label">123 @* commit count *@</span>
+			</a>
+			<a class="item" href="/tags">
+				<i class="icon octicon octicon-tag"></i> Tags <span class="ui gray small label">0</span>
+			</a>
+		</div>
+	</div>
+	<div class="ui tabs divider"></div>
+</div>

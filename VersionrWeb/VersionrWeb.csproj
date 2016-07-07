@@ -24,6 +24,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -63,6 +64,8 @@
   <ItemGroup>
     <Compile Include="Bootstrap\CustomBootstrapper.cs" />
     <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
+    <Compile Include="Models\BrowseModel.cs" />
+    <Compile Include="Modules\BrowseModule.cs" />
     <Compile Include="Modules\RootModule.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -103,11 +106,22 @@
     <None Include="Content\less\_user.less" />
     <None Include="Content\plugins\pdfjs-1.4.20\LICENSE" />
     <None Include="packages.config" />
+    <None Include="Views\Browse\Directory.cshtml" />
+    <None Include="Views\Browse\_Footer.cshtml" />
+    <None Include="Views\Browse\_Header.cshtml" />
+    <None Include="Views\_Repo_Header.cshtml" />
+    <None Include="Views\_Footer.cshtml" />
+    <None Include="Views\_Header.cshtml" />
     <None Include="Views\Root.cshtml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\VersionrCore\VersionrCore.csproj">
+      <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
+      <Name>VersionrCore</Name>
+    </ProjectReference>
+  </ItemGroup>
   <ItemGroup>
     <Content Include="Content\assets\font-awesome-4.5.0\css\font-awesome.min.css" />
     <Content Include="Content\assets\font-awesome-4.5.0\fonts\fontawesome-webfont.svg" />

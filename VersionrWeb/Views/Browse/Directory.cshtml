@@ -1,0 +1,51 @@
+﻿@Html.Partial("_Header", Model)
+
+<table id="repo-files-table" class="ui fixed single line table">
+	<thead>
+		<tr>
+			<th class="four wide">
+				<img class="ui avatar image img-12" src="/Content/img/avatar_default.png" />
+				<strong>Lewis@* last committer *@</strong>
+				<a rel="nofollow" class="ui sha label" href="/commit/{{.LastCommit.ID}}" rel="nofollow">123abc</a>
+				<span class="grey has-emoji">Commit message</span>
+			</th>
+			<th class="nine wide">
+			</th>
+			<th class="three wide text grey right age">1 hour ago</th>
+		</tr>
+	</thead>
+	<tbody>
+		@if (Model.HasParentPath) {
+			<tr class="has-parent">
+				<td colspan="3"><i class="icon octicon octicon-mail-reply"></i><a href="..">..</a></td>
+			</tr>
+		}
+		@foreach (var record in Model.Entries) {
+			<tr>
+				<td class="name">
+					@if (record.IsDirectory) {
+						<span class="icon octicon octicon-file-directory"></span>
+					}
+					else {
+						<span class="icon octicon octicon-file-text"></span>
+					}
+					<a href="{{EscapePound $.BranchLink}}/{{EscapePound $.TreePath}}{{EscapePound $entry.Name}}">@record.Name</a>
+				</td>
+				<td class="message collapsing has-emoji">
+					<a rel="nofollow" class="ui sha label" href="{{AppSubUrl}}/{{$.Username}}/{{$.Reponame}}/commit/{{$commit.ID}}">@record.Version</a>
+					@record.Message
+				</td>
+				<td class="text grey right age">@record.Timestamp</td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+@*
+{{if .ReadmeExist}}
+	{{template "repo/view_file" .}}
+{{end}}
+*@
+
+
+@Html.Partial("_Footer")

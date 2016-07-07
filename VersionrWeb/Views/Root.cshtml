@@ -1,192 +1,57 @@
-﻿<!DOCTYPE html>
+﻿@Html.Partial("_Header")
 
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
-<head>
-    <meta charset="utf-8" />
-	<link rel="shortcut icon" href="/Content/img/favicon.png" />
-
-	<script src="/Content/js/jquery-1.11.3.min.js"></script>
-	<script src="/Content/js/jquery.are-you-sure.js"></script>
-	<link rel="stylesheet" href="/Content/assets/font-awesome-4.5.0/css/font-awesome.min.css">
-	<link rel="stylesheet" href="/Content/assets/octicons-3.5.0/octicons.css">
-
-	@if (false @*RequireSimpleMDE*@) {
-		<link rel="stylesheet" href="/Content/plugins/simplemde-1.10.1/simplemde.min.css">
-		<script src="/Content/plugins/simplemde-1.10.1/simplemde.min.js"></script>
-	}
-
-	<!-- Stylesheet -->
-	<link rel="stylesheet" href="/Content/css/semantic-2.1.8.min.css">
-	<link rel="stylesheet" href="/Content/css/gogs.css?v=1">
-
-	<!-- JavaScript -->
-	<script src="/Content/js/semantic-2.1.8.min.js"></script>
-	<script src="/Content/js/gogs.js?v=1"></script>
-
-	<title>VersionrWeb</title>
-</head>
-<body>
-	<div class="full height">
-		<noscript>Please enable JavaScript in your browser!</noscript>
-
-		<div class="following bar light">
-			<div class="ui container">
-				<div class="ui grid">
-					<div class="column">
-						<div class="ui top secondary menu">
-							<a class="item brand" href="/">
-								<img class="ui mini image" src="/Content/img/favicon.png">
-							</a>
-
-							<a class="item active" href="/">Dashboard</a>
-							
-							<a class="item" href="/explore/repos">Explore</a>
-
-							<div class="right menu">
-								<div class="ui dropdown head link jump item poping up" data-content="Create New" data-variation="tiny inverted">
-									<span class="text">
-										<i class="octicon octicon-plus"><span class="sr-only">Create New</span></i>
-										<i class="octicon octicon-triangle-down"></i>
-									</span>
-									<div class="menu">
-										<a class="item" href="/repo/create">
-											<i class="icon octicon octicon-repo-create"></i> New Repository
-										</a>
-										<a class="item" href="/repo/migrate">
-											<i class="icon octicon octicon-repo-clone"></i> Clone
-										</a>
-									</div><!-- end content create new menu -->
-								</div><!-- end dropdown menu create new -->
-
-								<div class="ui dropdown head link jump item poping up" tabindex="-1" data-content="User Profile" data-variation="tiny inverted">
-									<span class="text avatar">
-										<img class="ui small rounded image" src="/Content/img/avatar_default.png">
-										<span class="sr-only">User Profile</span>
-										<i class="octicon octicon-triangle-down" tabindex="-1"></i>
-									</span>
-									<div class="menu" tabindex="-1">
-										<div class="ui header">
-											Signed in as <strong>Alex</strong>
-										</div>
-
-										<div class="divider"></div>
-										<a class="item" href="/profile">
-											<i class="icon octicon octicon-person"></i>
-											Your Profile
-										</a>
-										<a class="item" href="/user/settings">
-											<i class="icon octicon octicon-settings"></i>
-											Your Settings
-										</a>
-										<a class="item" target="_blank" href="http://gogs.io/docs" rel="noreferrer">
-											<i class="icon octicon octicon-question"></i>
-											Help
-										</a>
-									
-										<div class="divider"></div>
-
-										<a class="item" href="/admin">
-											<i class="icon settings"></i>
-											Admin Panel
-										</a>
-									
-										<div class="divider"></div>
-										<a class="item" href="/user/logout">
-											<i class="icon octicon octicon-sign-out"></i>
-											Sign Out
-										</a>
-									</div><!-- end content avatar menu -->
-								</div><!-- end dropdown avatar menu -->
-							</div><!-- end signed user right menu -->
-						</div><!-- end top menu -->
-					</div><!-- end column -->
-				</div><!-- end grid -->
-			</div><!-- end container -->
-		</div><!-- end bar -->
-
-		<div class="home">
-			<div class="ui stackable middle very relaxed page grid">
-				<div class="sixteen wide center aligned centered column">
-					<div>
-						<img class="logo" src="/Content/img/gogs-lg.png" />
-					</div>
-					<div class="hero">
-						<h1 class="ui icon header title">
-							Versionr
-						</h1>
-						<h2>The less hateful version control system</h2>
-					</div>
-				</div>
+<div class="home">
+	<div class="ui stackable middle very relaxed page grid">
+		<div class="sixteen wide center aligned centered column">
+			<div>
+				<img class="logo" src="/Content/img/gogs-lg.png" />
 			</div>
-
-			<div class="ui stackable middle very relaxed page grid">
-				<div class="eight wide center column">
-					<h1 class="hero ui icon header">
-						<i class="octicon octicon-flame"></i> Easy to ignite
-					</h1>
-					<p class="large">
-						Made of highly-flammable substances.
-					</p>
-				</div>
-				<div class="eight wide center column">
-					<h1 class="hero ui icon header">
-						<i class="octicon octicon-device-desktop"></i> Runs on computers
-					</h1>
-					<p class="large">
-						Versionr has been designed for programmable computers.
-					</p>
-				</div>
-			</div>
-			<div class="ui stackable middle very relaxed page grid">
-				<div class="eight wide center column">
-					<h1 class="hero ui icon header">
-						<i class="octicon octicon-rocket"></i> Rockets
-					</h1>
-					<p class="large">
-						We'd rather work for SpaceX.
-					</p>
-				</div>
-				<div class="eight wide center column">
-					<h1 class="hero ui icon header">
-						<i class="octicon octicon-code"></i> Angle brackets
-					</h1>
-					<p class="large">
-						This website is made of HTML.
-					</p>
-				</div>
-			</div>
-
-		</div><!-- home -->
-
-	</div> <!-- full height -->
-	<footer>
-		<div class="ui container">
-			<div class="ui left">
-				© 2016 Versionr
-			</div>
-			<div class="ui right links">
-				<a target="_blank" href="https://github.com/eatplayhate/versionr"><i class="fa fa-github-square"></i><span class="sr-only">GitHub</span></a>
-				<span class="version">Versionr 1.0</span>
+			<div class="hero">
+				<h1 class="ui icon header title">
+					Versionr
+				</h1>
+				<h2>The less hateful version control system</h2>
 			</div>
 		</div>
-	</footer>
-</body>
+	</div>
 
-<!-- Third-party libraries -->
-<link rel="stylesheet" href="/Content/plugins/highlight-9.2.0/github.css">
-<script src="/Content/plugins/highlight-9.2.0/highlight.pack.js"></script>
+	<div class="ui stackable middle very relaxed page grid">
+		<div class="eight wide center column">
+			<h1 class="hero ui icon header">
+				<i class="octicon octicon-flame"></i> Easy to ignite
+			</h1>
+			<p class="large">
+				Made of highly-flammable substances.
+			</p>
+		</div>
+		<div class="eight wide center column">
+			<h1 class="hero ui icon header">
+				<i class="octicon octicon-device-desktop"></i> Runs on computers
+			</h1>
+			<p class="large">
+				Versionr has been designed for programmable computers.
+			</p>
+		</div>
+	</div>
+	<div class="ui stackable middle very relaxed page grid">
+		<div class="eight wide center column">
+			<h1 class="hero ui icon header">
+				<i class="octicon octicon-rocket"></i> Rockets
+			</h1>
+			<p class="large">
+				We'd rather work for SpaceX.
+			</p>
+		</div>
+		<div class="eight wide center column">
+			<h1 class="hero ui icon header">
+				<i class="octicon octicon-code"></i> Angle brackets
+			</h1>
+			<p class="large">
+				This website is made of HTML.
+			</p>
+		</div>
+	</div>
 
-<link rel="stylesheet" href="/Content/plugins/jquery.minicolors-2.2.3/jquery.minicolors.css">
-<script src="/Content/plugins/jquery.minicolors-2.2.3/jquery.minicolors.min.js"></script>
-
-<link rel="stylesheet" href="/Content/plugins/jquery.datetimepicker-2.4.5/jquery.datetimepicker.css">
-<script src="/Content/plugins/jquery.datetimepicker-2.4.5/jquery.datetimepicker.js"></script>
-
-@*
-<link rel="stylesheet" href="/Content/plugins/dropzone-4.2.0/dropzone.css">
-<script src="/Content/plugins/dropzone-4.2.0/dropzone.js"></script>
-
-<script src="/Content/js/libs/emojify-1.1.0.min.js"></script>
-<script src="/Content/js/libs/clipboard-1.5.9.min.js"></script>
-*@
-</html>
+</div><!-- home -->
+		
+@Html.Partial("_Footer")
