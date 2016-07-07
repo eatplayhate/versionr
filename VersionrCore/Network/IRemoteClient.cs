@@ -24,8 +24,8 @@ namespace Versionr.Network
 		bool SyncAllRecords();
 		bool SyncCurrentRecords();
 		Tuple<List<Objects.Branch>, List<KeyValuePair<Guid, Guid>>, Dictionary<Guid, Objects.Version>> ListBranches();
-		List<string> GetRecordData(List<Objects.Record> missingRecords);
-		void Close();
+		List<string> GetMissingData(List<Objects.Record> missingRecords, List<string> missingBlobs);
+        void Close();
         bool AcquireLock(string path, string branch, bool allBranches, bool full, bool steal);
         bool ListLocks(string path, string branch, bool allBranches, bool full);
         bool BreakLocks(string path, string branch, bool allBranches, bool full);

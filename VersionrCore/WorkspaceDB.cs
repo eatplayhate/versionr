@@ -13,10 +13,10 @@ namespace Versionr
 {
     internal class WorkspaceDB : SQLite.SQLiteConnection
     {
-        public const int InternalDBVersion = 39;
+        public const int InternalDBVersion = 40;
         public const int MinimumDBVersion = 29;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 39;
+        public const int MaximumDBVersion = 40;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -374,6 +374,9 @@ namespace Versionr
             CreateTable<Objects.Annotation>();
             CreateTable<Objects.VaultLock>();
             CreateTable<Objects.Tag>();
+            CreateTable<Objects.TagJournal>();
+            CreateTable<Objects.AnnotationJournal>();
+            CreateTable<Objects.JournalMap>();
         }
 
         public Guid Domain

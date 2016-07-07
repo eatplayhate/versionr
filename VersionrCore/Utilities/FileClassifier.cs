@@ -35,7 +35,7 @@ namespace Versionr.Utilities
             return ClassifyData(data);
         }
 
-        private static FileEncoding ClassifyData(byte[] data)
+        static public FileEncoding ClassifyData(byte[] data)
         {
             int bomLength;
             FileEncoding? BOM = CheckBOM(data, out bomLength);

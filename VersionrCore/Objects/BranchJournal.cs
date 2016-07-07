@@ -11,9 +11,6 @@ namespace Versionr.Objects
         Rename,
         Terminate,
         Merge,
-        TagVersionAdd,
-        TagVersionRemove,
-        AnnotateVersion,
     }
 
     [ProtoBuf.ProtoContract]

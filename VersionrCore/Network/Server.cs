@@ -380,6 +380,11 @@ namespace Versionr.Network
                                     SharedNetwork.ReceiveStashData(sharedInfo, command.Identifier);
                                 }
                             }
+                            else if (command.Type == NetCommandType.QueryJournal)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                SharedNetwork.ProcessJournalQuery(sharedInfo);
+                            }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
                                 bool fresh = false;
