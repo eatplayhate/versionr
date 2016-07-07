@@ -65,6 +65,8 @@
     <Compile Include="Bootstrap\CustomBootstrapper.cs" />
     <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
     <Compile Include="Models\BrowseModel.cs" />
+    <Compile Include="Models\DateTimeExtensions.cs" />
+    <Compile Include="Models\Util.cs" />
     <Compile Include="Modules\BrowseModule.cs" />
     <Compile Include="Modules\RootModule.cs" />
     <Compile Include="Program.cs" />

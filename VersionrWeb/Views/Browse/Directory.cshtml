@@ -32,10 +32,10 @@
 					<a href="{{EscapePound $.BranchLink}}/{{EscapePound $.TreePath}}{{EscapePound $entry.Name}}">@record.Name</a>
 				</td>
 				<td class="message collapsing has-emoji">
-					<a rel="nofollow" class="ui sha label" href="{{AppSubUrl}}/{{$.Username}}/{{$.Reponame}}/commit/{{$commit.ID}}">@record.Version</a>
+					<a rel="nofollow" class="ui sha label" href="{{AppSubUrl}}/{{$.Username}}/{{$.Reponame}}/commit/{{$commit.ID}}">@Util.ShortGuid(record.Version)</a>
 					@record.Message
 				</td>
-				<td class="text grey right age">@record.Timestamp</td>
+				<td class="text grey right age">@Util.ApproxRelativeTime(record.Timestamp)</td>
 			</tr>
 		}
 	</tbody>
