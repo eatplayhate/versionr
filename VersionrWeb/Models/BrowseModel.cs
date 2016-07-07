@@ -11,10 +11,13 @@ namespace VersionrWeb.Models
 	public class BrowseModel
 	{
 		private Area m_Area;
-		
+
+		public string RepositoryName;
+
 		public bool IsDirectory;
 		public string[] Breadcrumbs;
 		public string BasePath;
+		public string BreadcrumbBasePath;
 		public string ParentPath;
 
 		public class Entry
@@ -54,7 +57,9 @@ namespace VersionrWeb.Models
 				ParentPath = string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
 			}
 
+			RepositoryName = Path.GetFileName(Environment.CurrentDirectory);
 			Breadcrumbs = path.Split('/');
+			BreadcrumbBasePath = string.Format("/src/{0}", branchOrVersion);
 
 			m_Area = Area.Load(new DirectoryInfo(Environment.CurrentDirectory), true);
 			if (branchOrVersion == null)

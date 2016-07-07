@@ -10,15 +10,19 @@
 			<!--{{template "repo/branch_dropdown" .}}-->
 			<div class="item fitted">
 				<div class="ui breadcrumb">
-					<a class="section" href="{{.RepoLink}}/src/{{EscapePound .BranchName}}">Versionr</a>
-					@{int i = 0;}
+					<a class="section" href="@Model.BreadcrumbBasePath">@Model.RepositoryName</a>
+					@{
+						int i = 0;
+						string breadcrumbPath = Model.BreadcrumbBasePath;
+					}
 					@foreach (var breadcrumb in Model.Breadcrumbs) {
+						@{ breadcrumbPath += "/" + breadcrumb; }
 						<div class="divider"> / </div>
 						@if (i == Model.Breadcrumbs.Length - 1) {
 							<span class="active section">@breadcrumb</span>
 						}
 						else {
-							<span class="section"><a href="{{EscapePound $.BranchLink}}/{{EscapePound $p}}">@breadcrumb</a></span>
+							<span class="section"><a href="@breadcrumbPath">@breadcrumb</a></span>
 						}
 						@{i += 1;}
 					}
