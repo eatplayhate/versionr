@@ -106,6 +106,8 @@
     <Compile Include="Commands\Stats.cs" />
     <Compile Include="Commands\Status.cs" />
     <Compile Include="Commands\SyncRecords.cs" />
+    <Compile Include="Commands\Tag.cs" />
+    <Compile Include="Commands\TagFind.cs" />
     <Compile Include="Commands\Unlock.cs" />
     <Compile Include="Commands\Unrecord.cs" />
     <Compile Include="Commands\Unstash.cs" />

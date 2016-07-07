@@ -39,7 +39,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return string.Format("#b#versionr #i#{0}#q# [options] [file1, file2 ... fileN]", Verb);
+                return string.Format("#b#versionr #i#{0}#q# [options] [file1, file2 ... fileN] [\\#tag1 \\#tag2]", Verb);
             }
         }
 
@@ -88,12 +88,13 @@ namespace Versionr.Commands
                 message = message.Replace("\\n", "\n");
                 message = message.Replace("\\t", "\t");
             }
-            if (!ws.Commit(message, localOptions.Force))
+            if (!ws.Commit(message, localOptions.Force, TagList))
                 return false;
             return true;
         }
 
         protected override bool RequiresTargets { get { return false; } }
+        protected override bool SupportsTags { get { return true; } }
 
-	}
+    }
 }

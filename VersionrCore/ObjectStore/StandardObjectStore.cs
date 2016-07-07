@@ -24,7 +24,6 @@ namespace Versionr.ObjectStore
         {
             public FileObjectStoreData Data;
             public string Filename;
-            public Record Record;
             public byte[] Payload;
         }
         public List<PendingTransaction> PendingTransactions = new List<PendingTransaction>();
@@ -251,35 +250,61 @@ namespace Versionr.ObjectStore
             }
         }
 
-        public override bool RecordData(ObjectStoreTransaction transaction, Record newRecord, Record priorRecord, Entry fileEntry)
+        public override string CreateDataStream(ObjectStoreTransaction transaction, Stream stream)
         {
             StandardObjectStoreTransaction trans = (StandardObjectStoreTransaction)transaction;
             lock (trans)
             {
-                if (trans.Inputs.Contains(GetLookup(newRecord)))
-                    return true;
                 string filename;
                 lock (this)
                 {
-                    if (HasData(newRecord))
-                        return true;
                     do
                     {
                         filename = Path.GetRandomFileName();
                     } while (TempFiles.Contains(filename));
                     TempFiles.Add(filename);
                 }
-                trans.Inputs.Add(GetLookup(newRecord));
-                trans.m_PendingCount++;
-                trans.m_PendingBytes += newRecord.Size;
-                Printer.PrintDiagnostics("Processing {0}", fileEntry.CanonicalName);
                 trans.Cleanup.Add(filename);
+                filename = Path.Combine(TempFolder.FullName, filename);
+                using (System.IO.FileStream fs = new FileStream(filename, FileMode.Create))
+                    stream.CopyTo(fs);
+                System.IO.FileInfo info = new FileInfo(filename);
+
+                Printer.PrintDiagnostics("Processing annotation data.");
+                string lookup = Entry.CheckHash(info) + "-" + info.Length.ToString();
+
+                if (!CreateDataStreamInternal(trans, info, info.Length, lookup, null))
+                    throw new Exception();
+                return lookup;
+            }
+        }
+
+        public bool CreateDataStreamInternal(ObjectStoreTransaction transaction, FileInfo inFile, long size, string dataIdentifier, string priorDataLookup)
+        {
+            StandardObjectStoreTransaction trans = (StandardObjectStoreTransaction)transaction;
+            lock (trans)
+            {
+                if (trans.Inputs.Contains(dataIdentifier))
+                    return true;
+                string filename;
+                lock (this)
+                {
+                    do
+                    {
+                        filename = Path.GetRandomFileName();
+                    } while (TempFiles.Contains(filename));
+                    TempFiles.Add(filename);
+                }
+                trans.Inputs.Add(dataIdentifier);
+                trans.m_PendingCount++;
+                trans.m_PendingBytes += size;
+                System.IO.FileInfo info = new FileInfo(filename);
                 long resultSize;
                 string fn = Path.Combine(TempFolder.FullName, filename);
-                if (priorRecord != null)
+                if (priorDataLookup != null)
                 {
                     // try to delta encode it
-                    string priorLookup = GetLookup(priorRecord);
+                    string priorLookup = priorDataLookup;
                     var priorData = ObjectDatabase.Find<FileObjectStoreData>(x => x.Lookup == priorLookup);
                     if (priorData != null)
                     {
@@ -294,32 +319,32 @@ namespace Versionr.ObjectStore
                                 List<ChunkedChecksum.FileBlock> blocks;
                                 Printer.PrintDiagnostics(" - Trying delta encoding");
                                 Printer.InteractivePrinter printer = null;
-                                if (newRecord.Size > 16 * 1024 * 1024)
-                                    printer = Printer.CreateSimplePrinter(" Computing Delta", (obj) => { return string.Format("{0:N1}%", (float)((long)obj / (double)newRecord.Size) * 100.0f); });
-                                using (var fileInput = fileEntry.Info.OpenRead())
+                                if (size > 16 * 1024 * 1024)
+                                    printer = Printer.CreateSimplePrinter(" Computing Delta", (obj) => { return string.Format("{0:N1}%", (float)((long)obj / (double)size) * 100.0f); });
+                                using (var fileInput = inFile.OpenRead())
                                 {
-                                    blocks = ChunkedChecksum.ComputeDelta(fileInput, fileEntry.Length, signature, out deltaSize, (fs, ps) => { if (ps % (512 * 1024) == 0 && printer != null) printer.Update(ps); });
+                                    blocks = ChunkedChecksum.ComputeDelta(fileInput, size, signature, out deltaSize, (fs, ps) => { if (ps % (512 * 1024) == 0 && printer != null) printer.Update(ps); });
                                 }
                                 if (printer != null)
                                 {
-                                    printer.End(newRecord.Size);
+                                    printer.End(size);
                                     printer = null;
                                 }
                                 // dont encode as delta unless we get a 50% saving
-                                if (deltaSize < fileEntry.Length / 2)
+                                if (deltaSize < size / 2)
                                 {
                                     FileObjectStoreData data = new FileObjectStoreData()
                                     {
-                                        FileSize = newRecord.Size,
+                                        FileSize = size,
                                         HasSignatureData = false,
-                                        Lookup = GetLookup(newRecord),
+                                        Lookup = dataIdentifier,
                                         Mode = StorageMode.Delta,
                                         DeltaBase = priorData.Lookup,
                                         Offset = 0
                                     };
                                     trans.Cleanup.Add(filename + ".delta");
                                     Printer.PrintDiagnostics(" - Delta encoding");
-                                    using (var fileInput = fileEntry.Info.OpenRead())
+                                    using (var fileInput = inFile.OpenRead())
                                     using (var fileOutput = new FileInfo(fn + ".delta").OpenWrite())
                                     {
                                         ChunkedChecksum.WriteDelta(fileInput, fileOutput, blocks);
@@ -337,7 +362,7 @@ namespace Versionr.ObjectStore
                                             cmode = CompressionMode.None;
                                         int sig = (int)cmode;
                                         fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
-                                        fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
+                                        fileOutput.Write(BitConverter.GetBytes(size), 0, 8);
                                         fileOutput.Write(BitConverter.GetBytes(deltaSize), 0, 8);
                                         fileOutput.Write(BitConverter.GetBytes(priorData.Lookup.Length), 0, 4);
                                         byte[] lookupBytes = ASCIIEncoding.ASCII.GetBytes(priorData.Lookup);
@@ -366,13 +391,12 @@ namespace Versionr.ObjectStore
                                             fileInput.CopyTo(fileOutput);
                                         }
                                         if (printer != null)
-                                            printer.End(newRecord.Size);
+                                            printer.End(size);
                                     }
-                                    Printer.PrintMessage(" - Compressed: {0} ({1} delta) => {2}", Misc.FormatSizeFriendly(newRecord.Size), Misc.FormatSizeFriendly(deltaSize), Misc.FormatSizeFriendly(resultSize));
+                                    Printer.PrintMessage(" - Compressed: {0} ({1} delta) => {2}", Misc.FormatSizeFriendly(size), Misc.FormatSizeFriendly(deltaSize), Misc.FormatSizeFriendly(resultSize));
                                     trans.PendingTransactions.Add(
                                         new StandardObjectStoreTransaction.PendingTransaction()
                                         {
-                                            Record = newRecord,
                                             Data = data,
                                             Filename = filename
                                         }
@@ -387,32 +411,32 @@ namespace Versionr.ObjectStore
                         }
                     }
                 }
-                bool computeSignature = newRecord.Size > 1024 * 64;
+                bool computeSignature = size > 1024 * 64;
                 FileObjectStoreData storeData = new FileObjectStoreData()
                 {
-                    FileSize = newRecord.Size,
+                    FileSize = size,
                     HasSignatureData = computeSignature,
-                    Lookup = GetLookup(newRecord),
+                    Lookup = dataIdentifier,
                     Mode = StorageMode.Flat,
                     Offset = 0
                 };
-                using (var fileInput = fileEntry.Info.OpenRead())
+                using (var fileInput = inFile.OpenRead())
                 using (var fileOutput = new FileInfo(fn).OpenWrite())
                 {
                     fileOutput.Write(new byte[] { (byte)'d', (byte)'b', (byte)'l', (byte)'k' }, 0, 4);
                     CompressionMode cmode = DefaultCompression;
-                    if (cmode != CompressionMode.None && newRecord.Size < 16 * 1024)
+                    if (cmode != CompressionMode.None && size < 16 * 1024)
                         cmode = CompressionMode.LZ4;
-                    if (cmode != CompressionMode.None && newRecord.Size < 1024)
+                    if (cmode != CompressionMode.None && size < 1024)
                         cmode = CompressionMode.None;
                     int sig = (int)cmode;
                     if (computeSignature)
                         sig |= 0x8000;
                     fileOutput.Write(BitConverter.GetBytes(sig), 0, 4);
-                    fileOutput.Write(BitConverter.GetBytes(newRecord.Size), 0, 8);
+                    fileOutput.Write(BitConverter.GetBytes(size), 0, 8);
                     Printer.InteractivePrinter printer = null;
-                    if (newRecord.Size > 16 * 1024 * 1024)
-                        printer = Printer.CreateSimplePrinter(" Computing Signature", (obj) => { return string.Format("{0:N1}%", (float)((long)obj / (double)newRecord.Size) * 100.0f); });
+                    if (size > 16 * 1024 * 1024)
+                        printer = Printer.CreateSimplePrinter(" Computing Signature", (obj) => { return string.Format("{0:N1}%", (float)((long)obj / (double)size) * 100.0f); });
                     if (computeSignature)
                     {
                         Printer.PrintDiagnostics(" - Computing signature");
@@ -423,42 +447,46 @@ namespace Versionr.ObjectStore
                     Printer.PrintDiagnostics(" - Compressing data");
                     if (printer != null)
                     {
-                        printer.End(newRecord.Size);
+                        printer.End(size);
                         printer = Printer.CreateProgressBarPrinter(string.Empty, string.Format(" Writing {0} ", cmode), (obj) =>
                         {
-                            return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(newRecord.Size));
+                            return string.Format("{0}/{1}", Misc.FormatSizeFriendly((long)obj), Misc.FormatSizeFriendly(size));
                         },
                         (obj) =>
                         {
-                            return (float)((long)obj / (double)newRecord.Size) * 100.0f;
+                            return (float)((long)obj / (double)size) * 100.0f;
                         },
                         (obj, lol) => { return string.Empty; }, 40);
                     }
                     if (cmode == CompressionMode.LZHAM)
-                        LZHAMWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                        LZHAMWriter.CompressToStream(size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
                     else if (cmode == CompressionMode.LZ4)
-                        LZ4Writer.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                        LZ4Writer.CompressToStream(size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
                     else if (cmode == CompressionMode.LZ4HC)
-                        LZ4HCWriter.CompressToStream(newRecord.Size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
+                        LZ4HCWriter.CompressToStream(size, 16 * 1024 * 1024, out resultSize, fileInput, fileOutput, (fs, ps, cs) => { if (printer != null) printer.Update(ps); });
                     else
                     {
-                        resultSize = newRecord.Size;
+                        resultSize = size;
                         fileInput.CopyTo(fileOutput);
                     }
                     if (printer != null)
-                        printer.End(newRecord.Size);
+                        printer.End(size);
                 }
-                Printer.PrintMessage(" - Compressed: {1} => {2}{3}", newRecord.CanonicalName, Misc.FormatSizeFriendly(newRecord.Size), Misc.FormatSizeFriendly(resultSize), computeSignature ? " (computed signatures)" : "");
+                Printer.PrintMessage(" - Compressed: {1} => {2}{3}", "", Misc.FormatSizeFriendly(size), Misc.FormatSizeFriendly(resultSize), computeSignature ? " (computed signatures)" : "");
                 trans.PendingTransactions.Add(
                     new StandardObjectStoreTransaction.PendingTransaction()
                     {
-                        Record = newRecord,
                         Data = storeData,
                         Filename = filename
                     }
                 );
                 return true;
             }
+        }
+
+        public override bool RecordData(ObjectStoreTransaction transaction, Record newRecord, Record priorRecord, Entry fileEntry)
+        {
+            return CreateDataStreamInternal(transaction, fileEntry.Info, fileEntry.Length, GetLookup(newRecord), priorRecord != null ? GetLookup(priorRecord) : null);
         }
 
         private ChunkedChecksum LoadSignature(FileObjectStoreData storeData)
@@ -879,15 +907,24 @@ namespace Versionr.ObjectStore
             return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2))).Exists;
         }
 
+        public override long GetTransmissionLength(string dataIdentifier)
+        {
+            var storeData = ObjectDatabase.Find<FileObjectStoreData>(dataIdentifier);
+            if (storeData == null)
+            {
+                if (dataIdentifier.EndsWith("-0"))
+                    return 0;
+                return -1;
+            }
+            return GetTransmissionLengthInternal(storeData);
+        }
+
         public override long GetTransmissionLength(Record record)
         {
             if (!record.HasData)
                 return 0;
             string lookup = GetLookup(record);
-            var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
-            if (storeData == null)
-                return -1;
-            return GetTransmissionLengthInternal(storeData);
+            return GetTransmissionLength(lookup);
         }
 
         private long GetTransmissionLengthInternal(FileObjectStoreData storeData)
@@ -936,6 +973,10 @@ namespace Versionr.ObjectStore
             string lookup = GetLookup(record);
             if (record.Size == 0)
                 return new MemoryStream(0);
+            return GetDirectStream(lookup);
+        }
+        public override System.IO.Stream GetDirectStream(string lookup)
+        {
             return GetStreamForLookup(lookup);
         }
 
@@ -956,11 +997,15 @@ namespace Versionr.ObjectStore
             throw new Exception();
         }
 
-        public override void WriteRecordStream(Record record, System.IO.Stream outputStream)
+        public override void ExportDataStream(string dataIdentifier, System.IO.Stream outputStream)
         {
-            string lookup = GetLookup(record);
-            var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            var storeData = ObjectDatabase.Find<FileObjectStoreData>(dataIdentifier);
             WriteRecordStream(storeData, outputStream);
+        }
+
+        public override void ExportRecordStream(Record record, System.IO.Stream outputStream)
+        {
+            ExportDataStream(GetLookup(record), outputStream);
         }
 
         protected void WriteRecordStream(FileObjectStoreData storeData, System.IO.Stream outputStream)

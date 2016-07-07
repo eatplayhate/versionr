@@ -356,7 +356,7 @@ namespace Versionr.Network
 		private bool SyncRecords(List<Record> records)
 		{
 			Printer.PrintMessage("Vault is missing data for {0} records.", records.Count);
-			List<string> returnedData = GetRecordData(records);
+			List<string> returnedData = GetMissingData(records, null);
 			Printer.PrintMessage(" - Got {0} records from remote.", records.Count);
 			if (returnedData.Count != records.Count)
 				return false;
@@ -786,6 +786,7 @@ namespace Versionr.Network
                             break;
                         }
                     }
+                    SharedNetwork.PullJournalData(SharedInfo);
                 }
                 return true;
             }
@@ -1290,9 +1291,14 @@ namespace Versionr.Network
             return new string(pwd.ToArray());
         }
 
-        public List<string> GetRecordData(List<Record> missingRecords)
+        public List<string> GetMissingData(List<Record> missingRecords, List<string> missingData)
         {
-            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords.Select(x => x.DataIdentifier).ToList());
+            IEnumerable<string> missingDataList = new string[0];
+            if (missingRecords != null)
+                missingDataList = missingDataList.Concat(missingRecords.Select(x => x.DataIdentifier));
+            if (missingData != null)
+                missingDataList = missingDataList.Concat(missingData);
+            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingDataList.ToList());
         }
     }
 

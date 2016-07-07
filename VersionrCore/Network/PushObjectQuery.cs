@@ -10,6 +10,8 @@ namespace Versionr.Network
     {
         Branch,
         Version,
+        Annotation,
+        Tag,
     }
     [ProtoBuf.ProtoContract]
     class PushObjectQuery

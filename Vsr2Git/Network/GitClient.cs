@@ -71,7 +71,7 @@ namespace Vsr2Git.Network
 			m_GitRepository.Dispose();
 		}
 
-		public List<string> GetRecordData(List<Versionr.Objects.Record> missingRecords)
+		public List<string> GetMissingData(List<Versionr.Objects.Record> missingRecords, List<string> missingData)
 		{
 			throw new NotSupportedException();
 		}
@@ -402,7 +402,7 @@ namespace Vsr2Git.Network
 
 			// Download missing records
 			Printer.PrintMessage("Downloading data for {0} records ({1} total)", missingRecords.Count, Versionr.Utilities.Misc.FormatSizeFriendly(missingRecords.Sum(x => x.Size)));
-			m_VsrArea.GetMissingRecords(missingRecords);
+			m_VsrArea.GetMissingObjects(missingRecords, null);
 
 			// Perform replication
 			foreach (var vsrVersion in versionsToReplicate)
