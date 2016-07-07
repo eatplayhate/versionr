@@ -39,7 +39,7 @@ namespace Versionr.Commands
         public bool Revert { get; set; }
 
         [ValueList(typeof(List<string>))]
-        public string Name { get; set; }
+        public List<string> Name { get; set; }
 
         public override BaseCommand GetCommand()
         {
