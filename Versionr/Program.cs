@@ -148,6 +148,15 @@ namespace Versionr
         [VerbOption("tag-find", HelpText = "Searches for versions with a specific tag.")]
         public Commands.TagFindVerbOptions TagFindVerb { get; set; }
 
+        [VerbOption("get-annotation", HelpText = "Gets a keyed metadata blob attached to a specific version.")]
+        public Commands.GetAnnotationVerbOptions GetAnnotationVerb { get; set; }
+
+        [VerbOption("list-annotation", HelpText = "Lists metadata blobs attached to a specific version.")]
+        public Commands.ListAnnotationVerbOptions ListAnnotationVerb { get; set; }
+
+        [VerbOption("set-annotation", HelpText = "Sets a keyed metadata blob attached to a specific version.")]
+        public Commands.SetAnnotationVerbOptions SetAnnotationVerb { get; set; }
+
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 

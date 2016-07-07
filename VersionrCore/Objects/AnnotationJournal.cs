@@ -18,8 +18,6 @@ namespace Versionr.Objects
         [ProtoBuf.ProtoMember(3)]
         public Guid Value { get; set; }
         [ProtoBuf.ProtoMember(4)]
-        public DateTime Time { get; set; }
-        [ProtoBuf.ProtoMember(5)]
         public bool Delete { get; set; }
     }
 }

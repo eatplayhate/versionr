@@ -73,19 +73,26 @@ namespace Versionr
             Database.Vacuum();
         }
 
-        public List<Annotation> GetAnnotations(Guid vid, bool active)
+        public List<Annotation> GetAnnotationsForVersion(Guid vid, bool activeOnly)
         {
-            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Active = ? ORDER BY Timestamp", vid, active).ToList();
+            if (activeOnly)
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Active = ? ORDER BY Timestamp", vid, true).ToList();
+            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? ORDER BY Timestamp", vid).ToList();
+        }
+
+        public Annotation GetSimilarAnnotation(Guid vid, string key)
+        {
+            return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Key IS NOT ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, key, true).FirstOrDefault();
         }
 
         public Annotation GetAnnotation(Guid vid, string key, bool ignoreCase)
         {
             if (ignoreCase)
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, true).FirstOrDefault();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key LIKE ? ORDER BY Timestamp LIMIT 1", vid, key).FirstOrDefault();
             else
-                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? AND Active = ? ORDER BY Timestamp LIMIT 1", vid, key, true).FirstOrDefault();
+                return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp LIMIT 1", vid, key).FirstOrDefault();
         }
-
+        
         public List<Annotation> GetAllAnnotations(Guid vid, string key, bool ignoreCase)
         {
             if (ignoreCase)
@@ -94,7 +101,7 @@ namespace Versionr
                 return Database.Query<Objects.Annotation>("SELECT * FROM Annotation WHERE Version = ? AND Key = ? ORDER BY Timestamp", vid, key).ToList();
         }
 
-        public List<Annotation> GetAnnotation(string partialid)
+        public List<Annotation> GetPartialAnnotation(string partialid)
         {
             return Database.Query<Objects.Annotation>(string.Format("SELECT * FROM Annotation WHERE ID LIKE '%{0}' ORDER BY Timestamp", partialid)).ToList();
         }
@@ -771,7 +778,8 @@ namespace Versionr
                 {
                     Database.Insert(payload);
                     UpdateJournalMap(x.JournalID, x.SequenceID, null);
-                    string data = GetDataIdentifierFromAnnotation(payload);
+                    long size;
+                    string data = GetDataIdentifierFromAnnotation(payload, out size);
                     if (!HasObjectDataDirect(data))
                         missingAnnotationData.Add(data);
                 }
@@ -2419,8 +2427,25 @@ namespace Versionr
             }
         }
 
-        private string GetDataIdentifierFromAnnotation(Annotation annotation)
+        public long GetAnnotationPayloadSize(Annotation annotation)
         {
+            long size;
+            string data = GetDataIdentifierFromAnnotation(annotation, out size);
+            return size;
+        }
+
+        public bool HasAnnotationData(Annotation annotation)
+        {
+            long size;
+            string data = GetDataIdentifierFromAnnotation(annotation, out size);
+            if (data != null)
+                return HasObjectDataDirect(data);
+            return true;
+        }
+
+        private string GetDataIdentifierFromAnnotation(Annotation annotation, out long size)
+        {
+            size = annotation.Value.Length;
             if (annotation.Flags.HasFlag(AnnotationFlags.File))
             {
                 MemoryStream ms = new MemoryStream(annotation.Value);
@@ -2430,7 +2455,7 @@ namespace Versionr
 
                 if (compressionMode == 1)
                 {
-                    long originalSize = br.ReadInt64();
+                    size = br.ReadInt64();
                     return br.ReadString();
                 }
                 else
@@ -2443,7 +2468,8 @@ namespace Versionr
 
         public Stream GetAnnotationStream(Annotation annotation)
         {
-            string data = GetDataIdentifierFromAnnotation(annotation);
+            long size;
+            string data = GetDataIdentifierFromAnnotation(annotation, out size);
             if (data == null)
                 return new MemoryStream(annotation.Value);
             // Stored in the object repo
@@ -7704,6 +7730,22 @@ namespace Versionr
             get
             {
                 return LocalData.StageOperations.Where(x => x.Type == StageOperationType.Merge).Select(x => new Guid(x.Operand1)).ToList();
+            }
+        }
+
+        public bool HasStagedModifications
+        {
+            get
+            {
+                foreach (var x in LocalData.StageOperations)
+                {
+                    if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove || x.Type == StageOperationType.Merge || x.Type == StageOperationType.Rename)
+                    {
+                        if (x.Type == StageOperationType.Merge || (!string.IsNullOrEmpty(x.Operand1) && !x.Operand1.EndsWith("/")))
+                            return true;
+                    }
+                }
+                return false;
             }
         }
 
