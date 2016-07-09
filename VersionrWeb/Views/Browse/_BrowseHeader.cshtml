@@ -7,7 +7,7 @@
 	<div class="ui container">
 		
 		<div class="ui secondary menu">
-			<!--{{template "repo/branch_dropdown" .}}-->
+			@Html.Partial("../_BranchSelect")
 			<div class="item fitted">
 				<div class="ui breadcrumb">
 					<a class="section" href="@ViewBag.BreadcrumbBasePath">@ViewBag.RepositoryName</a>

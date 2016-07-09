@@ -36,7 +36,7 @@ namespace VersionrWeb.Modules
 			ViewBag.BreadcrumbBasePath = string.Format("/src/{0}", branchOrVersion);
 			
 			// Decode version or lookup head of branch
-			var area = ModuleUtil.CreateArea();
+			var area = this.CreateArea();
 			Guid versionId = area.GetVersionId(branchOrVersion);
 			var version = area.GetVersion(versionId);
 			var records = area.GetRecords(version);

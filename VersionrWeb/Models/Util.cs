@@ -21,6 +21,12 @@ namespace VersionrWeb.Models
 			return new NonEncodedHtmlString(s);
 		}
 
+		public static bool IsVersionId(string version)
+		{
+			Guid guid;
+			return Guid.TryParse(version, out guid);
+		}
+
 		public static IHtmlString FormatSize(long size)
 		{
 			string s;

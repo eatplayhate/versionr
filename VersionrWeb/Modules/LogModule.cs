@@ -32,7 +32,8 @@ namespace VersionrWeb.Modules
 			ViewBag.BranchOrVersion = branchOrVersion;
 			ViewBag.Path = path;
 
-			Area area = ModuleUtil.CreateArea();
+			Area area = this.CreateArea();
+
 			Guid versionId = area.GetVersionId(branchOrVersion);
 			var version = area.GetVersion(versionId);
 			var history = area.GetHistory(version, CommitsPerPage);
