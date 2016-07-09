@@ -21,9 +21,9 @@ namespace VersionrWeb.Models
 		{
 			StringBuilder sb = new StringBuilder();
 
-			string suffix = (value > DateTime.Now) ? " from now" : " ago";
+			string suffix = (value > DateTime.UtcNow) ? " from now" : " ago";
 
-			TimeSpan timeSpan = new TimeSpan(Math.Abs(DateTime.Now.Subtract(value).Ticks));
+			TimeSpan timeSpan = new TimeSpan(Math.Abs(DateTime.UtcNow.Subtract(value).Ticks));
 
 			if (timeSpan.Days >= 365 && approximate)
 			{
