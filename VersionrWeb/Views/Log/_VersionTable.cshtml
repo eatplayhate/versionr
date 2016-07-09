@@ -1,6 +1,6 @@
-﻿<h4 class="ui top attached header">
+﻿@*<h4 class="ui top attached header">
 	@ViewBag.BranchOrVersion
-	@* {{if .PageIsCommits}}
+	{{if .PageIsCommits}}
 		<div class="ui right">
 			<form action="{{.RepoLink}}/commits/{{.BranchName}}/search">
 				<div class="ui tiny search input">
@@ -11,10 +11,10 @@
 		</div>
 	{{else if .IsDiffCompare}}
 		<a href="{{$.CommitRepoLink}}/commit/{{.BeforeCommitID}}" class="ui green sha label">{{ShortSha .BeforeCommitID}}</a> ... <a href="{{$.CommitRepoLink}}/commit/{{.AfterCommitID}}" class="ui green sha label">{{ShortSha .AfterCommitID}}</a>
-	{{end}} *@
-</h4>
+	{{end}} 
+</h4>*@
 
-<div class="ui attached table segment">
+<div class="ui table segment">
 	<table class="ui very basic striped fixed table single line" id="commits-table">
 		<tbody>
 			@foreach (var version in Model.Versions) {
