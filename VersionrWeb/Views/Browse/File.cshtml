@@ -1,14 +1,18 @@
 ﻿@Html.Partial("_BrowseHeader")
 
+@{
+	var RawLink = Util.CreateRawLink(ViewBag.BranchOrVersion, ViewBag.Path);
+}
+
 <div id="file-content">
 	<h4 class="ui top attached header" id="repo-read-file">
 		<i class="file text outline icon ui left"></i>
-		<strong>@Model.Name</strong> <span class="text grey normal">@Model.Size</span>
+		<strong>@Model.Name</strong> <span class="text grey normal">@Util.FormatSize(Model.Size)</span>
 		<div class="ui right">
 			<div class="ui small grey basic buttons">
-				<a class="ui button" href="{{.RepoLink}}/src/{{.CommitID}}/{{EscapePound .TreeName}}">Permalink</a>
-				<a class="ui button" href="{{.RepoLink}}/commits/{{EscapePound .BranchName}}/{{EscapePound .TreeName}}">History</a>
-				<a class="ui button" href="{{EscapePound .FileLink}}">Raw</a>
+				<a class="ui button" href="#">Blame</a>
+				<a class="ui button" href="#">History</a>
+				<a class="ui button" href="@RawLink">Raw</a>
 			</div>
 		</div>
 	</h4>
@@ -16,13 +20,13 @@
 		<div class="file-view code-view has-emoji">
 			@if (!Model.IsContentText) {
 				<div class="view-raw ui center">
-					{{if .IsImageFile}}
-						<img src="{{EscapePound .FileLink}}">
-					{{else if .IsPDFFile}}
-						<iframe width="100%" height="600px" src="/Public/plugins/pdfjs-1.4.20/web/viewer.html?file={{EscapePound .FileLink}}"></iframe>
-					{{else}}
-						<a href="{{EscapePound .FileLink}}" rel="nofollow" class="btn btn-gray btn-radius">View Raw</a>
-					{{end}}
+					@if (Model.IsContentImage) {
+						<img src="@RawLink">
+					} else if (Model.IsContentPDF) {
+						<iframe width="100%" height="600px" src="/Public/plugins/pdfjs-1.4.20/web/viewer.html?file=@RawLink"></iframe>
+					} else {
+						<a href="@RawLink" rel="nofollow" class="btn btn-gray btn-radius">View Raw</a>
+					}
 				</div>
 			} else if (Model.Size != 0) {
 				<table>

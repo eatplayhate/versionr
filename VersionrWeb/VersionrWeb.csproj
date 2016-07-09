@@ -69,6 +69,7 @@
     <Compile Include="Models\FileBrowseModel.cs" />
     <Compile Include="Models\Util.cs" />
     <Compile Include="Modules\BrowseModule.cs" />
+    <Compile Include="Modules\RawModule.cs" />
     <Compile Include="Modules\RootModule.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

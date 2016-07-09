@@ -10,9 +10,12 @@ namespace VersionrWeb.Models
 {
 	public class FileBrowseModel
 	{
+		public string RawLink;
+
 		public string Name;
 		public long Size;
 
+		public bool IsContentImage;
 		public bool IsContentText;
 		public string ContentText;
 
@@ -31,6 +34,7 @@ namespace VersionrWeb.Models
 				if (encoding == null)
 				{
 					IsContentText = false;
+					IsContentImage = GuessIsContentImage(record.CanonicalName);
 				}
 				else
 				{
@@ -38,7 +42,7 @@ namespace VersionrWeb.Models
 					byte[] bytes = new byte[stream.Length];
 					stream.Read(bytes, 0, bytes.Length);
 					ContentText = encoding.GetString(bytes);
-					HighlightClass = GuessHighlightClass(record.CanonicalName, ContentText);
+					HighlightClass = GuessHighlightClass(record.CanonicalName);
 				}
 			}
 		}
@@ -67,15 +71,63 @@ namespace VersionrWeb.Models
 			return Encoding.UTF8;
 		} 
 
-		private static string GuessHighlightClass(string filename, string text)
+		private static string GuessHighlightClass(string filename)
 		{
+			// Hint only; highlight.js will guess from content if we return nothing.
 			switch (Path.GetExtension(filename).ToLower())
 			{
-				case ".cs":	return "cs";
+				case ".cs":
+					return "cs";
+				case ".c":
+				case ".cpp":
+				case ".h":
+					return "cpp";
+				case ".m":
+				case ".mm":
+					return "objc";
+				case ".lua":
+					return "lua";
+				case ".java":
+					return "java";
+				case ".js":
+					return "js";
+				case ".css":
+					return "css";
+				case ".php":
+					return "php";
+				case ".diff":
+				case ".patch":
+					return "patch";
+				case ".cshtml":
+				case ".htm":
+				case ".html":
+				case ".xml":
+				case ".xaml":
+					return ".xml";
+				case ".md":
+					return "markdown";
+				case ".sh":
+					return "bash";
+				case ".py":
+					return "python";
+				case ".ps1":
+					return "powershell";
 				default: return "";
 			}
 		}
 
+		private static bool GuessIsContentImage(string filename)
+		{
+			switch (Path.GetExtension(filename).ToLower())
+			{
+				case ".png":
+				case ".jpg":
+				case ".jpeg":
+					return true;
+			}
+
+			return false;
+		}
 
 	}
 }

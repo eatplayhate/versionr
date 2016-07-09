@@ -21,5 +21,26 @@ namespace VersionrWeb.Models
 			return new NonEncodedHtmlString(s);
 		}
 
+		public static IHtmlString FormatSize(long size)
+		{
+			string s;
+			if (size < 1024)
+				s = string.Format("{0} bytes", size);
+			else if (size < 1024 * 1024)
+				s = string.Format("{0:N0} KB", size / 1024.0);
+			else if (size < 1024 * 1024 * 1024)
+				s = string.Format("{0:N0} MB", size / (1024.0 * 1024.0));
+			else if (size < 1024L * 1024 * 1024 * 1024)
+				s = string.Format("{0:N0} GB", size / (1024.0 * 1024.0 * 1024.0));
+			else
+				s = string.Format("{0:N2} TB", size / (1024.0 * 1024.0 * 1024.0 * 1024.0));
+			return new NonEncodedHtmlString(s);
+		}
+
+		public static IHtmlString CreateRawLink(string branchOrVersion, string path)
+		{
+			var s = string.Format("/raw/{0}/{1}", branchOrVersion, path);
+			return new NonEncodedHtmlString(s);
+		}
 	}
 }

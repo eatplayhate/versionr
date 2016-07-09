@@ -22,19 +22,21 @@ namespace VersionrWeb.Modules
 
 		private dynamic CreateView(string path, string branchOrVersion)
 		{
+			// Default branch
+			if (branchOrVersion == null)
+				branchOrVersion = "master";
+
 			// Set common view properties
 			ViewBag.RepositoryName = Path.GetFileName(Environment.CurrentDirectory);
+			ViewBag.BranchOrVersion = branchOrVersion;
+			ViewBag.Path = path;
 			ViewBag.ParentPath = path == "" ? null : string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
 			ViewBag.Breadcrumbs = path.Split('/');
 			ViewBag.BreadcrumbBasePath = string.Format("/src/{0}", branchOrVersion);
 
 			// Load area
 			var area = Versionr.Area.Load(new DirectoryInfo(Environment.CurrentDirectory), true);
-
-			// Default branch
-			if (branchOrVersion == null)
-				branchOrVersion = "master";
-
+			
 			// Decode version or lookup head of branch
 			Guid versionId;
 			if (!Guid.TryParse(branchOrVersion, out versionId))
