@@ -2,7 +2,7 @@
 
 <div class="repository file list">
 	
-	@Html.Partial("_RepoTabs", Model)
+	@Html.Partial("_RepoTabs")
 
 	<div class="ui container">
 		
@@ -10,15 +10,15 @@
 			<!--{{template "repo/branch_dropdown" .}}-->
 			<div class="item fitted">
 				<div class="ui breadcrumb">
-					<a class="section" href="@Model.BreadcrumbBasePath">@Model.RepositoryName</a>
+					<a class="section" href="@ViewBag.BreadcrumbBasePath">@ViewBag.RepositoryName</a>
 					@{
 						int i = 0;
-						string breadcrumbPath = Model.BreadcrumbBasePath;
+						string breadcrumbPath = ViewBag.BreadcrumbBasePath;
 					}
-					@foreach (var breadcrumb in Model.Breadcrumbs) {
+					@foreach (var breadcrumb in ViewBag.Breadcrumbs) {
 						@{ breadcrumbPath += "/" + breadcrumb; }
 						<div class="divider"> / </div>
-						@if (i == Model.Breadcrumbs.Length - 1) {
+						@if (i == ((string[])ViewBag.Breadcrumbs).Length - 1) {
 							<span class="active section">@breadcrumb</span>
 						}
 						else {

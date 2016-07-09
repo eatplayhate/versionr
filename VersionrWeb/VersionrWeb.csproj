@@ -64,8 +64,9 @@
   <ItemGroup>
     <Compile Include="Bootstrap\CustomBootstrapper.cs" />
     <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
-    <Compile Include="Models\BrowseModel.cs" />
+    <Compile Include="Models\DirectoryBrowseModel.cs" />
     <Compile Include="Models\DateTimeExtensions.cs" />
+    <Compile Include="Models\FileBrowseModel.cs" />
     <Compile Include="Models\Util.cs" />
     <Compile Include="Modules\BrowseModule.cs" />
     <Compile Include="Modules\RootModule.cs" />
@@ -109,6 +110,7 @@
     <None Include="Content\plugins\pdfjs-1.4.20\LICENSE" />
     <None Include="packages.config" />
     <None Include="Views\Browse\Directory.cshtml" />
+    <None Include="Views\Browse\File.cshtml" />
     <None Include="Views\Browse\_BrowseFooter.cshtml" />
     <None Include="Views\Browse\_BrowseHeader.cshtml" />
     <None Include="Views\_RepoTabs.cshtml" />

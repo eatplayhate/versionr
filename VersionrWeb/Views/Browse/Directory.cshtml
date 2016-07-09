@@ -1,10 +1,10 @@
-﻿@Html.Partial("_BrowseHeader", Model)
+﻿@Html.Partial("_BrowseHeader")
 
 <table id="repo-files-table" class="ui fixed single line table">
 	<tbody>
-		@if (Model.ParentPath != null) {
+		@if (ViewBag.ParentPath != null) {
 			<tr class="has-parent">
-				<td colspan="3"><i class="icon octicon octicon-mail-reply"></i><a href="@Model.ParentPath">..</a></td>
+				<td colspan="3"><i class="icon octicon octicon-mail-reply"></i><a href="@ViewBag.ParentPath">..</a></td>
 			</tr>
 		}
 		@foreach (var record in Model.Entries) {
