@@ -33,18 +33,10 @@ namespace VersionrWeb.Modules
 			ViewBag.ParentPath = path == "" ? null : string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
 			ViewBag.Breadcrumbs = path.Split('/');
 			ViewBag.BreadcrumbBasePath = string.Format("/src/{0}", branchOrVersion);
-
-			// Load area
-			var area = Versionr.Area.Load(new DirectoryInfo(Environment.CurrentDirectory), true);
 			
 			// Decode version or lookup head of branch
-			Guid versionId;
-			if (!Guid.TryParse(branchOrVersion, out versionId))
-			{
-				var branch = area.GetBranchByName(branchOrVersion).FirstOrDefault();
-				versionId = area.GetBranchHead(branch).Version;
-			}
-
+			var area = ModuleUtil.CreateArea();
+			Guid versionId = area.GetVersionId(branchOrVersion);
 			var version = area.GetVersion(versionId);
 			var records = area.GetRecords(version);
 

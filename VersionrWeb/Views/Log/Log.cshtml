@@ -1,0 +1,9 @@
+﻿@Html.Partial("../_Header")
+<div class="repository commits">
+	@Html.Partial("../_RepoTabs")
+	<div class="ui container">
+		@* @Html.Partial("../_BranchDropdown") *@
+		@Html.Partial("_VersionTable", Model)
+	</div>
+</div>
+@Html.Partial("../_Footer")

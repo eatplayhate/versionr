@@ -67,8 +67,12 @@
     <Compile Include="Models\DirectoryBrowseModel.cs" />
     <Compile Include="Models\DateTimeExtensions.cs" />
     <Compile Include="Models\FileBrowseModel.cs" />
+    <Compile Include="Models\LogModel.cs" />
     <Compile Include="Models\Util.cs" />
+    <Compile Include="Modules\AreaExtensions.cs" />
     <Compile Include="Modules\BrowseModule.cs" />
+    <Compile Include="Modules\LogModule.cs" />
+    <Compile Include="Modules\ModuleUtil.cs" />
     <Compile Include="Modules\RawModule.cs" />
     <Compile Include="Modules\RootModule.cs" />
     <Compile Include="Program.cs" />
@@ -114,6 +118,8 @@
     <None Include="Views\Browse\File.cshtml" />
     <None Include="Views\Browse\_BrowseFooter.cshtml" />
     <None Include="Views\Browse\_BrowseHeader.cshtml" />
+    <None Include="Views\Log\Log.cshtml" />
+    <None Include="Views\Log\_VersionTable.cshtml" />
     <None Include="Views\_RepoTabs.cshtml" />
     <None Include="Views\_Footer.cshtml" />
     <None Include="Views\_Header.cshtml" />

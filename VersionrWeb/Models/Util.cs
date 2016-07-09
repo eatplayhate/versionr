@@ -42,5 +42,34 @@ namespace VersionrWeb.Models
 			var s = string.Format("/raw/{0}/{1}", branchOrVersion, path);
 			return new NonEncodedHtmlString(s);
 		}
+
+		private static readonly Dictionary<string, string> EmailMapping = new Dictionary<string, string>()
+		{
+			{ "Lewis", "lstrudwick@ea.com" },
+			{ "Andrew", "acrawford@ea.com" },
+			{ "Alex", "alex.holkner@gmail.com" },
+		};
+
+		private static readonly string DefaultEmailDomain = "ea.com";
+
+		public static IHtmlString GravatarLink(string email)
+		{
+			// HAX: Map Versionr user names to email:
+			if (!email.Contains("@"))
+			{
+				string name = email;
+				if (!EmailMapping.TryGetValue(name, out email))
+					email = string.Format("{0}@{1}", name, DefaultEmailDomain);
+			}
+
+			email = email.Trim().ToLower();
+			var emailBytes = Encoding.UTF8.GetBytes(email);
+			var md5Bytes = System.Security.Cryptography.MD5.Create().ComputeHash(emailBytes);
+			var sb = new StringBuilder();
+			foreach (byte b in md5Bytes)
+				sb.Append(b.ToString("x2"));
+			var s = string.Format("//www.gravatar.com/avatar/{0}?d=identicon", sb.ToString());
+			return new NonEncodedHtmlString(s);
+		}
 	}
 }
