@@ -1,3 +1,9 @@
+@helper Active(string tab) {
+	if (tab == ViewBag.RepoTab) {
+		@:active
+	}
+}
+
 <div class="header-wrapper">
 	<div class="ui container"><!-- start container -->
 		<div class="ui vertically padded grid head"><!-- start grid -->
@@ -15,13 +21,13 @@
 	</div><!-- end container -->
 	<div class="ui tabs container">
 		<div class="ui tabular menu navbar">
-			<a class="active item" href="/src}">
+			<a class="item @Active("src")" href="/src">
 				<i class="icon octicon octicon-code"></i> Code
 			</a>
-			<a class="item" href="/log"> @* TODO add branch to href *@
+			<a class="item @Active("log")" href="/log"> @* TODO add branch to href *@
 				<i class="icon octicon octicon-history"></i> Commits <span class="ui blue small label">123 @* commit count *@</span>
 			</a>
-			<a class="item" href="/tags">
+			<a class="item @Active("tags")" href="/tags">
 				<i class="icon octicon octicon-tag"></i> Tags <span class="ui gray small label">0</span>
 			</a>
 		</div>
