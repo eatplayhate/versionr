@@ -8,26 +8,7 @@
 		
 		<div class="ui secondary menu">
 			@Html.Partial("../_BranchSelect")
-			<div class="item fitted">
-				<div class="ui breadcrumb">
-					<a class="section" href="@ViewBag.BreadcrumbBasePath">@ViewBag.RepositoryName</a>
-					@{
-						int i = 0;
-						string breadcrumbPath = ViewBag.BreadcrumbBasePath;
-					}
-					@foreach (var breadcrumb in ViewBag.Breadcrumbs) {
-						@{ breadcrumbPath += "/" + breadcrumb; }
-						<div class="divider"> / </div>
-						@if (i == ((string[])ViewBag.Breadcrumbs).Length - 1) {
-							<span class="active section">@breadcrumb</span>
-						}
-						else {
-							<span class="section"><a href="@breadcrumbPath">@breadcrumb</a></span>
-						}
-						@{i += 1;}
-					}
-				</div>
-			</div>
+			@Html.Partial("../_PathBreadcrumb")
 			@*
 			{{if eq $n 0}}
 				<div class="right fitted item">

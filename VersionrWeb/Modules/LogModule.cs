@@ -15,8 +15,8 @@ namespace VersionrWeb.Modules
 
 		public LogModule()
 		{
-			Get["/log"] = _ => { return CreateView(null, null); };
-			Get["/log/{version}"] = ctx => { return CreateView(ctx.version, null); };
+			Get["/log"] = _ => { return CreateView(null, ""); };
+			Get["/log/{version}"] = ctx => { return CreateView(ctx.version, ""); };
 			Get["/log/{version}/{path*}"] = ctx => { return CreateView(ctx.version, ctx.path); };
 		}
 

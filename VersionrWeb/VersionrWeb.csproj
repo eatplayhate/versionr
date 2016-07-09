@@ -121,6 +121,7 @@
     <None Include="Views\Log\Log.cshtml" />
     <None Include="Views\Log\_VersionTable.cshtml" />
     <None Include="Views\_BranchSelect.cshtml" />
+    <None Include="Views\_PathBreadcrumb.cshtml" />
     <None Include="Views\_RepoTabs.cshtml" />
     <None Include="Views\_Footer.cshtml" />
     <None Include="Views\_Header.cshtml" />

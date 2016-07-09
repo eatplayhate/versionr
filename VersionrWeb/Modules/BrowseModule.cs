@@ -15,12 +15,12 @@ namespace VersionrWeb.Modules
 	{
 		public BrowseModule()
 		{
-			Get["/src"] = _ => { return CreateView("", null); };
-			Get["/src/{version}"] = ctx => { return CreateView("", ctx.version); };
-			Get["/src/{version}/{path*}"] = ctx => { return CreateView(ctx.path, ctx.version); };
+			Get["/src"] = _ => { return CreateView(null, ""); };
+			Get["/src/{version}"] = ctx => { return CreateView(ctx.version, ""); };
+			Get["/src/{version}/{path*}"] = ctx => { return CreateView(ctx.version, ctx.path); };
 		}
 
-		private dynamic CreateView(string path, string branchOrVersion)
+		private dynamic CreateView(string branchOrVersion, string path)
 		{
 			// Default branch
 			if (branchOrVersion == null)
@@ -32,8 +32,6 @@ namespace VersionrWeb.Modules
 			ViewBag.BranchOrVersion = branchOrVersion;
 			ViewBag.Path = path;
 			ViewBag.ParentPath = path == "" ? null : string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
-			ViewBag.Breadcrumbs = path.Split('/');
-			ViewBag.BreadcrumbBasePath = string.Format("/src/{0}", branchOrVersion);
 			
 			// Decode version or lookup head of branch
 			var area = this.CreateArea();

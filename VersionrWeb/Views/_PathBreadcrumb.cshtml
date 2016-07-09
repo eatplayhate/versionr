@@ -1,0 +1,22 @@
+﻿<div class="item fitted">
+	<div class="ui breadcrumb">
+		<a class="section" href="/@ViewBag.RepoTab/@ViewBag.BranchOrVersion">@ViewBag.RepositoryName</a>
+		@{
+			int i = 0;
+			string path = ViewBag.Path;
+			var breadcrumbs = path.Split('/');
+			var breadcrumbPath = "";
+		}
+		@foreach (var breadcrumb in breadcrumbs) {
+			@{ breadcrumbPath += "/" + breadcrumb; }
+			<div class="divider"> / </div>
+			@if (i == breadcrumbs.Length - 1) {
+				<span class="active section">@breadcrumb</span>
+			}
+			else {
+				<span class="section"><a href="/@ViewBag.RepoTab/@ViewBag.BranchOrVersion@breadcrumbPath">@breadcrumb</a></span>
+			}
+			@{i += 1;}
+		}
+	</div>
+</div>
