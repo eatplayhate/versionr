@@ -34,26 +34,52 @@
 	</table>
 </div>
 
-@*
-{{with .Page}}
-	{{if gt .TotalPages 1}}
-		<div class="center page buttons">
-			<div class="ui borderless pagination menu">
-				<a class="{{if not .HasPrevious}}disabled{{end}} item" {{if .HasPrevious}}href="{{$.RepoLink}}/commits/{{$.BranchName}}{{if $.FileName}}/{{$.FileName}}{{end}}?page={{.Previous}}"{{end}}>
-					<i class="left arrow icon"></i> {{$.i18n.Tr "repo.issues.previous"}}
-				</a>
-				{{range .Pages}}
-					{{if eq .Num -1}}
-						<a class="disabled item">...</a>
-					{{else}}
-						<a class="{{if .IsCurrent}}active{{end}} item" {{if not .IsCurrent}}href="{{$.RepoLink}}/commits/{{$.BranchName}}{{if $.FileName}}/{{$.FileName}}{{end}}?page={{.Num}}"{{end}}>{{.Num}}</a>
-					{{end}}
-				{{end}}
-				<a class="{{if not .HasNext}}disabled{{end}} item" {{if .HasNext}}href="{{$.RepoLink}}/commits/{{$.BranchName}}{{if $.FileName}}/{{$.FileName}}{{end}}?page={{.Next}}"{{end}}>
-					{{$.i18n.Tr "repo.issues.next"}} <i class="icon right arrow"></i>
-				</a>
-			</div>
+	
+@helper PageHref(int page) {
+	@string.Format("/{0}/{1}/{2}?page={3}", 
+		ViewBag.RepoTab,
+		ViewBag.BranchOrVersion,
+		ViewBag.Path,
+		page);
+}
+
+@if (Model.PageNumber == 1 && Model.PageCount > 1) {
+	@* Show "More..." button since PageCount may not be accurate
+	   from first page *@
+	<div class="center page buttons">
+		<div class="ui borderless pagination menu">
+			<a class="item" href="@PageHref(2)">More...</a>
 		</div>
-	{{end}}
-{{end}}
-*@
+	</div>
+
+} else if (Model.PageCount > 1) {
+
+	<div class="center page buttons">
+		<div class="ui borderless pagination menu">
+			@* Prev *@
+			<a class="item" href="@PageHref(Model.PageNumber - 1)">
+				<i class="left arrow icon"></i> Previous
+			</a>
+
+			@* Numbers *@
+			@for (int i = 1; i <= Model.PageCount; ++i) {
+				@if (i == Model.PageNumber) {
+					<a class="active item">@i</a>
+				} else {
+					<a class="item" href="@PageHref(i)">@i</a>
+				}
+			}
+
+			@* Next *@
+			@if (Model.PageNumber == Model.PageCount) {
+				<a class="item active">
+					Next <i class="icon right arrow"></i>
+				</a>
+			} else {
+				<a class="item" href="@PageHref(Model.PageNumber + 1)">
+					Next <i class="icon right arrow"></i>
+				</a>
+			}
+		</div>
+	</div>
+}
