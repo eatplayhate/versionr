@@ -58,6 +58,12 @@ namespace VersionrWeb.Modules
 			}
 
 			// Not found as file, must be a directory
+			record = records.Where(x => x.CanonicalName == path + "/").FirstOrDefault();
+			if (record == null)
+			{
+				return HttpStatusCode.NotFound;
+			}
+
 			return CreateDirectoryView(area, version, branchOrVersion, records, path);
 		}
 
