@@ -24,7 +24,7 @@ namespace VersionrWeb.Modules
 			ViewBag.BranchOrVersion = versionId.ToString("D");
 			ViewBag.Path = "";
 
-			return View["Log/Version", new Models.VersionModel(version)];
+			return View["Log/Version", new Models.VersionModel(area, version)];
 		}
 	}
 }

@@ -64,6 +64,7 @@
   <ItemGroup>
     <Compile Include="Bootstrap\CustomBootstrapper.cs" />
     <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
+    <Compile Include="Bootstrap\RazorConfig.cs" />
     <Compile Include="Models\DirectoryBrowseModel.cs" />
     <Compile Include="Models\DateTimeExtensions.cs" />
     <Compile Include="Models\FileBrowseModel.cs" />
@@ -122,6 +123,7 @@
     <None Include="Views\Browse\_BrowseHeader.cshtml" />
     <None Include="Views\Log\Log.cshtml" />
     <None Include="Views\Log\Version.cshtml" />
+    <None Include="Views\Log\_AlterationTable.cshtml" />
     <None Include="Views\Log\_VersionTable.cshtml" />
     <None Include="Views\_BranchSelect.cshtml" />
     <None Include="Views\_PathBreadcrumb.cshtml" />

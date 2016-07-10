@@ -7,6 +7,7 @@
 
 <div class="repository diff">
 	@Html.Partial("../_RepoTabs")
+
 	<div class="ui container"> @*{{if .IsSplitStyle}}fluid padded{{end}}*@
 		<div class="ui top attached info clearing segment">
 			<a class="ui floated right blue tiny button" href="@Util.CreateSourceLink(versionId, "")">
@@ -34,7 +35,7 @@
 			</div>
 		</div>
 
-		@*{{template "repo/diff_box" .}} *@
+		@Html.Partial("Log/_AlterationTable", Model)
 	</div>
 </div>
 @Html.Partial("../_Footer")

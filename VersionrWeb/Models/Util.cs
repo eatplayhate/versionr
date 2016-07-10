@@ -43,33 +43,47 @@ namespace VersionrWeb.Models
 			return new NonEncodedHtmlString(s);
 		}
 
-		public static IHtmlString CreateSourceLink(string branchOrVersion, string path)
+		public static IHtmlString CreateSourceLink(dynamic branchOrVersion, string path)
 		{
 			var s = string.Format("/src/{0}/{1}", branchOrVersion, path);
 			return new NonEncodedHtmlString(s);
 		}
-
-		public static IHtmlString CreateSourceLink(Guid versionId, string path)
-		{
-			var s = string.Format("/src/{0}/{1}", versionId.ToString("D"), path);
-			return new NonEncodedHtmlString(s);
-		}
-
-		public static IHtmlString CreateRawLink(string branchOrVersion, string path)
+		
+		public static IHtmlString CreateRawLink(dynamic branchOrVersion, string path)
 		{
 			var s = string.Format("/raw/{0}/{1}", branchOrVersion, path);
-			return new NonEncodedHtmlString(s);
-		}
-
-		public static IHtmlString CreateRawLink(Guid versionId, string path)
-		{
-			var s = string.Format("/raw/{0}/{1}", versionId.ToString("D"), path);
 			return new NonEncodedHtmlString(s);
 		}
 
 		public static IHtmlString CreateVersionLink(Guid versionId)
 		{
 			var s = string.Format("/version/{0}", versionId.ToString("D"));
+			return new NonEncodedHtmlString(s);
+		}
+
+		public static IHtmlString AlterationColor(Versionr.Objects.AlterationType type)
+		{
+			string s;
+			switch (type)
+			{
+				case Versionr.Objects.AlterationType.Add:
+					s = "green";
+					break;
+				case Versionr.Objects.AlterationType.Copy:
+					s = "green";
+					break;
+				case Versionr.Objects.AlterationType.Delete:
+					s = "red";
+					break;
+				case Versionr.Objects.AlterationType.Move:
+					s = "blue";
+					break;
+				case Versionr.Objects.AlterationType.Update:
+					s = "purple";
+					break;
+				default:
+					throw new NotImplementedException();
+			}
 			return new NonEncodedHtmlString(s);
 		}
 
