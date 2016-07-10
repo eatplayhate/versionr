@@ -43,9 +43,33 @@ namespace VersionrWeb.Models
 			return new NonEncodedHtmlString(s);
 		}
 
+		public static IHtmlString CreateSourceLink(string branchOrVersion, string path)
+		{
+			var s = string.Format("/src/{0}/{1}", branchOrVersion, path);
+			return new NonEncodedHtmlString(s);
+		}
+
+		public static IHtmlString CreateSourceLink(Guid versionId, string path)
+		{
+			var s = string.Format("/src/{0}/{1}", versionId.ToString("D"), path);
+			return new NonEncodedHtmlString(s);
+		}
+
 		public static IHtmlString CreateRawLink(string branchOrVersion, string path)
 		{
 			var s = string.Format("/raw/{0}/{1}", branchOrVersion, path);
+			return new NonEncodedHtmlString(s);
+		}
+
+		public static IHtmlString CreateRawLink(Guid versionId, string path)
+		{
+			var s = string.Format("/raw/{0}/{1}", versionId.ToString("D"), path);
+			return new NonEncodedHtmlString(s);
+		}
+
+		public static IHtmlString CreateVersionLink(Guid versionId)
+		{
+			var s = string.Format("/version/{0}", versionId.ToString("D"));
 			return new NonEncodedHtmlString(s);
 		}
 

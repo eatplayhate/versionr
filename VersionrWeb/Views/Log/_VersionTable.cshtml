@@ -24,8 +24,12 @@
 					</td>
 
 					<td class="nine wide message collapsing has-emoji">
-						<a rel="nofollow" class="ui sha label" href="{{AppSubUrl}}/{{$.Username}}/{{$.Reponame}}/commit/{{.ID}}">@Util.ShortGuid(version.ID)</a>
-						<span {{if gt .ParentCount 1}}class="grey text"{{end}}>@version.Message</span>
+						<a rel="nofollow" class="ui sha label" href="@Util.CreateVersionLink(version.ID)">@Util.ShortGuid(version.ID)</a>
+						@if (false) @* merge *@ {
+							<span class="grey text">@version.Message</span>
+						} else {
+							<span>@version.Message</span>
+						}
 					</td>
 					<td class="three wide right aligned grey text">@Util.ApproxRelativeTime(version.Timestamp)</td>
 				</tr>

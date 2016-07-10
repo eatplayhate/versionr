@@ -1,0 +1,40 @@
+﻿@Html.Partial("../_Header")
+
+@{
+	var version = Model.Version;
+	string versionId = version.ID.ToString("D");
+}
+
+<div class="repository diff">
+	@Html.Partial("../_RepoTabs")
+	<div class="ui container"> @*{{if .IsSplitStyle}}fluid padded{{end}}*@
+		<div class="ui top attached info clearing segment">
+			<a class="ui floated right blue tiny button" href="@Util.CreateSourceLink(versionId, "")">
+				Browse Source
+			</a>
+			@version.Message
+		</div>
+		<div class="ui attached info segment">
+			<img class="ui avatar image" src="@Util.GravatarLink(version.Author)" alt=""/>&nbsp;&nbsp;@version.Author
+			<span class="text grey" id="authored-time">@Util.ApproxRelativeTime(version.Timestamp)</span>
+			<div class="ui right">
+				<div class="ui horizontal list">
+					@if (version.Parent != null) {
+						<div class="item">
+							Parent
+						</div>
+						<div class="item">
+							<a class="ui blue sha label" href="@Util.CreateVersionLink(version.Parent)">@Util.ShortGuid(version.Parent)</a>
+						</div>
+						@* TODO merge parents *@
+					}
+					<div class="item">Version</div>
+					<div class="item"><span class="ui blue sha label">@Util.ShortGuid(version.ID)</span></div>
+				</div>
+			</div>
+		</div>
+
+		@*{{template "repo/diff_box" .}} *@
+	</div>
+</div>
+@Html.Partial("../_Footer")

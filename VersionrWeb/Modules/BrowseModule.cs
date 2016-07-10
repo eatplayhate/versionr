@@ -28,7 +28,6 @@ namespace VersionrWeb.Modules
 
 			// Set common view properties
 			ViewBag.RepoTab = "src";
-			ViewBag.RepositoryName = Path.GetFileName(Environment.CurrentDirectory);
 			ViewBag.BranchOrVersion = branchOrVersion;
 			ViewBag.Path = path;
 			ViewBag.ParentPath = path == "" ? null : string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));

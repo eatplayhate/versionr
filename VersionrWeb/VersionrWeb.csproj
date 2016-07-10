@@ -69,12 +69,14 @@
     <Compile Include="Models\FileBrowseModel.cs" />
     <Compile Include="Models\LogModel.cs" />
     <Compile Include="Models\Util.cs" />
+    <Compile Include="Models\VersionModel.cs" />
     <Compile Include="Modules\AreaExtensions.cs" />
     <Compile Include="Modules\BrowseModule.cs" />
     <Compile Include="Modules\LogModule.cs" />
     <Compile Include="Modules\ModuleExtensions.cs" />
     <Compile Include="Modules\RawModule.cs" />
     <Compile Include="Modules\RootModule.cs" />
+    <Compile Include="Modules\VersionModule.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -119,6 +121,7 @@
     <None Include="Views\Browse\_BrowseFooter.cshtml" />
     <None Include="Views\Browse\_BrowseHeader.cshtml" />
     <None Include="Views\Log\Log.cshtml" />
+    <None Include="Views\Log\Version.cshtml" />
     <None Include="Views\Log\_VersionTable.cshtml" />
     <None Include="Views\_BranchSelect.cshtml" />
     <None Include="Views\_PathBreadcrumb.cshtml" />

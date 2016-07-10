@@ -29,7 +29,6 @@ namespace VersionrWeb.Modules
 
 			// Set common view properties
 			ViewBag.RepoTab = "log";
-			ViewBag.RepositoryName = Path.GetFileName(Environment.CurrentDirectory);
 			ViewBag.BranchOrVersion = branchOrVersion;
 			ViewBag.Path = path;
 			

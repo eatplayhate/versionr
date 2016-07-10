@@ -18,7 +18,7 @@ namespace VersionrWeb.Modules
 		private dynamic CreateView(string path, string branchOrVersion)
 		{
 			// Load area
-			var area = Versionr.Area.Load(new DirectoryInfo(Environment.CurrentDirectory), true);
+			var area = this.CreateArea();
 
 			// Decode version or lookup head of branch
 			Guid versionId;
