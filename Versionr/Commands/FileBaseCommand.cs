@@ -63,6 +63,15 @@ namespace Versionr.Commands
             FileBaseCommandVerbOptions localOptions = options as FileBaseCommandVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
 
+            if (localOptions.Objects != null)
+            {
+                if (SupportsTags)
+                {
+                    TagList = localOptions.Objects.Where(x => x.StartsWith("#")).Select(x => x.Substring(1)).ToList();
+                    localOptions.Objects = localOptions.Objects.Where(x => !x.StartsWith("#")).ToList();
+                }
+            }
+
 			FilterOptions = localOptions;
 			Start();
 
@@ -167,8 +176,9 @@ namespace Versionr.Commands
         protected abstract bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options);
 
         protected virtual bool RequiresTargets { get { return !OnNoTargetsAssumeAll; } }
-
-		protected FileBaseCommandVerbOptions FilterOptions { get; set; }
+        protected virtual bool SupportsTags { get { return false; } }
+        protected List<string> TagList { get; set; } = new List<string>();
+        protected FileBaseCommandVerbOptions FilterOptions { get; set; }
 
 		protected virtual IEnumerable<KeyValuePair<bool, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)
 		{

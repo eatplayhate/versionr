@@ -90,7 +90,7 @@ namespace VersionrUI.ViewModels
                 // Displaying modifications
                 string tmpPrior = DiffTool.GetTempFilename();
                 string tmpNew = DiffTool.GetTempFilename();
-                _area.GetMissingRecords(new Record[] { _priorRecord, _newRecord });
+                _area.GetMissingObjects(new Record[] { _priorRecord, _newRecord }, null);
                 _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
                 _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
                 LimitedTaskDispatcher.Factory.StartNew(() =>
@@ -119,7 +119,7 @@ namespace VersionrUI.ViewModels
             else
             {
                 string tmpNew = DiffTool.GetTempFilename();
-                _area.GetMissingRecords(new Record[] { _newRecord });
+                _area.GetMissingObjects(new Record[] { _newRecord }, null);
                 _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
                 LimitedTaskDispatcher.Factory.StartNew(() =>
                 {
@@ -145,7 +145,7 @@ namespace VersionrUI.ViewModels
             dialog.CheckPathExists = true;
             if (dialog.ShowDialog() == true)
             {
-                _area.GetMissingRecords(new Record[] { rec });
+                _area.GetMissingObjects(new Record[] { rec }, null);
                 _area.RestoreRecord(rec, DateTime.UtcNow, dialog.FileName);
             }
         }
@@ -181,7 +181,7 @@ namespace VersionrUI.ViewModels
                             // Displaying modifications
                             string tmpPrior = DiffTool.GetTempFilename();
                             string tmpNew = DiffTool.GetTempFilename();
-                            _area.GetMissingRecords(new Record[] { _priorRecord, _newRecord });
+                            _area.GetMissingObjects(new Record[] { _priorRecord, _newRecord }, null);
                             _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
                             _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
 

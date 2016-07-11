@@ -10,6 +10,7 @@ namespace Versionr.LocalState
     {
         [SQLite.PrimaryKey]
         public Guid ID { get; set; }
+        public Guid JournalID { get; set; }
         public Guid Branch { get; set; }
         public Guid Tip { get; set; }
         public Guid Domain { get; set; }
@@ -18,13 +19,21 @@ namespace Versionr.LocalState
         public string PartialPath { get; set; }
         public string StashCode { get; set; }
         public int StashIndex { get; set; }
+        public string LocalWorkspacePath { get; set; }
+        public string ComputerName { get; set; }
 
         public static Workspace Create()
         {
             Workspace ws = new Workspace();
             ws.ID = Guid.NewGuid();
-            ws.GenerateStashCode();
+            ws.MakeUnique();
             return ws;
+        }
+
+        public void MakeUnique()
+        {
+            JournalID = Guid.NewGuid();
+            GenerateStashCode();
         }
 
         public void GenerateStashCode()

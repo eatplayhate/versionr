@@ -226,7 +226,11 @@ namespace Versionr.Commands
 				string mergemarker = " ";
 				if (Workspace.GetMergeInfo(v.ID).FirstOrDefault() != null)
 					mergemarker = "#s#M##";
-				Printer.PrintMessage("{6}#c#{0}:##{7}({4}/{8}{5}##) {1} #q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker, isHead ? "#i#" : "#b#");
+                var tagList = Workspace.GetTagsForVersion(v.ID);
+                string tags = "";
+                if (tagList.Count > 0)
+                    tags = "#s#" + string.Join(" ", tagList.Select(x => "\\#" + x).ToArray()) + "## ";
+				Printer.PrintMessage("{6}#c#{0}:##{7}({4}/{8}{5}##) {1} {9}#q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker, isHead ? "#i#" : "#b#", tags);
                 Printer.Prefix = "";
 
             }
@@ -270,9 +274,13 @@ namespace Versionr.Commands
 				if (branch.Terminus == v.ID)
 					Printer.PrintMessage(" ++ #i#Terminus## of #e#deleted branch## #b#{0}## (#b#\"{1}\"##)", branch.ID, branch.Name);
 
-				Printer.PrintMessage("#b#Author:## {0} #q# {1} ##\n", v.Author, v.Timestamp.ToLocalTime());
+				Printer.PrintMessage("#b#Author:## {0} #q# {1} ##", v.Author, v.Timestamp.ToLocalTime());
+                var tagList = Workspace.GetTagsForVersion(v.ID);
+                if (tagList.Count > 0)
+                    Printer.PrintMessage(" #s#" + string.Join(" ", tagList.Select(x => "\\#" + x).ToArray()) + "##");
+                Printer.PrintMessage("");
 				Printer.PushIndent();
-				Printer.PrintMessage("{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
+                Printer.PrintMessage("{0}", string.IsNullOrWhiteSpace(v.Message) ? "<none>" : Printer.Escape(v.Message));
 				Printer.PopIndent();
 
 				if (localOptions.Detail == LogVerbOptions.DetailMode.Detailed || localOptions.Detail == LogVerbOptions.DetailMode.Full)
@@ -501,7 +509,7 @@ namespace Versionr.Commands
                     foreach (var x in targetHeadObjects)
                     {
                         var v = Workspace.GetVersion(x.Version);
-                        Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp, v.Author);
+                        Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp.ToLocalTime(), v.Author);
                     }
                 }
             }

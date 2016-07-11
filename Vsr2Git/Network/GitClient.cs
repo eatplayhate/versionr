@@ -21,6 +21,14 @@ namespace Vsr2Git.Network
 
 		private Vsr2GitDirectives m_Directives;
 		private Dictionary<Guid, string> m_VersionrToGitMapping = new Dictionary<Guid, string>();
+
+        public bool Connected
+        {
+            get
+            {
+                return m_GitRepository != null;
+            }
+        }
 		
 		public GitClient(Area workspace, Repository repository, string url)
 		{
@@ -71,7 +79,7 @@ namespace Vsr2Git.Network
 			m_GitRepository.Dispose();
 		}
 
-		public List<string> GetRecordData(List<Versionr.Objects.Record> missingRecords)
+		public List<string> GetMissingData(List<Versionr.Objects.Record> missingRecords, List<string> missingData)
 		{
 			throw new NotSupportedException();
 		}
@@ -87,6 +95,11 @@ namespace Vsr2Git.Network
 		}
 
 		public bool PullStash(string x)
+		{
+			throw new NotSupportedException();
+		}
+		
+		public bool PushRecords()
 		{
 			throw new NotSupportedException();
 		}
@@ -402,7 +415,7 @@ namespace Vsr2Git.Network
 
 			// Download missing records
 			Printer.PrintMessage("Downloading data for {0} records ({1} total)", missingRecords.Count, Versionr.Utilities.Misc.FormatSizeFriendly(missingRecords.Sum(x => x.Size)));
-			m_VsrArea.GetMissingRecords(missingRecords);
+			m_VsrArea.GetMissingObjects(missingRecords, null);
 
 			// Perform replication
 			foreach (var vsrVersion in versionsToReplicate)

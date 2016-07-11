@@ -74,6 +74,11 @@ namespace Versionr.Commands
                     return false;
                 }
             }
+            if (Workspace.HasStagedModifications)
+            {
+                if (Printer.Prompt("#w#Warning:## You have staged changes, are you sure?") == false)
+                    return false;
+            }
             if (localOptions.Partial != null)
                 Workspace.SetPartialPath(localOptions.Partial);
             Workspace.Checkout(target, localOptions.Purge, false, localOptions.Metadata);

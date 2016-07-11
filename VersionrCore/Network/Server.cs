@@ -302,7 +302,7 @@ namespace Versionr.Network
                     }
                     if (valid)
                     {
-                        if (ws == null)
+                        if (!domainInfo.Bare && ws == null)
                             throw new Exception("No workspace at server path!");
                         sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
@@ -343,6 +343,7 @@ namespace Versionr.Network
                         while (true)
                         {
                             NetCommand command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                            //Printer.PrintDiagnostics("Command: {0}", command.Type);
                             if (command.Type == NetCommandType.Close)
                             {
                                 Printer.PrintDiagnostics("Client closing connection.");
@@ -379,6 +380,11 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
                                     SharedNetwork.ReceiveStashData(sharedInfo, command.Identifier);
                                 }
+                            }
+                            else if (command.Type == NetCommandType.QueryJournal)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                SharedNetwork.ProcessJournalQuery(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
@@ -579,10 +585,17 @@ namespace Versionr.Network
                                     }, false);
                                 }
                             }
+                            else if (command.Type == NetCommandType.PushRecords)
+                            {
+                                SharedNetwork.RequestRecordDataUnmapped(sharedInfo, ws.GetAllMissingRecords().Select(x => x.DataIdentifier).ToList());
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
+                            }
                             else if (command.Type == NetCommandType.SynchronizeRecords)
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))
                                     throw new Exception("Access denied.");
+                                Printer.PrintDiagnostics("Requesting journal data...");
+                                SharedNetwork.PullJournalData(sharedInfo);
                                 Printer.PrintDiagnostics("Received {0} versions in version pack, but need {1} records to commit data.", sharedInfo.PushedVersions.Count, sharedInfo.UnknownRecords.Count);
                                 Printer.PrintDiagnostics("Beginning record synchronization...");
                                 if (sharedInfo.UnknownRecords.Count > 0)
@@ -590,7 +603,8 @@ namespace Versionr.Network
                                     Printer.PrintDiagnostics("Requesting record metadata...");
                                     SharedNetwork.RequestRecordMetadata(clientInfo.SharedInfo);
                                     Printer.PrintDiagnostics("Requesting record data...");
-                                    SharedNetwork.RequestRecordData(sharedInfo);
+                                    if (!SharedNetwork.RequestRecordData(sharedInfo))
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "Record data was not sent!" }, ProtoBuf.PrefixStyle.Fixed32);
                                     if (!sharedInfo.Workspace.RunLocked(() =>
                                     {
                                         return SharedNetwork.ImportRecords(sharedInfo);
@@ -737,6 +751,7 @@ namespace Versionr.Network
                                         clientInfo.Locks.Add(l);
                                     }
                                 }
+                                Printer.PrintDiagnostics("Client sent {0} tokens.");
                             }
                             else if (command.Type == NetCommandType.ListOrBreakLocks || command.Type == NetCommandType.RequestLock)
                             {

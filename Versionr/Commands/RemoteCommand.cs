@@ -79,7 +79,7 @@ namespace Versionr.Commands
 				client = ws.Connect(config.URL, RequiresWriteAccess);
 			}
 			
-            if (client == null)
+            if (client == null || !client.Connected)
             {
                 Printer.PrintError("Couldn't connect to server:## #b#{0}##", config.URL);
                 return false;

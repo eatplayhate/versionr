@@ -42,7 +42,10 @@ namespace Versionr.Network
         PathLocked,
         ReleaseLocks,
         ListOrBreakLocks,
-        ListStashes
+        ListStashes,
+        QueryJournal,
+        JournalUpdateComplete,
+        PushRecords
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

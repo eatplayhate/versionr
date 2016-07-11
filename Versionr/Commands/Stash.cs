@@ -38,8 +38,8 @@ namespace Versionr.Commands
         [Option('r', "revert", DefaultValue = true, HelpText = "Reverts file changes once they are stashed away.")]
         public bool Revert { get; set; }
 
-        [ValueOption(0)]
-        public string Name { get; set; }
+        [ValueList(typeof(List<string>))]
+        public List<string> Name { get; set; }
 
         public override BaseCommand GetCommand()
         {
@@ -55,7 +55,7 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
-            ws.Stash(localOptions.Name, localOptions.Revert, Unrecord.UnrecordFeedback);
+            ws.Stash(localOptions.Name != null ? string.Join(" ", localOptions.Name.ToArray()) : null, localOptions.Revert, Unrecord.UnrecordFeedback);
             if (localOptions.Revert)
             {
                 if (ws.HasPendingMerge)

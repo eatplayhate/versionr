@@ -44,6 +44,21 @@ namespace Versionr.Network
             }
         }
 
+        public bool PushRecords()
+        {
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushRecords }, ProtoBuf.PrefixStyle.Fixed32);
+            while (true)
+            {
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type == NetCommandType.Synchronized)
+                    return true;
+                else if (queryResult.Type == NetCommandType.RequestRecordUnmapped)
+                    SharedNetwork.SendRecordDataUnmapped(SharedInfo);
+                else
+                    throw new Exception();
+            }
+        }
+
         public bool PushStash(Area.StashInfo stash)
         {
             if (Workspace == null)
@@ -356,7 +371,7 @@ namespace Versionr.Network
 		private bool SyncRecords(List<Record> records)
 		{
 			Printer.PrintMessage("Vault is missing data for {0} records.", records.Count);
-			List<string> returnedData = GetRecordData(records);
+			List<string> returnedData = GetMissingData(records, null);
 			Printer.PrintMessage(" - Got {0} records from remote.", records.Count);
 			if (returnedData.Count != records.Count)
 				return false;
@@ -538,6 +553,8 @@ namespace Versionr.Network
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
                 if (!SharedNetwork.SendBranchJournal(SharedInfo))
+                    return false;
+                if (!SharedNetwork.PullJournalData(SharedInfo))
                     return false;
                 Objects.Version version = Workspace.Version;
                 if (branchName != null)
@@ -786,6 +803,7 @@ namespace Versionr.Network
                             break;
                         }
                     }
+                    SharedNetwork.PullJournalData(SharedInfo);
                 }
                 return true;
             }
@@ -1290,9 +1308,14 @@ namespace Versionr.Network
             return new string(pwd.ToArray());
         }
 
-        public List<string> GetRecordData(List<Record> missingRecords)
+        public List<string> GetMissingData(List<Record> missingRecords, List<string> missingData)
         {
-            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords.Select(x => x.DataIdentifier).ToList());
+            IEnumerable<string> missingDataList = new string[0];
+            if (missingRecords != null)
+                missingDataList = missingDataList.Concat(missingRecords.Select(x => x.DataIdentifier));
+            if (missingData != null)
+                missingDataList = missingDataList.Concat(missingData);
+            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingDataList.ToList());
         }
     }
 

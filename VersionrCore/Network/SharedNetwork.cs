@@ -18,7 +18,8 @@ namespace Versionr.Network
             Versionr3,
             Versionr31,
             Versionr32,
-            Versionr33
+            Versionr33,
+            Versionr34
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -26,7 +27,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -395,6 +396,127 @@ namespace Versionr.Network
             }
         }
 
+        public static bool PullJournalData(SharedNetworkInfo info)
+        {
+            try
+            {
+                if (info.CommunicationProtocol < Protocol.Versionr34)
+                    return true;
+                Printer.PrintDiagnostics("Sending remote vault local tag information.");
+                var journalTips = info.Workspace.GetJournalTips();
+
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.QueryJournal }, ProtoBuf.PrefixStyle.Fixed32);
+                Utilities.SendEncrypted(info, new JournalTips() { Tips = journalTips, LocalJournal = info.Workspace.LocalJournalID });
+
+                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                if (response.Type == NetCommandType.Acknowledge)
+                {
+                    JournalResults results = Utilities.ReceiveEncrypted<JournalResults>(info);
+                    if (results.Tags == null)
+                        results.Tags = new List<TagJournal>();
+                    if (results.Annotations == null)
+                        results.Annotations = new List<AnnotationJournal>();
+                    if (info.Client)
+                        Printer.PrintMessage("Received {0} tag updates and {1} annotation updates.", results.Tags.Count, results.Annotations.Count);
+                    if (results.Tags.Count + results.Annotations.Count > 0)
+                    {
+                        List<string> missingAnnotationData;
+                        try
+                        {
+                            info.Workspace.BeginDatabaseTransaction();
+                            info.Workspace.ReplayTags(results.Tags);
+                            info.Workspace.ReplayAnnotations(results.Annotations, results.AnnotationData, out missingAnnotationData);
+                            info.Workspace.CommitDatabaseTransaction();
+                        }
+                        catch
+                        {
+                            info.Workspace.RollbackDatabaseTransaction();
+                            throw;
+                        }
+                        if (missingAnnotationData.Count != 0)
+                            RequestRecordDataUnmapped(info, missingAnnotationData);
+                    }
+                }
+                else
+                    throw new Exception();
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                return false;
+            }
+        }
+
+        static public bool ProcessJournalQuery(SharedNetworkInfo info)
+        {
+            JournalTips remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
+            Dictionary<Guid, JournalMap> tipInfo = new Dictionary<Guid, JournalMap>();
+            JournalResults results = new JournalResults();
+            results.ReturnedJournalMap = new JournalMap();
+            results.Annotations = new List<AnnotationJournal>();
+            results.Tags = new List<TagJournal>();
+            results.AnnotationData = new Dictionary<Guid, Annotation>();
+
+            if (remoteTips.Tips != null)
+            {
+                foreach (var x in remoteTips.Tips)
+                {
+                    if (x.JournalID != remoteTips.LocalJournal)
+                        tipInfo[x.JournalID] = x;
+                }
+            }
+
+            Printer.PrintDiagnostics("Looking for missing items from tags and annotation journal.");
+
+            foreach (var localTip in info.Workspace.GetJournalTips())
+            {
+                JournalMap remoteJournalMap = null;
+                IEnumerable<AnnotationJournal> missingAnnotations = new AnnotationJournal[0];
+                IEnumerable<TagJournal> missingTags = new TagJournal[0];
+
+                if (localTip.JournalID == remoteTips.LocalJournal)
+                {
+                    results.ReturnedJournalMap = localTip;
+                    continue;
+                }
+                
+                if (tipInfo.TryGetValue(localTip.JournalID, out remoteJournalMap))
+                {
+                    if (remoteJournalMap.AnnotationSequenceID != localTip.AnnotationSequenceID)
+                    {
+                        missingAnnotations = info.Workspace.FindMissingAnnotations(localTip.JournalID, remoteJournalMap.AnnotationSequenceID);
+                    }
+                    if (remoteJournalMap.TagSequenceID != localTip.TagSequenceID)
+                    {
+                        missingTags = info.Workspace.FindMissingTags(localTip.JournalID, remoteJournalMap.TagSequenceID);
+                    }
+                }
+                else
+                {
+                    missingAnnotations = info.Workspace.FindMissingAnnotations(localTip.JournalID, null);
+                    missingTags = info.Workspace.FindMissingTags(localTip.JournalID, null);
+                }
+
+                long psizeA = results.Annotations.Count;
+                long psizeT = results.Tags.Count;
+                foreach (var x in missingAnnotations.ToArray().Reverse())
+                {
+                    results.Annotations.Add(x);
+                    results.AnnotationData[x.Value] = info.Workspace.GetAnnotation(x.Value);
+                }
+                results.Tags.AddRange(missingTags.ToArray().Reverse());
+
+                if (results.Annotations.Count != psizeA)
+                    Printer.PrintDiagnostics("Found {0} annotations missing from journal originator {1}.", results.Annotations.Count - psizeA, localTip.JournalID);
+                if (results.Tags.Count != psizeT)
+                    Printer.PrintDiagnostics("Found {0} tags missing from journal originator {1}.", results.Annotations.Count - psizeA, localTip.JournalID);
+            }
+            Utilities.SendEncrypted(info, results);
+            return true;
+        }
+
         internal static void ReceiveBranchJournal(SharedNetworkInfo sharedInfo)
         {
             var pack = Utilities.ReceiveEncrypted<BranchJournalPack>(sharedInfo);
@@ -490,15 +612,26 @@ namespace Versionr.Network
             {
                 int ackCount = 0;
                 byte[] tempBuffer = new byte[16 * 1024 * 1024];
+                Printer.PrintDiagnostics("Synchronizing {0} versions to server.", versionsToSend.Count);
                 if (versionsToSend.Count == 0)
                 {
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SynchronizeRecords }, ProtoBuf.PrefixStyle.Fixed32);
                     var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (dataResponse.Type == NetCommandType.QueryJournal)
+                    {
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                        ProcessJournalQuery(sharedInfo);
+                        dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                        while (dataResponse.Type == NetCommandType.RequestRecordUnmapped)
+                        {
+                            SharedNetwork.SendRecordDataUnmapped(sharedInfo);
+                            dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                        }
+                    }
                     if (dataResponse.Type == NetCommandType.Synchronized)
                         return true;
                     return false;
                 }
-                Printer.PrintDiagnostics("Synchronizing {0} versions to server.", versionsToSend.Count);
                 while (versionsToSend.Count > 0)
                 {
                     List<Objects.Version> versionData = new List<Objects.Version>();
@@ -540,6 +673,15 @@ namespace Versionr.Network
                         RecordParentPack rp = new RecordParentPack();
                         rp.Parents = rrp.RecordParents.Select(x => sharedInfo.Workspace.GetRecord(x)).ToArray();
                         Utilities.SendEncrypted<RecordParentPack>(sharedInfo, rp);
+                    }
+                    else if (command.Type == NetCommandType.QueryJournal)
+                    {
+                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                        ProcessJournalQuery(sharedInfo);
+                    }
+                    else if (command.Type == NetCommandType.RequestRecordUnmapped)
+                    {
+                        SharedNetwork.SendRecordDataUnmapped(sharedInfo);
                     }
                     else if (command.Type == NetCommandType.RequestRecord)
                     {
@@ -601,6 +743,10 @@ namespace Versionr.Network
                     else if (command.Type == NetCommandType.Synchronized)
                     {
                         return true;
+                    }
+                    else if (command.Type == NetCommandType.Error)
+                    {
+                        throw new Exception(string.Format("Server returned error: {0}", command.AdditionalPayload));
                     }
                     else
                     {
@@ -781,11 +927,12 @@ namespace Versionr.Network
             }
         }
 
-        internal static void RequestRecordData(SharedNetworkInfo sharedInfo)
+        internal static bool RequestRecordData(SharedNetworkInfo sharedInfo)
         {
             List<string> dependentData = new List<string>();
             var records = sharedInfo.UnknownRecords;
             int index = 0;
+            bool fail = false;
             HashSet<string> recordDataIdentifiers = new HashSet<string>();
             while (index < records.Count)
             {
@@ -850,7 +997,6 @@ namespace Versionr.Network
                             60);
 
                     status.Stopwatch.Start();
-
                     var transaction = sharedInfo.Workspace.ObjectStore.BeginStorageTransaction();
                     try
                     {
@@ -867,6 +1013,7 @@ namespace Versionr.Network
                             recordIndex = BitConverter.ToInt64(blob, 0);
                             if (recordIndex < 0)
                             {
+                                fail = true;
                                 continue;
                             }
                             receiverStream.Read(blob, 8, 8);
@@ -893,6 +1040,8 @@ namespace Versionr.Network
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
             }
+            if (fail)
+                return false;
             List<string> filteredDeps = new List<string>();
             foreach (var x in dependentData)
             {
@@ -904,6 +1053,7 @@ namespace Versionr.Network
             }
             if (filteredDeps.Count > 0)
                 RequestRecordDataUnmapped(sharedInfo, filteredDeps);
+            return true;
         }
 
         internal static HashSet<Guid> GetAncestry(Guid version, SharedNetworkInfo sharedInfo)
@@ -1106,14 +1256,39 @@ namespace Versionr.Network
         {
             var rrd = Utilities.ReceiveEncrypted<RequestRecordDataUnmapped>(sharedInfo);
             byte[] blockBuffer = new byte[16 * 1024 * 1024];
+            Printer.InteractivePrinter printer = null;
+            SendStats sstats = null;
+            System.Diagnostics.Stopwatch sw = null;
+            int processed = 0;
+            if (sharedInfo.Client)
+            {
+                sstats = new SendStats();
+                sw = new System.Diagnostics.Stopwatch();
+                Printer.PrintMessage("Remote has requested #b#{0}## records...", rrd.RecordDataKeys.Length);
+                printer = Printer.CreateProgressBarPrinter("Sending data", string.Empty,
+                        (obj) =>
+                        {
+                            return string.Format("{0}/sec", Versionr.Utilities.Misc.FormatSizeFriendly((long)(sstats.BytesSent / sw.Elapsed.TotalSeconds)));
+                        },
+                        (obj) =>
+                        {
+                            return (100.0f * (int)obj) / (float)rrd.RecordDataKeys.Length;
+                        },
+                        (pct, obj) =>
+                        {
+                            return string.Format("{0}/{1}", (int)obj, rrd.RecordDataKeys.Length);
+                        },
+                        60);
+                sw.Start();
+            }
+
             var sender = GetSender(sharedInfo);
             int index = 0;
             foreach (var x in rrd.RecordDataKeys)
             {
                 sender(BitConverter.GetBytes(index), 4, false);
                 index++;
-                Objects.Record record = sharedInfo.Workspace.GetRecordFromIdentifier(x);
-                if (record == null)
+                if (!sharedInfo.Workspace.HasObjectDataDirect(x))
                 {
                     int failure = 0;
                     sender(BitConverter.GetBytes(failure), 4, false);
@@ -1121,9 +1296,9 @@ namespace Versionr.Network
                 }
                 else
                 {
-                    Printer.PrintDiagnostics("Sending data for: {0}", record.Fingerprint);
+                    Printer.PrintDiagnostics("Sending data for: {0}", x);
 
-                    if (!sharedInfo.Workspace.TransmitRecordData(record, sender, blockBuffer, () =>
+                    if (!sharedInfo.Workspace.TransmitObjectData(x, sender, blockBuffer, () =>
                     {
                         int success = 1;
                         sender(BitConverter.GetBytes(success), 4, false);
@@ -1132,10 +1307,15 @@ namespace Versionr.Network
                         int failure = 0;
                         sender(BitConverter.GetBytes(failure), 4, false);
                     }
+                    if (printer != null)
+                        printer.Update(processed++);
                 }
             }
             if (!sender(new byte[0], 0, true))
                 return false;
+
+            if (printer != null)
+                printer.End(rrd.RecordDataKeys.Length);
 
             var dataResponse = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
             if (dataResponse.Type != NetCommandType.Acknowledge)
@@ -1383,6 +1563,30 @@ namespace Versionr.Network
                     for (int i = 0; i < query.IDs.Length; i++)
                     {
                         if (sharedInfo.Workspace.GetVersion(new Guid(query.IDs[i])) != null)
+                            response.Recognized[i] = true;
+                        else
+                            response.Recognized[i] = false;
+                    }
+                }
+                else if (query.Type == ObjectType.Annotation)
+                {
+                    for (int i = 0; i < query.IDs.Length; i++)
+                    {
+                        if (sharedInfo.Workspace.HasAnnotation(new Guid(query.IDs[i])))
+                            response.Recognized[i] = true;
+                        else
+                            response.Recognized[i] = false;
+                    }
+                }
+                else if (query.Type == ObjectType.Tag)
+                {
+                    HashSet<string> tagJournalHashes = new HashSet<string>();
+                    var tagJournal = sharedInfo.Workspace.GetTagJournal();
+                    foreach (var x in tagJournal.Select(x => string.Format("{0}-{1}-{2}-{3}", x.Time.Ticks, x.Removing, x.Value, x.Version)))
+                        tagJournalHashes.Add(x);
+                    for (int i = 0; i < query.IDs.Length; i++)
+                    {
+                        if (tagJournalHashes.Contains(query.IDs[i]))
                             response.Recognized[i] = true;
                         else
                             response.Recognized[i] = false;
