@@ -193,7 +193,7 @@ namespace Versionr
 
             if (other.Externals != null)
             {
-                if (Externals != null)
+                if (Externals == null)
                     Externals = new Dictionary<string, Extern>();
                 foreach (var x in other.Externals)
                     Externals[x.Key] = x.Value;
