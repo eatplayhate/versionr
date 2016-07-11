@@ -1373,8 +1373,8 @@ namespace Versionr.Network
             {
                 foreach (var x in info.Alterations)
                 {
-                    CheckRecord(sharedInfo, info, x.NewRecord, true, locks, ref lci);
-                    CheckRecord(sharedInfo, info, x.PriorRecord, true, locks, ref lci);
+                    CheckRecord(sharedInfo, info, x.NewRecord, sharedInfo.Client == false, locks, ref lci);
+                    CheckRecord(sharedInfo, info, x.PriorRecord, sharedInfo.Client == false, locks, ref lci);
                 }
             }
         }
@@ -1386,7 +1386,7 @@ namespace Versionr.Network
             sharedInfo.RemoteRecordMap[record.Id] = record;
             if (!sharedInfo.UnknownRecordSet.Contains(record.Id))
             {
-                if (checkLocks)
+                if (checkLocks && locks != null)
                 {
                     List<VaultLock> overlappingLocks = null;
                     sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, false, locks, out overlappingLocks);

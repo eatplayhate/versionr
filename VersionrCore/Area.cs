@@ -1322,6 +1322,8 @@ namespace Versionr
         internal void CheckLocks(string path, Guid? branch, bool testingLock, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
         {
             lockConflicts = new List<VaultLock>();
+            if (locks == null)
+                return;
 
             // Full
             if (string.IsNullOrEmpty(path))
