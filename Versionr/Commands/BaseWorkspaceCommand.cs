@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Versionr.Commands
 {
-    abstract class BaseWorkspaceCommand : BaseCommand
+    public abstract class BaseWorkspaceCommand : BaseCommand
     {
         public bool DirectExtern { get; set; }
         public Area Workspace { get; set; }
