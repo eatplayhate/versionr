@@ -46,6 +46,9 @@ namespace Versionr.Commands
 
         [Option('c', "recorded", HelpText = "Matches only files that are recorded")]
         public bool Recorded { get; set; }
+
+        [Option('y', "externalnb", HelpText = "Use external diffing tool, non blocking")]
+        public bool ExternalNonBlocking { get; set; }
     }
 
 	class Diff : FileCommand
@@ -135,10 +138,11 @@ namespace Versionr.Commands
                             if (Workspace.ExportRecord(x.CanonicalName, Workspace.Version, tmp))
                             {
                                 Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-                                if (localOptions.External)
+                                if (localOptions.External || localOptions.ExternalNonBlocking)
                                 {
                                     tempFiles.Add(tmp);
                                     bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
+                                    nonblocking |= localOptions.ExternalNonBlocking;
                                     var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
                                     {
                                         var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), x.Name, ws.Directives.ExternalDiff, nonblocking);
