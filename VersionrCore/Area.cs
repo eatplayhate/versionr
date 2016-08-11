@@ -1334,7 +1334,7 @@ namespace Versionr
             bool requestingDirectory = path.EndsWith("/");
             foreach (var x in Database.Table<VaultLock>().ToList())
             {
-                if (locks.Contains(x.ID))
+                if (locks != null && locks.Contains(x.ID))
                     continue;
                 if (branch == null || x.Branch == null || branch.Value == x.Branch.Value)
                 {
