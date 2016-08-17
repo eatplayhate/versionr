@@ -4128,7 +4128,7 @@ namespace Versionr
             Objects.Version remoteVersion = GetLocalOrRemoteVersion(remoteVersionID, clientInfo);
             Objects.Version parent = GetCommonParentForRemote(localVersion, remoteVersionID, clientInfo);
 
-            var records = Database.GetRecords(localVersion);
+            var records = Database.GetRecords(localVersion, true);
             var foreignRecords = GetRemoteRecords(remoteVersionID, clientInfo);
             var parentRecords = Database.GetRecords(parent);
             List<FusedAlteration> alterations = new List<FusedAlteration>();
