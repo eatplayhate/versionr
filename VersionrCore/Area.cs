@@ -2789,7 +2789,9 @@ namespace Versionr
 
         internal void ReplaceHeads(Guid key, List<Head> value)
         {
-            Objects.Branch branch = Database.Get<Branch>(key);
+            Objects.Branch branch = Database.Find<Branch>(key);
+            if (branch == null)
+                return;
             var heads = GetBranchHeads(branch);
 
             for (int i = value.Count; i < heads.Count; i++)
