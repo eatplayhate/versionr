@@ -857,7 +857,7 @@ namespace Versionr.Network
                         Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
                         Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
                         HashSet<Guid> terminatedBranches = new HashSet<Guid>();
-                        List<Guid> mergeResults = new List<Guid>();
+                        List<Guid?> mergeResults = new List<Guid?>();
                         foreach (var x in ((IEnumerable<VersionInfo>)sharedInfo.PushedVersions).Reverse())
                         {
                             if (terminatedBranches.Contains(x.Version.Branch))
@@ -883,8 +883,10 @@ namespace Versionr.Network
                                 temporaryHeads[branch.ID] = heads;
                             }
                             mergeResults.Clear();
+                            bool foundRelation = false;
                             for (int i = 0; i < heads.Count; i++)
                             {
+                                mergeResults.Add(null);
                                 if (heads[i].Version != x.Version.ID)
                                 {
                                     HashSet<Guid> headAncestors = null;
@@ -896,36 +898,37 @@ namespace Versionr.Network
                                     if (headAncestors.Contains(x.Version.ID))
                                     {
                                         // all best
-                                        mergeResults.Add(heads[i].Version);
-                                    }
-                                    else if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo))
-                                    {
-                                        mergeResults.Add(x.Version.ID);
-                                    }
-                                    else
-                                    {
-                                        mergeResults.Add(Guid.Empty);
+                                        foundRelation = true;
+                                        mergeResults[i] = heads[i].Version;
                                     }
                                 }
                             }
+                            if (!foundRelation)
+                            {
+                                for (int i = 0; i < heads.Count; i++)
+                                {
+                                    if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo))
+                                    {
+                                        foundRelation = true;
+                                        mergeResults[i] = x.Version.ID;
+                                    }
+                                }
+                            }
+                            if (!foundRelation)
+                                mergeResults.Add(Guid.Empty);
                             pendingMerges[x.Version.Branch] = Guid.Empty;
                             // Remove any superceded heads
                             // Add a merge if required
                             bool unrelated = true;
-                            for (int i = 0; i < mergeResults.Count; i++)
+                            for (int i = 0; i < heads.Count; i++)
                             {
-                                if (mergeResults[i] == Guid.Empty)
-                                    continue;
-                                else if (mergeResults[i] != heads[i].Version)
+                                if (mergeResults[i].HasValue && mergeResults[i] != heads[i].Version)
                                 {
                                     headAncestry.Remove(heads[i].Version);
                                     heads[i].Version = x.Version.ID;
-                                    unrelated = false;
                                 }
-                                else
-                                    unrelated = false;
                             }
-                            if (unrelated)
+                            if (mergeResults.Count != heads.Count)
                             {
                                 heads.Add(new Head() { Branch = x.Version.Branch, Version = x.Version.ID });
                             }
@@ -975,8 +978,8 @@ namespace Versionr.Network
                                 continue;
                             }
 
-                            var localVersions = bheads.Where(h => heads.Any(y => y.Version != h.Version));
-                            var remoteVersions = heads.Where(h => !bheads.Any(y => y.Version != h.Version));
+                            var localVersions = bheads.Where(h => heads.All(y => y.Version != h.Version));
+                            var remoteVersions = heads.Where(h => !bheads.All(y => y.Version != h.Version));
 
                             if (localVersions.Count() != 1)
                             {
@@ -986,25 +989,28 @@ namespace Versionr.Network
                             if (remoteVersions.Count() == 1 && localVersions.Count() > 0)
                             {
                                 Guid localVersion = localVersions.OrderBy(y => Workspace.GetVersion(y.Version).Timestamp).Last().Version;
-                                VersionInfo result;
-                                string error;
-                                result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
-
-                                Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
-                                Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
-                                Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
-                                Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
-
-                                for (int i = 0; i < heads.Count; i++)
+                                if (localVersion != remoteVersions.First().Version)
                                 {
-                                    if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                    VersionInfo result;
+                                    string error;
+                                    result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
+
+                                    Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
+                                    Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
+                                    Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
+                                    Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
+
+                                    for (int i = 0; i < heads.Count; i++)
                                     {
-                                        heads.RemoveAt(i);
-                                        --i;
+                                        if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                        {
+                                            heads.RemoveAt(i);
+                                            --i;
+                                        }
                                     }
+                                    heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
+                                    autoMerged.Add(result);
                                 }
-                                heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
-                                autoMerged.Add(result);
                             }
                         }
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();

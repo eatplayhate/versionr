@@ -16,7 +16,7 @@ namespace Versionr
         public const int InternalDBVersion = 42;
         public const int MinimumDBVersion = 29;
         public const int MinimumRemoteDBVersion = 29;
-        public const int MaximumDBVersion = 42;
+        public const int MaximumDBVersion = 44;
 
         public LocalDB LocalDatabase { get; set; }
 
@@ -499,6 +499,29 @@ namespace Versionr
                 try
                 {
                     BeginTransaction();
+                    try
+                    {
+                        Objects.Snapshot snapshot = new Snapshot();
+                        this.InsertSafe(snapshot);
+                        foreach (var z in finalList)
+                        {
+                            Objects.RecordRef rref = new RecordRef();
+                            rref.RecordID = z.Id;
+                            rref.SnapshotID = snapshot.Id;
+                            this.InsertSafe(rref);
+                        }
+                        version.Snapshot = snapshot.Id;
+                        this.UpdateSafe(version);
+                        Commit();
+                    }
+                    catch
+                    {
+                        Rollback();
+                    }
+                }
+                catch
+                {
+                    // Already in a transaction
                     Objects.Snapshot snapshot = new Snapshot();
                     this.InsertSafe(snapshot);
                     foreach (var z in finalList)
@@ -510,11 +533,6 @@ namespace Versionr
                     }
                     version.Snapshot = snapshot.Id;
                     this.UpdateSafe(version);
-                    Commit();
-                }
-                catch
-                {
-                    Rollback();
                 }
             }
             return finalList;

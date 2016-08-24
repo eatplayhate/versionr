@@ -2791,7 +2791,9 @@ namespace Versionr
 
         internal void ReplaceHeads(Guid key, List<Head> value)
         {
-            Objects.Branch branch = Database.Get<Branch>(key);
+            Objects.Branch branch = Database.Find<Branch>(key);
+            if (branch == null)
+                return;
             var heads = GetBranchHeads(branch);
 
             for (int i = value.Count; i < heads.Count; i++)
@@ -4130,7 +4132,7 @@ namespace Versionr
             Objects.Version remoteVersion = GetLocalOrRemoteVersion(remoteVersionID, clientInfo);
             Objects.Version parent = GetCommonParentForRemote(localVersion, remoteVersionID, clientInfo);
 
-            var records = Database.GetRecords(localVersion);
+            var records = Database.GetRecords(localVersion, true);
             var foreignRecords = GetRemoteRecords(remoteVersionID, clientInfo);
             var parentRecords = Database.GetRecords(parent);
             List<FusedAlteration> alterations = new List<FusedAlteration>();
