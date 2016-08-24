@@ -30,6 +30,7 @@ namespace VersionrUI.Dialogs
                 if (_operationStatusDialog != null)
                     _operationStatusDialog.OperationFinished();
             });
+            Printer.MessagePrinted -= Printer_MessagePrinted;
         }
 
         public static void Write(string message)
