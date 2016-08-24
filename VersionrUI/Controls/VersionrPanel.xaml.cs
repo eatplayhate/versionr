@@ -13,6 +13,7 @@ using VersionrUI.ViewModels;
 
 using System.Windows.Media;
 using MahApps.Metro.Controls.Dialogs;
+using System.Collections.Generic;
 
 namespace VersionrUI.Controls
 {
@@ -84,6 +85,13 @@ namespace VersionrUI.Controls
 
                 return null;
             }
+        }
+
+        public void SetSelectedItem(object item)
+        {
+            ListView lv = FindChild<ListView>(Application.Current.MainWindow, "listView");
+            if (lv != null)
+                lv.SelectedItem = item;
         }
 
         #region Commands
@@ -254,14 +262,18 @@ namespace VersionrUI.Controls
         }
         #endregion
 
-        private void CheckBox_Checked(object sender, RoutedEventArgs e)
+        private void CheckBox_Clicked(object sender, RoutedEventArgs e)
         {
-//            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
-        }
+            if (sender is CheckBox)
+            {
+                CheckBox checkbox = (CheckBox)sender;
 
-        private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-//            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
+                // The checked item may not be one of the already selected items, so update the selections
+                if (checkbox.DataContext is StatusEntryVM && !SelectedItems.Contains((StatusEntryVM)checkbox.DataContext))
+                     SetSelectedItem(checkbox.DataContext);
+                
+                _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), checkbox.IsChecked == true);
+            }
         }
     }
 }

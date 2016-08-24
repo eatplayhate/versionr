@@ -356,9 +356,8 @@
                                 <GridViewColumn Header="Staged">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <CheckBox IsChecked="{Binding IsStaged}"
-                                                        Checked="CheckBox_Checked"
-                                                        Unchecked="CheckBox_Unchecked"/>
+                                            <CheckBox IsChecked="{Binding IsStaged, Mode=OneWay}"
+                                                      Click="CheckBox_Clicked" />
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
