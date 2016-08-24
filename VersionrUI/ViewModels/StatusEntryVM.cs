@@ -56,6 +56,7 @@ namespace VersionrUI.ViewModels
                         _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
                     NotifyPropertyChanged("IsStaged");
                     NotifyPropertyChanged("Code");
+                    // TODO: Changing the status of a file or folder may change the staged status for parent folders.
                 }
             }
         }
