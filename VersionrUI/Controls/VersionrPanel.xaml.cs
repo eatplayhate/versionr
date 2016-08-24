@@ -256,12 +256,12 @@ namespace VersionrUI.Controls
 
         private void CheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
+//            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
         }
 
         private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
-            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
+//            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
         }
     }
 }
