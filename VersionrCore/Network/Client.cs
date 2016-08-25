@@ -978,8 +978,8 @@ namespace Versionr.Network
                                 continue;
                             }
 
-                            var localVersions = bheads.Where(h => heads.All(y => y.Version != h.Version));
-                            var remoteVersions = heads.Where(h => !bheads.All(y => y.Version != h.Version));
+                            var localVersions = bheads.Where(h => heads.Any(y => y.Version != h.Version));
+                            var remoteVersions = heads.Where(h => bheads.All(y => y.Version != h.Version));
 
                             if (localVersions.Count() != 1)
                             {
@@ -995,21 +995,26 @@ namespace Versionr.Network
                                     string error;
                                     result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
 
-                                    Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
-                                    Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
-                                    Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
-                                    Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
-
-                                    for (int i = 0; i < heads.Count; i++)
+                                    if (result != null)
                                     {
-                                        if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                        Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
+                                        Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
+                                        Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
+                                        Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
+
+                                        for (int i = 0; i < heads.Count; i++)
                                         {
-                                            heads.RemoveAt(i);
-                                            --i;
+                                            if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                            {
+                                                heads.RemoveAt(i);
+                                                --i;
+                                            }
                                         }
+                                        heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
+                                        autoMerged.Add(result);
                                     }
-                                    heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
-                                    autoMerged.Add(result);
+                                    else
+                                        Printer.PrintMessage("Can't resolve incoming head for branch \"{0}\" - manual merge required.", branch.Name);
                                 }
                             }
                         }

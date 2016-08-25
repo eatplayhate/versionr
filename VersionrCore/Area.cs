@@ -5668,7 +5668,7 @@ namespace Versionr
 
         private ResolveType GetResolution(bool binary, ref ResolveType? resolveAll)
         {
-            if (resolveAll.HasValue)
+            if (binary && resolveAll.HasValue)
             {
                 Printer.PrintMessage(" - Auto-resolving using #b#{0}##.", resolveAll.Value);
                 return resolveAll.Value;
