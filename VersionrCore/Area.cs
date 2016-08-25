@@ -4310,7 +4310,7 @@ namespace Versionr
                     }
                     return records;
                 }
-                else
+                else if (info.Alterations != null)
                 {
                     foreach (var x in info.Alterations)
                         remoteAlterations.Push(x);
