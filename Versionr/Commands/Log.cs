@@ -18,6 +18,8 @@ namespace Versionr.Commands
         public bool FollowBranches { get; set; }
         [Option('m', "merges", HelpText = "Shows revisions where a merge occurred when following logical history.")]
         public bool ShowMerges { get; set; }
+		[Option("all-merges", HelpText = "Show all merges when following logical history, even automatic merges")]
+		public bool ShowAutoMerges { get; set; }
         [Option('e', "reverse", HelpText = "Reverses the order of versions in the log.")]
         public bool Reverse { get; set; }
         [Option("indent", DefaultValue = true, HelpText = "Indents logical history to show sequencing.")]
@@ -178,13 +180,13 @@ namespace Versionr.Commands
 
 			if (localOptions.Xml)
 			{
-				Printer.PrintMessage($"  <version id='{v.ID}' parent='{v.Parent}' branch='{v.Branch}' timestamp='{v.Timestamp.ToString("o")}' author='{XmlAttr(v.Author)}'>");
+				Printer.PrintMessage($"  <version id='{v.ID}' parent='{v.Parent}' branch='{v.Branch}' timestamp='{v.Timestamp.ToString("o")}' author='{XmlAttr(v.Author)}' published='{v.Published}'>");
 				Printer.PrintMessage($"    <message>{XmlText(v.Message)}</message>");
 				
 				foreach (var y in Workspace.GetMergeInfo(v.ID))
 				{
 					var mergeParent = Workspace.GetVersion(y.SourceVersion);
-					Printer.PrintMessage($"    <merge version='{mergeParent.ID}' branch='{mergeParent.Branch}' />");
+					Printer.PrintMessage($"    <merge type='{y.Type.ToString().ToLower()}' version='{mergeParent.ID}' branch='{mergeParent.Branch}' />");
 				}
 
 				if (localOptions.Detail == LogVerbOptions.DetailMode.Full)
@@ -443,6 +445,9 @@ namespace Versionr.Commands
 			if (JruntingMode)
 				localOptions.Detail = LogVerbOptions.DetailMode.Jrunting;
 
+			if (localOptions.ShowAutoMerges)
+				localOptions.ShowMerges = true;
+
             if (localOptions.FollowBranches || localOptions.ShowMerges)
             {
                 if (!localOptions.Logical)
@@ -528,7 +533,7 @@ namespace Versionr.Commands
             if (nullableLimit.Value <= 0)
                 nullableLimit = null;
             
-            var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
+            var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, localOptions.ShowAutoMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
 
 			if (localOptions.Xml)
 			{
