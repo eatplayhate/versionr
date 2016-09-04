@@ -32,9 +32,9 @@ namespace Versionr.Commands
 			Detailed,
 			D = Detailed,
 			Full,
+			F = Full,
 			Jrunting,
 			J = Jrunting,
-			F = Full
 		}
 
 		[Option("detail", HelpText = "Set the display mode. One of (n)ormal, (c)oncise, (d)etailed, (f)ull, (j)runting", MetaValue = "<value>", MutuallyExclusiveSet = "logdetail")]
@@ -64,10 +64,9 @@ namespace Versionr.Commands
 		public string Author { get; set; }
 
         [Option("xml", HelpText = "Generate XML output")]
-        public bool XML { get; set; }
+        public bool Xml { get; set; }
 
-
-        public override string[] Description
+		public override string[] Description
 		{
 			get
 			{
@@ -139,6 +138,22 @@ namespace Versionr.Commands
 		private Objects.Version m_Tip;
 		private Dictionary<Guid, Objects.Branch> m_Branches;
 
+		private static string XmlText(string s)
+		{
+			return s
+				.Replace("<", "&lt;")
+				.Replace(">", "&gt;");
+		}
+
+		private static string XmlAttr(string s)
+		{
+			return s
+				.Replace("'", "&apos;")
+				.Replace("\"", "&quot;")
+				.Replace("<", "&lt;")
+				.Replace(">", "&gt;");
+		}
+
 		// superdirty
 		private HashSet<Guid> m_LoggedVersions;
 		private void FormatLog(Tuple<Objects.Version, int> vt, IEnumerable<KeyValuePair<bool, ResolvedAlteration>> filteralt, LogVerbOptions localOptions)
@@ -155,7 +170,38 @@ namespace Versionr.Commands
 				m_Branches[v.Branch] = branch;
 			}
 
-			if (localOptions.Jrunting)
+			if (localOptions.Xml)
+			{
+				Printer.PrintMessage($"  <version id='{v.ID}' parent='{v.Parent}' branch='{v.Branch}' timestamp='{v.Timestamp.ToString("o")}' author='{XmlAttr(v.Author)}'>");
+				Printer.PrintMessage($"    <message>{XmlText(v.Message)}</message>");
+				
+				foreach (var y in Workspace.GetMergeInfo(v.ID))
+				{
+					var mergeParent = Workspace.GetVersion(y.SourceVersion);
+					Printer.PrintMessage($"    <merge version='{mergeParent.ID}' branch='{mergeParent.Branch}' />");
+				}
+
+				if (localOptions.Detail == LogVerbOptions.DetailMode.Full)
+				{
+					foreach (var y in GetAlterations(v))
+					{
+						string operationName = y.Alteration.Type.ToString().ToLower();
+						if (y.Alteration.Type == Objects.AlterationType.Copy || y.Alteration.Type == Objects.AlterationType.Move)
+						{
+							Objects.Record prior = Workspace.GetRecord(y.Alteration.PriorRecord.Value);
+							Objects.Record next = Workspace.GetRecord(y.Alteration.NewRecord.Value);
+							bool edited = (!next.IsDirectory && prior.DataIdentifier != next.DataIdentifier);
+							Printer.PrintMessage($"    <alteration type='{operationName}' path='{XmlAttr(next.CanonicalName)}' frompath='{XmlAttr(prior.CanonicalName)}' edited='{edited}' />");
+						}
+						else
+						{
+							Printer.PrintMessage($"    <alteration type='{operationName}' path='{y.Record.CanonicalName}' />");
+						}
+					}
+				}
+				Printer.PrintMessage("  </version>");
+			}
+			else if (localOptions.Jrunting)
 			{
 				// list of heads
 				var heads = Workspace.GetHeads(v.ID);
@@ -478,6 +524,21 @@ namespace Versionr.Commands
             
             var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
 
+			if (localOptions.Xml)
+			{
+				Printer.PrintMessage("<?xml version='1.0'?>");
+				Printer.PrintMessage($"<vsrlog>");
+				if (versionAutoSelected)
+				{
+					Printer.PrintMessage($"  <branch id='{ws.CurrentBranch.ID}' name='{XmlAttr(ws.CurrentBranch.Name)}'>");
+					Printer.PrintMessage("    <heads>");
+					foreach (var head in targetHeadObjects)
+						Printer.PrintMessage($"      <head version='{head.Version}' />");
+					Printer.PrintMessage("    </heads>");
+					Printer.PrintMessage("  </branch>");
+				}
+			}
+
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;
 			m_Branches = new Dictionary<Guid, Objects.Branch>();
@@ -487,34 +548,41 @@ namespace Versionr.Commands
 				FormatLog(x.Item1, x.Item2, localOptions);
 			}
 
-			if (!localOptions.Jrunting && last != null && last.ID != m_Tip.ID)
+			if (localOptions.Xml)
 			{
-				var branch = Workspace.CurrentBranch;
-				var heads = Workspace.GetBranchHeads(branch);
-				bool isHead = heads.Any(x => x.Version == m_Tip.ID);
-				bool isOnlyHead = heads.Count == 1;
-				if (!isHead)
-					Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
-				else if (!isOnlyHead)
-					Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
+				Printer.PrintMessage("</vsrlog>");
+			}
+			else
+			{
+				if (!localOptions.Jrunting && last != null && last.ID != m_Tip.ID)
+				{
+					var branch = Workspace.CurrentBranch;
+					var heads = Workspace.GetBranchHeads(branch);
+					bool isHead = heads.Any(x => x.Version == m_Tip.ID);
+					bool isOnlyHead = heads.Count == 1;
+					if (!isHead)
+						Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
+					else if (!isOnlyHead)
+						Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
+				}
+
+				if (versionAutoSelected)
+				{
+					if (targetHeadObjects.Count > 1)
+					{
+						Printer.WriteLineMessage("\n #w#Warning:## Target branch has multiple heads.");
+
+						Printer.WriteLineMessage("\n Heads of #b#\"{0}\"##:", ws.CurrentBranch.Name);
+						foreach (var x in targetHeadObjects)
+						{
+							var v = Workspace.GetVersion(x.Version);
+							Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp.ToLocalTime(), v.Author);
+						}
+					}
+				}
 			}
 
-            if (versionAutoSelected)
-            {
-                if (targetHeadObjects.Count > 1)
-                {
-                    Printer.WriteLineMessage("\n #w#Warning:## Target branch has multiple heads.");
-
-                    Printer.WriteLineMessage("\n Heads of #b#\"{0}\"##:", ws.CurrentBranch.Name);
-                    foreach (var x in targetHeadObjects)
-                    {
-                        var v = Workspace.GetVersion(x.Version);
-                        Printer.WriteLineMessage("   #b#{0}##: {1} by {2}", v.ShortName, v.Timestamp.ToLocalTime(), v.Author);
-                    }
-                }
-            }
-
-			return true;
+				return true;
 		}
 
 		private string GetAlterationFormat(Objects.AlterationType code)
