@@ -140,14 +140,20 @@ namespace Versionr.Commands
 
 		private static string XmlText(string s)
 		{
+			if (s == null)
+				return "";
 			return s
+				.Replace("&", "&amp;")
 				.Replace("<", "&lt;")
 				.Replace(">", "&gt;");
 		}
 
 		private static string XmlAttr(string s)
 		{
+			if (s == null)
+				return "";
 			return s
+				.Replace("&", "&amp;")
 				.Replace("'", "&apos;")
 				.Replace("\"", "&quot;")
 				.Replace("<", "&lt;")
