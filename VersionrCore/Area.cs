@@ -4333,7 +4333,8 @@ namespace Versionr
         {
             Printer.PrintDiagnostics("Getting parent graph for version {0}", versionID);
             Stack<Tuple<Objects.Version, int>> openNodes = new Stack<Tuple<Objects.Version, int>>();
-            Objects.Version mergeVersion = GetLocalOrRemoteVersion(versionID, clientInfo);
+            VersionInfo remoteInfo = null;
+            Objects.Version mergeVersion = GetLocalOrRemoteVersion(versionID, clientInfo, out remoteInfo);
             openNodes.Push(new Tuple<Objects.Version, int>(mergeVersion, 0));
             Dictionary<Guid, int> result = new Dictionary<Guid, int>();
             while (openNodes.Count > 0)
@@ -4357,15 +4358,37 @@ namespace Versionr
                     if (!result.ContainsKey(x.SourceVersion))
                         openNodes.Push(new Tuple<Objects.Version, int>(GetLocalOrRemoteVersion(x.SourceVersion, clientInfo), currentNodeData.Item2 + 1));
                 }
+                if (remoteInfo != null && remoteInfo.MergeInfos != null)
+                {
+                    foreach (var x in remoteInfo.MergeInfos)
+                    {
+                        if (!result.ContainsKey(x.SourceVersion))
+                            openNodes.Push(new Tuple<Objects.Version, int>(GetLocalOrRemoteVersion(x.SourceVersion, clientInfo), currentNodeData.Item2 + 1));
+                    }
+                }
             }
             return result;
         }
 
         internal Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo)
         {
+            VersionInfo vi;
+            return GetLocalOrRemoteVersion(versionID, clientInfo, out vi);
+        }
+
+        internal Objects.Version GetLocalOrRemoteVersion(Guid versionID, SharedNetwork.SharedNetworkInfo clientInfo, out VersionInfo remoteVersionInfo)
+        {
             Objects.Version v = Database.Find<Objects.Version>(x => x.ID == versionID);
+            remoteVersionInfo = null;
             if (v == null)
-                v = clientInfo.PushedVersions.Where(x => x.Version.ID == versionID).Select(x => x.Version).FirstOrDefault();
+            {
+                VersionInfo vi = clientInfo.PushedVersions.Where(x => x.Version.ID == versionID).FirstOrDefault();
+                if (vi != null)
+                {
+                    v = vi.Version;
+                    remoteVersionInfo = vi;
+                }
+            }
             return v;
         }
 
@@ -7502,9 +7525,10 @@ namespace Versionr
                 }, true);
                 return result;
             }
-            catch
+            catch (Exception e)
             {
                 Printer.PrintWarning("\n#x#Error:##\n  Error during commit. Rolling back.");
+                Printer.PrintWarning("\nInner exception: {0}", e);
                 return false;
             }
         }
