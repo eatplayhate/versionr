@@ -7500,9 +7500,10 @@ namespace Versionr
                 }, true);
                 return result;
             }
-            catch
+            catch (Exception e)
             {
                 Printer.PrintWarning("\n#x#Error:##\n  Error during commit. Rolling back.");
+                Printer.PrintWarning("\nInner exception: {0}", e);
                 return false;
             }
         }
