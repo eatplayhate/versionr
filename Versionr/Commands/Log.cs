@@ -539,15 +539,11 @@ namespace Versionr.Commands
 			{
 				Printer.PrintMessage("<?xml version='1.0'?>");
 				Printer.PrintMessage($"<vsrlog>");
-				if (versionAutoSelected)
-				{
-					Printer.PrintMessage($"  <branch id='{ws.CurrentBranch.ID}' name='{XmlAttr(ws.CurrentBranch.Name)}'>");
-					Printer.PrintMessage("    <heads>");
-					foreach (var head in targetHeadObjects)
-						Printer.PrintMessage($"      <head version='{head.Version}' />");
-					Printer.PrintMessage("    </heads>");
-					Printer.PrintMessage("  </branch>");
-				}
+				var branch = ws.GetBranch(version.Branch);
+				Printer.PrintMessage($"  <branch id='{branch.ID}' name='{XmlAttr(branch.Name)}'>");
+				foreach (var head in ws.GetBranchHeads(branch))
+					Printer.PrintMessage($"    <head version='{head.Version}' />");
+				Printer.PrintMessage("  </branch>");
 			}
 
 			m_Tip = Workspace.Version;
