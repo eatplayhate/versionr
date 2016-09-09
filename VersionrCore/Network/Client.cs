@@ -44,6 +44,21 @@ namespace Versionr.Network
             }
         }
 
+        public bool PushRecords()
+        {
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.PushRecords }, ProtoBuf.PrefixStyle.Fixed32);
+            while (true)
+            {
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type == NetCommandType.Synchronized)
+                    return true;
+                else if (queryResult.Type == NetCommandType.RequestRecordUnmapped)
+                    SharedNetwork.SendRecordDataUnmapped(SharedInfo);
+                else
+                    throw new Exception();
+            }
+        }
+
         public bool PushStash(Area.StashInfo stash)
         {
             if (Workspace == null)
@@ -59,6 +74,32 @@ namespace Versionr.Network
                 Printer.PrintError("Error: {0}", e);
                 Close();
                 return false;
+            }
+        }
+
+        public List<Area.StashInfo> ListStashes(List<string> stashNames)
+        {
+            if (Workspace == null)
+                return null;
+            try
+            {
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.ListStashes }, ProtoBuf.PrefixStyle.Fixed32);
+                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+                if (queryResult.Type != NetCommandType.Acknowledge)
+                {
+                    Printer.PrintError("Couldn't list stashes - error: {0}", queryResult.AdditionalPayload);
+                    return null;
+                }
+                Utilities.SendEncrypted(SharedInfo, new Network.StashQuery() { FilterNames = stashNames });
+                var result = Utilities.ReceiveEncrypted<Network.StashQueryResults>(SharedInfo);
+
+                return result.Results;
+            }
+            catch (Exception e)
+            {
+                Printer.PrintError("Error: {0}", e);
+                Close();
+                return null;
             }
         }
 
@@ -82,13 +123,127 @@ namespace Versionr.Network
 
         public bool AcquireLock(string name, string branch, bool allBranches, bool full, bool steal)
         {
+            Guid? branchID;
+            if (!PrepareLock(ref name, ref branch, out branchID, allBranches, full))
+                return false;
+
+            string lockedPath = name;
+
+            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", URL);
+            if (allBranches)
+                Printer.PrintMessage(" - #i#All branches##");
+            else
+                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
+            if (full)
+                Printer.PrintMessage(" - #i#Entire workspace##");
+            else
+                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+
+            if (Printer.Prompt("Is this correct?"))
+            {
+                SendLocks();
+
+                return ListBreakOrAcquireLock(lockedPath, branchID, true, steal);
+            }
+
+            return false;
+        }
+
+        private bool ListBreakOrAcquireLock(string lockedPath, Guid? branchID, bool grant, bool steal)
+        {
+            NetCommandType commandType = NetCommandType.ListOrBreakLocks;
+            if (grant)
+                commandType = NetCommandType.RequestLock;
+
+            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = commandType }, ProtoBuf.PrefixStyle.Fixed32);
+            var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type != NetCommandType.Acknowledge)
+            {
+                Printer.PrintError("Couldn't perform lock operation - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+            RequestLockInformation rli = new RequestLockInformation()
+            {
+                Author = Workspace.Username,
+                Branch = branchID,
+                Path = lockedPath,
+                Steal = steal
+            };
+            Utilities.SendEncrypted(SharedInfo, rli);
+
+            queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
+            if (queryResult.Type == NetCommandType.Acknowledge)
+            {
+                var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
+                IEnumerable<Objects.VaultLock> brokenLocks = new Objects.VaultLock[0];
+                int brokenCount = 0;
+                if (lockGranting?.BrokenLocks?.Conflicts != null)
+                {
+                    brokenLocks = lockGranting.BrokenLocks.Conflicts;
+                    brokenCount = lockGranting.BrokenLocks.Conflicts.Count;
+                }
+                if (grant)
+                {
+                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, URL, brokenLocks.Select(x => x.ID));
+                    Printer.PrintMessage("Acquired lock.{0}", brokenCount > 0 ? string.Format(" Broke #b#{0}## other locks.", brokenCount) : "");
+                }
+                else if (steal)
+                    Printer.PrintMessage("{0}", brokenCount > 0 ? string.Format("Broke #b#{0}## locks.", brokenCount) : "No locks to break in specified path.");
+                if (brokenCount > 0)
+                {
+                    Printer.PrintMessage("\nBroken Locks: ");
+                    foreach (var broken in brokenLocks)
+                    {
+                        PrintLock(" - ", broken.ID, broken.Path, broken.Branch, broken.User);
+                    }
+                }
+                return true;
+            }
+            else if (queryResult.Type == NetCommandType.PathLocked)
+            {
+                var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
+                if (grant)
+                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n");
+                Printer.PrintMessage("\nOverlapping locks:");
+                foreach (var x in lockConflicts.Conflicts)
+                {
+                    Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
+                }
+                return false;
+            }
+            else
+            {
+                Printer.PrintError("Couldn't perform lock operation - error: {0}", queryResult.AdditionalPayload);
+                return false;
+            }
+        }
+
+        public bool BreakLocks(string path, string branch, bool allBranches, bool full)
+        {
+            return ListOrBreakLocks(path, branch, allBranches, full, true);
+        }
+        public bool ListLocks(string path, string branch, bool allBranches, bool full)
+        {
+            return ListOrBreakLocks(path, branch, allBranches, full, false);
+        }
+        internal bool ListOrBreakLocks(string path, string branch, bool allBranches, bool full, bool breakLocks)
+        {
+            Guid? branchID;
+            if (!PrepareLock(ref path, ref branch, out branchID, allBranches, full))
+                return false;
+
+            return ListBreakOrAcquireLock(path, branchID, false, breakLocks);
+        }
+
+        private bool PrepareLock(ref string name, ref string branch, out Guid? branchID, bool allBranches, bool full)
+        {
+            branchID = null;
             if (SharedInfo.CommunicationProtocol < SharedNetwork.Protocol.Versionr33)
             {
                 Printer.PrintError("#x#Error:## Server {0} does not support locking.", URL);
                 return false;
             }
             // First, we need to decide what branch we're locking
-            Guid? branchID = null;
             if (!allBranches)
             {
                 bool multipleBranches;
@@ -114,65 +269,28 @@ namespace Versionr.Network
                     lockedPath = lockedPath.Substring(0, lockedPath.Length - 1);
             }
 
-            Printer.PrintMessage("Attempting to acquire lock on #b#{0}##:", URL);
-            if (allBranches)
-                Printer.PrintMessage(" - #i#All branches##");
-            else
-                Printer.PrintMessage(" - Branch: #c#{0}## ({1})", branchID.Value, branch);
-            if (full)
-                Printer.PrintMessage(" - #i#Entire workspace##");
-            else
-                Printer.PrintMessage(" - Path #b#{0}## ({1})", lockedPath, lockedPath.EndsWith("/") ? "directory" : "file");
+            name = lockedPath;
+            return true;
+        }
 
-            if (Printer.Prompt("Is this correct?"))
+        private void PrintLock(string prefix, Guid id, string path, Guid? branch, string user)
+        {
+            string lockPath = path;
+            if (string.IsNullOrEmpty(lockPath) || lockPath == "/")
+                lockPath = "<full vault>";
+            string lockbranch = "<all branches>";
+            if (branch.HasValue)
             {
-                SendLocks();
-
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.RequestLock }, ProtoBuf.PrefixStyle.Fixed32);
-                var queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                if (queryResult.Type != NetCommandType.Acknowledge)
-                {
-                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
-                    return false;
-                }
-                RequestLockInformation rli = new RequestLockInformation()
-                {
-                    Author = Workspace.Username,
-                    Branch = branchID,
-                    Path = lockedPath,
-                    Steal = steal
-                };
-                Utilities.SendEncrypted(SharedInfo, rli);
-
-                queryResult = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(Connection.GetStream(), ProtoBuf.PrefixStyle.Fixed32);
-                if (queryResult.Type == NetCommandType.Acknowledge)
-                {
-                    var lockGranting = Utilities.ReceiveEncrypted<LockGrantInformation>(SharedInfo);
-                    IEnumerable<Guid> brokenLocks = null;
-                    if (lockGranting?.BrokenLocks?.Conflicts != null)
-                        brokenLocks = lockGranting.BrokenLocks.Conflicts.Select(x => x.ID);
-                    Workspace.RecordLock(lockGranting.LockID, branchID, lockedPath, URL, brokenLocks);
-                    Printer.PrintMessage("Acquired lock.");
-                    return true;
-                }
-                else if (queryResult.Type == NetCommandType.PathLocked)
-                {
-                    var lockConflicts = Utilities.ReceiveEncrypted<LockConflictInformation>(SharedInfo);
-                    Printer.PrintMessage("#e#Couldn't acquire lock:## #b#path locked##\n\nConflicting lock information:");
-                    foreach (var x in lockConflicts.Conflicts)
-                    {
-                        Printer.PrintMessage("#b#{1}## locked by #b#{0}## on branch #c#{2}##", x.User, string.IsNullOrEmpty(x.Path) ? "<entire vault>" : "\"" + x.Path + "\"", x.Branch);
-                    }
-                    return false;
-                }
+                var branchLocal = Workspace.GetBranch(branch.Value);
+                if (branchLocal == null)
+                    lockbranch = branch.Value.ToString();
                 else
-                {
-                    Printer.PrintError("Couldn't request lock - error: {0}", queryResult.AdditionalPayload);
-                    return false;
-                }
+                    lockbranch = branchLocal.ShortID + " (" + branchLocal.Name + ")";
             }
-
-            return false;
+            string userString = "";
+            if (!string.IsNullOrEmpty(user))
+                userString = string.Format(" by #b#{0}##", user);
+            Printer.PrintMessage("{4}{0} - #b#{1}##{3} on branch #c#{2}##", id, lockPath, lockbranch, userString, prefix);
         }
 
         private bool SendLocks()
@@ -236,7 +354,15 @@ namespace Versionr.Network
             if (queryResult.Type == NetCommandType.Acknowledge)
             {
                 Workspace.ReleaseLocks(ltl.Locks);
-                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // ignored
+                ltl = Utilities.ReceiveEncrypted<LockTokenList>(SharedInfo); // these are the locks we actually released
+                foreach (var x in ltl.Locks)
+                {
+                    var rl = locks.Where(z => z.ID == x).FirstOrDefault();
+                    if (rl != null)
+                    {
+                        PrintLock("Released lock: ", rl.ID, rl.LockingPath, rl.LockedBranch, null);
+                    }
+                }
                 return true;
             }
             return false;
@@ -245,7 +371,7 @@ namespace Versionr.Network
 		private bool SyncRecords(List<Record> records)
 		{
 			Printer.PrintMessage("Vault is missing data for {0} records.", records.Count);
-			List<string> returnedData = GetRecordData(records);
+			List<string> returnedData = GetMissingData(records, null);
 			Printer.PrintMessage(" - Got {0} records from remote.", records.Count);
 			if (returnedData.Count != records.Count)
 				return false;
@@ -427,6 +553,8 @@ namespace Versionr.Network
                 Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                 Printer.PrintMessage("Determining data to send...");
                 if (!SharedNetwork.SendBranchJournal(SharedInfo))
+                    return false;
+                if (!SharedNetwork.PullJournalData(SharedInfo))
                     return false;
                 Objects.Version version = Workspace.Version;
                 if (branchName != null)
@@ -675,6 +803,7 @@ namespace Versionr.Network
                             break;
                         }
                     }
+                    SharedNetwork.PullJournalData(SharedInfo);
                 }
                 return true;
             }
@@ -728,7 +857,7 @@ namespace Versionr.Network
                         Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
                         Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
                         HashSet<Guid> terminatedBranches = new HashSet<Guid>();
-                        List<Guid> mergeResults = new List<Guid>();
+                        List<Guid?> mergeResults = new List<Guid?>();
                         foreach (var x in ((IEnumerable<VersionInfo>)sharedInfo.PushedVersions).Reverse())
                         {
                             if (terminatedBranches.Contains(x.Version.Branch))
@@ -754,8 +883,10 @@ namespace Versionr.Network
                                 temporaryHeads[branch.ID] = heads;
                             }
                             mergeResults.Clear();
+                            bool foundRelation = false;
                             for (int i = 0; i < heads.Count; i++)
                             {
+                                mergeResults.Add(null);
                                 if (heads[i].Version != x.Version.ID)
                                 {
                                     HashSet<Guid> headAncestors = null;
@@ -767,36 +898,37 @@ namespace Versionr.Network
                                     if (headAncestors.Contains(x.Version.ID))
                                     {
                                         // all best
-                                        mergeResults.Add(heads[i].Version);
-                                    }
-                                    else if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo))
-                                    {
-                                        mergeResults.Add(x.Version.ID);
-                                    }
-                                    else
-                                    {
-                                        mergeResults.Add(Guid.Empty);
+                                        foundRelation = true;
+                                        mergeResults[i] = heads[i].Version;
                                     }
                                 }
                             }
+                            if (!foundRelation)
+                            {
+                                for (int i = 0; i < heads.Count; i++)
+                                {
+                                    if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo))
+                                    {
+                                        foundRelation = true;
+                                        mergeResults[i] = x.Version.ID;
+                                    }
+                                }
+                            }
+                            if (!foundRelation)
+                                mergeResults.Add(Guid.Empty);
                             pendingMerges[x.Version.Branch] = Guid.Empty;
                             // Remove any superceded heads
                             // Add a merge if required
                             bool unrelated = true;
-                            for (int i = 0; i < mergeResults.Count; i++)
+                            for (int i = 0; i < heads.Count; i++)
                             {
-                                if (mergeResults[i] == Guid.Empty)
-                                    continue;
-                                else if (mergeResults[i] != heads[i].Version)
+                                if (mergeResults[i].HasValue && mergeResults[i] != heads[i].Version)
                                 {
                                     headAncestry.Remove(heads[i].Version);
                                     heads[i].Version = x.Version.ID;
-                                    unrelated = false;
                                 }
-                                else
-                                    unrelated = false;
                             }
-                            if (unrelated)
+                            if (mergeResults.Count != heads.Count)
                             {
                                 heads.Add(new Head() { Branch = x.Version.Branch, Version = x.Version.ID });
                             }
@@ -847,7 +979,7 @@ namespace Versionr.Network
                             }
 
                             var localVersions = bheads.Where(h => heads.Any(y => y.Version != h.Version));
-                            var remoteVersions = heads.Where(h => !bheads.Any(y => y.Version != h.Version));
+                            var remoteVersions = heads.Where(h => bheads.All(y => y.Version != h.Version));
 
                             if (localVersions.Count() != 1)
                             {
@@ -857,25 +989,33 @@ namespace Versionr.Network
                             if (remoteVersions.Count() == 1 && localVersions.Count() > 0)
                             {
                                 Guid localVersion = localVersions.OrderBy(y => Workspace.GetVersion(y.Version).Timestamp).Last().Version;
-                                VersionInfo result;
-                                string error;
-                                result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
-
-                                Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
-                                Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
-                                Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
-                                Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
-
-                                for (int i = 0; i < heads.Count; i++)
+                                if (localVersion != remoteVersions.First().Version)
                                 {
-                                    if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                    VersionInfo result;
+                                    string error;
+                                    result = Workspace.MergeRemote(Workspace.GetLocalOrRemoteVersion(localVersion, sharedInfo), remoteVersions.First().Version, sharedInfo, out error, true);
+
+                                    if (result != null)
                                     {
-                                        heads.RemoveAt(i);
-                                        --i;
+                                        Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
+                                        Printer.PrintDiagnostics(" - Merge local input {0}", localVersion);
+                                        Printer.PrintDiagnostics(" - Merge remote input {0}", remoteVersions.First().Version);
+                                        Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
+
+                                        for (int i = 0; i < heads.Count; i++)
+                                        {
+                                            if ((remoteVersions.Any() && heads[i].Version == remoteVersions.First().Version) || heads[i].Version == localVersion)
+                                            {
+                                                heads.RemoveAt(i);
+                                                --i;
+                                            }
+                                        }
+                                        heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
+                                        autoMerged.Add(result);
                                     }
+                                    else
+                                        Printer.PrintMessage("Can't resolve incoming head for branch \"{0}\" - manual merge required.", branch.Name);
                                 }
-                                heads.Add(new Head() { Branch = branch.ID, Version = result.Version.ID });
-                                autoMerged.Add(result);
                             }
                         }
                         var versionsToImport = sharedInfo.PushedVersions.OrderBy(x => x.Version.Timestamp).ToArray();
@@ -1179,9 +1319,14 @@ namespace Versionr.Network
             return new string(pwd.ToArray());
         }
 
-        public List<string> GetRecordData(List<Record> missingRecords)
+        public List<string> GetMissingData(List<Record> missingRecords, List<string> missingData)
         {
-            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingRecords.Select(x => x.DataIdentifier).ToList());
+            IEnumerable<string> missingDataList = new string[0];
+            if (missingRecords != null)
+                missingDataList = missingDataList.Concat(missingRecords.Select(x => x.DataIdentifier));
+            if (missingData != null)
+                missingDataList = missingDataList.Concat(missingData);
+            return SharedNetwork.RequestRecordDataUnmapped(SharedInfo, missingDataList.ToList());
         }
     }
 

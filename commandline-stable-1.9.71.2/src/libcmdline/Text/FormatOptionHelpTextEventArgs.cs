@@ -38,9 +38,10 @@ namespace CommandLine.Text
         /// Initializes a new instance of the <see cref="CommandLine.Text.FormatOptionHelpTextEventArgs"/> class.
         /// </summary>
         /// <param name="option">Option to format.</param>
-        public FormatOptionHelpTextEventArgs(BaseOptionAttribute option)
+        public FormatOptionHelpTextEventArgs(BaseOptionAttribute option, string text)
         {
             _option = option;
+            Text = text;
         }
 
         /// <summary>
@@ -52,6 +53,11 @@ namespace CommandLine.Text
             {
                 return _option;
             }
+        }
+
+        public string Text
+        {
+            get; set;
         }
     }
 }

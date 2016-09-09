@@ -36,6 +36,9 @@ namespace Versionr.Commands
             }
         }
 
+
+        [Option('i', "interactive", DefaultValue = false, HelpText = "Prompts for each stash operation.")]
+        public bool Interactive { get; set; }
         [Option('d', "delete", DefaultValue = false, HelpText = "Deletes the stash after applying it.")]
         public bool Delete { get; set; }
 
@@ -81,6 +84,7 @@ namespace Versionr.Commands
                 options.StageOperations = localOptions.Stage;
                 options.AllowUncleanPatches = localOptions.Relaxed;
                 options.Reverse = localOptions.Reverse;
+                options.Interactive = localOptions.Interactive;
                 ws.Unstash(stash, options, localOptions.Delete);
             }
 

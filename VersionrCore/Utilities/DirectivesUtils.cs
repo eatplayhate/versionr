@@ -30,7 +30,7 @@ namespace Versionr.Utilities
         
         public static Directives LoadVRMeta(Area area, out string error)
         {
-            return LoadDirectives(GetVRMetaPath(area), out error);
+            return LoadDirectives<Directives>(GetVRMetaPath(area), "Versionr", out error);
         }
 
         public static Directives LoadGlobalVRUser()
@@ -41,7 +41,7 @@ namespace Versionr.Utilities
 
         public static Directives LoadGlobalVRUser(out string error)
         {
-            return LoadDirectives(GetGlobalVRUserPath(), out error);
+            return LoadDirectives<Directives>(GetGlobalVRUserPath(), "Versionr", out error);
         }
 
         public static Directives LoadVRUser(Area area)
@@ -52,7 +52,7 @@ namespace Versionr.Utilities
         
         public static Directives LoadVRUser(Area area, out string error)
         {
-            return LoadDirectives(GetVRUserPath(area), out error);
+            return LoadDirectives<Directives>(GetVRUserPath(area), "Versionr", out error);
         }
 
         public static bool WriteVRMeta(Area area, Directives directives)
@@ -70,9 +70,9 @@ namespace Versionr.Utilities
             return WriteDirectives(directives, GetVRUserPath(area));
         }
 
-        private static Directives LoadDirectives(string path, out string error)
+        public static T LoadDirectives<T>(string path, string configName, out string error)
         {
-            Directives directives = null;
+            T directives = default(T);
             error = null;
 
             FileInfo info = new FileInfo(path);
@@ -86,11 +86,11 @@ namespace Versionr.Utilities
                 try
                 {
                     JObject configuration = JObject.Parse(data);
-                    var element = configuration["Versionr"];
+                    var element = configuration[configName];
                     if (element != null)
-                        directives = JsonConvert.DeserializeObject<Directives>(element.ToString());
+                        directives = JsonConvert.DeserializeObject<T>(element.ToString());
                     else
-                        error = String.Format("\"Versionr\" element not found in {0}", info.FullName);
+                        error = String.Format("\"{0}\" element not found in {1}", configName, info.FullName);
                 }
                 catch (Exception e)
                 {
@@ -107,7 +107,7 @@ namespace Versionr.Utilities
             return directives;
         }
 
-        private static bool WriteDirectives(Directives directives, string path)
+        public static bool WriteDirectives<T>(T directives, string path)
         {
             bool success = false;
 
@@ -119,7 +119,7 @@ namespace Versionr.Utilities
                     DefaultValueHandling = DefaultValueHandling.Ignore,
                     NullValueHandling = NullValueHandling.Ignore
                 };
-                string element = JsonConvert.SerializeObject(directives, typeof(Directives), settings);
+                string element = JsonConvert.SerializeObject(directives, typeof(T), settings);
                 string config = String.Format("{{\n\t\"Versionr\" :\n{0}\n}}", element);
 
                 using (StreamWriter file = File.CreateText(path))

@@ -635,13 +635,8 @@ namespace CommandLine.Text
         {
             var optionList = ReflectionHelper.RetrievePropertyAttributeList<BaseOptionAttribute>(options);
             var optionHelp = ReflectionHelper.RetrieveMethodAttributeOnly<HelpOptionAttribute>(options);
-
-            if (optionHelp != null && ShowHelpOption)
-            {
-                optionList.Add(optionHelp);
-            }
-
-            if (optionList.Count == 0)
+            
+            if (optionList.Count == 0 && !(optionHelp != null && ShowHelpOption))
             {
                 return;
             }
@@ -653,6 +648,8 @@ namespace CommandLine.Text
             {
                 AddOption(requiredWord, maxLength, option, remainingSpace, fireEvent);
             }
+            if (optionHelp != null && ShowHelpOption)
+                AddOption(requiredWord, maxLength, optionHelp, remainingSpace, fireEvent);
         }
 
         private void AddPreOptionsLine(string value, int maximumLength)
@@ -664,6 +661,7 @@ namespace CommandLine.Text
         {
             this._optionsHelp.Append("  ");
             var optionName = new StringBuilder(maxLength);
+            string helpText = option.HelpText;
             if (option.HasShortName)
             {
                 if (this._addDashesToOption)
@@ -706,27 +704,27 @@ namespace CommandLine.Text
             this._optionsHelp.Append("    ");
             if (option.HasDefaultValue)
             {
-                option.HelpText = "(Default: {0}) ".FormatLocal(option.DefaultValue) + option.HelpText;
+                helpText = "(Default: {0}) ".FormatLocal(option.DefaultValue) + helpText;
             }
 
             if (option.Required)
             {
-                option.HelpText = "{0} ".FormatInvariant(requiredWord) + option.HelpText;
+                helpText = "{0} ".FormatInvariant(requiredWord) + helpText;
             }
 
             if (fireEvent)
             {
-                var e = new FormatOptionHelpTextEventArgs(option);
+                var e = new FormatOptionHelpTextEventArgs(option, helpText);
                 OnFormatOptionHelpText(e);
-                option.HelpText = e.Option.HelpText;
+                helpText = e.Text;
             }
 
-            if (!string.IsNullOrEmpty(option.HelpText))
+            if (!string.IsNullOrEmpty(helpText))
             {
                 do
                 {
                     int wordBuffer = 0;
-                    var words = option.HelpText.Split(new[] { ' ' });
+                    var words = helpText.Split(new[] { ' ' });
                     for (int i = 0; i < words.Length; i++)
                     {
                         if (words[i].Length < (widthOfHelpText - wordBuffer))
@@ -751,18 +749,18 @@ namespace CommandLine.Text
                         }
                     }
 
-                    option.HelpText = option.HelpText.Substring(
-                        Math.Min(wordBuffer, option.HelpText.Length)).Trim();
-                    if (option.HelpText.Length > 0)
+                    helpText = helpText.Substring(
+                        Math.Min(wordBuffer, helpText.Length)).Trim();
+                    if (helpText.Length > 0)
                     {
                         this._optionsHelp.Append(Environment.NewLine);
                         this._optionsHelp.Append(new string(' ', maxLength + 6));
                     }
                 }
-                while (option.HelpText.Length > widthOfHelpText);
+                while (helpText.Length > widthOfHelpText);
             }
 
-            this._optionsHelp.Append(option.HelpText);
+            this._optionsHelp.Append(helpText);
             this._optionsHelp.Append(Environment.NewLine);
             if (_additionalNewLineAfterOption)
             {

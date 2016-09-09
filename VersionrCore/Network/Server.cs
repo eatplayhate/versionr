@@ -302,7 +302,7 @@ namespace Versionr.Network
                     }
                     if (valid)
                     {
-                        if (ws == null)
+                        if (!domainInfo.Bare && ws == null)
                             throw new Exception("No workspace at server path!");
                         sharedInfo.CommunicationProtocol = clientProtocol.Value;
                         Network.StartTransaction startSequence = null;
@@ -343,6 +343,7 @@ namespace Versionr.Network
                         while (true)
                         {
                             NetCommand command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                            //Printer.PrintDiagnostics("Command: {0}", command.Type);
                             if (command.Type == NetCommandType.Close)
                             {
                                 Printer.PrintDiagnostics("Client closing connection.");
@@ -379,6 +380,11 @@ namespace Versionr.Network
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
                                     SharedNetwork.ReceiveStashData(sharedInfo, command.Identifier);
                                 }
+                            }
+                            else if (command.Type == NetCommandType.QueryJournal)
+                            {
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                SharedNetwork.ProcessJournalQuery(sharedInfo);
                             }
                             else if (command.Type == NetCommandType.PushInitialVersion)
                             {
@@ -579,10 +585,17 @@ namespace Versionr.Network
                                     }, false);
                                 }
                             }
+                            else if (command.Type == NetCommandType.PushRecords)
+                            {
+                                SharedNetwork.RequestRecordDataUnmapped(sharedInfo, ws.GetAllMissingRecords().Select(x => x.DataIdentifier).ToList());
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
+                            }
                             else if (command.Type == NetCommandType.SynchronizeRecords)
                             {
                                 if (!clientInfo.Access.HasFlag(Rights.Read))
                                     throw new Exception("Access denied.");
+                                Printer.PrintDiagnostics("Requesting journal data...");
+                                SharedNetwork.PullJournalData(sharedInfo);
                                 Printer.PrintDiagnostics("Received {0} versions in version pack, but need {1} records to commit data.", sharedInfo.PushedVersions.Count, sharedInfo.UnknownRecords.Count);
                                 Printer.PrintDiagnostics("Beginning record synchronization...");
                                 if (sharedInfo.UnknownRecords.Count > 0)
@@ -590,7 +603,8 @@ namespace Versionr.Network
                                     Printer.PrintDiagnostics("Requesting record metadata...");
                                     SharedNetwork.RequestRecordMetadata(clientInfo.SharedInfo);
                                     Printer.PrintDiagnostics("Requesting record data...");
-                                    SharedNetwork.RequestRecordData(sharedInfo);
+                                    if (!SharedNetwork.RequestRecordData(sharedInfo))
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "Record data was not sent!" }, ProtoBuf.PrefixStyle.Fixed32);
                                     if (!sharedInfo.Workspace.RunLocked(() =>
                                     {
                                         return SharedNetwork.ImportRecords(sharedInfo);
@@ -703,7 +717,7 @@ namespace Versionr.Network
                                         clientInfo.Locks.Add(l);
                                     }
                                     try
-                                    { 
+                                    {
                                         sharedInfo.Workspace.BeginDatabaseTransaction();
                                         var resultLocks = sharedInfo.Workspace.BreakLocks(lockTokens.Locks);
                                         sharedInfo.Workspace.CommitDatabaseTransaction();
@@ -737,15 +751,23 @@ namespace Versionr.Network
                                         clientInfo.Locks.Add(l);
                                     }
                                 }
+                                Printer.PrintDiagnostics("Client sent {0} tokens.");
                             }
-                            else if (command.Type == NetCommandType.RequestLock)
+                            else if (command.Type == NetCommandType.ListOrBreakLocks || command.Type == NetCommandType.RequestLock)
                             {
                                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
+                                bool grant = false;
+                                if (command.Type == NetCommandType.RequestLock)
+                                {
+                                    grant = true;
+                                    Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
+                                }
+                                else
+                                    Printer.PrintDiagnostics("Client is asking for a list of locks (potentially to break them).");
                                 var rli = Utilities.ReceiveEncrypted<RequestLockInformation>(sharedInfo);
 
                                 List<VaultLock> lockConflicts;
-                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, clientInfo.Locks, out lockConflicts);
+                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, command.Type == NetCommandType.RequestLock, clientInfo.Locks, out lockConflicts);
 
                                 if (lockConflicts.Count == 0 || rli.Steal)
                                 {
@@ -755,7 +777,8 @@ namespace Versionr.Network
                                     {
                                         sharedInfo.Workspace.BeginDatabaseTransaction();
                                         sharedInfo.Workspace.BreakLocks(lockConflicts);
-                                        lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
+                                        if (grant)
+                                            lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
                                         sharedInfo.Workspace.CommitDatabaseTransaction();
                                     }
                                     catch
@@ -884,86 +907,110 @@ namespace Versionr.Network
         private static bool AcceptHeads(ClientStateInfo clientInfo, Area ws, out string errorData)
         {
             SharedNetwork.ImportBranches(clientInfo.SharedInfo);
-            Dictionary<Guid, Head> temporaryHeads = new Dictionary<Guid, Head>();
+            Dictionary<Guid, List<Head>> temporaryHeads = new Dictionary<Guid, List<Head>>();
             Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
             Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
-            foreach (var x in clientInfo.SharedInfo.PushedVersions)
+            foreach (var x in clientInfo.SharedInfo.PushedVersions.Reverse<VersionInfo>())
             {
                 Branch branch = ws.GetBranch(x.Version.Branch);
-                Head head;
-                if (!temporaryHeads.TryGetValue(branch.ID, out head))
+                List<Head> heads;
+                if (!temporaryHeads.TryGetValue(branch.ID, out heads))
                 {
-                    var heads = ws.GetBranchHeads(branch);
+                    heads = ws.GetBranchHeads(branch);
                     if (heads.Count == 0)
-                        head = new Head() { Branch = branch.ID, Version = x.Version.ID };
-                    else if (heads.Count == 1)
-                        head = heads[0];
+                        heads.Add(new Head() { Branch = branch.ID, Version = x.Version.ID });
+                    temporaryHeads[branch.ID] = heads;
+                }
+                bool considerHeadUpdate = true;
+                foreach (var head in heads)
+                {
+                    if (head.Version != x.Version.ID)
+                    {
+                        HashSet<Guid> headAncestors = null;
+                        if (!headAncestry.TryGetValue(head.Version, out headAncestors))
+                        {
+                            headAncestors = SharedNetwork.GetAncestry(head.Version, clientInfo.SharedInfo);
+                            headAncestry[head.Version] = headAncestors;
+                        }
+                        if (headAncestors.Contains(x.Version.ID))
+                        {
+                            considerHeadUpdate = false;
+                            break;
+                        }
+                    }
                     else
                     {
-                        // ???
-                        Printer.PrintError("OMG 1");
-                        errorData = string.Format("Multiple ({0}) heads for branch {1}", heads.Count, branch.ID);
-                        return false;
+                        considerHeadUpdate = false;
+                        break;
                     }
-                    temporaryHeads[branch.ID] = head;
                 }
-                if (head.Version != x.Version.ID)
+                if (considerHeadUpdate)
                 {
-                    HashSet<Guid> headAncestors = null;
-                    if (!headAncestry.TryGetValue(head.Version, out headAncestors))
+                    bool addHead = true;
+                    foreach (var head in heads)
                     {
-                        headAncestors = SharedNetwork.GetAncestry(head.Version, clientInfo.SharedInfo);
-                        headAncestry[head.Version] = headAncestors;
+                        if (head.Version != x.Version.ID)
+                        {
+                            if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                            {
+                                headAncestry.Remove(head.Version);
+                                head.Version = x.Version.ID;
+                                addHead = false;
+                                break;
+                            }
+                        }
                     }
-                    if (headAncestors.Contains(x.Version.ID))
+                    if (addHead)
                     {
-                        // all best
+                        heads.Add(new Head() { Branch = branch.ID, Version = x.Version.ID });
                     }
-                    else if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                }
+                HashSet<Guid> headIDs = new HashSet<Guid>();
+                for (int i = 0; i < heads.Count; i++)
+                {
+                    if (!headIDs.Add(heads[i].Version))
                     {
-                        headAncestry.Remove(head.Version);
-                        pendingMerges[branch.ID] = Guid.Empty;
-                        head.Version = x.Version.ID;
-                    }
-                    else if (!SharedNetwork.IsAncestor(x.Version.ID, head.Version, clientInfo.SharedInfo))
-                    {
-                        headAncestry.Remove(head.Version);
-                        pendingMerges[branch.ID] = head.Version;
-                        head.Version = x.Version.ID;
+                        heads.RemoveAt(i);
+                        i--;
                     }
                 }
             }
-            foreach (var x in pendingMerges)
+            Dictionary<Guid, Head> resultHeads = new Dictionary<Guid, Head>();
+            foreach (var x in temporaryHeads)
             {
-                if (x.Value == Guid.Empty)
+                Branch branch = ws.GetBranch(x.Key);
+                if (x.Value.Count == 1)
                 {
-                    Printer.PrintDiagnostics("Uncontested head update for branch \"{0}\".", ws.GetBranch(x.Key).Name);
-                    Printer.PrintDiagnostics(" - Head updated to {0}", temporaryHeads[x.Key].Version);
+                    resultHeads[x.Key] = x.Value[0];
                     continue;
                 }
-                Branch branch = ws.GetBranch(x.Key);
-                VersionInfo result;
-                string error;
-                result = ws.MergeRemote(ws.GetLocalOrRemoteVersion(x.Value, clientInfo.SharedInfo), temporaryHeads[x.Key].Version, clientInfo.SharedInfo, out error);
-                if (result == null)
+                string error = "Too many heads";
+                if (x.Value.Count == 2)
                 {
-                    // safe merge?
-                    Printer.PrintError("OMG 2");
-                    errorData = string.Format("Can't automatically merge data - multiple heads in branch \'{0}\'.\nAttempted merge result: {1}", branch.Name, error);
-                    return false;
+                    if (x.Value[0].Version == x.Value[1].Version)
+                    {
+                        errorData = string.Format("Error while performing internal merge operation!");
+                        return false;
+                    }
+                    VersionInfo result;
+                    result = ws.MergeRemote(ws.GetLocalOrRemoteVersion(x.Value[0].Version, clientInfo.SharedInfo), x.Value[1].Version, clientInfo.SharedInfo, out error);
+                    if (result != null)
+                    {
+                        clientInfo.MergeVersions.Add(result);
+                        Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
+                        Printer.PrintDiagnostics(" - Merge local input {0}", x.Value[0].Version);
+                        Printer.PrintDiagnostics(" - Merge remote input {0}", x.Value[1].Version);
+                        Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
+                        resultHeads[x.Key] = new Head() { Branch = x.Key, Version = result.Version.ID };
+                        continue;
+                    }
                 }
-                else
-                {
-                    clientInfo.MergeVersions.Add(result);
-                    Printer.PrintMessage("Resolved incoming merge for branch \"{0}\".", branch.Name);
-                    Printer.PrintDiagnostics(" - Merge local input {0}", x.Value);
-                    Printer.PrintDiagnostics(" - Merge remote input {0}", temporaryHeads[x.Key].Version);
-                    Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
-                    temporaryHeads[x.Key].Version = result.Version.ID;
-                }
+                Printer.PrintError("OMG 2");
+                errorData = string.Format("Can't automatically merge data - multiple heads in branch \'{0}\'.\nAttempted merge result: {1}", branch.Name, error);
+                return false;
             }
             // theoretically best
-            clientInfo.UpdatedHeads = temporaryHeads;
+            clientInfo.UpdatedHeads = resultHeads;
             errorData = string.Empty;
             return true;
         }

@@ -63,14 +63,21 @@ namespace Versionr
 			s_Implementations[key] = implementations = new List<object>();
 			foreach (var plugin in Plugins)
 			{
-				foreach (var type in plugin.Assembly.GetTypes())
-				{
-					if (!type.IsAbstract && !type.IsInterface && key.IsAssignableFrom(type))
-					{
-						var instance = Activator.CreateInstance(type);
-						implementations.Add(instance);
-					}
-				}
+                try
+                {
+                    foreach (var type in plugin.Assembly.GetTypes())
+                    {
+                        if (!type.IsAbstract && !type.IsInterface && key.IsAssignableFrom(type))
+                        {
+                            var instance = Activator.CreateInstance(type);
+                            implementations.Add(instance);
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
 			}
 			return implementations.Cast<T>();
 		}

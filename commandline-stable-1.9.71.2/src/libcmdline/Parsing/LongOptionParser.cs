@@ -108,19 +108,49 @@ namespace CommandLine.Parsing
                     return ArgumentParser.BooleanToParserState(valueSetting);
                 }
             }
-
+            
             if (parts.Length == 2)
             {
-                return PresentParserState.Failure;
+                bool result;
+                if (bool.TryParse(parts[1], out result))
+                {
+                    if (!option.SetValue(parts[1], options))
+                    {
+                        return PresentParserState.Failure;
+                    }
+                }
+                else if (!option.SetValue(true, options))
+                {
+                    return PresentParserState.Failure;
+                }
+                return ArgumentParser.BooleanToParserState(true);
             }
 
-            valueSetting = option.SetValue(true, options);
-            if (!valueSetting)
+            if (!argumentEnumerator.IsLast)
             {
-                DefineOptionThatViolatesFormat(option);
+                string value = argumentEnumerator.Next;
+                bool result;
+                if (bool.TryParse(value, out result))
+                {
+                    if (!option.SetValue(value, options))
+                    {
+                        return PresentParserState.Failure;
+                    }
+                    argumentEnumerator.MoveNext();
+                }
+                else if (!option.SetValue(true, options))
+                {
+                    return PresentParserState.Failure;
+                }
             }
-
-            return ArgumentParser.BooleanToParserState(valueSetting);
+            else
+            {
+                if (!option.SetValue(true, options))
+                {
+                    return PresentParserState.Failure;
+                }
+            }
+            return ArgumentParser.BooleanToParserState(true);
         }
     }
 }

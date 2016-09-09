@@ -64,6 +64,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Commands\DeleteAnnotation.cs" />
+    <Compile Include="Commands\DiffVersions.cs" />
+    <Compile Include="Commands\GetAnnotation.cs" />
+    <Compile Include="Commands\ListAnnotation.cs" />
     <Compile Include="Commands\Lock.cs" />
     <Compile Include="Commands\Admin.cs" />
     <Compile Include="Commands\Ahead.cs" />
@@ -79,12 +83,14 @@
     <Compile Include="Commands\Info.cs" />
     <Compile Include="Commands\BranchList.cs" />
     <Compile Include="Commands\LockList.cs" />
+    <Compile Include="Commands\LockCheck.cs" />
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\MergeInfo.cs" />
     <Compile Include="Commands\Prune.cs" />
     <Compile Include="Commands\Pull.cs" />
     <Compile Include="Commands\Push.cs" />
+    <Compile Include="Commands\PushRecords.cs" />
     <Compile Include="Commands\PushStash.cs" />
     <Compile Include="Commands\Rebase.cs" />
     <Compile Include="Commands\Record.cs" />
@@ -93,6 +99,7 @@
     <Compile Include="Commands\Checkout.cs" />
     <Compile Include="Commands\Commit.cs" />
     <Compile Include="Commands\Init.cs" />
+    <Compile Include="Commands\SetAnnotation.cs" />
     <Compile Include="Commands\SetRemote.cs" />
     <Compile Include="Commands\RemoteCommand.cs" />
     <Compile Include="Commands\RenameBranch.cs" />
@@ -105,6 +112,8 @@
     <Compile Include="Commands\Stats.cs" />
     <Compile Include="Commands\Status.cs" />
     <Compile Include="Commands\SyncRecords.cs" />
+    <Compile Include="Commands\Tag.cs" />
+    <Compile Include="Commands\TagFind.cs" />
     <Compile Include="Commands\Unlock.cs" />
     <Compile Include="Commands\Unrecord.cs" />
     <Compile Include="Commands\Unstash.cs" />

@@ -73,8 +73,10 @@ namespace Versionr
         
 		[VerbOption("diff", HelpText = "Display file differences")]
 		public Commands.DiffVerbOptions DiffVerb { get; set; }
+        [VerbOption("diff-version", HelpText = "Display version differences")]
+        public Commands.DiffVersionsVerbOptions DiffVersionsVerb { get; set; }
 
-		[VerbOption("revert", HelpText = "Revert a file or files to pristine version")]
+        [VerbOption("revert", HelpText = "Revert a file or files to pristine version")]
 		public Commands.RevertVerbOptions RevertVerb { get; set; }
 		[VerbOption("unrecord", HelpText = "Removes a file from inclusion in the next commit (undoes 'record')")]
 		public Commands.UnrecordVerbOptions UnrecordVerb { get; set; }
@@ -127,6 +129,9 @@ namespace Versionr
         [VerbOption("pull-stash", HelpText = "Pulls one or more stashes from a server.")]
         public Commands.PullStashVerbOptions PullStashVerb { get; set; }
 
+        [VerbOption("push-records", HelpText = "Pushes file content that this node has to a server.")]
+        public Commands.PushRecordsVerbOptions PushRecordsVerb { get; set; }
+
         [VerbOption("lock", HelpText = "Acquires an exclusive lock to a specific path on a server.")]
         public Commands.LockVerbOptions LockVerb { get; set; }
 
@@ -136,8 +141,29 @@ namespace Versionr
         [VerbOption("unlock", HelpText = "Releases a held exclusive lock on a remote.")]
         public Commands.UnlockVerbOptions UnlockVerb { get; set; }
 
+        [VerbOption("lock-check", HelpText = "Lists or breaks locks on a remote.")]
+        public Commands.LockCheckVerbOptions LockCheckVerb { get; set; }
+
         [VerbOption("prune", HelpText = "Cleans up old object files.")]
         public Commands.PruneVerbOptions PruneVerb { get; set; }
+
+        [VerbOption("tag", HelpText = "Modifies tags associated with a version.")]
+        public Commands.TagVerbOptions TagVerb { get; set; }
+
+        [VerbOption("tag-find", HelpText = "Searches for versions with a specific tag.")]
+        public Commands.TagFindVerbOptions TagFindVerb { get; set; }
+
+        [VerbOption("get-annotation", HelpText = "Gets a keyed metadata blob attached to a specific version.")]
+        public Commands.GetAnnotationVerbOptions GetAnnotationVerb { get; set; }
+
+        [VerbOption("list-annotation", HelpText = "Lists metadata blobs attached to a specific version.")]
+        public Commands.ListAnnotationVerbOptions ListAnnotationVerb { get; set; }
+
+        [VerbOption("set-annotation", HelpText = "Sets a keyed metadata blob attached to a specific version.")]
+        public Commands.SetAnnotationVerbOptions SetAnnotationVerb { get; set; }
+
+        [VerbOption("delete-annotation", HelpText = "Deletes a keyed metadata blob attached to a specific version.")]
+        public Commands.DeleteAnnotationVerbOptions DeleteAnnotationVerb { get; set; }
 
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }

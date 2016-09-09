@@ -12,8 +12,8 @@ namespace Versionr
 {
     internal class LocalDB : SQLite.SQLiteConnection
     {
-        public const int LocalDBVersion = 12;
-        private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(path, flags)
+        public const int LocalDBVersion = 14;
+        private LocalDB(string path, SQLite.SQLiteOpenFlags flags) : base(new FileInfo(path).GetFullNameWithCorrectCase(), flags)
         {
             Printer.PrintDiagnostics("Local DB Open.");
             if ((flags & SQLite.SQLiteOpenFlags.Create) != 0)
@@ -182,25 +182,15 @@ namespace Versionr
             if (Configuration.Version != LocalDBVersion)
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
+            {
+                if (!UniquenessCheck())
+                    SetUniqueData();
                 return true;
+            }
             PrepareTables();
             DeleteAll<CachedRecords>();
-            if (Configuration.Version < 11)
-            {
-                try
-                {
-                    Workspace ws = Workspace;
-                    ws.GenerateStashCode();
-                    BeginTransaction();
-                    Update(ws);
-                    Commit();
-                }
-                catch
-                {
-                    Rollback();
-                    return false;
-                }
-            }
+            if (!UniquenessCheck())
+                SetUniqueData();
             if (Configuration.Version < 5)
             {
                 Configuration config = Configuration;
@@ -254,6 +244,48 @@ namespace Versionr
                 Rollback();
                 return false;
             }
+        }
+
+        public static LocalState.Workspace CreateWorkspace(string dbPath)
+        {
+            Workspace ws = Workspace.Create();
+            ws.ComputerName = Environment.MachineName;
+            ws.LocalWorkspacePath = new FileInfo(dbPath).GetFullNameWithCorrectCase();
+            return ws;
+        }
+
+        private void SetUniqueData()
+        {
+            try
+            {
+                Printer.PrintDiagnostics("LocalDB has been moved or is missing uniqueness data. Regenerating.");
+                Workspace ws = Workspace;
+                BeginTransaction();
+                ws.ComputerName = Environment.MachineName;
+                ws.LocalWorkspacePath = new FileInfo(DatabasePath).GetFullNameWithCorrectCase();
+                ws.MakeUnique();
+                Printer.PrintDiagnostics("WS MachineName {0}, StashCode: {1}, Journal ID: {2}.", ws.ComputerName, ws.StashCode, ws.ID);
+                Configuration conf = Configuration;
+                conf.WorkspaceID = ws.ID;
+                Update(conf);
+                Update(ws);
+                Commit();
+            }
+            catch
+            {
+                Rollback();
+                throw;
+            }
+        }
+
+        private bool UniquenessCheck()
+        {
+            Workspace ws = Workspace;
+            if (ws.ComputerName != Environment.MachineName)
+                return false;
+            if (ws.LocalWorkspacePath != DatabasePath)
+                return false;
+            return true;
         }
 
         internal void RefreshPartialPath()

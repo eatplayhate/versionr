@@ -40,7 +40,12 @@ namespace Versionr.Network
         SendLocks,
         RequestLock,
         PathLocked,
-        ReleaseLocks
+        ReleaseLocks,
+        ListOrBreakLocks,
+        ListStashes,
+        QueryJournal,
+        JournalUpdateComplete,
+        PushRecords
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

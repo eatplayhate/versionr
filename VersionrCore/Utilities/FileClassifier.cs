@@ -32,6 +32,11 @@ namespace Versionr.Utilities
             using (var fs = info.OpenRead())
                 fs.Read(data, 0, data.Length);
 
+            return ClassifyData(data);
+        }
+
+        static public FileEncoding ClassifyData(byte[] data)
+        {
             int bomLength;
             FileEncoding? BOM = CheckBOM(data, out bomLength);
             if (BOM.HasValue)

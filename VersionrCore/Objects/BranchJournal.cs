@@ -10,7 +10,7 @@ namespace Versionr.Objects
     {
         Rename,
         Terminate,
-        Merge
+        Merge,
     }
 
     [ProtoBuf.ProtoContract]

@@ -208,9 +208,22 @@ namespace Versionr.Commands
                 if (heads.Count == 1)
                     Printer.WriteLineMessage("\n #w#Warning:## Current version is not the head of branch \"#b#{0}##\"!", Workspace.CurrentBranch.Name);
                 else if (heads.Count > 1 && heads.Any(x => x.Version == Workspace.Version.ID))
-                    Printer.WriteLineMessage("\n #w#Warning:## Branch \"#b#{0}##\" has multiple heads. Current version is one of #b#{0}## heads!", Workspace.CurrentBranch.Name, heads.Count);
+                {
+                    Printer.WriteLineMessage("\n #w#Warning:## Branch \"#b#{0}##\" has multiple heads. Current version is one of #b#{1}## heads!", Workspace.CurrentBranch.Name, heads.Count);
+                    int mergeHeadCount = 0;
+                    var mergeInputs = Workspace.StagedMergeInputs;
+                    foreach (var mi in mergeInputs)
+                    {
+                        if (heads.Any(h => h.Version == mi))
+                            mergeHeadCount++;
+                    }
+                    if (mergeHeadCount == heads.Count - 1)
+                        Printer.WriteLineMessage(" - When the current version is committed, #s#all## heads will be reconciled.");
+                    else if (mergeHeadCount != 0)
+                        Printer.WriteLineMessage(" - When the current version is committed, #w#{0}# additional heads will be reconciled.", mergeHeadCount);
+                }
                 else if (heads.Count > 1)
-                    Printer.WriteLineMessage("\n #w#Warning:## Branch \"#b#{0}##\" has multiple heads. Current version is #w#not## one of the #b#{0}## heads!", Workspace.CurrentBranch.Name, heads.Count);
+                    Printer.WriteLineMessage("\n #w#Warning:## Branch \"#b#{0}##\" has multiple heads. Current version is #w#not## one of the #b#{1}## heads!", Workspace.CurrentBranch.Name, heads.Count);
 
                 Printer.WriteLineMessage("\n Heads of #b#\"{0}\"##:", Workspace.CurrentBranch.Name);
                 foreach (var x in heads)
