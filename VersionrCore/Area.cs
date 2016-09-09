@@ -3113,19 +3113,19 @@ namespace Versionr
             }
         }
 
-        public List<Tuple<Objects.Version, int>> GetLogicalHistorySequenced(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        public List<Tuple<Objects.Version, int>> GetLogicalHistorySequenced(Objects.Version version, bool followBranches, bool showMerges, bool showAutoMerges, int? limit = null, HashSet<Guid> excludes = null)
         {
             int sequence = 0;
-            return GetLogicalHistory(version, followBranches, showMerges, limit, excludes, ref sequence);
+            return GetLogicalHistory(version, followBranches, showMerges, showAutoMerges, limit, excludes, ref sequence);
         }
 
-        public List<Objects.Version> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit = null, HashSet<Guid> excludes = null)
+        public List<Objects.Version> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, bool showAutoMerges, int? limit = null, HashSet<Guid> excludes = null)
         {
             int sequence = 0;
-            return GetLogicalHistory(version, followBranches, showMerges, limit, excludes, ref sequence).Select(x => x.Item1).ToList();
+            return GetLogicalHistory(version, followBranches, showMerges, showAutoMerges, limit, excludes, ref sequence).Select(x => x.Item1).ToList();
         }
 
-        internal List<Tuple<Objects.Version, int>> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, int? limit, HashSet<Guid> excludes, ref int sequence)
+        internal List<Tuple<Objects.Version, int>> GetLogicalHistory(Objects.Version version, bool followBranches, bool showMerges, bool showAutoMerges, int? limit, HashSet<Guid> excludes, ref int sequence)
         {
             var versions = GetHistoryChunked(version, limit);
             List<Objects.Version> versionsToCheck = new List<Objects.Version>();
@@ -3161,7 +3161,7 @@ namespace Versionr
                     if (y.Type == MergeType.Automatic)
                         automerged = true;
                     merged = true;
-                    if ((showMerges || (!rebased && !followBranches)) && !automerged)
+                    if ((showMerges || (!rebased && !followBranches)) && (!automerged || showAutoMerges))
                     {
                         if (!added)
                         {
@@ -3176,7 +3176,7 @@ namespace Versionr
                     if ((mergedVersion.Branch == x.Branch || followBranches) && !rebased)
                     {
                         // automerge or manual reconcile
-                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, limit, excludes != null ? excludes : primaryLine, ref sequence);
+                        var mergedHistory = GetLogicalHistory(mergedVersion, followBranches, showMerges, showAutoMerges, limit, excludes != null ? excludes : primaryLine, ref sequence);
                         foreach (var z in mergedHistory)
                         {
                             if (!addedLine.Contains(z.Item1.ID))
