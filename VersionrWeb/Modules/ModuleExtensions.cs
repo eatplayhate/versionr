@@ -14,7 +14,7 @@ namespace VersionrWeb.Modules
 		public static Area CreateArea(this NancyModule module)
 		{
 			var area = Area.Load(new DirectoryInfo(Environment.CurrentDirectory), true);
-			module.ViewBag.RepositoryName = Path.GetFileName(Environment.CurrentDirectory);
+			module.ViewBag.RepositoryName = area.RootDirectory.Name;
 
 			// Init Area ViewBag properties
 			module.ViewBag.BranchNames = (

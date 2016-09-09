@@ -26,7 +26,7 @@ namespace VersionrWeb.Models
 			Name = Path.GetFileName(record.CanonicalName);
 			Size = record.Size;
 
-			area.GetMissingRecords(new Versionr.Objects.Record[] { record });
+			area.GetMissingObjects(new Versionr.Objects.Record[] { record }, null);
 			using (var stream = area.ObjectStore.GetRecordStream(record))
 			{
 				stream.Position = 0;
