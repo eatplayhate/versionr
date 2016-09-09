@@ -46,7 +46,7 @@ namespace Logr
         public void Update()
         {
             foreach (Branch branch in m_Branches)
-                m_Versions.AddRange(m_Area.GetLogicalHistory(m_Area.GetBranchHeadVersion(branch), false, false, m_Limit));
+                m_Versions.AddRange(m_Area.GetLogicalHistory(m_Area.GetBranchHeadVersion(branch), false, false, false, m_Limit));
 
             m_Versions = m_Versions.OrderByDescending(o => o.Timestamp).ToList();
         }
