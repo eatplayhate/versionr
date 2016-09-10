@@ -24,24 +24,31 @@ namespace VersionrWeb.Models
 
 		public string[] Colors =
 		{
-			"#009800",
-			"#e11d21",
-			"#006b75",
-			"#207de5",
-			"#0052cc",
-			"#5319e7",
-			"#f7c6c7",
-			"#fad8c7",
-			"#fef2c0",
-			"#bfe5bf",
-			"#c7def8",
-			"#bfdadc",
-			"#bfd4f2",
-			"#d4c5f9",
-			"#cccccc",
-			"#84b6eb",
-			"#e6e6e6",
-			"#cc317c"
+			"#024bfd",
+			"#fd02de",
+			"#02fdd3",
+			"#fd8a02",
+			"#4102fd",
+			"#0dfd02",
+			"#fd0256",
+			"#029ffd",
+			"#e8fd02",
+			"#c802fd",
+			"#02fd7f",
+			"#fd3602",
+			"#0217fd",
+			"#61fd02",
+			"#fd02aa",
+			"#02f3fd",
+			"#fdbe02",
+			"#7402fd",
+			"#02fd2b",
+			"#fd0222",
+			"#026bfd",
+			"#b5fd02",
+			"#fc02fd",
+			"#02fdb3",
+			"#fd6a02",
 		};
 
 		private class Node
@@ -169,6 +176,7 @@ namespace VersionrWeb.Models
 					else
 					{
 						// Gradient path merge
+						DrawUnterminatedPath(sb, node, node.X + ColWidth, node.Y + RowHeight);
 					}
 				}
 			}
@@ -193,6 +201,7 @@ namespace VersionrWeb.Models
 
 			if (a.Col == b.Col)
 			{
+				// Direct parent
 				sb.Append($"<path d=\"M{x1} {y1} L{x2} {y2}\" stroke=\"{b.Color}\" />");
 			}
 			else if (!isMerge)
