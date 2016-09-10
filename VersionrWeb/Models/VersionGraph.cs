@@ -62,6 +62,12 @@ namespace VersionrWeb.Models
 		private Dictionary<Guid, Node> Nodes = new Dictionary<Guid, Node>();
 		private List<Node> OrderedNodes = new List<Node>();
 
+		private class Column
+		{
+			public int UsedUntilRow;
+			public int Col;
+		}
+
 		public VersionGraph(Area area, IEnumerable<Versionr.Objects.Version> versions)
 		{
 			// Create nodes
@@ -78,10 +84,10 @@ namespace VersionrWeb.Models
 				Nodes[version.ID] = node;
 				OrderedNodes.Add(node);
 			}
-
+			
 			// Allocate columns
-			int nextCol = 0;
 			int nextColor = 0;
+			var columns = new List<Column>();
 			foreach (var node in OrderedNodes)
 			{
 				// Already allocated?
@@ -93,15 +99,29 @@ namespace VersionrWeb.Models
 					node.HasUnseenDirectChild = true;
 					node.HasChildren = true;
 				}
-				
-				// Assign to next free column
-				node.Col = nextCol++;
-				node.Color = Colors[nextColor++ % Colors.Length];
 
+				// Assign to next free column
+				var column = columns.FirstOrDefault(x => x.UsedUntilRow < node.Row);
+				if (column == null)
+				{
+					column = new Column();
+					column.Col = columns.Count;
+					columns.Add(column);
+				}
+				node.Col = column.Col;
+				column.UsedUntilRow = node.Row + 1;
+
+				// Assign new color
+				node.Color = Colors[nextColor++ % Colors.Length];
+				
 				// Assign direct parents into same column
 				Node parent = node;
 				while (parent.Parents.Count > 0 && Nodes.TryGetValue(parent.Parents[0], out parent))
 				{
+					column.UsedUntilRow = parent.Row + 1;
+					if (parent.Col >= 0)
+						break;
+
 					parent.Col = node.Col;
 					parent.Color = node.Color;
 					parent.HasChildren = true;
@@ -117,30 +137,26 @@ namespace VersionrWeb.Models
 			sb.Append("  circle { stroke: none }");
 			sb.Append("</style>");
 
-			foreach (var node in Nodes.Values)
-			{
-				sb.Append($"<circle cx=\"{node.X}\" cy=\"{node.Y}\" r=\"{NodeRadius}\" fill=\"{node.Color}\" />");
-			}
-
 			// Links
 			foreach (var node in Nodes.Values)
 			{
 				if (node.HasUnseenDirectChild)
 				{
-					// Gradient path up
-					sb.Append($"<path d=\"M{node.X} {node.Y} L{node.X} {node.Y - RowHeight}\" stroke=\"{node.Color}\" />");
+					DrawUnterminatedPath(sb, node, node.X, node.Y - RowHeight);
 				}
 
 				Node parent;
-				if (Nodes.TryGetValue(node.Parents[0], out parent))
+				if (node.Parents.Count > 0)
 				{
-					// Direct link
-					DrawPath(sb, node, parent, false);
-				}
-				else
-				{
-					// Gradient path down
-					sb.Append($"<path d=\"M{node.X} {node.Y} L{node.X} {node.Y + RowHeight}\" stroke=\"{node.Color}\" />");
+					if (Nodes.TryGetValue(node.Parents[0], out parent))
+					{
+						// Direct link
+						DrawPath(sb, node, parent, false);
+					}
+					else
+					{
+						DrawUnterminatedPath(sb, node, node.X, node.Y + RowHeight);
+					}
 				}
 
 				foreach (var parentId in node.Parents.Skip(1))
@@ -157,6 +173,13 @@ namespace VersionrWeb.Models
 				}
 			}
 
+			// Versions
+			foreach (var node in Nodes.Values)
+			{
+				sb.Append($"<circle cx=\"{node.X}\" cy=\"{node.Y}\" r=\"{NodeRadius}\" fill=\"{node.Color}\" />");
+			}
+
+
 			sb.Append($"</svg>");
 			Svg = sb.ToString();
 		}
@@ -170,20 +193,30 @@ namespace VersionrWeb.Models
 
 			if (a.Col == b.Col)
 			{
-				sb.Append($"<path d=\"M{x1} {y1} L{x2} {y2}\" stroke=\"{a.Color}\" />");
+				sb.Append($"<path d=\"M{x1} {y1} L{x2} {y2}\" stroke=\"{b.Color}\" />");
 			}
 			else if (!isMerge)
 			{
+				// Branch
 				sb.Append($"<path d=\"M{x1} {y1} C {x1} {y2 - RowHeight / 2} {x1} {y2} {x2} {y2}\" stroke=\"{a.Color}\" />");
 			}
 			else if (!b.HasChildren)
 			{
-				sb.Append($"<path d=\"M{x1} {y1} C {x2} {y1} {x2} {y1 + RowHeight / 2} {x2} {y2}\" stroke=\"{a.Color}\" />");
+				// Reintegrate
+				sb.Append($"<path d=\"M{x1} {y1} C {x2} {y1} {x2} {y1 + RowHeight / 2} {x2} {y2}\" stroke=\"{b.Color}\" />");
 			}
 			else
 			{
-				sb.Append($"<path d=\"M{x1} {y1} C {x2} {y1} {x1} {y2} {x2} {y2}\" stroke=\"{a.Color}\" />");
+				// Merge
+				sb.Append($"<path d=\"M{x1} {y1} C {x2} {y1} {x1} {y2} {x2} {y2}\" stroke=\"{b.Color}\" />");
 			}
+		}
+
+		private void DrawUnterminatedPath(StringBuilder sb, Node a, int x2, int y2)
+		{
+			int x1 = a.X;
+			int y1 = a.Y;
+			sb.Append($"<path d=\"M{x1} {y1} L{x2} {y2}\" stroke=\"{a.Color}\" stroke-dasharray=\"15 2 5 2 3 2 1 2 1 2 1 100\" />");
 		}
 	}
 }
