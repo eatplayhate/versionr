@@ -878,6 +878,11 @@ namespace Versionr
             }
         }
 
+		public List<Objects.Version> GetDirectChildren(Objects.Version version)
+		{
+			return Query<Objects.Version>("SELECT * FROM Version WHERE Parent = ?", version.ID);
+		}
+
         public List<Objects.Version> GetHistory(Objects.Version version, int? limit = null)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();

@@ -3210,6 +3210,11 @@ namespace Versionr
         {
             return Database.GetHistory(version, limit);
         }
+		
+		public List<Objects.Version> GetDirectChildren(Objects.Version version)
+		{
+			return Database.GetDirectChildren(version);
+		}
 
         public static string CoreVersion
         {

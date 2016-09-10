@@ -52,6 +52,7 @@ namespace VersionrWeb.Models
 			public List<Guid> Parents = new List<Guid>();
 			public string Color = null;
 
+			public bool HasChildren;
 			public bool HasUnseenDirectChild;
 
 			public int X => PaddingLeft + Col * ColWidth + ColWidth / 2;
@@ -87,9 +88,12 @@ namespace VersionrWeb.Models
 				if (node.Col >= 0)
 					continue;
 
-				if (area.GetHeads(node.Version.ID).Count == 0)
+				if (area.GetDirectChildren(node.Version).Count > 0)
+				{
 					node.HasUnseenDirectChild = true;
-
+					node.HasChildren = true;
+				}
+				
 				// Assign to next free column
 				node.Col = nextCol++;
 				node.Color = Colors[nextColor++ % Colors.Length];
@@ -100,6 +104,7 @@ namespace VersionrWeb.Models
 				{
 					parent.Col = node.Col;
 					parent.Color = node.Color;
+					parent.HasChildren = true;
 				}
 			}
 			
@@ -170,6 +175,10 @@ namespace VersionrWeb.Models
 			else if (!isMerge)
 			{
 				sb.Append($"<path d=\"M{x1} {y1} C {x1} {y2 - RowHeight / 2} {x1} {y2} {x2} {y2}\" stroke=\"{a.Color}\" />");
+			}
+			else if (!b.HasChildren)
+			{
+				sb.Append($"<path d=\"M{x1} {y1} C {x2} {y1} {x2} {y1 + RowHeight / 2} {x2} {y2}\" stroke=\"{a.Color}\" />");
 			}
 			else
 			{
