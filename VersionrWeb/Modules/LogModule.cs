@@ -41,17 +41,21 @@ namespace VersionrWeb.Modules
 			int pageCount;
 			int pageNumber = Request.Query["page"];
 
+			bool followBranches = false;
+			bool followMerges = true;
+			bool followAllMerges = true;
+
 			if (pageNumber <= 1)
 			{
 				// First page, do limited history
-				history = area.GetHistory(version, CommitsPerPage + 1);
+				history = area.GetLogicalHistory(version, followBranches, followMerges, followAllMerges, CommitsPerPage + 1);
 				pageNumber = 1;
 				pageCount = history.Count > CommitsPerPage ? 2 : 1;
 			}
 			else
 			{
 				// Subsequent page, get full history
-				history = area.GetHistory(version);
+				history = area.GetLogicalHistory(version, followBranches, followMerges, followAllMerges);
 				pageCount = (int)Math.Ceiling(history.Count / (double)CommitsPerPage);
 				history = history.Skip(CommitsPerPage * (pageNumber - 1)).Take(CommitsPerPage).ToList();
 			}

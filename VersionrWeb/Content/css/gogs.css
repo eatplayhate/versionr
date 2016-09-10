@@ -1737,6 +1737,9 @@ footer .ui.language .menu {
 .repository #commits-table.ui.basic.striped.table tbody tr:nth-child(2n) {
   background-color: rgba(0, 0, 0, 0.02) !important;
 }
+.repository #commits-table tbody tr {
+  height: 50px; /* align with version graph */
+}
 .repository .diff-detail-box {
   margin: 15px 0;
   line-height: 30px;

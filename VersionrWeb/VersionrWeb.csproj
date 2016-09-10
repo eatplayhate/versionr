@@ -70,6 +70,7 @@
     <Compile Include="Models\FileBrowseModel.cs" />
     <Compile Include="Models\LogModel.cs" />
     <Compile Include="Models\Util.cs" />
+    <Compile Include="Models\VersionGraph.cs" />
     <Compile Include="Models\VersionModel.cs" />
     <Compile Include="Modules\AreaExtensions.cs" />
     <Compile Include="Modules\BrowseModule.cs" />

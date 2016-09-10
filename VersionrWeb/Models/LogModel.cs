@@ -12,12 +12,14 @@ namespace VersionrWeb.Models
 		public List<Versionr.Objects.Version> Versions;
 		public int PageNumber;
 		public int PageCount;
+		public VersionGraph VersionGraph;
 
 		public LogModel(Area area, List<Versionr.Objects.Version> versions, int pageNumber, int pageCount)
 		{
 			Versions = versions;
 			PageNumber = pageNumber;
 			PageCount = pageCount;
+			VersionGraph = new VersionGraph(area, Versions);
 		}
 	}
 }

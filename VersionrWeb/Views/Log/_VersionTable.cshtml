@@ -15,17 +15,32 @@
 </h4>*@
 
 <div class="ui table segment">
-	<table class="ui very basic striped fixed table single line" id="commits-table">
+	<table class="ui very basic striped fixed table single line" style="table-layout:fixed" id="commits-table">
 		<tbody>
+			@{ var isFirst = true; }
 			@foreach (var version in Model.Versions) {
 				<tr>
+					@if (isFirst) {
+						@* Render graph in its own cell, but with abs/rel positioning so it doesn't expand the table *@
+						isFirst = false;
+						<td rowspan="999999" style="vertical-align:top; padding:0px; border:0px; margin:0px position:relative">
+							<div style="position:absolute">
+								@Html.Raw(Model.VersionGraph.Svg)
+							</div>
+						</td>
+					}
+
+					<td style="width:@(Model.VersionGraph.Width)px">
+						@* Spacing for graph *@
+					</td>
+					
 					<td class="four wide author">
 						<img class="ui avatar image" src="@Util.GravatarLink(version.Author)" alt=""/>&nbsp;&nbsp;@version.Author
 					</td>
-
+					
 					<td class="nine wide message collapsing has-emoji">
 						<a rel="nofollow" class="ui sha label" href="@Util.CreateVersionLink(version.ID)">@Util.ShortGuid(version.ID)</a>
-						@if (false) @* merge *@ {
+						@if (false) {
 							<span class="grey text">@version.Message</span>
 						} else {
 							<span>@version.Message</span>
