@@ -3159,7 +3159,9 @@ namespace Versionr
                     if (y.Type == MergeType.Rebase)
                         rebased = true;
                     if (y.Type == MergeType.Automatic)
+                    {
                         automerged = true;
+                    }
                     merged = true;
                     if ((showMerges || (!rebased && !followBranches)) && (!automerged || showAutoMerges))
                     {
@@ -5141,7 +5143,7 @@ namespace Versionr
                                 Printer.PrintMessage("#c#Removing:## {0}", x.CanonicalName);
                                 deletionList.Add(x.Record);
                             }
-                            else if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Mine)
+                            else
                             {
 #if MERGE_DIAGNOSTICS
                                 Printer.PrintDiagnostics(" > #c#MR:## Local object doesn't match parent!");
