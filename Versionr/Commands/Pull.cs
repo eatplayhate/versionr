@@ -76,9 +76,14 @@ namespace Versionr.Commands
                     var localBranch = client.Workspace.GetBranch(x.ID);
                     if (x.Terminus.HasValue)
                     {
-                        var terminus = branches.Item3[x.Terminus.Value];
+                        Objects.Version terminus = null;
                         bool present = client.Workspace.GetVersion(x.Terminus.Value) != null;
                         string presentMarker = present ? "" : " #w#(behind)##";
+                        if (!branches.Item3.TryGetValue(x.Terminus.Value, out terminus))
+                        {
+                            Printer.PrintMessage("  #e#(deleted)## - #w#(no data)##");
+                            continue;
+                        }
                         if (present && localBranch != null)
                         {
                             if (localBranch.Terminus.Value != x.Terminus.Value)
