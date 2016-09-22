@@ -3899,7 +3899,10 @@ namespace Versionr
                 if (heads.Count == 0)
                     Database.InsertSafe(x.Value);
                 else
-                    Database.UpdateSafe(x.Value);
+                {
+                    heads[0].Version = x.Value.Version;
+                    Database.UpdateSafe(heads[0]);
+                }
             }
         }
 
