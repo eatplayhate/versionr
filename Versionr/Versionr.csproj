@@ -65,6 +65,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands\DeleteAnnotation.cs" />
+    <Compile Include="Commands\DiffVersions.cs" />
     <Compile Include="Commands\GetAnnotation.cs" />
     <Compile Include="Commands\ListAnnotation.cs" />
     <Compile Include="Commands\Lock.cs" />

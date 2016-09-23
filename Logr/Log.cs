@@ -57,7 +57,7 @@ namespace Logr
                     version = null;
                 }
                 if (version != null)
-                    m_Versions.AddRange(m_Area.GetLogicalHistory(version, false, false, m_Limit));
+                    m_Versions.AddRange(m_Area.GetLogicalHistory(version, false, false, false, m_Limit));
             }
 
             m_Versions = m_Versions.OrderByDescending(o => o.Timestamp).ToList();

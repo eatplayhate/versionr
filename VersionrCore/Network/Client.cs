@@ -866,6 +866,17 @@ namespace Versionr.Network
                             if (!temporaryHeads.TryGetValue(x.Version.Branch, out heads))
                             {
                                 Branch branch = sharedInfo.Workspace.GetBranch(x.Version.Branch);
+                                if (branch == null)
+                                {
+                                    if (terminatedBranches.Contains(x.Version.Branch))
+                                        continue;
+                                    branch = sharedInfo.ReceivedBranches.Where(b => b.ID == x.Version.Branch).FirstOrDefault();
+                                }
+                                if (branch == null)
+                                {
+                                    Printer.PrintMessage("Downloaded version referencing non-replicated branch: {0}", x.Version.Branch);
+                                    continue;
+                                }
                                 if (branch.Terminus.HasValue)
                                 {
                                     terminatedBranches.Add(branch.ID);

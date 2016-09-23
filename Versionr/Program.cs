@@ -73,8 +73,10 @@ namespace Versionr
         
 		[VerbOption("diff", HelpText = "Display file differences")]
 		public Commands.DiffVerbOptions DiffVerb { get; set; }
+        [VerbOption("diff-version", HelpText = "Display version differences")]
+        public Commands.DiffVersionsVerbOptions DiffVersionsVerb { get; set; }
 
-		[VerbOption("revert", HelpText = "Revert a file or files to pristine version")]
+        [VerbOption("revert", HelpText = "Revert a file or files to pristine version")]
 		public Commands.RevertVerbOptions RevertVerb { get; set; }
 		[VerbOption("unrecord", HelpText = "Removes a file from inclusion in the next commit (undoes 'record')")]
 		public Commands.UnrecordVerbOptions UnrecordVerb { get; set; }
