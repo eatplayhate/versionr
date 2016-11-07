@@ -20,7 +20,7 @@ namespace Versionr.Utilities
                 catch (SQLite.SQLiteException ex)
                 {
                     if (ex.Result == SQLite.SQLite3.Result.Constraint)
-                        return false;
+                        throw ex;
                     if (ex.Result != SQLite.SQLite3.Result.Busy)
                         throw ex;
                     System.Threading.Thread.Sleep(10);

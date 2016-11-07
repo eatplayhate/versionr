@@ -117,7 +117,7 @@ namespace Versionr.Network
                 {
                     Task.Run(() =>
                     {
-                        Printer.PrintMessage("Received connection from {0}.", client.Result.Client.RemoteEndPoint);
+                        Printer.PrintMessage("{1}> Received connection from {0}.", client.Result.Client.RemoteEndPoint, DateTime.Now);
                         HandleConnection(info, client.Result);
                     });
                 }
@@ -340,465 +340,476 @@ namespace Versionr.Network
 
                         clientInfo.SharedInfo = sharedInfo;
 
-                        while (true)
+                        using (ws)
                         {
-                            NetCommand command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
-                            //Printer.PrintDiagnostics("Command: {0}", command.Type);
-                            if (command.Type == NetCommandType.Close)
+                            while (true)
                             {
-                                Printer.PrintDiagnostics("Client closing connection.");
-                                break;
-                            }
-                            else if (command.Type == NetCommandType.PullStashQuery)
-                            {
-                                var stashes = ws.FindStash(command.AdditionalPayload);
-                                if (stashes.Count == 0)
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" not found!", command.AdditionalPayload) }, ProtoBuf.PrefixStyle.Fixed32);
-                                else if (stashes.Count == 1)
+                                NetCommand command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                                //Printer.PrintDiagnostics("Command: {0}", command.Type);
+                                if (command.Type == NetCommandType.Close)
                                 {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length, AdditionalPayload = stashes[0].GUID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
-                                    SharedNetwork.TransmitFile(sharedInfo, stashes[0].File);
+                                    Printer.PrintDiagnostics("Client closing connection.");
+                                    break;
                                 }
-                                else
+                                else if (command.Type == NetCommandType.PullStashQuery)
                                 {
-                                    string amb = string.Empty;
-                                    foreach (var x in stashes)
+                                    var stashes = ws.FindStash(command.AdditionalPayload);
+                                    if (stashes.Count == 0)
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" not found!", command.AdditionalPayload) }, ProtoBuf.PrefixStyle.Fixed32);
+                                    else if (stashes.Count == 1)
                                     {
-                                        amb += string.Format("\n#b#{0}-{1}## - #q#{2}##", x.Author, x.Key, x.GUID);
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = stashes[0].File.Length, AdditionalPayload = stashes[0].GUID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                                        SharedNetwork.TransmitFile(sharedInfo, stashes[0].File);
                                     }
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" ambiguous - could be:{1}", command.AdditionalPayload, amb) }, ProtoBuf.PrefixStyle.Fixed32);
-                                }
-                            }
-                            else if (command.Type == NetCommandType.PushStashQuery)
-                            {
-                                if (ws.FindStashExact(command.AdditionalPayload))
-                                {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush }, ProtoBuf.PrefixStyle.Fixed32);
-                                }
-                                else
-                                {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
-                                    SharedNetwork.ReceiveStashData(sharedInfo, command.Identifier);
-                                }
-                            }
-                            else if (command.Type == NetCommandType.QueryJournal)
-                            {
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                SharedNetwork.ProcessJournalQuery(sharedInfo);
-                            }
-                            else if (command.Type == NetCommandType.PushInitialVersion)
-                            {
-                                bool fresh = false;
-                                if (domainInfo.Directory == null)
-                                {
-                                    if (!clientInfo.Access.HasFlag(Rights.Create))
-                                        throw new Exception("Access denied.");
-                                    fresh = true;
-                                    System.IO.DirectoryInfo newDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(info.FullName, hs.RequestedModule));
-                                    newDirectory.Create();
-                                    domainInfo.Directory = newDirectory;
-                                    if (!newDirectory.Exists)
-                                        throw new Exception("Access denied.");
-                                }
-                                if (!clientInfo.Access.HasFlag(Rights.Write))
-                                    throw new Exception("Access denied.");
-                                lock (SyncObject)
-                                {
-                                    ws = Area.InitRemote(domainInfo.Directory, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
-                                    clientInfo.SharedInfo.Workspace = ws;
-                                    domainInfo.Bare = false;
-                                    if (fresh)
-                                        Domains[hs.RequestedModule] = domainInfo;
-                                }
-                            }
-                            else if (command.Type == NetCommandType.PushBranchJournal)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Write))
-                                    throw new Exception("Access denied.");
-                                SharedNetwork.ReceiveBranchJournal(sharedInfo);
-                            }
-                            else if (command.Type == NetCommandType.QueryBranchID)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client is requesting a branch info for {0}", string.IsNullOrEmpty(command.AdditionalPayload) ? "<root>" : "\"" + command.AdditionalPayload + "\"");
-                                bool multiple = false;
-                                Objects.Branch branch = string.IsNullOrEmpty(command.AdditionalPayload) ? ws.RootBranch : ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
-                                if (branch != null)
-                                {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
-                                }
-                                else if (!multiple)
-                                {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "branch not recognized" }, ProtoBuf.PrefixStyle.Fixed32);
-                                }
-                                else
-                                {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
-                                }
-                            }
-                            else if (command.Type == NetCommandType.ListBranches)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client is requesting a branch list.");
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                if (command.Identifier == 1) // send extra data
-                                {
-                                    BranchList bl = new BranchList();
-                                    bl.Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray();
-                                    Dictionary<Guid, Objects.Version> importantVersions = new Dictionary<Guid, Objects.Version>();
-                                    List<KeyValuePair<Guid, Guid>> allHeads = new List<KeyValuePair<Guid, Guid>>();
-                                    foreach (var x in bl.Branches)
+                                    else
                                     {
-                                        if (x.Terminus.HasValue && !importantVersions.ContainsKey(x.Terminus.Value))
+                                        string amb = string.Empty;
+                                        foreach (var x in stashes)
                                         {
-                                            importantVersions[x.Terminus.Value] = clientInfo.SharedInfo.Workspace.GetVersion(x.Terminus.Value);
-                                            continue;
+                                            amb += string.Format("\n#b#{0}-{1}## - #q#{2}##", x.Author, x.Key, x.GUID);
                                         }
-                                        var heads = clientInfo.SharedInfo.Workspace.GetBranchHeads(x);
-                                        foreach (var head in heads)
-                                        {
-                                            if (!importantVersions.ContainsKey(head.Version))
-                                                importantVersions[head.Version] = clientInfo.SharedInfo.Workspace.GetVersion(head.Version);
-                                        }
-                                        allHeads.AddRange(heads.Select(y => new KeyValuePair<Guid, Guid>(y.Branch, y.Version)));
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Stash \"{0}\" ambiguous - could be:{1}", command.AdditionalPayload, amb) }, ProtoBuf.PrefixStyle.Fixed32);
                                     }
-                                    bl.Heads = allHeads.ToArray();
-                                    bl.ImportantVersions = importantVersions.Values.ToArray();
-                                    Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
                                 }
-                                else
+                                else if (command.Type == NetCommandType.PushStashQuery)
                                 {
-                                    BranchList bl = new BranchList();
-                                    bl.Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray();
-                                    List<KeyValuePair<Guid, Guid>> allHeads = new List<KeyValuePair<Guid, Guid>>();
-                                    foreach (var x in bl.Branches)
+                                    if (ws.FindStashExact(command.AdditionalPayload))
                                     {
-                                        if (x.Terminus.HasValue)
-                                            continue;
-                                        var heads = clientInfo.SharedInfo.Workspace.GetBranchHeads(x);
-                                        if (heads.Count == 1)
-                                            allHeads.Add(new KeyValuePair<Guid, Guid>(x.ID, heads[0].Version));
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush }, ProtoBuf.PrefixStyle.Fixed32);
                                     }
-                                    bl.Heads = allHeads.ToArray();
-                                    Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
+                                    else
+                                    {
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                        SharedNetwork.ReceiveStashData(sharedInfo, command.Identifier);
+                                    }
                                 }
-                            }
-                            else if (command.Type == NetCommandType.RequestRecordUnmapped)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client is requesting specific record data blobs.");
-                                SharedNetwork.SendRecordDataUnmapped(sharedInfo);
-                            }
-                            else if (command.Type == NetCommandType.Clone)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client is requesting to clone the vault.");
-                                Objects.Version initialRevision = ws.GetVersion(ws.Domain);
-                                Objects.Branch initialBranch = ws.GetBranch(initialRevision.Branch);
-                                Utilities.SendEncrypted<ClonePayload>(sharedInfo, new ClonePayload() { InitialBranch = initialBranch, RootVersion = initialRevision });
-                            }
-                            else if (command.Type == NetCommandType.PullVersions)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client asking for remote version information.");
-                                Branch branch = ws.GetBranch(new Guid(command.AdditionalPayload));
-                                if (branch == null)
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Unknown branch {0}", command.AdditionalPayload) }, ProtoBuf.PrefixStyle.Fixed32);
-                                else
+                                else if (command.Type == NetCommandType.QueryJournal)
+                                {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
-                                Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
-                                if (!SharedNetwork.SendBranchJournal(sharedInfo))
-                                    throw new Exception();
-                                if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetBranchHeadVersion(branch), out branchesToSend, out versionsToSend))
-                                    throw new Exception();
-                                if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
-                                    throw new Exception();
-                                if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
-                                    throw new Exception();
-                            }
-                            else if (command.Type == NetCommandType.PushObjectQuery)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Write))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client asking about objects on the server...");
-                                SharedNetwork.ProcesPushObjectQuery(sharedInfo);
-                            }
-                            else if (command.Type == NetCommandType.PushBranch)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Write))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client attempting to send branch data...");
-                                SharedNetwork.ReceiveBranches(sharedInfo);
-                            }
-                            else if (command.Type == NetCommandType.PushVersions)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Write))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Client attempting to send version data...");
-                                if (!SharedNetwork.ReceiveVersions(sharedInfo, clientInfo.Locks))
-                                {
-                                    Printer.PrintDiagnostics("Can't accept versions, aborting.");
-                                    throw new Exception();
+                                    SharedNetwork.ProcessJournalQuery(sharedInfo);
                                 }
-                            }
-                            else if (command.Type == NetCommandType.PushHead)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Write))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Determining head information.");
-                                string errorData;
-                                lock (ws)
+                                else if (command.Type == NetCommandType.PushInitialVersion)
                                 {
-                                    clientInfo.SharedInfo.Workspace.RunLocked(() =>
+                                    bool fresh = false;
+                                    if (domainInfo.Directory == null)
                                     {
-                                        try
+                                        if (!clientInfo.Access.HasFlag(Rights.Create))
+                                            throw new Exception("Access denied.");
+                                        fresh = true;
+                                        System.IO.DirectoryInfo newDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(info.FullName, hs.RequestedModule));
+                                        newDirectory.Create();
+                                        domainInfo.Directory = newDirectory;
+                                        if (!newDirectory.Exists)
+                                            throw new Exception("Access denied.");
+                                    }
+                                    if (!clientInfo.Access.HasFlag(Rights.Write))
+                                        throw new Exception("Access denied.");
+                                    lock (SyncObject)
+                                    {
+                                        ws = Area.InitRemote(domainInfo.Directory, Utilities.ReceiveEncrypted<ClonePayload>(clientInfo.SharedInfo));
+                                        clientInfo.SharedInfo.Workspace = ws;
+                                        domainInfo.Bare = false;
+                                        if (fresh)
+                                            Domains[hs.RequestedModule] = domainInfo;
+                                    }
+                                }
+                                else if (command.Type == NetCommandType.PushBranchJournal)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Write))
+                                        throw new Exception("Access denied.");
+                                    SharedNetwork.ReceiveBranchJournal(sharedInfo);
+                                }
+                                else if (command.Type == NetCommandType.QueryBranchID)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client is requesting a branch info for {0}", string.IsNullOrEmpty(command.AdditionalPayload) ? "<root>" : "\"" + command.AdditionalPayload + "\"");
+                                    bool multiple = false;
+                                    Objects.Branch branch = string.IsNullOrEmpty(command.AdditionalPayload) ? ws.RootBranch : ws.GetBranchByPartialName(command.AdditionalPayload, out multiple);
+                                    if (branch != null)
+                                    {
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, AdditionalPayload = branch.ID.ToString() }, ProtoBuf.PrefixStyle.Fixed32);
+                                    }
+                                    else if (!multiple)
+                                    {
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "branch not recognized" }, ProtoBuf.PrefixStyle.Fixed32);
+                                    }
+                                    else
+                                    {
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
+                                    }
+                                }
+                                else if (command.Type == NetCommandType.ListBranches)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client is requesting a branch list.");
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                    if (command.Identifier == 1) // send extra data
+                                    {
+                                        BranchList bl = new BranchList();
+                                        bl.Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray();
+                                        Dictionary<Guid, Objects.Version> importantVersions = new Dictionary<Guid, Objects.Version>();
+                                        List<KeyValuePair<Guid, Guid>> allHeads = new List<KeyValuePair<Guid, Guid>>();
+                                        foreach (var x in bl.Branches)
                                         {
-                                            clientInfo.SharedInfo.Workspace.BeginDatabaseTransaction();
-                                            if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
+                                            if (x.Terminus.HasValue && !importantVersions.ContainsKey(x.Terminus.Value))
                                             {
+                                                importantVersions[x.Terminus.Value] = clientInfo.SharedInfo.Workspace.GetVersion(x.Terminus.Value);
+                                                continue;
+                                            }
+                                            var heads = clientInfo.SharedInfo.Workspace.GetBranchHeads(x);
+                                            foreach (var head in heads)
+                                            {
+                                                if (!importantVersions.ContainsKey(head.Version))
+                                                    importantVersions[head.Version] = clientInfo.SharedInfo.Workspace.GetVersion(head.Version);
+                                            }
+                                            allHeads.AddRange(heads.Select(y => new KeyValuePair<Guid, Guid>(y.Branch, y.Version)));
+                                        }
+                                        bl.Heads = allHeads.ToArray();
+                                        bl.ImportantVersions = importantVersions.Values.ToArray();
+                                        Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
+                                    }
+                                    else
+                                    {
+                                        BranchList bl = new BranchList();
+                                        bl.Branches = clientInfo.SharedInfo.Workspace.Branches.ToArray();
+                                        List<KeyValuePair<Guid, Guid>> allHeads = new List<KeyValuePair<Guid, Guid>>();
+                                        foreach (var x in bl.Branches)
+                                        {
+                                            if (x.Terminus.HasValue)
+                                                continue;
+                                            var heads = clientInfo.SharedInfo.Workspace.GetBranchHeads(x);
+                                            if (heads.Count == 1)
+                                                allHeads.Add(new KeyValuePair<Guid, Guid>(x.ID, heads[0].Version));
+                                        }
+                                        bl.Heads = allHeads.ToArray();
+                                        Utilities.SendEncrypted<BranchList>(clientInfo.SharedInfo, bl);
+                                    }
+                                }
+                                else if (command.Type == NetCommandType.RequestRecordUnmapped)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client is requesting specific record data blobs.");
+                                    SharedNetwork.SendRecordDataUnmapped(sharedInfo);
+                                }
+                                else if (command.Type == NetCommandType.Clone)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client is requesting to clone the vault.");
+                                    Objects.Version initialRevision = ws.GetVersion(ws.Domain);
+                                    Objects.Branch initialBranch = ws.GetBranch(initialRevision.Branch);
+                                    Utilities.SendEncrypted<ClonePayload>(sharedInfo, new ClonePayload() { InitialBranch = initialBranch, RootVersion = initialRevision });
+                                }
+                                else if (command.Type == NetCommandType.PullVersions)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client asking for remote version information.");
+                                    Branch branch = ws.GetBranch(new Guid(command.AdditionalPayload));
+                                    if (branch == null)
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = string.Format("Unknown branch {0}", command.AdditionalPayload) }, ProtoBuf.PrefixStyle.Fixed32);
+                                    else
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                    Stack<Objects.Branch> branchesToSend = new Stack<Branch>();
+                                    Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
+                                    if (!SharedNetwork.SendBranchJournal(sharedInfo))
+                                        throw new Exception();
+                                    if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetBranchHeadVersion(branch), out branchesToSend, out versionsToSend))
+                                        throw new Exception();
+                                    if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
+                                        throw new Exception();
+                                    if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
+                                        throw new Exception();
+                                }
+                                else if (command.Type == NetCommandType.PushObjectQuery)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Write))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client asking about objects on the server...");
+                                    SharedNetwork.ProcesPushObjectQuery(sharedInfo);
+                                }
+                                else if (command.Type == NetCommandType.PushBranch)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Write))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client attempting to send branch data...");
+                                    SharedNetwork.ReceiveBranches(sharedInfo);
+                                }
+                                else if (command.Type == NetCommandType.PushVersions)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Write))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Client attempting to send version data...");
+                                    if (!SharedNetwork.ReceiveVersions(sharedInfo, clientInfo.Locks))
+                                    {
+                                        Printer.PrintDiagnostics("Can't accept versions, aborting.");
+                                        throw new Exception();
+                                    }
+                                }
+                                else if (command.Type == NetCommandType.PushHead)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Write))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Determining head information.");
+                                    string errorData;
+                                    lock (ws)
+                                    {
+                                        clientInfo.SharedInfo.Workspace.RunLocked(() =>
+                                        {
+                                            try
+                                            {
+                                                clientInfo.SharedInfo.Workspace.BeginDatabaseTransaction();
+                                                if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
+                                                {
+                                                    clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
+                                                    return false;
+                                                }
+                                                if (clientInfo.SharedInfo.PushedVersions.Count == 0)
+                                                {
+                                                    Printer.PrintDiagnostics("Skipping version import - no versions to add.");
+                                                    clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
+                                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                                    return true;
+                                                }
+                                                Printer.PrintDiagnostics("Importing {0} versions.", clientInfo.SharedInfo.PushedVersions.Count);
+                                                if (AcceptHeads(clientInfo, ws, out errorData))
+                                                {
+                                                    ImportVersions(ws, clientInfo);
+                                                    clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
+                                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
+                                                    return true;
+                                                }
+                                                else
+                                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
                                                 clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
                                                 return false;
                                             }
-                                            if (AcceptHeads(clientInfo, ws, out errorData))
+                                            catch
                                             {
-                                                ImportVersions(ws, clientInfo);
-                                                clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
-                                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
-                                                return true;
+                                                clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
+                                                throw;
                                             }
-                                            else
-                                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
-                                            clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
-                                            return false;
-                                        }
-                                        catch
-                                        {
-                                            clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
-                                            return false;
-                                        }
-                                    }, false);
-                                }
-                            }
-                            else if (command.Type == NetCommandType.PushRecords)
-                            {
-                                SharedNetwork.RequestRecordDataUnmapped(sharedInfo, ws.GetAllMissingRecords().Select(x => x.DataIdentifier).ToList());
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
-                            }
-                            else if (command.Type == NetCommandType.SynchronizeRecords)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                Printer.PrintDiagnostics("Requesting journal data...");
-                                SharedNetwork.PullJournalData(sharedInfo);
-                                Printer.PrintDiagnostics("Received {0} versions in version pack, but need {1} records to commit data.", sharedInfo.PushedVersions.Count, sharedInfo.UnknownRecords.Count);
-                                Printer.PrintDiagnostics("Beginning record synchronization...");
-                                if (sharedInfo.UnknownRecords.Count > 0)
-                                {
-                                    Printer.PrintDiagnostics("Requesting record metadata...");
-                                    SharedNetwork.RequestRecordMetadata(clientInfo.SharedInfo);
-                                    Printer.PrintDiagnostics("Requesting record data...");
-                                    if (!SharedNetwork.RequestRecordData(sharedInfo))
-                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "Record data was not sent!" }, ProtoBuf.PrefixStyle.Fixed32);
-                                    if (!sharedInfo.Workspace.RunLocked(() =>
-                                    {
-                                        return SharedNetwork.ImportRecords(sharedInfo);
-                                    }, false))
-                                    {
-                                        throw new Exception("Unable to import records!");
+                                        }, false);
                                     }
                                 }
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
-                            }
-                            else if (command.Type == NetCommandType.FullClone)
-                            {
-                                if (!clientInfo.Access.HasFlag(Rights.Read))
-                                    throw new Exception("Access denied.");
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
-                                command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
-                                if (command.Type == NetCommandType.Acknowledge)
+                                else if (command.Type == NetCommandType.PushRecords)
                                 {
-                                    bool accept = false;
-                                    BackupInfo backupInfo = null;
-                                    lock (domainInfo)
+                                    SharedNetwork.RequestRecordDataUnmapped(sharedInfo, ws.GetAllMissingRecords().Select(x => x.DataIdentifier).ToList());
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else if (command.Type == NetCommandType.SynchronizeRecords)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    Printer.PrintDiagnostics("Requesting journal data...");
+                                    SharedNetwork.PullJournalData(sharedInfo);
+                                    Printer.PrintDiagnostics("Received {0} versions in version pack, but need {1} records to commit data.", sharedInfo.PushedVersions.Count, sharedInfo.UnknownRecords.Count);
+                                    Printer.PrintDiagnostics("Beginning record synchronization...");
+                                    if (sharedInfo.UnknownRecords.Count > 0)
                                     {
-                                        string backupKey = ws.LastVersion + "-" + ws.LastBranch + "-" + ws.BranchJournalTipID.ToString();
-                                        backupInfo = domainInfo.Backup;
-                                        if (backupKey != backupInfo.Key)
+                                        Printer.PrintDiagnostics("Requesting record metadata...");
+                                        SharedNetwork.RequestRecordMetadata(clientInfo.SharedInfo);
+                                        Printer.PrintDiagnostics("Requesting record data...");
+                                        if (!SharedNetwork.RequestRecordData(sharedInfo))
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "Record data was not sent!" }, ProtoBuf.PrefixStyle.Fixed32);
+                                        if (!sharedInfo.Workspace.RunLocked(() =>
                                         {
-                                            Printer.PrintMessage("Backup key out of date for domain DB[{0}] - {1}", domainInfo.Directory, backupKey);
-                                            if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
-                                                backupInfo.Backup.Delete();
-                                            backupInfo = new BackupInfo();
-                                            domainInfo.Backup = backupInfo;
-                                            var directory = new System.IO.DirectoryInfo(System.IO.Path.Combine(ws.AdministrationFolder.FullName, "backups"));
-                                            directory.Create();
-                                            backupInfo.Backup = new System.IO.FileInfo(System.IO.Path.Combine(directory.FullName, System.IO.Path.GetRandomFileName()));
-                                            if (ws.BackupDB(backupInfo.Backup))
+                                            return SharedNetwork.ImportRecords(sharedInfo);
+                                        }, false))
+                                        {
+                                            throw new Exception("Unable to import records!");
+                                        }
+                                    }
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
+                                else if (command.Type == NetCommandType.FullClone)
+                                {
+                                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                                        throw new Exception("Access denied.");
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge, Identifier = (int)ws.DatabaseVersion }, ProtoBuf.PrefixStyle.Fixed32);
+                                    command = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(stream, ProtoBuf.PrefixStyle.Fixed32);
+                                    if (command.Type == NetCommandType.Acknowledge)
+                                    {
+                                        bool accept = false;
+                                        BackupInfo backupInfo = null;
+                                        lock (domainInfo)
+                                        {
+                                            string backupKey = ws.LastVersion + "-" + ws.LastBranch + "-" + ws.BranchJournalTipID.ToString();
+                                            backupInfo = domainInfo.Backup;
+                                            if (backupKey != backupInfo.Key)
                                             {
-                                                System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                                Printer.PrintMessage("Backup key out of date for domain DB[{0}] - {1}", domainInfo.Directory, backupKey);
+                                                if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
+                                                    backupInfo.Backup.Delete();
+                                                backupInfo = new BackupInfo();
+                                                domainInfo.Backup = backupInfo;
+                                                var directory = new System.IO.DirectoryInfo(System.IO.Path.Combine(ws.AdministrationFolder.FullName, "backups"));
+                                                directory.Create();
+                                                backupInfo.Backup = new System.IO.FileInfo(System.IO.Path.Combine(directory.FullName, System.IO.Path.GetRandomFileName()));
+                                                if (ws.BackupDB(backupInfo.Backup))
+                                                {
+                                                    System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                                    accept = true;
+                                                    backupInfo.Key = backupKey;
+                                                }
+                                            }
+                                            else
+                                            {
                                                 accept = true;
-                                                backupInfo.Key = backupKey;
+                                            }
+
+                                            if (accept)
+                                                System.Threading.Interlocked.Increment(ref backupInfo.Refs);
+                                        }
+                                        if (accept)
+                                        {
+                                            Printer.PrintDiagnostics("Backup complete. Sending data.");
+                                            byte[] blob = new byte[256 * 1024];
+                                            long filesize = backupInfo.Backup.Length;
+                                            long position = 0;
+                                            using (System.IO.FileStream reader = backupInfo.Backup.OpenRead())
+                                            {
+                                                while (true)
+                                                {
+                                                    long remainder = filesize - position;
+                                                    int count = blob.Length;
+                                                    if (count > remainder)
+                                                        count = (int)remainder;
+                                                    reader.Read(blob, 0, count);
+                                                    position += count;
+                                                    Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
+                                                    if (count == remainder)
+                                                    {
+                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                        {
+                                                            Data = blob.Take(count).ToArray(),
+                                                            EndOfStream = true
+                                                        });
+                                                        break;
+                                                    }
+                                                    else
+                                                    {
+                                                        Utilities.SendEncrypted(sharedInfo, new DataPayload()
+                                                        {
+                                                            Data = blob,
+                                                            EndOfStream = false
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                            lock (domainInfo)
+                                            {
+                                                if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
+                                                    backupInfo.Backup.Delete();
                                             }
                                         }
                                         else
                                         {
-                                            accept = true;
+                                            Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
                                         }
-
-                                        if (accept)
-                                            System.Threading.Interlocked.Increment(ref backupInfo.Refs);
                                     }
-                                    if (accept)
+                                }
+                                else if (command.Type == NetCommandType.ReleaseLocks)
+                                {
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                    Printer.PrintDiagnostics("Client is releasing lock tokens.");
+                                    var lockTokens = Utilities.ReceiveEncrypted<Network.LockTokenList>(sharedInfo);
+                                    if (lockTokens?.Locks != null)
                                     {
-                                        Printer.PrintDiagnostics("Backup complete. Sending data.");
-                                        byte[] blob = new byte[256 * 1024];
-                                        long filesize = backupInfo.Backup.Length;
-                                        long position = 0;
-                                        using (System.IO.FileStream reader = backupInfo.Backup.OpenRead())
+                                        foreach (var l in lockTokens.Locks)
                                         {
-                                            while (true)
-                                            {
-                                                long remainder = filesize - position;
-                                                int count = blob.Length;
-                                                if (count > remainder)
-                                                    count = (int)remainder;
-                                                reader.Read(blob, 0, count);
-                                                position += count;
-                                                Printer.PrintDiagnostics("Sent {0}/{1} bytes.", position, filesize);
-                                                if (count == remainder)
-                                                {
-                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
-                                                    {
-                                                        Data = blob.Take(count).ToArray(),
-                                                        EndOfStream = true
-                                                    });
-                                                    break;
-                                                }
-                                                else
-                                                {
-                                                    Utilities.SendEncrypted(sharedInfo, new DataPayload()
-                                                    {
-                                                        Data = blob,
-                                                        EndOfStream = false
-                                                    });
-                                                }
-                                            }
+                                            Printer.PrintDiagnostics(" - Unlock {0}", l);
+                                            clientInfo.Locks.Add(l);
                                         }
-                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                        lock (domainInfo)
+                                        try
                                         {
-                                            if (System.Threading.Interlocked.Decrement(ref backupInfo.Refs) == 0)
-                                                backupInfo.Backup.Delete();
+                                            sharedInfo.Workspace.BeginDatabaseTransaction();
+                                            var resultLocks = sharedInfo.Workspace.BreakLocks(lockTokens.Locks);
+                                            sharedInfo.Workspace.CommitDatabaseTransaction();
+
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                            Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = resultLocks });
+                                        }
+                                        catch
+                                        {
+                                            sharedInfo.Workspace.RollbackDatabaseTransaction();
+                                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
+                                            throw;
                                         }
                                     }
                                     else
                                     {
-                                        Utilities.SendEncrypted<DataPayload>(sharedInfo, new DataPayload() { Data = new byte[0], EndOfStream = true });
-                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
-                                    }
-                                }
-                            }
-                            else if (command.Type == NetCommandType.ReleaseLocks)
-                            {
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                Printer.PrintDiagnostics("Client is releasing lock tokens.");
-                                var lockTokens = Utilities.ReceiveEncrypted<Network.LockTokenList>(sharedInfo);
-                                if (lockTokens?.Locks != null)
-                                {
-                                    foreach (var l in lockTokens.Locks)
-                                    {
-                                        Printer.PrintDiagnostics(" - Unlock {0}", l);
-                                        clientInfo.Locks.Add(l);
-                                    }
-                                    try
-                                    {
-                                        sharedInfo.Workspace.BeginDatabaseTransaction();
-                                        var resultLocks = sharedInfo.Workspace.BreakLocks(lockTokens.Locks);
-                                        sharedInfo.Workspace.CommitDatabaseTransaction();
-
                                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                        Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = resultLocks });
-                                    }
-                                    catch
-                                    {
-                                        sharedInfo.Workspace.RollbackDatabaseTransaction();
-                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error }, ProtoBuf.PrefixStyle.Fixed32);
-                                        throw;
+                                        Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = new List<Guid>() });
                                     }
                                 }
-                                else
+                                else if (command.Type == NetCommandType.SendLocks)
                                 {
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                    Utilities.SendEncrypted<Network.LockTokenList>(sharedInfo, new LockTokenList() { Locks = new List<Guid>() });
-                                }
-                            }
-                            else if (command.Type == NetCommandType.SendLocks)
-                            {
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                Printer.PrintDiagnostics("Client is sending lock tokens.");
-                                var lockTokens = Utilities.ReceiveEncrypted<Network.LockTokenList>(sharedInfo);
-                                if (lockTokens?.Locks != null)
-                                {
-                                    foreach (var l in lockTokens.Locks)
+                                    Printer.PrintDiagnostics("Client is sending lock tokens.");
+                                    var lockTokens = Utilities.ReceiveEncrypted<Network.LockTokenList>(sharedInfo);
+                                    if (lockTokens?.Locks != null)
                                     {
-                                        Printer.PrintDiagnostics(" - Lock {0}", l);
-                                        clientInfo.Locks.Add(l);
+                                        foreach (var l in lockTokens.Locks)
+                                        {
+                                            Printer.PrintDiagnostics(" - Lock {0}", l);
+                                            clientInfo.Locks.Add(l);
+                                        }
+                                        Printer.PrintDiagnostics("Client sent {0} tokens.", lockTokens.Locks.Count);
                                     }
                                 }
-                                Printer.PrintDiagnostics("Client sent {0} tokens.");
-                            }
-                            else if (command.Type == NetCommandType.ListOrBreakLocks || command.Type == NetCommandType.RequestLock)
-                            {
-                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                bool grant = false;
-                                if (command.Type == NetCommandType.RequestLock)
+                                else if (command.Type == NetCommandType.ListOrBreakLocks || command.Type == NetCommandType.RequestLock)
                                 {
-                                    grant = true;
-                                    Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
-                                }
-                                else
-                                    Printer.PrintDiagnostics("Client is asking for a list of locks (potentially to break them).");
-                                var rli = Utilities.ReceiveEncrypted<RequestLockInformation>(sharedInfo);
-
-                                List<VaultLock> lockConflicts;
-                                sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, command.Type == NetCommandType.RequestLock, clientInfo.Locks, out lockConflicts);
-
-                                if (lockConflicts.Count == 0 || rli.Steal)
-                                {
-                                    LockGrantInformation lgi = new LockGrantInformation();
-                                    lgi.BrokenLocks = new LockConflictInformation() { Conflicts = lockConflicts, OffendingPath = rli.Path };
-                                    try
-                                    {
-                                        sharedInfo.Workspace.BeginDatabaseTransaction();
-                                        sharedInfo.Workspace.BreakLocks(lockConflicts);
-                                        if (grant)
-                                            lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
-                                        sharedInfo.Workspace.CommitDatabaseTransaction();
-                                    }
-                                    catch
-                                    {
-                                        sharedInfo.Workspace.RollbackDatabaseTransaction();
-                                        throw;
-                                    }
                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
-                                    Utilities.SendEncrypted(sharedInfo, lgi);
+                                    bool grant = false;
+                                    if (command.Type == NetCommandType.RequestLock)
+                                    {
+                                        grant = true;
+                                        Printer.PrintDiagnostics("Client is attempting to get a lock on this server.");
+                                    }
+                                    else
+                                        Printer.PrintDiagnostics("Client is asking for a list of locks (potentially to break them).");
+                                    var rli = Utilities.ReceiveEncrypted<RequestLockInformation>(sharedInfo);
+
+                                    List<VaultLock> lockConflicts;
+                                    sharedInfo.Workspace.CheckLocks(rli.Path, rli.Branch, command.Type == NetCommandType.RequestLock, clientInfo.Locks, out lockConflicts);
+
+                                    if (lockConflicts.Count == 0 || rli.Steal)
+                                    {
+                                        LockGrantInformation lgi = new LockGrantInformation();
+                                        lgi.BrokenLocks = new LockConflictInformation() { Conflicts = lockConflicts, OffendingPath = rli.Path };
+                                        try
+                                        {
+                                            sharedInfo.Workspace.BeginDatabaseTransaction();
+                                            sharedInfo.Workspace.BreakLocks(lockConflicts);
+                                            if (grant)
+                                                lgi.LockID = sharedInfo.Workspace.GrantLock(rli.Path, rli.Branch, rli.Author);
+                                            sharedInfo.Workspace.CommitDatabaseTransaction();
+                                        }
+                                        catch
+                                        {
+                                            sharedInfo.Workspace.RollbackDatabaseTransaction();
+                                            throw;
+                                        }
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                        Utilities.SendEncrypted(sharedInfo, lgi);
+                                    }
+                                    else
+                                    {
+                                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.PathLocked }, ProtoBuf.PrefixStyle.Fixed32);
+                                        Utilities.SendEncrypted(sharedInfo, new LockConflictInformation() { Conflicts = lockConflicts });
+                                    }
                                 }
                                 else
                                 {
-                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.PathLocked }, ProtoBuf.PrefixStyle.Fixed32);
-                                    Utilities.SendEncrypted(sharedInfo, new LockConflictInformation() { Conflicts = lockConflicts });
+                                    Printer.PrintDiagnostics("Client sent invalid command: {0}", command.Type);
+                                    throw new Exception();
                                 }
-                            }
-                            else
-                            {
-                                Printer.PrintDiagnostics("Client sent invalid command: {0}", command.Type);
-                                throw new Exception();
                             }
                         }
                     }
@@ -1011,6 +1022,10 @@ namespace Versionr.Network
             }
             // theoretically best
             clientInfo.UpdatedHeads = resultHeads;
+            foreach (var x in clientInfo.UpdatedHeads)
+            {
+                Printer.PrintDiagnostics("Result head list - branch {0} to {1}", x.Key, x.Value.Version);
+            }
             errorData = string.Empty;
             return true;
         }

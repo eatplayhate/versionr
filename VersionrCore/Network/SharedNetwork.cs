@@ -882,6 +882,7 @@ namespace Versionr.Network
                     }
                     List<long> importList = new List<long>();
                     importList.AddRange(sharedInfo.UnknownRecords.Select(x => x).Reverse());
+                    Printer.PrintDiagnostics("Importing {0} records...", importList.Count);
                     while (importList.Count > 0)
                     {
                         List<long> delayed = new List<long>();
@@ -1595,6 +1596,16 @@ namespace Versionr.Network
                 else
                     throw new Exception("Unrecognized object type for push object query.");
             }
+            int missing = 0;
+            int present = 0;
+            foreach (var x in response.Recognized)
+            {
+                if (x == false)
+                    missing++;
+                else
+                    present++;
+            }
+            Printer.PrintDiagnostics("Push Object Response: Type: {0}, Present: {1}, Missing: {2}", query.Type, present, missing);
             return response;
         }
     }
