@@ -4099,7 +4099,7 @@ namespace Versionr
                 // Load metadata DB
                 if (!LocalData.Valid)
                     return false;
-                Database = WorkspaceDB.Open(LocalData, MetadataFile.FullName, headless);
+                Database = WorkspaceDB.Open(LocalData, MetadataFile.FullName);
                 if (!Database.Valid)
                     return false;
                 if (LocalData.Domain != Database.Domain)
