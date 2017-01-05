@@ -4058,7 +4058,10 @@ namespace Versionr
             int hyphen = id.LastIndexOf('-');
             string fingerprint = id.Substring(0, hyphen);
             long size = long.Parse(id.Substring(hyphen + 1));
-            return Database.Table<Objects.Record>().Where(x => x.Fingerprint == fingerprint && x.Size == size).FirstOrDefault();
+            Record rec = Database.Table<Objects.Record>().Where(x => x.Fingerprint == fingerprint && x.Size == size).FirstOrDefault();
+            if (rec != null)
+                rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+            return rec;
         }
 
         public IEnumerable<Objects.MergeInfo> GetMergeInfo(Guid iD)
