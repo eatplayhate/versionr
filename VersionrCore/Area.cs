@@ -7683,6 +7683,7 @@ namespace Versionr
                     {
                         ObjectStore.ExportRecordStream(rec, fsd);
                     }
+                    dest = new FileInfo(dest.FullName);
                 }
                 ApplyAttributes(dest, referenceTime, rec);
                 if (dest.Length != rec.Size)
