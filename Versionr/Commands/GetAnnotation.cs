@@ -46,6 +46,8 @@ namespace Versionr.Commands
         }
         [Option('i', "ignore-case", HelpText = "Ignore case for annotation key.")]
         public bool IgnoreCase { get; set; }
+        [Option('r', "recursive", HelpText = "Recursively search for annotations from history if not found.")]
+        public bool Recursive { get; set; }
         [Option("plain", HelpText = "Don't output anything except annotation contents")]
         public bool Plain { get; set; }
         [Option('v', "version", Required = false, HelpText = "The version to retrieve an annotation from.")]
@@ -79,9 +81,34 @@ namespace Versionr.Commands
                 annotation = Workspace.GetAnnotation(ver.ID, localOptions.Key, localOptions.IgnoreCase);
                 if (annotation == null)
                 {
-                    if (!localOptions.Plain)
-                        Printer.PrintMessage("#e#Error:## no annotation matching that key for the specified version.");
-                    return false;
+                    if (localOptions.Recursive)
+                    {
+                        if (!localOptions.Plain)
+                            Printer.PrintMessage("#w#Warning:## no annotation matching that key for the current version, searching history.");
+                        var history = Workspace.GetLogicalHistory(ver, false, true, true);
+                        foreach (var v in history)
+                        {
+                            if (!localOptions.Plain)
+                                Printer.PrintMessage("Checking version #b#{0}##.", v.ID);
+                            annotation = Workspace.GetAnnotation(ver.ID, localOptions.Key, localOptions.IgnoreCase);
+                            if (annotation != null)
+                            {
+                                break;
+                            }
+                        }
+                        if (annotation == null)
+                        {
+                            if (!localOptions.Plain)
+                                Printer.PrintMessage("#e#Error:## no annotation matching that key.");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        if (!localOptions.Plain)
+                            Printer.PrintMessage("#e#Error:## no annotation matching that key for the specified version.");
+                        return false;
+                    }
                 }
             }
             else
