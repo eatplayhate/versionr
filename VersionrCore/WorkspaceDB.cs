@@ -434,8 +434,15 @@ namespace Versionr
             if (LocalDatabase.GetCachedRecords(version.ID, out results))
                 return results;
             results = GetRecords(version, testFailure);
-            if (!testFailure)
-                LocalDatabase.CacheRecords(version.ID, results);
+            try
+            {
+                if (!testFailure)
+                    LocalDatabase.CacheRecords(version.ID, results);
+            }
+            catch (InvalidOperationException)
+            {
+                // ignore
+            }
             return results;
         }
 
