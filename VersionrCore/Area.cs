@@ -7688,6 +7688,7 @@ namespace Versionr
                 if (rec.Size == 0)
                 {
                     using (var fs = dest.Create()) { }
+                    dest = new FileInfo(dest.FullName);
                 }
                 else
                 {
@@ -7884,10 +7885,10 @@ namespace Versionr
             if (info is FileInfo)
                 ((FileInfo)info).IsReadOnly = false;
             info.LastWriteTimeUtc = newRefTime;
-            if (attrib.HasFlag(Objects.Attributes.Hidden))
-                info.Attributes = info.Attributes | FileAttributes.Hidden;
-            if (attrib.HasFlag(Objects.Attributes.ReadOnly))
-                info.Attributes = info.Attributes | FileAttributes.ReadOnly;
+            //if (attrib.HasFlag(Objects.Attributes.Hidden))
+            //    info.Attributes = info.Attributes | FileAttributes.Hidden;
+            //if (attrib.HasFlag(Objects.Attributes.ReadOnly))
+            //    info.Attributes = info.Attributes | FileAttributes.ReadOnly;
         }
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Record rec)

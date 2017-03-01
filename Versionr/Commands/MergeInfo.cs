@@ -67,9 +67,16 @@ namespace Versionr.Commands
                     HashSet<Guid> directMerges = new HashSet<Guid>();
                     foreach (var m in mergeInfos)
                     {
-                        Objects.Branch b = ws.GetBranch(m.Branch);
-                        directMerges.Add(b.ID);
-                        Printer.PrintMessage(" - Merged into #b#{0}## on branch #b#\"{1}\"## ({2})", m.ShortName, b.Name, b.ShortID);
+                        if (m == null)
+                        {
+                            Printer.PrintMessage(" - Merged into #w#unknown version##");
+                        }
+                        else
+                        {
+                            Objects.Branch b = ws.GetBranch(m.Branch);
+                            directMerges.Add(b.ID);
+                            Printer.PrintMessage(" - Merged into #b#{0}## on branch #b#\"{1}\"## ({2})", m.ShortName, b.Name, b.ShortID);
+                        }
                     }
                     string deleteMarker = " #e#[deleted]##";
                     Printer.PrintMessage("Branch relationships:");
