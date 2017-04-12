@@ -4,8 +4,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
 using Versionr;
@@ -18,7 +16,7 @@ namespace VersionrUI.Dialogs
     /// <summary>
     /// Interaction logic for LogDialog.xaml
     /// </summary>
-    public partial class LogDialog : Window, INotifyPropertyChanged
+    public partial class LogDialog : INotifyPropertyChanged
     {
         private Area _area;
         private string _author;
@@ -29,8 +27,8 @@ namespace VersionrUI.Dialogs
         {
             { 50, "50" },
             { 100, "100" },
-            { 150, "150" },
             { 200, "200" },
+            { 500, "500" },
             { -1, "All" },
         };
 
@@ -147,7 +145,7 @@ namespace VersionrUI.Dialogs
             lock (refreshLock)
             {
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetHistory(Version, limit));
+                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetLogicalHistory(Version, false, false, false, limit));
                 
                 _history = new List<VersionVM>();
                 foreach (Version ver in versions)
@@ -193,14 +191,14 @@ namespace VersionrUI.Dialogs
                 {
                     _isLoading = value;
                     NotifyPropertyChanged("IsLoading");
-                    NotifyPropertyChanged("LogVisibility");
+                    NotifyPropertyChanged("LogOpacity");
                 }
             }
         }
 
-        public Visibility LogVisibility
+        public float LogOpacity
         {
-            get { return IsLoading ? Visibility.Collapsed : Visibility.Visible; }
+            get { return IsLoading ? 0.3f : 1.0f; }
         }
 
         protected void Load(Action action)

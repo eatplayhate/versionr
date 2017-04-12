@@ -1,5 +1,7 @@
-﻿using Microsoft.Win32;
+﻿using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Win32;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Documents;
@@ -19,6 +21,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand DiffWithCurrentCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
         public DelegateCommand SaveVersionAsCommand { get; private set; }
+        public DelegateCommand OpenInExplorerCommand { get; private set; }
 
         private Alteration _alteration;
         private Area _area;
@@ -42,6 +45,7 @@ namespace VersionrUI.ViewModels
             DiffWithCurrentCommand = new DelegateCommand(DiffWithCurrent, CanDiffWithCurrent);
             LogCommand = new DelegateCommand(Log);
             SaveVersionAsCommand = new DelegateCommand(SaveVersionAs, CanSaveVersionAs);
+            OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
         }
 
         public Alteration Alteration{ get { return _alteration; } }
@@ -79,7 +83,7 @@ namespace VersionrUI.ViewModels
             if ((_priorRecord.Attributes & Attributes.Binary) == Attributes.Binary ||
                 (_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
-                MessageBox.Show(string.Format("Not showing binary differences."));
+                MainWindow.ShowMessage("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
             }
             else
             {
@@ -110,7 +114,7 @@ namespace VersionrUI.ViewModels
         {
             if ((_newRecord.Attributes & Attributes.Binary) == Attributes.Binary)
             {
-                MessageBox.Show(string.Format("File: {0} is binary different.", _newRecord.CanonicalName));
+                MainWindow.ShowMessage("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _newRecord.CanonicalName));
             }
             else
             {
@@ -235,6 +239,13 @@ namespace VersionrUI.ViewModels
 
                 return _diffPreviewDocument;
             }
+        }
+
+        private void OpenInExplorer()
+        {
+            ProcessStartInfo si = new ProcessStartInfo("explorer");
+            si.Arguments = "/select,\"" + Path.Combine(_area.Root.FullName, Name).Replace('/', '\\') + "\"";
+            Process.Start(si);
         }
     }
 }

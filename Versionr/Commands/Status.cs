@@ -251,7 +251,15 @@ namespace Versionr.Commands
 				name = "#q#<parent directory>##";
 			if (x.IsSymlink)
 				name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
-			Printer.WriteLineMessage("{1}##{0}", name, GetStatus(x, flat));
+            string ro = string.Empty;
+            if (x.FilesystemEntry != null && x.FilesystemEntry.Attributes.HasFlag(Versionr.Objects.Attributes.ReadOnly))
+            {
+                if (x.VersionControlRecord != null && !x.VersionControlRecord.Attributes.HasFlag(Versionr.Objects.Attributes.ReadOnly))
+                    ro = " #q#(#b#+#q# read only)##";
+                else
+                    ro = " #q#(read only)##";
+            }
+            Printer.WriteLineMessage("{1}##{0}{2}", name, GetStatus(x, flat), ro);
 			if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
 				Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
 		}

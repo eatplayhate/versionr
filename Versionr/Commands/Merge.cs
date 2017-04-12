@@ -34,6 +34,9 @@ namespace Versionr.Commands
         [Option("ignore-merge-ancestry", HelpText = "Ignores prior merge results when computing changes.")]
         public bool IgnoreMergeAncestry { get; set; }
 
+        [Option("ignore-attribs", HelpText = "Ignores attribute changes.")]
+        public bool IgnoreAttribChanges { get; set; }
+
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
         public override string Usage
@@ -76,6 +79,7 @@ namespace Versionr.Commands
                 IgnoreMergeParents = localOptions.IgnoreMergeAncestry,
                 Reintegrate = localOptions.Reintegrate,
                 MetadataOnly = localOptions.Metadata,
+                IgnoreAttribChanges = localOptions.IgnoreAttribChanges,
                 ResolutionStrategy = localOptions.Mine ? Area.MergeSpecialOptions.ResolutionSystem.Mine : (localOptions.Theirs ? Area.MergeSpecialOptions.ResolutionSystem.Theirs : Area.MergeSpecialOptions.ResolutionSystem.Normal)
             };
             if (localOptions.Target.Count == 0)

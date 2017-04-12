@@ -179,7 +179,7 @@ namespace Versionr
         private bool Upgrade()
         {
             RefreshPartialPath();
-            if (Configuration.Version != LocalDBVersion)
+            if (Configuration.Version < LocalDBVersion)
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
             {
@@ -264,7 +264,7 @@ namespace Versionr
                 ws.ComputerName = Environment.MachineName;
                 ws.LocalWorkspacePath = new FileInfo(DatabasePath).GetFullNameWithCorrectCase();
                 ws.MakeUnique();
-                Printer.PrintDiagnostics("WS MachineName {0}, StashCode: {1}, Journal ID: {2}.", ws.ComputerName, ws.StashCode, ws.ID);
+                Printer.PrintDiagnostics("WS MachineName {0}, StashCode: {1}, Journal ID: {2}.", ws.ComputerName, ws.StashCode, ws.JournalID);
                 Configuration conf = Configuration;
                 conf.WorkspaceID = ws.ID;
                 Update(conf);
@@ -282,9 +282,15 @@ namespace Versionr
         {
             Workspace ws = Workspace;
             if (ws.ComputerName != Environment.MachineName)
+            {
+                Printer.PrintDiagnostics("Uniqueness check: Machine name has changed (was: \"{0}\" now \"{1}\")!", ws.ComputerName, Environment.MachineName);
                 return false;
-            if (ws.LocalWorkspacePath != DatabasePath)
+            }
+            if (ws.LocalWorkspacePath != new FileInfo(DatabasePath).GetFullNameWithCorrectCase())
+            {
+                Printer.PrintDiagnostics("Uniqueness check: Patch changed (was: \"{0}\" now \"{1}\")!", ws.LocalWorkspacePath, new FileInfo(DatabasePath).GetFullNameWithCorrectCase());
                 return false;
+            }
             return true;
         }
 
@@ -558,17 +564,31 @@ namespace Versionr
 
         internal void CacheRecords(Guid iD, List<Record> results)
         {
-            BeginTransaction();
-            DeleteAll<CachedRecords>();
-            CachedRecords cr = new CachedRecords()
+            try
             {
-                AssociatedVersion = iD,
-                Data = SerializeCachedRecords(results),
-                Version = CachedRecordVersion
-            };
-            InsertOrReplace(cr);
-            
-            Commit();
+                BeginTransaction();
+                try
+                {
+                    DeleteAll<CachedRecords>();
+                    CachedRecords cr = new CachedRecords()
+                    {
+                        AssociatedVersion = iD,
+                        Data = SerializeCachedRecords(results),
+                        Version = CachedRecordVersion
+                    };
+                    InsertOrReplace(cr);
+
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // ignore, probably in a transaction anyway
+            }
         }
     }
 }

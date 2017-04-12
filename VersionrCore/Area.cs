@@ -1322,6 +1322,8 @@ namespace Versionr
         internal void CheckLocks(string path, Guid? branch, bool testingLock, HashSet<Guid> locks, out List<VaultLock> lockConflicts)
         {
             lockConflicts = new List<VaultLock>();
+            if (locks == null)
+                return;
 
             // Full
             if (string.IsNullOrEmpty(path))
@@ -3784,7 +3786,6 @@ namespace Versionr
                         alteration.NewRecord = mapRecords ? clientInfo.LocalRecordMap[z.NewRecord.Id].Id : z.NewRecord.Id;
                     if (z.PriorRecord != null)
                         alteration.PriorRecord = mapRecords ? clientInfo.LocalRecordMap[z.PriorRecord.Id].Id : z.PriorRecord.Id;
-
                     Database.InsertSafe(alteration);
                 }
             }
@@ -3906,6 +3907,9 @@ namespace Versionr
                     Database.UpdateSafe(heads[0]);
                 }
             }
+            heads = GetBranchHeads(branch);
+            if (heads.Count != 1 || heads[0].Version != x.Value.Version)
+                throw new Exception("Failed to update head information!");
         }
 
         public bool RecordChanges(Status status, IList<Status.StatusEntry> files, bool missing, bool interactive, Action<Status.StatusEntry, StatusCode, bool> callback = null)
@@ -4477,6 +4481,7 @@ namespace Versionr
             public bool IgnoreMergeParents { get; set; }
             public bool Reintegrate { get; set; }
             public bool AllowRecursiveMerge { get; set; }
+            public bool IgnoreAttribChanges { get; set; }
             public enum ResolutionSystem
             {
                 Normal,
@@ -4492,6 +4497,7 @@ namespace Versionr
                 IgnoreMergeParents = false;
                 Reintegrate = false;
                 AllowRecursiveMerge = true;
+                IgnoreAttribChanges = false;
                 ResolutionStrategy = ResolutionSystem.Normal;
             }
 
@@ -4899,6 +4905,8 @@ namespace Versionr
 #endif
                                 caseInsensitiveSet.Add(x.CanonicalName.ToLower());
                                 RestoreRecord(x, newRefTime);
+                                if (options.IgnoreAttribChanges)
+                                    ApplyAttributes(localObject.FilesystemEntry.Info, newRefTime, localObject.VersionControlRecord);
                                 if (!updateMode)
                                 {
                                     delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.Add, Operand1 = x.CanonicalName });
@@ -4941,6 +4949,8 @@ namespace Versionr
                                     var mr = GetTemporaryFile(x, "-result");
 
                                     RestoreRecord(x, newRefTime, mf.FullName);
+                                    if (options.IgnoreAttribChanges)
+                                        ApplyAttributes(mf, newRefTime, localObject.VersionControlRecord);
 
                                     mf = new FileInfo(mf.FullName);
 
@@ -5010,6 +5020,8 @@ namespace Versionr
                                 if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Theirs)
                                 {
                                     RestoreRecord(x, newRefTime);
+                                    if (options.IgnoreAttribChanges)
+                                        ApplyAttributes(localObject.FilesystemEntry.Info, newRefTime, localObject.VersionControlRecord);
                                 }
                                 else if (options.ResolutionStrategy == MergeSpecialOptions.ResolutionSystem.Normal)
                                 {
@@ -5028,6 +5040,8 @@ namespace Versionr
                                         mb = parentObject.TemporaryFile;
 
                                     RestoreRecord(x, newRefTime, mf.FullName);
+                                    if (options.IgnoreAttribChanges)
+                                        ApplyAttributes(mf, newRefTime, localObject.VersionControlRecord);
 
                                     mf = new FileInfo(mf.FullName);
 
@@ -5075,7 +5089,7 @@ namespace Versionr
                                     else
                                     {
 #if MERGE_DIAGNOSTICS
-                                    Printer.PrintDiagnostics(" > #c#MR:## Three way merge failed. Conflict.");
+                                        Printer.PrintDiagnostics(" > #c#MR:## Three way merge failed. Conflict.");
 #endif
                                         LocalData.AddStageOperation(new StageOperation() { Type = StageOperationType.Conflict, Operand1 = x.CanonicalName });
                                         if (!updateMode)
@@ -7106,7 +7120,7 @@ namespace Versionr
                         {
                             Objects.Version vs = null;
                             vs = Objects.Version.Create();
-                            vs.Author = Username;
+                            vs.Author = Directives.UserName;
                             vs.Parent = Database.Version.ID;
                             vs.Branch = Database.Branch.ID;
                             Printer.PrintDiagnostics("Created new version ID - {0}", vs.ID);
@@ -7682,6 +7696,11 @@ namespace Versionr
                 {
                     if (dest.Exists && dest.IsReadOnly)
                         dest.IsReadOnly = false;
+                    if (System.IO.File.Exists(dest.FullName))
+                    {
+                        System.IO.File.Delete(dest.FullName);
+                        dest = new FileInfo(dest.FullName);
+                    }
                     using (var fsd = dest.Open(FileMode.Create))
                     {
                         ObjectStore.ExportRecordStream(rec, fsd);
@@ -7865,6 +7884,8 @@ namespace Versionr
 
         private void ApplyAttributes(FileSystemInfo info, DateTime newRefTime, Attributes attrib)
         {
+            if (info is FileInfo)
+                ((FileInfo)info).IsReadOnly = false;
             info.LastWriteTimeUtc = newRefTime;
             //if (attrib.HasFlag(Objects.Attributes.Hidden))
             //    info.Attributes = info.Attributes | FileAttributes.Hidden;

@@ -359,6 +359,10 @@ namespace Versionr
                 
                 try
                 {
+					// because lewis broke 'lg' on purpose
+					if (args.Count() > 0 && args[0] == "lg" && invokedVerbInstance is Commands.LogVerbOptions)
+						((Commands.LogVerbOptions)invokedVerbInstance).Jrunting = true;
+
 					Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
 					VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
                     if (baseOptions != null)

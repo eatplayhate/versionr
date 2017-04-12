@@ -3,118 +3,135 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:VersionrUI"
              xmlns:vm="clr-namespace:VersionrUI.ViewModels"
              xmlns:controls="clr-namespace:VersionrUI.Controls"
              xmlns:commands="clr-namespace:VersionrUI.Commands"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:mahapps="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              mc:Ignorable="d" 
              d:DesignHeight="300" d:DesignWidth="300">
 
     <UserControl.Resources>
 
+        <local:MultilineStringConverter x:Key="MultilineStringConverter" />
+
         <DataTemplate DataType="{x:Type vm:AreaVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="200" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid Grid.Column="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0"
-                                   Margin="4"
-                                   Text="{Binding Directory.FullName}"
-                                   FontWeight="Bold" />
-                        <Button Grid.Row="1"
-                                Margin="4"
+                <Grid Opacity="{Binding Opacity}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0"
+                                Margin="8"
                                 Content="Refresh Area"
-                                Command="{Binding RefreshCommand}" />
-                        <ComboBox Grid.Row="2"
-                                  Margin="4"
-                                  ItemsSource="{Binding Remotes}"
-                                  SelectedItem="{Binding SelectedRemote}"
-                                  DisplayMemberPath="Name" />
-                        <StackPanel Grid.Row="3"
-                                    Margin="0,4"
-                                    Orientation="Horizontal">
-                            <Button Margin="4" Content="Pull" Command="{Binding PullCommand}" />
-                            <Button Margin="4" Content="Push" Command="{Binding PushCommand}" />
+                                Command="{Binding RefreshCommand}"
+                                Style="{StaticResource LinkButtonStyle}" />
+                        <StackPanel Grid.Column="1"
+                                    Margin="8"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <Label Content="Remote"
+                                   VerticalAlignment="Center" />
+                            <ComboBox ItemsSource="{Binding Remotes}"
+                                      SelectedItem="{Binding SelectedRemote}"
+                                      Height="20" Width="100"
+                                      DisplayMemberPath="Name" />
                         </StackPanel>
-                        <TreeView Grid.Row="4"
-                                  Margin="0,4"
-                                  Name="treeView"
-                                  BorderThickness="0"
-                                  ItemsSource="{Binding Children}">
-                            <TreeView.Resources>
-                                <HierarchicalDataTemplate DataType="{x:Type vm:NamedCollection}" ItemsSource="{Binding Items}">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="4,0" />
-                                </HierarchicalDataTemplate>
-                                <DataTemplate DataType="{x:Type vm:BranchVM}">
-                                    <TextBlock Text="{Binding Name}">
-                                        <TextBlock.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
-                                                <MenuItem Header="View log..." Command="{Binding LogCommand}" />
-                                            </ContextMenu>
-                                        </TextBlock.ContextMenu>
-                                        <TextBlock.Resources>
-                                            <Style TargetType="{x:Type TextBlock}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                        <Setter Property="TextBlock.FontWeight" Value="Bold"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsDeleted}" Value="True">
-                                                        <Setter Property="TextBlock.Foreground" Value="Gray"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Resources>
-                                    </TextBlock>
-                                </DataTemplate>
-                                <DataTemplate DataType="{x:Type vm:StatusVM}">
-                                    <TextBlock Text="Status" FontWeight="Bold" Margin="4,8" />
-                                </DataTemplate>
-                            </TreeView.Resources>
-                            <TreeView.ItemContainerStyle>
-                                <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
-                                    <Setter Property="IsExpanded" Value="True"/>
-                                </Style>
-                            </TreeView.ItemContainerStyle>
-                        </TreeView>
+                        <StackPanel Grid.Column="2"
+                                    Margin="8"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <Label Content="Branch"
+                                   VerticalAlignment="Center" />
+                            <ComboBox ItemsSource="{Binding Branches}"
+                                      SelectedItem="{Binding SelectedBranch}"
+                                      Height="20" Width="150" >
+                                <ComboBox.Resources>
+                                    <DataTemplate DataType="{x:Type vm:BranchVM}">
+                                        <TextBlock Text="{Binding Name}">
+                                            <TextBlock.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Pull" Command="{Binding PullCommand}" />
+                                                    <MenuItem Header="Push" Command="{Binding PushCommand}" />
+                                                    <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
+                                                    <MenuItem Header="View log..." Command="{Binding LogCommand}" />
+                                                </ContextMenu>
+                                            </TextBlock.ContextMenu>
+                                            <TextBlock.Resources>
+                                                <Style TargetType="{x:Type TextBlock}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="TextBlock.FontWeight" Value="Bold"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+                                                            <Setter Property="TextBlock.Foreground" Value="Gray"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Resources>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.Resources>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3"
+                                    Margin="8"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <RadioButton Margin="8,0"
+                                         GroupName="radioGroup1"
+                                         IsChecked="{Binding IsStatusSelected}"
+                                         Content="Status" />
+                            <RadioButton Margin="8,0"
+                                         GroupName="radioGroup1"
+                                         IsChecked="{Binding IsHistorySelected}"
+                                         Content="History" />
+                        </StackPanel>
+                        <Button Grid.Column="4"
+                                Margin="8"
+                                Content="Settings"
+                                Command="{Binding SelectViewCommand}"
+                                CommandParameter="{Binding Settings}"
+                                Style="{StaticResource LinkButtonStyle}" />
                     </Grid>
-                    <GridSplitter Grid.Column="1"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Stretch"
+                    <GridSplitter Grid.Row="1"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
                                   ShowsPreview="True"
-                                  Width="5" />
-                    <ContentPresenter Grid.Column="2" Content="{Binding SelectedItem, ElementName=treeView}" />
+                                  Height="5"
+                                  IsEnabled="False" />
+                    <ContentPresenter Grid.Row="2"
+                                      Content="{Binding SelectedVM}" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Area" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
         
         <DataTemplate DataType="{x:Type vm:BranchVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
+                <Grid Opacity="{Binding Opacity}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="400" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="80" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0">
+                    <Grid Grid.Row="0"
+                          Margin="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -123,9 +140,9 @@
                         </Grid.ColumnDefinitions>
                         <Label Grid.Column="0">Search:</Label>
                         <TextBox Grid.Column="1"
-                                 Name="logSearch"
-                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}">
-                        </TextBox>
+                                 x:Name="logSearch"
+                                 mahapps:TextBoxHelper.Watermark="Search"
+                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}" />
                         <Label Grid.Column="2">Limit:</Label>
                         <ComboBox Grid.Column="3"
                                   SelectedValuePath="Key"
@@ -134,13 +151,63 @@
                                   SelectedValue="{Binding RevisionLimit}" />
                     </Grid>
                     <ListView Grid.Row="1"
-                              Name="listView"
+                              x:Name="listView"
                               ItemsSource="{Binding History}"
                               SelectedItem="{Binding SelectedVersion}"
                               SelectionMode="Single"
-                              GridViewColumnHeader.Click="listViewHeader_Click">
+                              GridViewColumnHeader.Click="listViewHeader_Click"
+                              ScrollViewer.IsDeferredScrollingEnabled="False"
+                              Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
                             <GridView>
+                                <GridViewColumn Header="Graph">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate DataType="{x:Type vm:NodeDescrption}">
+                                            <Canvas>
+                                                <ItemsControl ItemsSource="{Binding GraphNode.Links}">
+                                                    <ItemsControl.Resources>
+                                                        <DataTemplate DataType="{x:Type vm:Link}">
+                                                            <Canvas>
+                                                                <Line X1="{Binding XPos}" Y1="6"
+                                                                      X2="{Binding SourceXOffset}" Y2="{Binding SourceYOffset}"
+                                                                      Stroke="{Binding Brush}"
+                                                                      Canvas.Top="-6">
+                                                                    <Line.Style>
+                                                                        <Style TargetType="{x:Type Line}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Path=Merge}" Value="True">
+                                                                                    <Setter Property="StrokeDashArray" Value="2 2" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Line.Style>
+                                                                </Line>
+                                                            </Canvas>
+                                                        </DataTemplate>
+                                                    </ItemsControl.Resources>
+                                                </ItemsControl>
+                                                <ItemsControl ItemsSource="{Binding GraphNode.ExternalVersions}">
+                                                    <ItemsControl.Resources>
+                                                        <DataTemplate DataType="{x:Type vm:VersionVM}">
+                                                            <Canvas>
+                                                                <Ellipse Width="12" Height="12"
+                                                                         Fill="{Binding GraphNode.Brush}"
+                                                                         ToolTip="{Binding GraphNode.Name}"
+                                                                         Canvas.Left="{Binding GraphNode.XPos}"
+                                                                         Canvas.Top="-6" />
+                                                            </Canvas>
+                                                        </DataTemplate>
+                                                    </ItemsControl.Resources>
+                                                </ItemsControl>
+                                                <Ellipse Width="12" Height="12"
+                                                         Fill="{Binding GraphNode.Brush}"
+                                                         ToolTip="{Binding GraphNode.Name}"
+                                                         Canvas.Left="{Binding GraphNode.XPos}"
+                                                         Canvas.Top="-6" />
+                                            </Canvas>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
                                 <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
@@ -155,9 +222,8 @@
                                 </GridViewColumn>
                             </GridView>
                         </ListView.View>
-
                         <ListView.ItemContainerStyle>
-                            <Style TargetType="{x:Type ListViewItem}">
+                            <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Path=IsCurrent}" Value="True">
                                         <Setter Property="FontWeight" Value="Bold" />
@@ -184,20 +250,32 @@
                                   VerticalAlignment="Center"
                                   ShowsPreview="True"
                                   Height="5" />
-                    
-                    <ContentPresenter Grid.Row="5" Content="{Binding SelectedItem, ElementName=listView}" />
+
+                    <Grid Grid.Row="5"
+                          Margin="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0">Search:</Label>
+                        <TextBox Grid.Column="1"
+                                 x:Name="alterationSearch"
+                                 mahapps:TextBoxHelper.Watermark="Search"
+                                 Text="{Binding SelectedVersion.SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                    <ContentPresenter Grid.Row="6" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Branch" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type vm:VersionVM}">
             <ListView Grid.Row="0"
-                      Name="listView"
                       ItemsSource="{Binding Alterations}"
                       SelectionMode="Single"
-                      GridViewColumnHeader.Click="listViewHeader_Click">
+                      GridViewColumnHeader.Click="listViewHeader_Click"
+                      ScrollViewer.IsDeferredScrollingEnabled="False"
+                      Style="{StaticResource VirtualisedMetroListView}">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name, Mode=OneWay}" />
@@ -205,7 +283,7 @@
                     </GridView>
                 </ListView.View>
                 <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
+                    <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                         <Setter Property="ContextMenu">
                             <Setter.Value>
                                 <ContextMenu>
@@ -213,6 +291,7 @@
                                     <MenuItem Header="Diff with working version" Command="{Binding DiffWithCurrentCommand}" />
                                     <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                     <MenuItem Header="Save this version as..." Command="{Binding SaveVersionAsCommand}" />
+                                    <MenuItem Header="Open location in Explorer" Command="{Binding OpenInExplorerCommand}" />
                                 </ContextMenu>
                             </Setter.Value>
                         </Setter>
@@ -225,7 +304,7 @@
 
         <DataTemplate DataType="{x:Type vm:StatusVM}">
             <Grid>
-                <Grid Visibility="{Binding Visibility}">
+                <Grid Opacity="{Binding Opacity}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="120" />
                         <RowDefinition Height="Auto" />
@@ -235,12 +314,15 @@
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0">
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-                            <Button Margin="4"
-                                    Content="Refresh Status"
-                                    Command="{Binding RefreshCommand}" />
-                            <Button Margin="4"
-                                    Content="Commit"
-                                    Command="{Binding CommitCommand}" />
+                            <Button Content="Refresh Status"
+                                    Command="{Binding RefreshCommand}"
+                                    Style="{StaticResource LinkButtonStyle}" />
+                            <Button Content="Create Branch"
+                                    Command="{Binding CreateBranchCommand}"
+                                    Style="{StaticResource LinkButtonStyle}" />
+                            <Button Content="Commit"
+                                    Command="{Binding CommitCommand}"
+                                    Style="{StaticResource LinkButtonStyle}" />
                             <CheckBox Margin="4"
                                         Content="Push after commit"
                                         IsChecked="{Binding PushOnCommit}" />
@@ -251,9 +333,10 @@
                         <DockPanel>
                             <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
                             <TextBox Margin="4"
-                                        Text="{Binding CommitMessage}"
-                                        TextWrapping="Wrap"
-                                        AcceptsReturn="True" />
+                                     mahapps:TextBoxHelper.Watermark="Message"
+                                     Text="{Binding CommitMessage}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True" />
                         </DockPanel>
                     </DockPanel>
                     <GridSplitter Grid.Row="1"
@@ -262,18 +345,19 @@
                                     ShowsPreview="True"
                                     Height="5" />
                     <ListView Grid.Row="2"
-                                Name="listView"
-                                ItemsSource="{Binding Elements}"
-                                SelectionMode="Extended"
-                                GridViewColumnHeader.Click="listViewHeader_Click">
+                              x:Name="listView"
+                              ItemsSource="{Binding Elements}"
+                              SelectionMode="Extended"
+                              GridViewColumnHeader.Click="listViewHeader_Click"
+                              ScrollViewer.IsDeferredScrollingEnabled="False"
+                              Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Staged">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <CheckBox IsChecked="{Binding IsStaged}"
-                                                        Checked="CheckBox_Checked"
-                                                        Unchecked="CheckBox_Unchecked"/>
+                                            <CheckBox IsChecked="{Binding IsStaged, Mode=OneWay}"
+                                                      Click="CheckBox_Clicked" />
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
@@ -289,13 +373,14 @@
                             </GridView>
                         </ListView.View>
                         <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
+                            <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
                                 <Setter Property="ContextMenu">
                                     <Setter.Value>
                                         <ContextMenu>
                                             <MenuItem Header="Diff" FontWeight="Bold" Command="{Binding DiffCommand}" />
                                             <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                             <MenuItem Header="Revert" Command="{Binding RevertCommand}" />
+                                            <MenuItem Header="Open location in Explorer" Command="{Binding OpenInExplorerCommand}" />
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>
@@ -316,12 +401,118 @@
                                                   HorizontalScrollBarVisibility="Auto"
                                                   VerticalScrollBarVisibility="Auto" />
                 </Grid>
-                <controls:LoadingPanel IsLoading="{Binding IsLoading}"
-                                       Message="Loading Status" />
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
         </DataTemplate>
 
-        <DataTemplate DataType="{x:Type vm:NamedCollection}">
+        <DataTemplate DataType="{x:Type vm:SettingsVM}">
+            <Grid>
+                <Grid Opacity="{Binding Opacity}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Vertical">
+                        <RadioButton Margin="8,4" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:SettingsViewMode.Meta}" Content="Repo settings" />
+                        <RadioButton Margin="8,4" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:SettingsViewMode.UserGlobal}" Content="Global user settings" />
+                        <RadioButton Margin="8,4" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:SettingsViewMode.User}" Content="User" />
+                        <RadioButton Margin="8,4" GroupName="radioGroup1" Command="{Binding OptionChangedCommand}" CommandParameter="{x:Static vm:SettingsViewMode.Effective}" Content="Effective settings" IsChecked="True" />
+                    </StackPanel>
+                    <GroupBox Grid.Row="1"
+                              Margin="8,4"
+                              Header="{Binding SettingsHeader}">
+                        <Grid DataContext="{Binding SubSettings}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Button Grid.Row="0"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding SaveCommand}"
+                                    Content="Save changes"
+                                    Style="{DynamicResource LinkButtonStyle}"
+                                    Visibility="{Binding SaveButtonVisibility}" />
+                            <ScrollViewer Grid.Row="1">
+                                <Grid ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Margin="8,4,8,8" 
+                                               Text="{Binding Error}"
+                                               Visibility="{Binding ErrorVisibility}"
+                                               Foreground="{DynamicResource ValidationBrush5}"
+                                               FontWeight="Bold" />
+                                    <Label Grid.Column="0" Grid.Row="1" Margin="4" Content="UserName"
+                                           mahapps:TextBoxHelper.Watermark="{Binding UserNameWatermark}" />
+                                    <TextBox Grid.Column="1" Grid.Row="1" Margin="4" Text="{Binding UserName}" IsReadOnly="{Binding IsReadOnly}" />
+                                    <Label Grid.Column="0" Grid.Row="2" Margin="4" Content="External Diff" />
+                                    <TextBox Grid.Column="1" Grid.Row="2" Margin="4" Text="{Binding ExternalDiff}" IsReadOnly="{Binding IsReadOnly}" />
+                                    <Label Grid.Column="0" Grid.Row="3" Margin="4" Content="External Merge (2 way)" />
+                                    <TextBox Grid.Column="1" Grid.Row="3" Margin="4" Text="{Binding ExternalMerge2Way}" IsReadOnly="{Binding IsReadOnly}" />
+                                    <Label Grid.Column="0" Grid.Row="4" Margin="4" Content="External Merge (3 way)" />
+                                    <TextBox Grid.Column="1" Grid.Row="4" Margin="4" Text="{Binding ExternalMerge}" IsReadOnly="{Binding IsReadOnly}" />
+                                    <Label Grid.Column="0" Grid.Row="5" Margin="4" Content="Ignores" />
+                                    <ContentPresenter Grid.Column="1" Grid.Row="5" Content="{Binding Ignores}" />
+                                    <Label Grid.Column="0" Grid.Row="6" Margin="4" Content="Includes" />
+                                    <ContentPresenter Grid.Column="1" Grid.Row="6" Content="{Binding Includes}" />
+                                </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+                <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:IgnoresVM}">
+            <WrapPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Directory Patterns" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding DirectoryPatterns, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="File Patterns" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding FilePatterns, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Directories" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding Directories, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Extensions" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding Extensions, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Orientation="Vertical">
+                    <Label Content="Patterns" />
+                    <TextBox Margin="4,2" Height="300" Width="280"
+                             HorizontalAlignment="Left"
+                             Text="{Binding Patterns, Converter={StaticResource MultilineStringConverter}}"
+                             IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" />
+                </StackPanel>
+            </WrapPanel>
         </DataTemplate>
 
         <DataTemplate x:Key="HeaderTemplateArrowUp">
@@ -341,63 +532,41 @@
     </UserControl.Resources>
     
     <Grid x:Name="mainGrid">
-        <DockPanel>
-            <!-- Menu bar -->
-            <Grid DockPanel.Dock="Top">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal">
-                    <Button Margin="4" Content="Clone/Init" Command="{Binding NewAreaCommand}" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Margin="4"
-                        Width="50" Height="50"
-                        HorizontalAlignment="Right"
-                        Content="CRASH"
-                        Foreground="Red"
-                        FontWeight="Bold"
-                        FontSize="13"
-                        Command="{Binding CloseCommand}">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Grid>
-                                <Ellipse Fill="Transparent" Stroke="Red" StrokeThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Grid>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-            </Grid>
-            
-            <!-- Area tabs -->
-            <TabControl ItemsSource="{Binding OpenAreas}"
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" MinWidth="200" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0">
+            <Button Content="Clone/Init"
+                    Command="{Binding NewAreaCommand}"
+                    ToolTip="Clone or create a new local repository"
+                    Style="{StaticResource LinkButtonStyle}" />
+            <ListBox ItemsSource="{Binding OpenAreas}"
                         SelectedItem="{Binding SelectedArea}">
-                <TabControl.ItemTemplate>
+                <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <DockPanel>
-                            <TextBlock Margin="4,2"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding Name}" />
-                            <Button DockPanel.Dock="Right"
-                                    Margin="2"
-                                    Padding="0"
-                                    Width="18" Height="18"
-                                    Content="X"
-                                    Command="{Binding DataContext.RemoveAreaCommand, ElementName=mainGrid}"
-                                    CommandParameter="{Binding}" />
-                        </DockPanel>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="{Binding Name}"
+                                        FontWeight="Bold" />
+                            <TextBlock Text="{Binding Directory.FullName}" />
+                            <StackPanel.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                </ContextMenu>
+                            </StackPanel.ContextMenu>
+                        </StackPanel>
                     </DataTemplate>
-                </TabControl.ItemTemplate>
-                <TabControl.ContentTemplate>
-                    <DataTemplate>
-                        <ContentPresenter Content="{Binding}" />
-                    </DataTemplate>
-                </TabControl.ContentTemplate>
-            </TabControl>
-        </DockPanel>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+        <GridSplitter Grid.Column="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Stretch"
+                        ShowsPreview="True"
+                        Width="5" />
+        <ContentPresenter Grid.Column="2"
+                            Content="{Binding SelectedArea}" />
     </Grid>
     
 </UserControl>

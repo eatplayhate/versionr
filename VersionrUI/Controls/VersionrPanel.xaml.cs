@@ -12,6 +12,8 @@ using VersionrUI.Dialogs;
 using VersionrUI.ViewModels;
 
 using System.Windows.Media;
+using MahApps.Metro.Controls.Dialogs;
+using System.Collections.Generic;
 
 namespace VersionrUI.Controls
 {
@@ -30,9 +32,7 @@ namespace VersionrUI.Controls
             InitializeComponent();
             mainGrid.DataContext = this;
 
-            CloseCommand = new DelegateCommand(() => MainWindow.Instance.Close());
             NewAreaCommand = new DelegateCommand(AddArea);
-            RemoveAreaCommand = new DelegateCommand<AreaVM>(RemoveArea);
 
             OpenAreas = new ObservableCollection<AreaVM>();
 
@@ -42,12 +42,21 @@ namespace VersionrUI.Controls
                 foreach (string areaString in Properties.Settings.Default.OpenAreas)
                 {
                     string[] parts = areaString.Split(';');
-                    AreaVM areaVM = new AreaVM(parts[0], parts[1], AreaInitMode.UseExisting);
-                    if (areaVM != null && areaVM.IsValid)
-                        OpenAreas.Add(areaVM);
+                    AreaVM areaVM = AreaVM.Create(parts[1], parts[0],
+                        (x, title, message) =>
+                        {
+                            if (!x.IsValid)
+                            {
+                                // TODO: notify area has been removed. Can't call this while initializing MainWindow...
+                                // MainWindow.ShowMessage(title, message);
+                                OpenAreas.Remove(x);
+                            }
+                            SaveOpenAreas();
+                        },
+                        AreaInitMode.UseExisting);
+                    OpenAreas.Add(areaVM);
                 }
             }
-            OpenAreas.CollectionChanged += OpenAreas_CollectionChanged;
             SelectedArea = OpenAreas.FirstOrDefault();
         }
 
@@ -78,49 +87,53 @@ namespace VersionrUI.Controls
             }
         }
 
-        #region Commands
-        public DelegateCommand CloseCommand { get; private set; }
-        public DelegateCommand NewAreaCommand { get; private set; }
-        public DelegateCommand<AreaVM> RemoveAreaCommand { get; private set; }
-
-        private void AddArea()
+        public void SetSelectedItem(object item)
         {
-            CloneNewDialog cloneNewDlg = new CloneNewDialog(MainWindow.Instance);
-            if (cloneNewDlg.ShowDialog() == true)
+            ListView lv = FindChild<ListView>(Application.Current.MainWindow, "listView");
+            if (lv != null)
+                lv.SelectedItem = item;
+        }
+
+        #region Commands
+        public DelegateCommand NewAreaCommand { get; private set; }
+
+        private async void AddArea()
+        {
+            CloneNewDialog cloneNewDlg = new CloneNewDialog();
+            await MainWindow.Instance.ShowMetroDialogAsync(cloneNewDlg);
+            await cloneNewDlg.WaitUntilUnloadedAsync();
+            if (cloneNewDlg.DialogResult == true)
             {
                 int port = 0;
                 int.TryParse(cloneNewDlg.Port, out port);
-                AreaVM areaVM = new AreaVM(cloneNewDlg.PathString, cloneNewDlg.NameString, cloneNewDlg.Result, cloneNewDlg.Host, port);
-                if (areaVM != null && areaVM.IsValid)
-                {
-                    OpenAreas.Add(areaVM);
-                    SelectedArea = OpenAreas.LastOrDefault();
-                }
+                AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
+                    (x, title, message) =>
+                    {
+                        if (!x.IsValid)
+                        {
+                            MainWindow.ShowMessage(title, message);
+                            OpenAreas.Remove(x);
+                        }
+                        SaveOpenAreas();
+                    },
+                    cloneNewDlg.Result, cloneNewDlg.Host, port);
+                OpenAreas.Add(areaVM);
+                SelectedArea = OpenAreas.LastOrDefault();
             }
-        }
-
-        private void RemoveArea(AreaVM area)
-        {
-            OpenAreas.Remove(area);
         }
         #endregion
 
         private void SaveOpenAreas()
         {
             Properties.Settings.Default.OpenAreas = new StringCollection();
-            foreach (AreaVM area in OpenAreas)
+            foreach (AreaVM area in OpenAreas.Where(x => x.IsValid))
             {
                 string areaString = String.Format("{0};{1}", area.Directory.FullName, area.Name);
                 Properties.Settings.Default.OpenAreas.Add(areaString);
             }
             Properties.Settings.Default.Save();
         }
-
-        private void OpenAreas_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-        {
-            SaveOpenAreas();
-        }
-
+        
         private void listViewHeader_Click(object sender, RoutedEventArgs e)
         {
             if (!(sender is ListView))
@@ -249,14 +262,18 @@ namespace VersionrUI.Controls
         }
         #endregion
 
-        private void CheckBox_Checked(object sender, RoutedEventArgs e)
+        private void CheckBox_Clicked(object sender, RoutedEventArgs e)
         {
-            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), true);
-        }
+            if (sender is CheckBox)
+            {
+                CheckBox checkbox = (CheckBox)sender;
 
-        private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-            _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), false);
+                // The checked item may not be one of the already selected items, so update the selections
+                if (checkbox.DataContext is StatusEntryVM && !SelectedItems.Contains((StatusEntryVM)checkbox.DataContext))
+                     SetSelectedItem(checkbox.DataContext);
+                
+                _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), checkbox.IsChecked == true);
+            }
         }
     }
 }
