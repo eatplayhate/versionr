@@ -3464,7 +3464,9 @@ namespace Versionr
                         continue;
                     else
                     {
-                        localChanges.Add(journal);
+						allParents.Add(journal.ID);
+
+						localChanges.Add(journal);
                         foreach (var y in GetBranchJournalParents(journal))
                             openList.Push(y);
                     }
