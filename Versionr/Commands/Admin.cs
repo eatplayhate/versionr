@@ -106,7 +106,7 @@ namespace Versionr.Commands
                 }
                 JArray statements = obj.GetValue("SQLStatements") as JArray;
                 Printer.PrintMessage("Loaded {1} SQL statements from \"{0}\"", SQL, statements.Count);
-                if (Printer.Prompt("Apply SQL statments to" + (mainDB ? "master" : "client") + " database?"))
+                if (Printer.Prompt("Apply SQL statments to " + (mainDB ? "master" : "client") + " database?"))
                 {
                     try
                     {

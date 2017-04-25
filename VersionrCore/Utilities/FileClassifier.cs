@@ -32,7 +32,17 @@ namespace Versionr.Utilities
             using (var fs = info.OpenRead())
                 fs.Read(data, 0, data.Length);
 
-            return ClassifyData(data);
+            var result = ClassifyData(data);
+            if (result == FileEncoding.ASCII || result == FileEncoding.Latin1)
+            {
+                // try again just to make sure it's not UTF8....
+                data = new byte[info.Length];
+                using (var fs = info.OpenRead())
+                    fs.Read(data, 0, data.Length);
+
+                return PossiblyUTF8(data, 0) ? FileEncoding.UTF8 : result;
+            }
+            return result;
         }
 
         static public FileEncoding ClassifyData(byte[] data)
@@ -46,10 +56,10 @@ namespace Versionr.Utilities
             }
             if (PossiblyASCIIText(data, 0))
                 return FileEncoding.ASCII;
-            if (PossiblyLatinText(data, 0))
-                return FileEncoding.Latin1;
             if (PossiblyUTF8(data, 0))
                 return FileEncoding.UTF8;
+            if (PossiblyLatinText(data, 0))
+                return FileEncoding.Latin1;
             if (PossiblyUTF16(data, 0, true))
                 return FileEncoding.UTF16_BE;
             if (PossiblyUTF16(data, 0, false))
@@ -67,6 +77,8 @@ namespace Versionr.Utilities
             {
                 byte c = data[i];
                 if (InPrintableSet(c))
+                    continue;
+                if (c == 0x0C) // form feed, something that the beardlords like
                     continue;
                 return false;
             }
@@ -89,7 +101,7 @@ namespace Versionr.Utilities
         {
             if (!InPrintableSet(c))
             {
-                if (c >= 0xa0 && c <= 0xff)
+                if (c >= 0x80 && c <= 0xff)
                     return true;
                 return false;
             }

@@ -8,7 +8,7 @@ using Versionr.Network;
 
 namespace Versionr.Commands
 {
-	abstract class FileCommandVerbOptions : FileBaseCommandVerbOptions
+	public abstract class FileCommandVerbOptions : FileBaseCommandVerbOptions
     {
 		[Option('a', "all", HelpText = "Includes every non-pristine file.", MutuallyExclusiveSet = "filtertype")]
 		public bool All { get; set; }
@@ -24,7 +24,7 @@ namespace Versionr.Commands
             }
         }
 	}
-	abstract class FileCommand : FileBaseCommand
+	public abstract class FileCommand : FileBaseCommand
     {
 		protected override void GetInitialList(Versionr.Status status, FileBaseCommandVerbOptions options, out List<Versionr.Status.StatusEntry> targets)
         {

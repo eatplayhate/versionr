@@ -9,7 +9,7 @@ using Versionr.Network;
 
 namespace Versionr.Commands
 {
-    abstract class FileBaseCommandVerbOptions : VerbOptionBase
+    public abstract class FileBaseCommandVerbOptions : VerbOptionBase
     {
         [Option('g', "regex", HelpText = "Use regex pattern matching for arguments.", MutuallyExclusiveSet = "filtertype")]
         public bool Regex { get; set; }
@@ -55,7 +55,7 @@ namespace Versionr.Commands
         [ValueList(typeof(List<string>))]
         public IList<string> Objects { get; set; }
     }
-    abstract class FileBaseCommand : BaseWorkspaceCommand
+    public abstract class FileBaseCommand : BaseWorkspaceCommand
     {
         bool RemovedOnlyTarget;
         protected override bool RunInternal(object options)
