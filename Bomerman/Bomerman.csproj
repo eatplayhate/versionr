@@ -41,7 +41,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BomermanDirectives.cs" />
+    <Compile Include="Clean.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SetEOL.cs" />
+    <Compile Include="Tabs.cs" />
+    <Compile Include="Unstage.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\commandline-stable-1.9.71.2\src\libcmdline\CommandLine.csproj">

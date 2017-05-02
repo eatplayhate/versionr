@@ -6873,6 +6873,7 @@ namespace Versionr
             LocalData.BeginTransaction();
             try
             {
+                List<Task> tasks = new List<Task>();
                 foreach (var x in CheckoutOrder(targets))
                 {
                     if (!Included(x.CanonicalName))
@@ -6941,8 +6942,11 @@ namespace Versionr
                         recordMap.TryGetValue(x.CanonicalName, out rec);
                         if (rec != null)
                         {
-                            Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
-                            RestoreRecord(rec, DateTime.UtcNow);
+                            tasks.Add(Versionr.Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                            {
+                                Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
+                                RestoreRecord(rec, DateTime.UtcNow);
+                            }));
                         }
                         if (deleteNewFiles &&
                             (x.Code == StatusCode.Unversioned || x.Code == StatusCode.Added || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
@@ -6954,6 +6958,7 @@ namespace Versionr
                         }
                     }
                 }
+                Task.WaitAll(tasks.ToArray());
                 LocalData.Commit();
             }
             catch (Exception e)
