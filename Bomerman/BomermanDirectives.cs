@@ -35,6 +35,9 @@ namespace Bomerman
         [VerbOption("set-eol", HelpText = "Sets the line ending style of a file or set of files.")]
         public BomSetEOLOptions bomseteol { get; set; }
 
+        [VerbOption("check-eol", HelpText = "Displays the line ending style of a file or set of files.")]
+        public BomCheckEOLOptions bomcheckeol { get; set; }
+
         [VerbOption("entab", HelpText = "Converts spaces to tabs.")]
         public BomEntabOptions bomentab { get; set; }
 
