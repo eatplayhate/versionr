@@ -35,6 +35,9 @@ namespace Versionr
         [VerbOption("checkout", HelpText = "Checks out a specific branch or revision from the vault.")]
         public Commands.CheckoutVerbOptions CheckoutVerb { get; set; }
 
+        [VerbOption("pristine", HelpText = "Removes all files which aren't part of the vault (skips directories which start with a '.')")]
+        public Commands.PristineVerbOptions PristineVerb { get; set; }
+
         [VerbOption("branch", HelpText = "Creates a new branch and points it to the current version.")]
         public Commands.BranchVerbOptions BranchVerb { get; set; }
 
@@ -362,18 +365,20 @@ namespace Versionr
 					// because lewis broke 'lg' on purpose
 					if (args.Count() > 0 && args[0] == "lg" && invokedVerbInstance is Commands.LogVerbOptions)
 						((Commands.LogVerbOptions)invokedVerbInstance).Jrunting = true;
-
-					Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
-					VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
-                    if (baseOptions != null)
-                        Printer.NoColours = baseOptions.NoColours;
-                    if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                    for (int i = 0; i < 1; i++)
                     {
+                        Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
+                        VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
+                        if (baseOptions != null)
+                            Printer.NoColours = baseOptions.NoColours;
+                        if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                        {
+                            Printer.RestoreDefaults();
+                            printerStream.Flush();
+                            Environment.Exit(2);
+                        }
                         Printer.RestoreDefaults();
-                        printerStream.Flush();
-                        Environment.Exit(2);
                     }
-                    Printer.RestoreDefaults();
                     return;
                 }
                 catch (Exception e)
