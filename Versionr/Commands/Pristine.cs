@@ -78,19 +78,33 @@ namespace Versionr.Commands
                     Printer.PrintMessage("Incorrect record name - wrong case for object #b#{0}##", localName);
                 }
             });
-            Printer.PrintMessage("Identified #e#{0}## files and #e#{1}## directories.", filesToDelete.Count, directoriesToDelete.Count);
-            if (Printer.Prompt("Continue"))
+            Printer.PrintMessage("Identified #e#{0}## files and #e#{1}## directories which will be removed.", filesToDelete.Count, directoriesToDelete.Count);
+            if (Printer.Prompt("Restore to pristine state?"))
             {
                 foreach (var x in filesToDelete)
                 {
-                    Printer.PrintMessage("#e#Purging:## {0}", x);
-                    System.IO.File.SetAttributes(x, FileAttributes.Normal);
-                    System.IO.File.Delete(x);
+                    try
+                    {
+                        System.IO.File.SetAttributes(x, FileAttributes.Normal);
+                        System.IO.File.Delete(x);
+                        Printer.PrintMessage("#e#Purging:## {0}", x);
+                    }
+                    catch
+                    {
+                        Printer.PrintMessage("#x#Couldn't delete: {0}##", x);
+                    }
                 }
                 Printer.PrintMessage("#e#Removing Directories...##");
                 foreach (var x in directoriesToDelete.ToArray().OrderByDescending(x => x.Length))
                 {
-                    System.IO.Directory.Delete(x, true);
+                    try
+                    {
+                        System.IO.Directory.Delete(x, true);
+                    }
+                    catch
+                    {
+                        Printer.PrintMessage("#x#Couldn't delete: {0}##", x);
+                    }
                 }
             }
             return true;

@@ -362,23 +362,38 @@ namespace Versionr
                 
                 try
                 {
+                    System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    sw.Start();
 					// because lewis broke 'lg' on purpose
 					if (args.Count() > 0 && args[0] == "lg" && invokedVerbInstance is Commands.LogVerbOptions)
 						((Commands.LogVerbOptions)invokedVerbInstance).Jrunting = true;
-                    for (int i = 0; i < 1; i++)
+                    int bmc = 1;
+                    bool bm = false;
+                    if (invokedVerbInstance is VerbOptionBase)
+                    {
+                        bm = ((VerbOptionBase)invokedVerbInstance).Benchmark;
+                        bmc = ((VerbOptionBase)invokedVerbInstance).BMC;
+                    }
+                    for (int i = 0; i < (bm ? bmc : 1); i++)
                     {
                         Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
                         VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
                         if (baseOptions != null)
                             Printer.NoColours = baseOptions.NoColours;
-                        if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                        bool result = command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance);
+                        if (!result)
                         {
-                            Printer.RestoreDefaults();
                             printerStream.Flush();
+                            Printer.RestoreDefaults();
                             Environment.Exit(2);
                         }
-                        Printer.RestoreDefaults();
                     }
+                    if (bm)
+                    {
+                        Printer.PrintMessage("\nOperation took #b#{0}## ms.", sw.ElapsedMilliseconds);
+                    }
+                    printerStream.Flush();
+                    Printer.RestoreDefaults();
                     return;
                 }
                 catch (Exception e)

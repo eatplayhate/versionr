@@ -196,6 +196,8 @@ namespace Bomerman
                         }
                         i += span - 1;
                     }
+                    else
+                        ms.WriteByte((byte)' ');
                 }
                 else if (data[i] == (byte)'\t')
                 {
@@ -225,12 +227,14 @@ namespace Bomerman
                             newline = false;
                         }
                     }
-                    else if (!addTabs && newline)
+                    if (!addTabs && newline)
                     {
                         for (int j = 0; j < tabSize; j++)
                             ms.WriteByte((byte)' ');
                         count++;
                     }
+                    else
+                        ms.WriteByte((byte)'\t');
                 }
                 else
                 {

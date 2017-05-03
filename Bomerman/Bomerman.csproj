@@ -41,6 +41,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BomermanDirectives.cs" />
+    <Compile Include="CheckEOL.cs" />
     <Compile Include="Clean.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SetEOL.cs" />
