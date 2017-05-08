@@ -25,11 +25,17 @@ namespace Versionr.Utilities
         }
         public static bool Exists(FileSystemInfo info, string hintpath = null)
         {
-			if (SvnIntegration.AppliesTo(info, hintpath))
-				return SvnIntegration.IsSymlink(info.FullName);
+            if (SvnIntegration.AppliesTo(info, hintpath))
+                return SvnIntegration.IsSymlink(info.FullName);
 
-			if (info.Exists)
+            if (info.Exists)
                 return (info.Attributes & FileAttributes.ReparsePoint) != 0;
+            return false;
+        }
+        public static bool ExistsForFile(string fullpath, string hintpath = null)
+        {
+			if (SvnIntegration.AppliesToFile(fullpath, hintpath))
+				return SvnIntegration.IsSymlink(fullpath);
             return false;
         }
 

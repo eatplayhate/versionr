@@ -588,7 +588,7 @@ namespace Versionr
 				{
 					foreach (var y in regexes)
 					{
-						if ((!filenames && y.IsMatch(x.CanonicalName)) || (filenames && x.FilesystemEntry != null && x.FilesystemEntry.Info != null && y.IsMatch(x.FilesystemEntry.Info.Name)))
+						if ((!filenames && y.IsMatch(x.CanonicalName)) || (filenames && x.FilesystemEntry != null && !x.FilesystemEntry.IsDirectory && y.IsMatch(x.FilesystemEntry.LocalName)))
 						{
 							results.Add(x);
 							break;

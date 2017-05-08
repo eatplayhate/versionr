@@ -490,7 +490,7 @@ namespace Versionr.ObjectStore
 
         public override bool RecordData(ObjectStoreTransaction transaction, Record newRecord, Record priorRecord, Entry fileEntry)
         {
-            return CreateDataStreamInternal(transaction, fileEntry.Info, fileEntry.Length, GetLookup(newRecord), priorRecord != null ? GetLookup(priorRecord) : null);
+            return CreateDataStreamInternal(transaction, new FileInfo(fileEntry.FullName), fileEntry.Length, GetLookup(newRecord), priorRecord != null ? GetLookup(priorRecord) : null);
         }
 
         private ChunkedChecksum LoadSignature(FileObjectStoreData storeData)
