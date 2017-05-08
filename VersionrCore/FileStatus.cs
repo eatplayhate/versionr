@@ -245,8 +245,6 @@ namespace Versionr
                     return;
                 }
                 index = i + 1;
-                if (r.FullName.EndsWith("modules/ipsp/ver-4.5.x/Source/EAMTX_PrefixDbg.pch"))
-                    System.Diagnostics.Debugger.Break();
                 if (r.Length == -1)
                 {
                     bool ignoreDirectory = false;
@@ -388,8 +386,7 @@ namespace Versionr
                                 }
                             }
                         }
-                        if (!ignored)
-                            e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
+                        e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
                     }
                 }
             }

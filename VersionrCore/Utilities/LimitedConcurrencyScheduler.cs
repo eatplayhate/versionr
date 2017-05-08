@@ -15,11 +15,9 @@ namespace Versionr.Utilities
     {
         [ThreadStatic]
         private static bool m_CurrentThreadIsProcessingItems;
-
-        private readonly LinkedList<Task> m_Tasks = new LinkedList<Task>();
         private readonly int m_MaxDegreeOfParallelism;
 
-        private long m_DelegatesQueuedOrRunning = 0;
+        private int m_DelegatesQueuedOrRunning = 0;
         
         public LimitedConcurrencyScheduler(int maxDegreeOfParallelism)
         {
@@ -27,17 +25,14 @@ namespace Versionr.Utilities
                 throw new ArgumentOutOfRangeException("maxDegreeOfParallelism");
             m_MaxDegreeOfParallelism = maxDegreeOfParallelism;
         }
-  
+
         protected sealed override void QueueTask(Task task)
         {
-            lock (m_Tasks)
+            InternalList.Enqueue(task);
+            if (m_DelegatesQueuedOrRunning < m_MaxDegreeOfParallelism)
             {
-                m_Tasks.AddLast(task);
-                if (m_DelegatesQueuedOrRunning < m_MaxDegreeOfParallelism)
-                {
-                    ++m_DelegatesQueuedOrRunning;
-                    NotifyThreadPoolOfPendingWork();
-                }
+                System.Threading.Interlocked.Increment(ref m_DelegatesQueuedOrRunning);
+                NotifyThreadPoolOfPendingWork();
             }
         }
 
@@ -56,21 +51,9 @@ namespace Versionr.Utilities
                         Task item;
                         if (!InternalList.TryDequeue(out item))
                         {
-                            lock (m_Tasks)
-                            {
-                                while (m_Tasks.Count > 0)
-                                {
-                                    InternalList.Enqueue(m_Tasks.First.Value);
-                                    m_Tasks.RemoveFirst();
-                                }
-                            }
-                            if (!InternalList.TryDequeue(out item))
-                            {
-                                --m_DelegatesQueuedOrRunning;
-                                break;
-                            }
+                            System.Threading.Interlocked.Decrement(ref m_DelegatesQueuedOrRunning);
+                            break;
                         }
-                            
                         base.TryExecuteTask(item);
                     }
                 }
@@ -94,8 +77,7 @@ namespace Versionr.Utilities
 
         protected sealed override bool TryDequeue(Task task)
         {
-            lock (m_Tasks)
-                return m_Tasks.Remove(task);
+            return false;
         }
 
         public sealed override int MaximumConcurrencyLevel { get { return m_MaxDegreeOfParallelism; } }
@@ -105,15 +87,15 @@ namespace Versionr.Utilities
             bool lockTaken = false;
             try
             {
-                System.Threading.Monitor.TryEnter(m_Tasks, ref lockTaken);
+                System.Threading.Monitor.TryEnter(InternalList, ref lockTaken);
                 if (lockTaken)
-                    return m_Tasks;
+                    return InternalList;
                 else throw new NotSupportedException();
             }
             finally
             {
                 if (lockTaken)
-                    System.Threading.Monitor.Exit(m_Tasks);
+                    System.Threading.Monitor.Exit(InternalList);
             }
         }
     }

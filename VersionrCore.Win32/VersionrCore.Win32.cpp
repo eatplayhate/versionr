@@ -21,7 +21,12 @@ void EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ file
 			if ((fndA.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
 			{
 				if (fndA.cFileName[0] == '.')
-					continue;
+				{
+					if ((fndA.cFileName[1] == 0 || fndA.cFileName[1] == '.'))
+						continue;
+					if (strcmp(fndA.cFileName, ".versionr") == 0)
+						continue;
+				}
 				sprintf(filetemp, "%s%s/", folder, fndA.cFileName);
 				Versionr::FlatFSEntry e;
 				e.Attributes = fndA.dwFileAttributes;
