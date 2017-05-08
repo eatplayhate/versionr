@@ -31,6 +31,7 @@
                           Name="listView"
                           ItemsSource="{Binding Alterations}"
                           SelectionMode="Single"
+                          GridViewColumnHeader.Click="listViewHeader_Click"
                           ScrollViewer.IsDeferredScrollingEnabled="False"
                           Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
@@ -117,6 +118,7 @@
                       Name="listView"
                       ItemsSource="{Binding History}"
                       SelectionMode="Single"
+                      GridViewColumnHeader.Click="listViewHeader_Click"
                       ScrollViewer.IsDeferredScrollingEnabled="False"
                       Style="{StaticResource VirtualisedMetroListView}">
                 <ListView.View>
