@@ -3256,7 +3256,7 @@ namespace Versionr
 
         internal FileTimestamp GetReferenceTime(string canonicalName)
         {
-            lock (FileTimeCache)
+           // lock (FileTimeCache)
             {
                 FileTimestamp result;
                 if (FileTimeCache.TryGetValue(canonicalName, out result))

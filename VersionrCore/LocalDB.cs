@@ -424,7 +424,7 @@ namespace Versionr
         {
             Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
             bool refresh = false;
-            foreach (var x in Table<LocalState.FileTimestamp>().ToList())
+            foreach (var x in Table<LocalState.FileTimestamp>())
             {
                 if (x.CanonicalName != null)
                     result[x.CanonicalName] = x;

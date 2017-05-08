@@ -38,14 +38,18 @@ namespace Versionr
         {
             get
             {
-                return !IsSymlink && CanonicalName.EndsWith("/");
+                return !IsSymlink && CanonicalName[CanonicalName.Length - 1] == '/';
             }
         }
 		public bool IsSymlink
 		{
 			get
 			{
-				return Attributes.HasFlag(Objects.Attributes.Symlink);
+                if ((Attributes & Objects.Attributes.Symlink) != 0)
+                    return true;
+                return false;
+
+				//return Attributes.HasFlag(Objects.Attributes.Symlink);
             }
 		}
 		public string SymlinkTarget
@@ -71,14 +75,14 @@ namespace Versionr
 			Ignored = ignored;
 			m_Hash = string.Empty;
 
-			if (info.Attributes.HasFlag(FileAttributes.Hidden))
+			if ((info.Attributes & FileAttributes.Hidden) != 0)
                 Attributes = Attributes | Objects.Attributes.Hidden;
-            if (info.Attributes.HasFlag(FileAttributes.ReadOnly))
+            if ((info.Attributes & FileAttributes.ReadOnly) != 0)
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
 			if (Utilities.Symlink.Exists(info))
 			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
-				if (CanonicalName.EndsWith("/"))
+				if (CanonicalName[CanonicalName.Length - 1] == '/')
 					CanonicalName = canonicalName.Substring(0, canonicalName.Length - 1);
 			}
 		}
@@ -129,10 +133,10 @@ namespace Versionr
 			{
 				Attributes = Attributes | Objects.Attributes.Symlink;
 				Length = 0;
-			}
-			if (Info.Attributes.HasFlag(FileAttributes.Hidden))
+            }
+            if ((Info.Attributes & FileAttributes.Hidden) != 0)
                 Attributes = Attributes | Objects.Attributes.Hidden;
-            if (Info.Attributes.HasFlag(FileAttributes.ReadOnly))
+            if ((Info.Attributes & FileAttributes.ReadOnly) != 0)
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
         }
 
@@ -206,15 +210,20 @@ namespace Versionr
 
         public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
-            List<Entry> entries = PopulateList(area, null, root, area.GetLocalPath(root.FullName), adminFolder, false);
-            return entries;
+            System.Collections.Concurrent.ConcurrentBag<Entry> entries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+            System.Threading.CountdownEvent ce = new System.Threading.CountdownEvent(1);
+            PopulateList(entries, ce, area, null, root, area.GetLocalPath(root.FullName), adminFolder, false);
+            ce.Signal();
+            ce.Wait();
+            Entry[] entryArray = entries.ToArray();
+            Array.Sort(entryArray, (Entry x, Entry y) => { return string.CompareOrdinal(x.CanonicalName, y.CanonicalName); });
+            return entryArray.ToList();
         }
 
-        private static List<Entry> PopulateList(Area area, Entry parentEntry, DirectoryInfo info, string subdirectory, DirectoryInfo adminFolder, bool ignoreDirectory)
+        private static void PopulateList(System.Collections.Concurrent.ConcurrentBag<Entry> entries, System.Threading.CountdownEvent ce, Area area, Entry parentEntry, DirectoryInfo info, string subdirectory, DirectoryInfo adminFolder, bool ignoreDirectory)
         {
-            List<Entry> result = new List<Entry>();
             if (area.InExtern(info))
-                return result;
+                return;
             bool ignoreContents = false;
             string slashedSubdirectory = subdirectory;
             if (subdirectory != string.Empty)
@@ -276,24 +285,24 @@ namespace Versionr
                     foreach (var x in area.Directives.Externals)
                     {
                         string extdir = x.Value.Location.Replace('\\', '/');
-                        if (!extdir.EndsWith("/"))
+                        if (extdir[extdir.Length - 1] != '/')
                             extdir += "/";
                         if (string.Equals(slashedSubdirectory, extdir, StringComparison.OrdinalIgnoreCase))
                         {
-                            return result;
+                            return;
                         }
                     }
                 }
 
 				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
-                result.Add(parentEntry);
+                entries.Add(parentEntry);
                 if (ignoreDirectory)
-                    return result;
+                    return;
             }
 
 			// Don't add children for symlinks.
 			if (Utilities.Symlink.Exists(info))
-				return result;
+				return;
 
             List<Task<List<Entry>>> tasks = new List<Task<List<Entry>>>();
             string prefix = string.IsNullOrEmpty(subdirectory) ? string.Empty : slashedSubdirectory;
@@ -301,12 +310,12 @@ namespace Versionr
             {
                 string fn = x.Name;
                 string name = prefix + fn;
-                if (x.Attributes.HasFlag(FileAttributes.Directory))
+                if ((x.Attributes & FileAttributes.Directory) != 0)
                 {
-                    if (fn == "." || fn == "..")
+                    if (fn.Equals(".", StringComparison.Ordinal) || fn.Equals("..", StringComparison.Ordinal))
                         continue;
                     
-                    if (x.Name == ".versionr")
+                    if (fn.Equals(".versionr", StringComparison.Ordinal))
                         continue;
 
 #if DEBUG
@@ -315,11 +324,12 @@ namespace Versionr
                     if (Utilities.MultiArchPInvoke.IsRunningOnMono)
 #endif
                     {
-                        result.AddRange(PopulateList(area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory));
+                        PopulateList(entries, ce, area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory);
                     }
                     else
                     {
-                        tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { return PopulateList(area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory); }));
+                        ce.AddCount();
+                        Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { PopulateList(entries, ce, area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory); ce.Signal(); });
                     }
                 }
                 else if (!ignoreContents)
@@ -376,16 +386,9 @@ namespace Versionr
                             }
                         }
                     }
-                    result.Add(new Entry(area, parentEntry, x as FileInfo, name, ignored));
+                    entries.Add(new Entry(area, parentEntry, x as FileInfo, name, ignored));
                 }
             }
-            if (tasks.Count > 0)
-            {
-                Task.WaitAll(tasks.ToArray());
-                foreach (var x in tasks)
-                    result.AddRange(x.Result);
-            }
-            return result;
         }
     }
 }
