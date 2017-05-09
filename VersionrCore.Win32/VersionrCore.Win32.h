@@ -14,6 +14,7 @@ namespace Versionr
 		{
 		public:
 			static System::Collections::Generic::List<Versionr::FlatFSEntry>^ EnumerateFileSystem(System::String^ fs);
+			static int EnumerateFileSystemX(System::String^ fs);
 		};
 	}
 }

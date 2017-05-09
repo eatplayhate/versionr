@@ -205,25 +205,84 @@ namespace Versionr
         }
 
         public static Func<string, List<FlatFSEntry>> GetFSFast = null;
+        public static Func<string, int> GetFSFastX = null;
+
+        public static List<FlatFSEntry> GetFlatEntries(DirectoryInfo root)
+        {
+            List<FlatFSEntry> result = new List<FlatFSEntry>();
+            int index = 0;
+            GetEntriesRecursive(result, root.FullName.Replace('\\', '/') + "/", root, 0, ref index);
+            return result;
+        }
+
+        private static void GetEntriesRecursive(List<FlatFSEntry> result, string fn, DirectoryInfo root, int v, ref int index)
+        {
+            foreach (var x in root.GetFileSystemInfos())
+            {
+                if ((x.Attributes & FileAttributes.Directory) != 0)
+                {
+                    if (x.Name == "." || x.Name == ".." || x.Name == ".versionr")
+                        continue;
+                    FlatFSEntry fse = new FlatFSEntry()
+                    {
+                        Attributes = (int)x.Attributes,
+                        ContainerID = v,
+                        DirectoryID = ++index,
+                        FileTime = x.LastWriteTimeUtc.Ticks,
+                        FullName = fn + x.Name + "/",
+                        Length = -1,
+                    };
+                    result.Add(fse);
+                    GetEntriesRecursive(result, fse.FullName, new DirectoryInfo(fn + x.Name), fse.DirectoryID, ref index);
+                }
+                else
+                {
+                    FlatFSEntry fse = new FlatFSEntry()
+                    {
+                        Attributes = (int)x.Attributes,
+                        ContainerID = v,
+                        DirectoryID = 0,
+                        FileTime = x.LastWriteTimeUtc.Ticks,
+                        FullName = fn + x.Name,
+                        Length = new FileInfo(fn + x.Name).Length,
+                    };
+                    result.Add(fse);
+                }
+            }
+        }
 
         public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Restart();
+            var zl = GetFlatEntries(root);
+            System.Console.WriteLine("0: {0}ms - {1}", sw.ElapsedMilliseconds, zl.Count);
+            sw.Restart();
             if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
             {
                 if (GetFSFast == null)
                 {
                     var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
                     GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
+                    GetFSFastX = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystemX").CreateDelegate(typeof(Func<string, int>)) as Func<string, int>;
                 }
                 if (GetFSFast != null)
                 {
+                    sw.Restart();
+                    var z = GetFSFastX(root.FullName.Replace('\\', '/') + "/");
+                    System.Console.WriteLine("1: {0}ms - {1}", sw.ElapsedMilliseconds, z);
+                    sw.Restart();
                     var x = GetFSFast(root.FullName.Replace('\\', '/') + "/");
+                    System.Console.WriteLine("2A: {0}ms", sw.ElapsedMilliseconds);
+                    sw.Restart();
                     List<Entry> e2 = new List<Entry>(x.Count);
                     int startIndex = 0;
                     ProcessListFast(area, x, area.RootDirectory.FullName, e2, ref startIndex, 0, null);
-                    return e2;
+                    System.Console.WriteLine("2B: {0}ms", sw.ElapsedMilliseconds);
+                    //return e2;
                 }
             }
+            sw.Restart();
             System.Collections.Concurrent.ConcurrentBag<Entry> entries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
             System.Threading.CountdownEvent ce = new System.Threading.CountdownEvent(1);
             PopulateList(entries, ce, area, null, root, area.GetLocalPath(root.FullName), adminFolder, false);
@@ -231,6 +290,7 @@ namespace Versionr
             ce.Wait();
             Entry[] entryArray = entries.ToArray();
             Array.Sort(entryArray, (Entry x, Entry y) => { return string.CompareOrdinal(x.CanonicalName, y.CanonicalName); });
+            System.Console.WriteLine("3: {0}ms", sw.ElapsedMilliseconds);
             return entryArray.ToList();
         }
 

@@ -56,6 +56,8 @@ void EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ file
 	}
 }
 
+void EnumerateFSC(int& count, const char* folder, int container, int& index);
+
 namespace Versionr
 {
 	namespace Win32
@@ -67,6 +69,14 @@ namespace Versionr
 			System::Collections::Generic::List<Versionr::FlatFSEntry>^ lf = gcnew System::Collections::Generic::List<Versionr::FlatFSEntry>();
 			EnumerateFS(lf, context.marshal_as<const char*>(fs), 0, index);
 			return lf;
+		}
+		int FileSystem::EnumerateFileSystemX(System::String^ fs)
+		{
+			msclr::interop::marshal_context context;
+			int index = 0;
+			int count = 0;
+			EnumerateFSC(count, context.marshal_as<const char*>(fs), 0, index);
+			return count;
 		}
 	}
 }

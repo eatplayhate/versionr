@@ -26,6 +26,7 @@ namespace Versionr.Commands
                     Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:##\n  The current directory #b#`{0}`## is not part of a vault.\n", workingDirectory.FullName));
                     return false;
                 }
+                System.Console.WriteLine("Loaded area: {0}", Versionr.Utilities.Misc.ElapsedTime());
                 return RunInternal(options);
             }
         }

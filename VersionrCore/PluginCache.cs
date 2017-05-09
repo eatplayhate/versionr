@@ -18,20 +18,25 @@ namespace Versionr
 			get
 			{
 				if (s_Plugins == null)
-				{
-					Printer.PrintDiagnostics("Initializing plugins");
+                {
+                    System.Console.WriteLine("P0: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                    Printer.PrintDiagnostics("Initializing plugins");
 					s_Plugins = new List<Plugin>();
 					string baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 					string pluginDirectory = baseDirectory;
-					foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
+                    System.Console.WriteLine("P1: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                    foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
 					{
 						Assembly assembly = null;
 						VersionrPluginAttribute pluginAttribute = null;
 						try
-						{
-							assembly = Assembly.LoadFile(Path.Combine(pluginDirectory, filename));
-							pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
-						}
+                        {
+                            System.Console.WriteLine("P2a: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                            assembly = Assembly.LoadFrom(Path.Combine(pluginDirectory, filename));
+                            System.Console.WriteLine("P2b: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                            pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
+                            System.Console.WriteLine("P2c: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                        }
 						catch { }
 
 						if (pluginAttribute != null)
@@ -43,10 +48,11 @@ namespace Versionr
 								Attributes = pluginAttribute
 							});
 						}
-					}
-				}
+                    }
+                    System.Console.WriteLine("P3: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                }
 
-				return s_Plugins;
+                return s_Plugins;
 			}
 		}
 
