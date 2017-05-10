@@ -6,11 +6,12 @@
 #include <stdio.h>
 #include <msclr/marshal.h>
 
-void EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ files, const char* folder, int container, int& index)
+int EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ files, const char* folder)
 {
 	char foldertemp[2048];
 	sprintf(foldertemp, "%s*", folder);
 	WIN32_FIND_DATAA fndA;
+	int count = 0;
 	HANDLE hnd = FindFirstFileExA(foldertemp, FindExInfoBasic, &fndA, FindExSearchNameMatch, NULL, 0);
 	if (hnd != INVALID_HANDLE_VALUE)
 	{
@@ -30,13 +31,15 @@ void EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ file
 				sprintf(filetemp, "%s%s/", folder, fndA.cFileName);
 				Versionr::FlatFSEntry e;
 				e.Attributes = fndA.dwFileAttributes;
-				e.ContainerID = container;
-				e.DirectoryID = ++index;
 				e.FileTime = time;
 				e.Length = -1;
 				e.FullName = gcnew System::String(filetemp);
+				int loc = files->Count;
 				files->Add(e);
-				EnumerateFS(files, filetemp, e.DirectoryID, index);
+				int cc = EnumerateFS(files, filetemp);
+				e.ChildCount = cc;
+				files[loc] = e;
+				count += 1 + cc;
 			}
 			else
 			{
@@ -44,16 +47,17 @@ void EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ file
 				unsigned long long fsize = fndA.nFileSizeLow | ((unsigned long long)fndA.nFileSizeHigh << 32);
 				Versionr::FlatFSEntry e;
 				e.Attributes = fndA.dwFileAttributes;
-				e.ContainerID = container;
-				e.DirectoryID = -1;
+				e.ChildCount = 0;
 				e.FileTime = time;
 				e.Length = fsize;
 				e.FullName = gcnew System::String(filetemp);
 				files->Add(e);
+				count++;
 			}
 		} while (FindNextFileA(hnd, &fndA));
 		FindClose(hnd);
 	}
+	return count;
 }
 
 void EnumerateFSC(int& count, const char* folder, int container, int& index);
@@ -65,9 +69,8 @@ namespace Versionr
 		System::Collections::Generic::List<Versionr::FlatFSEntry>^ FileSystem::EnumerateFileSystem(System::String^ fs)
 		{
 			msclr::interop::marshal_context context;
-			int index = 0;
 			System::Collections::Generic::List<Versionr::FlatFSEntry>^ lf = gcnew System::Collections::Generic::List<Versionr::FlatFSEntry>();
-			EnumerateFS(lf, context.marshal_as<const char*>(fs), 0, index);
+			EnumerateFS(lf, context.marshal_as<const char*>(fs));
 			return lf;
 		}
 		int FileSystem::EnumerateFileSystemX(System::String^ fs)

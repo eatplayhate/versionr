@@ -73,7 +73,18 @@ namespace Versionr
         private string[] m_DirectoryPatterns;
         private string[] m_Directories;
         private string[] m_FilePatterns;
-        public string[] Extensions { get; set; }
+        private string[] m_Extensions;
+        public string[] Extensions
+        {
+            get
+            {
+                return m_Extensions;
+            }
+            set
+            {
+                m_Extensions = value.Select(x => x.ToLowerInvariant()).ToArray();
+            }
+        }
         public string[] Patterns
         {
             get
@@ -85,7 +96,7 @@ namespace Versionr
                 m_Patterns = value;
                 if (m_Patterns == null)
                     return;
-                var regexes = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+                var regexes = m_Patterns.Select(x => new System.Text.RegularExpressions.Regex(x.ToLowerInvariant(), System.Text.RegularExpressions.RegexOptions.Compiled)).ToArray();
                 if (RegexFilePatterns != null)
                     RegexFilePatterns = RegexFilePatterns.Concat(regexes).ToArray();
                 else
@@ -118,7 +129,7 @@ namespace Versionr
                 m_FilePatterns = value;
                 if (m_FilePatterns == null)
                     return;
-                var regexes = m_FilePatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+                var regexes = m_FilePatterns.Select(x => new System.Text.RegularExpressions.Regex(x.ToLowerInvariant(), System.Text.RegularExpressions.RegexOptions.Compiled)).ToArray();
 
                 if (RegexFilePatterns != null)
                     RegexFilePatterns = RegexFilePatterns.Concat(regexes).ToArray();
@@ -137,7 +148,7 @@ namespace Versionr
                 m_DirectoryPatterns = value;
                 if (m_DirectoryPatterns == null)
                     return;
-                var regexes = m_DirectoryPatterns.Select(x => new System.Text.RegularExpressions.Regex(x, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline)).ToArray();
+                var regexes = m_DirectoryPatterns.Select(x => new System.Text.RegularExpressions.Regex(x.ToLowerInvariant(), System.Text.RegularExpressions.RegexOptions.Compiled)).ToArray();
 
                 if (RegexDirectoryPatterns != null)
                     RegexDirectoryPatterns = RegexDirectoryPatterns.Concat(regexes).ToArray();

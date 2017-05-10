@@ -10,8 +10,7 @@ namespace Versionr
     public struct FlatFSEntry
     {
         public string FullName;
-        public int DirectoryID;
-        public int ContainerID;
+        public int ChildCount;
         public int Attributes;
         public long FileTime;
         public long Length;
@@ -210,13 +209,13 @@ namespace Versionr
         public static List<FlatFSEntry> GetFlatEntries(DirectoryInfo root)
         {
             List<FlatFSEntry> result = new List<FlatFSEntry>();
-            int index = 0;
-            GetEntriesRecursive(result, root.FullName.Replace('\\', '/') + "/", root, 0, ref index);
+            GetEntriesRecursive(result, root.FullName.Replace('\\', '/') + "/", root);
             return result;
         }
 
-        private static void GetEntriesRecursive(List<FlatFSEntry> result, string fn, DirectoryInfo root, int v, ref int index)
+        private static int GetEntriesRecursive(List<FlatFSEntry> result, string fn, DirectoryInfo root)
         {
+            int count = 0;
             foreach (var x in root.GetFileSystemInfos())
             {
                 if ((x.Attributes & FileAttributes.Directory) != 0)
@@ -226,37 +225,47 @@ namespace Versionr
                     FlatFSEntry fse = new FlatFSEntry()
                     {
                         Attributes = (int)x.Attributes,
-                        ContainerID = v,
-                        DirectoryID = ++index,
                         FileTime = x.LastWriteTimeUtc.Ticks,
                         FullName = fn + x.Name + "/",
                         Length = -1,
                     };
+                    int loc = result.Count;
                     result.Add(fse);
-                    GetEntriesRecursive(result, fse.FullName, new DirectoryInfo(fn + x.Name), fse.DirectoryID, ref index);
+                    int cc = GetEntriesRecursive(result, fse.FullName, new DirectoryInfo(fn + x.Name));
+                    fse.ChildCount = cc;
+                    result[loc] = fse;
+                    count += 1 + cc;
                 }
                 else
                 {
                     FlatFSEntry fse = new FlatFSEntry()
                     {
                         Attributes = (int)x.Attributes,
-                        ContainerID = v,
-                        DirectoryID = 0,
                         FileTime = x.LastWriteTimeUtc.Ticks,
                         FullName = fn + x.Name,
                         Length = new FileInfo(fn + x.Name).Length,
                     };
                     result.Add(fse);
+                    count++;
                 }
             }
+            return count;
+        }
+
+        struct FSScan
+        {
+            public System.Text.RegularExpressions.Regex[] FRIgnores;
+            public System.Text.RegularExpressions.Regex[] FRIncludes;
+            public string[] ExtIncludes;
+            public string[] ExtIgnores;
         }
 
         public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-            sw.Restart();
-            var zl = GetFlatEntries(root);
-            System.Console.WriteLine("0: {0}ms - {1}", sw.ElapsedMilliseconds, zl.Count);
+            //sw.Restart();
+            //var zl = GetFlatEntries(root);
+            //System.Console.WriteLine("0: {0}ms - {1}", sw.ElapsedMilliseconds, zl.Count);
             sw.Restart();
             if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
             {
@@ -264,22 +273,33 @@ namespace Versionr
                 {
                     var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
                     GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
-                    GetFSFastX = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystemX").CreateDelegate(typeof(Func<string, int>)) as Func<string, int>;
+                    //GetFSFastX = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystemX").CreateDelegate(typeof(Func<string, int>)) as Func<string, int>;
                 }
                 if (GetFSFast != null)
                 {
-                    sw.Restart();
-                    var z = GetFSFastX(root.FullName.Replace('\\', '/') + "/");
-                    System.Console.WriteLine("1: {0}ms - {1}", sw.ElapsedMilliseconds, z);
+                    FSScan scan = new FSScan();
+                    scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
+                    scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
+                    scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
+                    scan.ExtIncludes = area?.Directives?.Include?.Extensions;
+
+                    //sw.Restart();
+                    //var z = GetFSFastX(root.FullName.Replace('\\', '/') + "/");
+                    //System.Console.WriteLine("1: {0}ms - {1}", sw.ElapsedMilliseconds, z);
                     sw.Restart();
                     var x = GetFSFast(root.FullName.Replace('\\', '/') + "/");
-                    System.Console.WriteLine("2A: {0}ms", sw.ElapsedMilliseconds);
+                    //System.Console.WriteLine("2A: {0}ms", sw.ElapsedMilliseconds);
                     sw.Restart();
+                    System.Threading.ThreadPool.SetMinThreads(8, 8);
                     List<Entry> e2 = new List<Entry>(x.Count);
-                    int startIndex = 0;
-                    ProcessListFast(area, x, area.RootDirectory.FullName, e2, ref startIndex, 0, null);
-                    System.Console.WriteLine("2B: {0}ms", sw.ElapsedMilliseconds);
-                    //return e2;
+                    System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+                    System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
+                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                    ce2.Signal();
+                    ce2.Wait();
+                    //System.Console.WriteLine("2B: {0}ms", sw.ElapsedMilliseconds);
+                    e2.AddRange(entries2.ToArray());
+                    return e2;
                 }
             }
             sw.Restart();
@@ -294,17 +314,11 @@ namespace Versionr
             return entryArray.ToList();
         }
 
-        private static void ProcessListFast(Area area, List<FlatFSEntry> results, string rootFolder, List<Entry> e2, ref int index, int directoryID, Entry parentEntry = null, bool ignoreFiles = false)
+        private static void ProcessListFast(FSScan scan, Area area, List<FlatFSEntry> results, string rootFolder, System.Threading.CountdownEvent ce, System.Collections.Concurrent.ConcurrentBag<Entry> e2, int start, int end, Entry parentEntry = null, bool ignoreFiles = false)
         {
-            for (int i = index; i < results.Count; i++)
+            for (int i = start; i < end; i++)
             {
                 var r = results[i];
-                if (r.ContainerID != directoryID)
-                {
-                    index = i;
-                    return;
-                }
-                index = i + 1;
                 if (r.Length == -1)
                 {
                     bool ignoreDirectory = false;
@@ -342,9 +356,10 @@ namespace Versionr
                     }
                     if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexDirectoryPatterns != null)
                     {
+                        string ssi = slashedSubdirectory.ToLowerInvariant();
                         foreach (var y in area.Directives.Ignore.Directories)
                         {
-                            if (slashedSubdirectory.StartsWith(y, StringComparison.OrdinalIgnoreCase))
+                            if (ssi.StartsWith(y, StringComparison.Ordinal))
                             {
                                 ignoreDirectory = true;
                                 break;
@@ -352,7 +367,7 @@ namespace Versionr
                         }
                         foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
                         {
-                            if (y.IsMatch(slashedSubdirectory))
+                            if (y.IsMatch(ssi))
                             {
                                 ignoreDirectory = true;
                                 break;
@@ -378,15 +393,22 @@ namespace Versionr
                     e2.Add(parent);
                     if (ignoreDirectory)
                     {
-                        index = i + 1;
-                        Skip(r.DirectoryID, results, ref index);
-                        i = index - 1;
+                        i += r.ChildCount;
                     }
                     else
                     {
-                        index = i + 1;
-                        ProcessListFast(area, results, rootFolder, e2, ref index, results[i].DirectoryID, parent, ignoreContents);
-                        i = index - 1;
+                        int s = i + 1;
+                        int e = i + 1 + r.ChildCount;
+                        if (r.ChildCount > 16)
+                        {
+                            ce.AddCount();
+                            System.Threading.Tasks.Task.Factory.StartNew(() => { ProcessListFast(scan, area, results, rootFolder, ce, e2, s, e, parent, ignoreContents); ce.Signal(); });
+                        }
+                        else
+                        {
+                            ProcessListFast(scan, area, results, rootFolder, ce, e2, s, e, parent, ignoreContents);
+                        }
+                        i += r.ChildCount;
                     }
                 }
                 else
@@ -394,11 +416,12 @@ namespace Versionr
                     if (!ignoreFiles)
                     {
                         string fn = r.FullName.Substring(rootFolder.Length + 1);
+                        string fnI = fn.ToLowerInvariant();
                         bool ignored = false;
-                        if (area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexFilePatterns != null)
+                        if (area != null && scan.FRIncludes != null)
                         {
                             ignored = true;
-                            foreach (var y in area.Directives.Include.RegexFilePatterns)
+                            foreach (var y in scan.FRIncludes)
                             {
                                 if (y.IsMatch(fn))
                                 {
@@ -411,23 +434,23 @@ namespace Versionr
                         if (lastIndex > 0)
                         {
                             int remainder = fn.Length - lastIndex;
-                            if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.Extensions != null)
+                            if (!ignored && scan.ExtIncludes != null)
                             {
                                 ignored = true;
-                                foreach (var y in area.Directives.Include.Extensions)
+                                foreach (var y in scan.ExtIncludes)
                                 {
-                                    if (string.CompareOrdinal(fn, lastIndex, y, 0, y.Length) == 0)
+                                    if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
                                     {
                                         ignored = false;
                                         break;
                                     }
                                 }
                             }
-                            if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.Extensions != null)
+                            if (!ignored && scan.ExtIgnores != null)
                             {
-                                foreach (var y in area.Directives.Ignore.Extensions)
+                                foreach (var y in scan.ExtIgnores)
                                 {
-                                    if (y.Length == remainder && string.Compare(fn, lastIndex, y, 0, y.Length, StringComparison.OrdinalIgnoreCase) == 0)
+                                    if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
                                     {
                                         ignored = true;
                                         break;
@@ -435,11 +458,11 @@ namespace Versionr
                                 }
                             }
                         }
-                        if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexFilePatterns != null)
+                        if (!ignored && scan.FRIgnores != null)
                         {
-                            foreach (var y in area.Directives.Ignore.RegexFilePatterns)
+                            foreach (var y in scan.FRIgnores)
                             {
-                                if (y.IsMatch(fn))
+                                if (y.IsMatch(fnI))
                                 {
                                     ignored = true;
                                     break;
@@ -448,24 +471,6 @@ namespace Versionr
                         }
                         e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
                     }
-                }
-            }
-        }
-
-        private static void Skip(int directoryID, List<FlatFSEntry> results, ref int index)
-        {
-            for (int i = index; i < results.Count; i++)
-            {
-                if (results[i].ContainerID != directoryID)
-                {
-                    index = i;
-                    return;
-                }
-                else if (results[i].Length == -1)
-                {
-                    index = i + 1;
-                    Skip(results[i].DirectoryID, results, ref index);
-                    i = index - 1;
                 }
             }
         }

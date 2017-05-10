@@ -465,28 +465,30 @@ namespace Versionr
             var query = SQLite.SQLite3.Prepare2(this.Handle, "SELECT CanonicalName, LastSeenTime, DataIdentifier FROM FileTimestamp");
             byte[] array = new byte[1024];
             int bsize = 1024;
-            byte[] dataIdentifier = new byte[512];
-            while (SQLite.SQLite3.Step(query) == SQLite.SQLite3.Result.Row)
+            unsafe
             {
-                var iptr = SQLite.SQLite3.ColumnText(query, 0);
-                int size = SQLite.SQLite3.ColumnBytes(query, 0);
-                if (size > bsize)
+                while (SQLite.SQLite3.Step(query) == SQLite.SQLite3.Result.Row)
                 {
-                    bsize = size * 2;
-                    array = new byte[bsize];
+                    var iptr = SQLite.SQLite3.ColumnText(query, 0);
+                    int size = SQLite.SQLite3.ColumnBytes(query, 0);
+                    if (size > bsize)
+                    {
+                        bsize = size * 2;
+                        array = new byte[bsize];
+                    }
+                    System.Runtime.InteropServices.Marshal.Copy(iptr, array, 0, size);
+                    string cname = Encoding.UTF8.GetString(array, 0, size);
+                    iptr = SQLite.SQLite3.ColumnText(query, 2);
+                    size = SQLite.SQLite3.ColumnBytes(query, 2);
+                
+                    LocalState.FileTimestamp ft = new FileTimestamp()
+                    {
+                        CanonicalName = cname,
+                        DataIdentifier = new string((sbyte*)iptr, 0, size),
+                        LastSeenTime = new DateTime(SQLite.SQLite3.ColumnInt64(query, 1)),
+                    };
+                    result[cname] = ft;
                 }
-                System.Runtime.InteropServices.Marshal.Copy(iptr, array, 0, size);
-                string cname = Encoding.UTF8.GetString(array, 0, size);
-                iptr = SQLite.SQLite3.ColumnText(query, 2);
-                size = SQLite.SQLite3.ColumnBytes(query, 2);
-                System.Runtime.InteropServices.Marshal.Copy(iptr, dataIdentifier, 0, size);
-                LocalState.FileTimestamp ft = new FileTimestamp()
-                {
-                    CanonicalName = cname,
-                    DataIdentifier = Encoding.ASCII.GetString(dataIdentifier, 0, size),
-                    LastSeenTime = new DateTime(SQLite.SQLite3.ColumnInt64(query, 1)),
-                };
-                result[cname] = ft;
             }
             SQLite.SQLite3.Finalize(query);
             return result;

@@ -60,8 +60,7 @@ namespace Versionr
 			OutputStyles['R'] = OutputColour.Red;
 			OutputStyles['I'] = OutputColour.White;
 			OutputStyles['Y'] = OutputColour.Yellow;
-
-
+            
             try
             {
                 if (System.Console.IsOutputRedirected)
