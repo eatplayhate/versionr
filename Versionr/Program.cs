@@ -246,17 +246,19 @@ namespace Versionr
         static IEnumerable<object> PluginOptions
 		{
 			get
-			{
-                foreach (var x in PluginOptionsAndAssemblies.Select(x => x.Item1))
-                    yield return x;
-                
-                // Return the base ones last
+            {
+                // load assemblies
+                var plugins = PluginOptionsAndAssemblies.ToList();
                 yield return new Options();
+
+                foreach (var x in plugins.Select(x => x.Item1))
+                    yield return x;
             }
 		}
 
         static void Main(string[] args)
         {
+            Versionr.Utilities.Misc.StartTimer();
             try
             {   
                 string workingDirectoryPath = Environment.CurrentDirectory;
@@ -268,8 +270,8 @@ namespace Versionr
                     (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = new System.IO.StreamWriter(nullstream); p.MutuallyExclusive = true; }));
                 CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
-
-                if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
+                
+                if (args.Length >= 1 && args[0] == "--version" && parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
                     Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
                     Printer.WriteLineMessage("#q#- A less hateful version control system.");
@@ -302,9 +304,9 @@ namespace Versionr
                 string invokedVerb = string.Empty;
                 object invokedVerbInstance = null;
                 object activatedPlugin = null;
-				foreach (object pluginOptions in PluginOptions)
-				{
-					if (silentparser.ParseArguments(args, pluginOptions,
+                foreach (object pluginOptions in PluginOptions)
+                {
+                    if (silentparser.ParseArguments(args, pluginOptions,
 						  (verb, success, subOptions) =>
 						  {
                               if (subOptions != null)
@@ -320,9 +322,9 @@ namespace Versionr
 					}
                     if (invokedVerb != string.Empty)
                         break;
-				}
+                }
 
-				if (options == null)
+                if (options == null)
                 {
                     if (invokedVerb != string.Empty && activatedPlugin != null)
                     {
@@ -359,7 +361,7 @@ namespace Versionr
                     Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
 				
                 Console.CancelKeyPress += Console_CancelKeyPress;
-                
+
                 try
                 {
                     System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();

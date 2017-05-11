@@ -9,6 +9,7 @@ namespace Versionr.Utilities
     public static class Misc
     {
         static Random s_Rand = new Random();
+        static System.Diagnostics.Stopwatch s_SW = new System.Diagnostics.Stopwatch();
         public static string FormatSizeFriendly(long size)
         {
             if (size < 1024)
@@ -32,6 +33,14 @@ namespace Versionr.Utilities
                 result = BitConverter.ToInt64(temp, 0);
             }
             return result;
+        }
+        public static void StartTimer()
+        {
+            s_SW.Restart();
+        }
+        public static long ElapsedTime()
+        {
+            return s_SW.ElapsedMilliseconds;
         }
     }
 }

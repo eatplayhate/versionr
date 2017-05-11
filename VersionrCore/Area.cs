@@ -2884,7 +2884,10 @@ namespace Versionr
         {
             if (activeDirectory.FullName == Root.FullName && PartialPath == null)
                 return Status;
-            return new Status(this, Database, LocalData, new FileStatus(this, activeDirectory), GetLocalPath(activeDirectory.GetFullNameWithCorrectCase()));
+            var fs = new FileStatus(this, activeDirectory);
+            
+            var s = new Status(this, Database, LocalData, fs, GetLocalPath(activeDirectory.GetFullNameWithCorrectCase()));
+            return s;
         }
 
         class LocalRefreshState
@@ -4078,16 +4081,16 @@ namespace Versionr
         public void LoadDirectives()
         {
             string error;
-
+            
             // Load .vrmeta
             Directives directives = DirectivesUtils.LoadVRMeta(this, out error);
             Directives = (directives != null) ? directives : new Directives();
-
+            
             // Load global .vruser
             directives = DirectivesUtils.LoadGlobalVRUser(out error);
             if (directives != null)
                 Directives.Merge(directives);
-
+            
             // Load .vruser
             directives = DirectivesUtils.LoadVRUser(this, out error);
             if (directives != null)
@@ -4109,18 +4112,17 @@ namespace Versionr
                     return false;
                 if (LocalData.Domain != Database.Domain)
                     return false;
-
+                
                 if (LocalData.RefreshLocalTimes)
                     RefreshLocalTimes();
-
                 if (!headless)
-                    FileTimeCache = LocalData.LoadFileTimes();
-
+                    FileTimeCache = LocalData.LoadFileTimesOptimized();
+                
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
                 if (!headless)
                     LoadDirectives();
-
+                
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
                     return false;

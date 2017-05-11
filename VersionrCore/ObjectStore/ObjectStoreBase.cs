@@ -37,7 +37,9 @@ namespace Versionr.ObjectStore
         public abstract bool EndStorageTransaction(ObjectStoreTransaction transaction);
         public abstract void ExportRecordStream(Record rec, System.IO.Stream outputStream);
         public abstract void ExportDataStream(string dataIdentifier, System.IO.Stream outputStream);
+        public abstract void ExportDataBlob(string dataIdentifier, bool compressed, System.IO.Stream outputStream);
         public abstract bool HasDataDirect(string x, out List<string> requestedData);
+        public abstract bool GetAvailableStreams(string x, out List<string> requestedData);
         internal abstract RecordInfo GetInfo(Record x);
         internal abstract long GetEntryCount();
         public virtual bool HasData(Record recordInfo)

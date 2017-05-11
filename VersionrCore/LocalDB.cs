@@ -64,14 +64,20 @@ namespace Versionr
             }
         }
 
+        LocalState.Workspace m_Workspace = null;
+
         public LocalState.Workspace Workspace
         {
             get
             {
-                lock (this)
+                if (m_Workspace == null)
                 {
-                    return Get<LocalState.Workspace>(x => x.ID == Configuration.WorkspaceID);
+                    lock (this)
+                    {
+                        m_Workspace = Get<LocalState.Workspace>(WorkspaceID);
+                    }
                 }
+                return m_Workspace;
             }
         }
 
@@ -138,15 +144,32 @@ namespace Versionr
             }
         }
 
+        LocalState.Configuration m_Configuration = null;
+
         public LocalState.Configuration Configuration
         {
             get
             {
-                lock (this)
+                if (m_Configuration == null)
                 {
-                    var table = Table<LocalState.Configuration>();
-                    return table.First();
+                    lock (this)
+                    {
+                        m_Configuration = Query<LocalState.Configuration>("SELECT * FROM CONFIGURATION ORDER BY ROWID ASC LIMIT 1")[0];
+                    }
                 }
+                return m_Configuration;
+            }
+        }
+
+        public Guid WorkspaceID
+        {
+            get
+            {
+                if (m_Configuration == null)
+                {
+                    return ExecuteScalar<Guid>("SELECT WorkspaceID FROM CONFIGURATION ORDER BY ROWID ASC LIMIT 1");
+                }
+                return m_Configuration.WorkspaceID;
             }
         }
 
@@ -433,6 +456,41 @@ namespace Versionr
             }
             if (refresh)
                 ReplaceFileTimes(result);
+            return result;
+        }
+
+        internal Dictionary<string, LocalState.FileTimestamp> LoadFileTimesOptimized()
+        {
+            Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
+            var query = SQLite.SQLite3.Prepare2(this.Handle, "SELECT CanonicalName, LastSeenTime, DataIdentifier FROM FileTimestamp");
+            byte[] array = new byte[1024];
+            int bsize = 1024;
+            unsafe
+            {
+                while (SQLite.SQLite3.Step(query) == SQLite.SQLite3.Result.Row)
+                {
+                    var iptr = SQLite.SQLite3.ColumnText(query, 0);
+                    int size = SQLite.SQLite3.ColumnBytes(query, 0);
+                    if (size > bsize)
+                    {
+                        bsize = size * 2;
+                        array = new byte[bsize];
+                    }
+                    System.Runtime.InteropServices.Marshal.Copy(iptr, array, 0, size);
+                    string cname = Encoding.UTF8.GetString(array, 0, size);
+                    iptr = SQLite.SQLite3.ColumnText(query, 2);
+                    size = SQLite.SQLite3.ColumnBytes(query, 2);
+                
+                    LocalState.FileTimestamp ft = new FileTimestamp()
+                    {
+                        CanonicalName = cname,
+                        DataIdentifier = new string((sbyte*)iptr, 0, size),
+                        LastSeenTime = new DateTime(SQLite.SQLite3.ColumnInt64(query, 1)),
+                    };
+                    result[cname] = ft;
+                }
+            }
+            SQLite.SQLite3.Finalize(query);
             return result;
         }
 

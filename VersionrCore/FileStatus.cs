@@ -7,14 +7,36 @@ using System.Threading.Tasks;
 
 namespace Versionr
 {
+    public struct FlatFSEntry
+    {
+        public string FullName;
+        public int ChildCount;
+        public int Attributes;
+        public long FileTime;
+        public long Length;
+    };
     public class Entry
     {
         string m_Hash = null;
         public Area Area { get; set; }
         public string CanonicalName { get; set; }
-        public FileInfo Info { get; set; }
-        public DirectoryInfo DirectoryInfo { get; set; }
+        public string FullName { get; set; }
+        public string LocalName { get; set; }
         public Entry Parent { get; set; }
+        public FileInfo Info
+        {
+            get
+            {
+                return new FileInfo(FullName);
+            }
+        }
+        public DirectoryInfo DirectoryInfo
+        {
+            get
+            {
+                return new DirectoryInfo(FullName);
+            }
+        }
         public string Hash
         {
             get
@@ -22,7 +44,7 @@ namespace Versionr
                 lock (this)
                 {
                     if (m_Hash == null)
-                        m_Hash = CheckHash(Info);
+                        m_Hash = CheckHash(new FileInfo(FullName));
                     return m_Hash;
                 }
             }
@@ -48,58 +70,51 @@ namespace Versionr
                 if ((Attributes & Objects.Attributes.Symlink) != 0)
                     return true;
                 return false;
-
-				//return Attributes.HasFlag(Objects.Attributes.Symlink);
             }
 		}
 		public string SymlinkTarget
 		{
 			get
 			{
-				if (Info != null)
-					return Utilities.Symlink.GetTarget(Info.FullName);
-				if (DirectoryInfo != null)
-					return Utilities.Symlink.GetTarget(DirectoryInfo.FullName);
-				return null;
+                return Utilities.Symlink.GetTarget(FullName);
 			}
 		}
 		public bool Ignored { get; private set; }
 
-        public Entry(Area area, Entry parent, DirectoryInfo info, string canonicalName, bool ignored)
-		{
-            Parent = parent;
+        public Entry(Area area, Entry parent, string cname, string fullname, string localName, long time, long size, bool ignored, FileAttributes attribs)
+        {
             Area = area;
-            CanonicalName = canonicalName;
-            DirectoryInfo = info;
-            ModificationTime = DirectoryInfo.LastWriteTimeUtc;
-			Ignored = ignored;
-			m_Hash = string.Empty;
+            Parent = parent;
+            FullName = fullname;
+            LocalName = localName;
+            CanonicalName = localName == ".vrmeta" ? localName : cname;
+            ModificationTime = DateTime.FromFileTimeUtc(time);
+            Ignored = ignored;
+            Length = size;
 
-			if ((info.Attributes & FileAttributes.Hidden) != 0)
+            if (IsDirectory)
+            {
+                m_Hash = string.Empty;
+                if ((attribs & FileAttributes.ReparsePoint) != 0)
+                {
+                    Attributes = Attributes | Objects.Attributes.Symlink;
+                    CanonicalName = CanonicalName.Substring(0, CanonicalName.Length - 1);
+                }
+            }
+            else if (Utilities.Symlink.ExistsForFile(FullName, CanonicalName))
+            {
+                Attributes = Attributes | Objects.Attributes.Symlink;
+                Length = 0;
+            }
+            if ((attribs & FileAttributes.Hidden) != 0)
                 Attributes = Attributes | Objects.Attributes.Hidden;
-            if ((info.Attributes & FileAttributes.ReadOnly) != 0)
+            if ((attribs & FileAttributes.ReadOnly) != 0)
                 Attributes = Attributes | Objects.Attributes.ReadOnly;
-			if (Utilities.Symlink.Exists(info))
-			{
-				Attributes = Attributes | Objects.Attributes.Symlink;
-				if (CanonicalName[CanonicalName.Length - 1] == '/')
-					CanonicalName = canonicalName.Substring(0, canonicalName.Length - 1);
-			}
-		}
+        }
 
         internal bool DataEquals(string fingerprint, long size)
         {
             return Length == size && Hash == fingerprint;
-        }
-
-        public Entry(Area area, Entry parent, FileInfo info, string canonicalName, bool ignored)
-        {
-            Parent = parent;
-            Area = area;
-            CanonicalName = info.Name == ".vrmeta" ? info.Name : canonicalName;
-            Info = info;
-			Ignored = ignored;
-            GetInfo();
         }
 
         public string AbbreviatedHash
@@ -116,30 +131,10 @@ namespace Versionr
         {
             get
             {
-                if (Info != null)
-                    return Info.Name;
-                if (DirectoryInfo != null)
-                    return DirectoryInfo.Name;
-                throw new Exception();
+                return LocalName;
             }
         }
-
-        private void GetInfo()
-        {
-            Length = Info.Length;
-            ModificationTime = Info.LastWriteTimeUtc;
-
-			if (Utilities.Symlink.Exists(Info, CanonicalName))
-			{
-				Attributes = Attributes | Objects.Attributes.Symlink;
-				Length = 0;
-            }
-            if ((Info.Attributes & FileAttributes.Hidden) != 0)
-                Attributes = Attributes | Objects.Attributes.Hidden;
-            if ((Info.Attributes & FileAttributes.ReadOnly) != 0)
-                Attributes = Attributes | Objects.Attributes.ReadOnly;
-        }
-
+        
         internal static string CheckHash(FileInfo info)
         {
 #if SHOW_HASHES
@@ -208,8 +203,100 @@ namespace Versionr
             Printer.PrintDiagnostics("Current working directory has {0} file{1} in {2} director{3}.", files, files == 1 ? "" : "s", Entries.Count - files, (Entries.Count - files) == 1 ? "y" : "ies");
         }
 
+        public static Func<string, List<FlatFSEntry>> GetFSFast = null;
+        public static Func<string, int> GetFSFastX = null;
+
+        public static List<FlatFSEntry> GetFlatEntries(DirectoryInfo root)
+        {
+            List<FlatFSEntry> result = new List<FlatFSEntry>();
+            GetEntriesRecursive(result, root.FullName.Replace('\\', '/') + "/", root);
+            return result;
+        }
+
+        private static int GetEntriesRecursive(List<FlatFSEntry> result, string fn, DirectoryInfo root)
+        {
+            int count = 0;
+            foreach (var x in root.GetFileSystemInfos())
+            {
+                if ((x.Attributes & FileAttributes.Directory) != 0)
+                {
+                    if (x.Name == "." || x.Name == ".." || x.Name == ".versionr")
+                        continue;
+                    FlatFSEntry fse = new FlatFSEntry()
+                    {
+                        Attributes = (int)x.Attributes,
+                        FileTime = x.LastWriteTimeUtc.Ticks,
+                        FullName = fn + x.Name + "/",
+                        Length = -1,
+                    };
+                    int loc = result.Count;
+                    result.Add(fse);
+                    int cc = GetEntriesRecursive(result, fse.FullName, new DirectoryInfo(fn + x.Name));
+                    fse.ChildCount = cc;
+                    result[loc] = fse;
+                    count += 1 + cc;
+                }
+                else
+                {
+                    FlatFSEntry fse = new FlatFSEntry()
+                    {
+                        Attributes = (int)x.Attributes,
+                        FileTime = x.LastWriteTimeUtc.Ticks,
+                        FullName = fn + x.Name,
+                        Length = new FileInfo(fn + x.Name).Length,
+                    };
+                    result.Add(fse);
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        struct FSScan
+        {
+            public System.Text.RegularExpressions.Regex[] FRIgnores;
+            public System.Text.RegularExpressions.Regex[] FRIncludes;
+            public string[] ExtIncludes;
+            public string[] ExtIgnores;
+        }
+
         public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Restart();
+            if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
+            {
+                if (GetFSFast == null)
+                {
+                    var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
+                    GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
+                }
+                if (GetFSFast != null)
+                {
+                    FSScan scan = new FSScan();
+                    scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
+                    scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
+                    scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
+                    scan.ExtIncludes = area?.Directives?.Include?.Extensions;
+                    string fn = root.FullName.Replace('\\', '/');
+                    if (fn[fn.Length - 1] != '/')
+                        fn += '/';
+                    sw.Restart();
+                    var x = GetFSFast(fn);
+                    sw.Restart();
+                    List<Entry> e2 = new List<Entry>(x.Count);
+                    System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+                    System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
+                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                    ce2.Signal();
+                    ce2.Wait();
+                    var ea = entries2.ToArray();
+                    e2.Capacity = ea.Length;
+                    e2.AddRange(ea);
+                    return e2;
+                }
+            }
+            sw.Restart();
             System.Collections.Concurrent.ConcurrentBag<Entry> entries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
             System.Threading.CountdownEvent ce = new System.Threading.CountdownEvent(1);
             PopulateList(entries, ce, area, null, root, area.GetLocalPath(root.FullName), adminFolder, false);
@@ -217,7 +304,169 @@ namespace Versionr
             ce.Wait();
             Entry[] entryArray = entries.ToArray();
             Array.Sort(entryArray, (Entry x, Entry y) => { return string.CompareOrdinal(x.CanonicalName, y.CanonicalName); });
+            System.Console.WriteLine("3: {0}ms", sw.ElapsedMilliseconds);
             return entryArray.ToList();
+        }
+
+        private static void ProcessListFast(FSScan scan, Area area, List<FlatFSEntry> results, string rootFolder, System.Threading.CountdownEvent ce, System.Collections.Concurrent.ConcurrentBag<Entry> e2, int start, int end, Entry parentEntry = null, bool ignoreFiles = false)
+        {
+            for (int i = start; i < end; i++)
+            {
+                var r = results[i];
+                if (r.Length == -1)
+                {
+                    bool ignoreDirectory = false;
+                    bool ignoreContents = false;
+                    string slashedSubdirectory = r.FullName.Substring(rootFolder.Length + 1);
+                    if (area != null && area.Directives != null && area.Directives.Include != null)
+                    {
+                        ignoreDirectory = true;
+                        foreach (var y in area.Directives.Include.Directories)
+                        {
+                            if (y.StartsWith(slashedSubdirectory, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (slashedSubdirectory.Length <= y.Length - 1)
+                                    ignoreContents = true;
+                                ignoreDirectory = false;
+                                break;
+                            }
+                            else if (slashedSubdirectory.StartsWith(y))
+                            {
+                                ignoreDirectory = false;
+                                break;
+                            }
+                        }
+                        if (area.Directives.Include.RegexDirectoryPatterns != null)
+                        {
+                            foreach (var y in area.Directives.Include.RegexDirectoryPatterns)
+                            {
+                                if (y.IsMatch(slashedSubdirectory))
+                                {
+                                    ignoreDirectory = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexDirectoryPatterns != null)
+                    {
+                        string ssi = slashedSubdirectory.ToLowerInvariant();
+                        foreach (var y in area.Directives.Ignore.Directories)
+                        {
+                            if (ssi.StartsWith(y, StringComparison.Ordinal))
+                            {
+                                ignoreDirectory = true;
+                                break;
+                            }
+                        }
+                        foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
+                        {
+                            if (y.IsMatch(ssi))
+                            {
+                                ignoreDirectory = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (area != null && area.Directives != null && area.Directives.Externals != null)
+                    {
+                        foreach (var x in area.Directives.Externals)
+                        {
+                            string extdir = x.Value.Location.Replace('\\', '/');
+                            if (extdir[extdir.Length - 1] != '/')
+                                extdir += "/";
+                            if (string.Equals(slashedSubdirectory, extdir, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return;
+                            }
+                        }
+                    }
+
+                    var parent = new Entry(area, parentEntry, slashedSubdirectory, r.FullName, parentEntry == null ? slashedSubdirectory : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, 0, ignoreDirectory, (FileAttributes)r.Attributes);
+                    e2.Add(parent);
+                    if (ignoreDirectory)
+                    {
+                        i += r.ChildCount;
+                    }
+                    else
+                    {
+                        int s = i + 1;
+                        int e = i + 1 + r.ChildCount;
+                        if (r.ChildCount > 16)
+                        {
+                            ce.AddCount();
+                            System.Threading.Tasks.Task.Factory.StartNew(() => { ProcessListFast(scan, area, results, rootFolder, ce, e2, s, e, parent, ignoreContents); ce.Signal(); });
+                        }
+                        else
+                        {
+                            ProcessListFast(scan, area, results, rootFolder, ce, e2, s, e, parent, ignoreContents);
+                        }
+                        i += r.ChildCount;
+                    }
+                }
+                else
+                {
+                    if (!ignoreFiles)
+                    {
+                        string fn = r.FullName.Substring(rootFolder.Length + 1);
+                        string fnI = fn.ToLowerInvariant();
+                        bool ignored = false;
+                        if (area != null && scan.FRIncludes != null)
+                        {
+                            ignored = true;
+                            foreach (var y in scan.FRIncludes)
+                            {
+                                if (y.IsMatch(fn))
+                                {
+                                    ignored = false;
+                                    break;
+                                }
+                            }
+                        }
+                        int lastIndex = fn.LastIndexOf('.');
+                        if (lastIndex > 0)
+                        {
+                            int remainder = fn.Length - lastIndex;
+                            if (!ignored && scan.ExtIncludes != null)
+                            {
+                                ignored = true;
+                                foreach (var y in scan.ExtIncludes)
+                                {
+                                    if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
+                                    {
+                                        ignored = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!ignored && scan.ExtIgnores != null)
+                            {
+                                foreach (var y in scan.ExtIgnores)
+                                {
+                                    if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
+                                    {
+                                        ignored = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (!ignored && scan.FRIgnores != null)
+                        {
+                            foreach (var y in scan.FRIgnores)
+                            {
+                                if (y.IsMatch(fnI))
+                                {
+                                    ignored = true;
+                                    break;
+                                }
+                            }
+                        }
+                        e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
+                    }
+                }
+            }
         }
 
         private static void PopulateList(System.Collections.Concurrent.ConcurrentBag<Entry> entries, System.Threading.CountdownEvent ce, Area area, Entry parentEntry, DirectoryInfo info, string subdirectory, DirectoryInfo adminFolder, bool ignoreDirectory)
@@ -294,7 +543,7 @@ namespace Versionr
                     }
                 }
 
-				parentEntry = new Entry(area, parentEntry, info, slashedSubdirectory, ignoreDirectory);
+				parentEntry = new Entry(area, parentEntry, slashedSubdirectory, info.FullName, info.Name, info.LastWriteTimeUtc.ToFileTimeUtc(), 0, ignoreDirectory, info.Attributes);
                 entries.Add(parentEntry);
                 if (ignoreDirectory)
                     return;
@@ -386,7 +635,7 @@ namespace Versionr
                             }
                         }
                     }
-                    entries.Add(new Entry(area, parentEntry, x as FileInfo, name, ignored));
+                    entries.Add(new Entry(area, parentEntry, name, x.FullName, x.Name, x.LastWriteTimeUtc.ToFileTimeUtc(), new FileInfo(x.FullName).Length, ignored, x.Attributes));
                 }
             }
         }

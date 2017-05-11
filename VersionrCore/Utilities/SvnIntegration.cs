@@ -33,6 +33,24 @@ namespace Versionr.Utilities
 
             return false;
         }
+        public static bool AppliesToFile(string fullpath, string hintPath)
+        {
+            if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
+                return false;
+
+            // Only for windows
+            if (MultiArchPInvoke.IsRunningOnMono)
+                return false;
+
+            string path = string.IsNullOrEmpty(hintPath) ? fullpath.Replace('\\', '/') : hintPath;
+            foreach (var x in SymlinkPatterns)
+            {
+                if (x.IsMatch(path))
+                    return true;
+            }
+
+            return false;
+        }
 
         public static bool AppliesTo(string path)
 		{
