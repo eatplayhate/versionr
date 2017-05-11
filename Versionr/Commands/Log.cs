@@ -284,9 +284,10 @@ namespace Versionr.Commands
                 string tags = "";
                 if (tagList.Count > 0)
                     tags = "#s#" + string.Join(" ", tagList.Select(x => "\\#" + x).ToArray()) + "## ";
-				Printer.PrintMessage("{6}#c#{0}:##{7}({4}/{8}{5}##) {1} {9}#q#({2} {3})##", v.ShortName, message.Replace('\n', ' '), v.Author, new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString(), v.Revision, branch.Name, tipmarker, mergemarker, isHead ? "#i#" : "#b#", tags);
+                Printer.PrintMessage($"{tipmarker}#c#{v.ShortName}:##{mergemarker}({v.Revision}/{(isHead ? "#i#" : "#b#")}{branch.Name}##)"
+                    + $"{message.Replace("\r\n", " ").Replace('\n', ' ')} {tags}"
+                    + $"#q#({v.Author} {new DateTime(v.Timestamp.Ticks, DateTimeKind.Utc).ToShortDateString()})##");
                 Printer.Prefix = "";
-
             }
 			else
 			{

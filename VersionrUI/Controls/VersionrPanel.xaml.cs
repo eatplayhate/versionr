@@ -175,7 +175,7 @@ namespace VersionrUI.Controls
             }
         }
 
-        private void Sort(ICollectionView dataView, string sortBy, ListSortDirection direction)
+        internal static void Sort(ICollectionView dataView, string sortBy, ListSortDirection direction)
         {
             if (sortBy == "Name")
             {
@@ -183,6 +183,15 @@ namespace VersionrUI.Controls
                 {
                     if (obj.GetType().GetProperty("CanonicalName") != null)
                         sortBy = "CanonicalName";
+                    break; // Only test one item
+                }
+            }
+            else if (sortBy == "Type")
+            {
+                foreach (object obj in dataView.SourceCollection)
+                {
+                    if (obj.GetType().GetProperty("AlterationType") != null)
+                        sortBy = "AlterationType";
                     break; // Only test one item
                 }
             }
