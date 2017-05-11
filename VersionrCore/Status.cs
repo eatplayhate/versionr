@@ -64,7 +64,7 @@ namespace Versionr
 			{
 				get
 				{
-					return FilesystemEntry != null ? FilesystemEntry.Attributes.HasFlag(Objects.Attributes.Symlink) : VersionControlRecord.Attributes.HasFlag(Objects.Attributes.Symlink);
+					return FilesystemEntry != null ? ((FilesystemEntry.Attributes & Objects.Attributes.Symlink) != 0) : ((VersionControlRecord.Attributes & Objects.Attributes.Symlink) != 0);
 				}
             }
             public bool IsFile
@@ -212,6 +212,7 @@ namespace Versionr
             Dictionary<string, Entry> snapshotData = new Dictionary<string, Entry>();
             foreach (var x in currentSnapshot.Entries)
                 snapshotData[x.CanonicalName] = x;
+            System.Collections.Concurrent.ConcurrentBag<Entry> pendingEntries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
             HashSet<Entry> foundEntries = new HashSet<Entry>();
             var records = db.GetCachedRecords(CurrentVersion, !findCopies);
             var stage = ldb.StageOperations;
@@ -262,28 +263,26 @@ namespace Versionr
                                 {
                                     if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord))
                                     {
-                                        lock (foundEntries)
-                                            foundEntries.Add(snapshotRecord);
+                                        pendingEntries.Add(snapshotRecord);
                                     }
                                 }
                                 else
-                                    return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                                    return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
                             }
                         }
 
                         if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
                         {
-                            lock (foundEntries)
-                                foundEntries.Add(snapshotRecord);
+                            pendingEntries.Add(snapshotRecord);
 
-                            if (objectFlags.HasFlag(StageFlags.Removed))
+                            if ((objectFlags & StageFlags.Removed) != 0)
                                 Printer.PrintWarning("Removed object `{0}` still in filesystem!", x.CanonicalName);
 
-                            if (objectFlags.HasFlag(StageFlags.Renamed))
+                            if ((objectFlags & StageFlags.Renamed) != 0)
                                 Printer.PrintWarning("Renamed object `{0}` still in filesystem!", x.CanonicalName);
 
-                            if (objectFlags.HasFlag(StageFlags.Conflicted))
-                                return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                            if ((objectFlags & StageFlags.Conflicted) != 0)
+                                return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
 
                             bool changed = false;
                             if (snapshotRecord.Length != x.Size)
@@ -320,19 +319,19 @@ namespace Versionr
                             if (changed == true)
                             {
                                 if (obstructed)
-                                    return new StatusEntry() { Code = StatusCode.Obstructed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
-                                return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                                    return new StatusEntry() { Code = StatusCode.Obstructed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+                                return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
                             }
                             else
                             {
-                                if (objectFlags.HasFlag(StageFlags.Recorded))
+                                if (((objectFlags & StageFlags.Recorded) != 0))
                                     Printer.PrintWarning("Unchanged object `{0}` still marked as recorded in commit!", x.CanonicalName);
-                                return new StatusEntry() { Code = StatusCode.Unchanged, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Recorded) };
+                                return new StatusEntry() { Code = StatusCode.Unchanged, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
                             }
                         }
                         else
                         {
-                            if (objectFlags.HasFlag(StageFlags.Removed))
+                            if ((objectFlags & StageFlags.Removed) != 0)
                                 return new StatusEntry() { Code = StatusCode.Deleted, FilesystemEntry = null, VersionControlRecord = x, Staged = true };
 
                             string parentName = x.CanonicalName;
@@ -341,7 +340,7 @@ namespace Versionr
                             {
                                 if (!parentName.Contains('/'))
                                     break;
-                                if (parentName.EndsWith("/"))
+                                if (parentName[parentName.Length - 1] == '/')
                                     parentName = parentName.Substring(0, parentName.Length - 1);
                                 parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
                                 bool ignoredInParentList = false;
@@ -367,7 +366,7 @@ namespace Versionr
                                 }
                             }
                             if (resolved || (snapshotRecord != null && snapshotRecord.Ignored))
-                                return new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = objectFlags.HasFlag(StageFlags.Conflicted) || objectFlags.HasFlag(StageFlags.MergeInfo) };
+                                return new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) || ((objectFlags & StageFlags.MergeInfo) != 0) };
                             else
                                 return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
@@ -382,6 +381,8 @@ namespace Versionr
                 if (UpdatedFileTimeCount > 0 && updateFileTimes)
                     Workspace.ReplaceFileTimes();
             }
+            foreach (var x in pendingEntries.ToArray())
+                foundEntries.Add(x);
             Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
             sw.Restart();
 
@@ -462,7 +463,7 @@ namespace Versionr
                                 if (otherEntry.Code == StatusCode.Missing || otherEntry.Code == StatusCode.Deleted)
                                 {
                                     otherEntry.Code = StatusCode.Ignored;
-                                    return new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = otherEntry.VersionControlRecord };
+                                    return new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = otherEntry.VersionControlRecord };
                                 }
                             }
                         }
@@ -482,15 +483,15 @@ namespace Versionr
                         {
                             StageFlags otherFlags;
                             stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
-                            if (otherFlags.HasFlag(StageFlags.Removed))
+                            if ((otherFlags & StageFlags.Removed) != 0)
                             {
                                 lock (pendingRenames)
-                                    pendingRenames.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = possibleRename });
+                                    pendingRenames.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = possibleRename });
                                 return null;
                             }
                             else
                             {
-                                if (objectFlags.HasFlag(StageFlags.Recorded))
+                                if (((objectFlags & StageFlags.Recorded) != 0))
                                 {
                                     return new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = possibleRename };
                                 }
@@ -500,13 +501,13 @@ namespace Versionr
                                 }
                             }
                         }
-                        if (objectFlags.HasFlag(StageFlags.Recorded))
+                        if (((objectFlags & StageFlags.Recorded) != 0))
                         {
                             return new StatusEntry() { Code = StatusCode.Added, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = null };
                         }
-                        if (objectFlags.HasFlag(StageFlags.Conflicted))
+                        if ((objectFlags & StageFlags.Conflicted) != 0)
                         {
-                            return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = x.Value, Staged = objectFlags.HasFlag(StageFlags.Recorded), VersionControlRecord = null };
+                            return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = null };
                         }
                         return new StatusEntry() { Code = StatusCode.Unversioned, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
                     }));
@@ -587,7 +588,7 @@ namespace Versionr
 				{
 					foreach (var y in regexes)
 					{
-						if ((!filenames && y.IsMatch(x.CanonicalName)) || (filenames && x.FilesystemEntry != null && x.FilesystemEntry.Info != null && y.IsMatch(x.FilesystemEntry.Info.Name)))
+						if ((!filenames && y.IsMatch(x.CanonicalName)) || (filenames && x.FilesystemEntry != null && !x.FilesystemEntry.IsDirectory && y.IsMatch(x.FilesystemEntry.LocalName)))
 						{
 							results.Add(x);
 							break;

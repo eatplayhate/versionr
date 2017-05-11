@@ -167,6 +167,7 @@ namespace Versionr.Commands
                                     }
                                     finally
                                     {
+                                        new System.IO.FileInfo(tmp).IsReadOnly = false;
                                         System.IO.File.Delete(tmp);
                                     }
                                 }

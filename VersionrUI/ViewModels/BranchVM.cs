@@ -1,4 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Media;
 using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -8,6 +12,8 @@ namespace VersionrUI.ViewModels
 {
     public class BranchVM : NotifyPropertyChangedBase
     {
+        public DelegateCommand PullCommand { get; private set; }
+        public DelegateCommand PushCommand { get; private set; }
         public DelegateCommand CheckoutCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
 
@@ -43,7 +49,9 @@ namespace VersionrUI.ViewModels
             _areaVM = areaVM;
             _branch = branch;
 
-            CheckoutCommand = new DelegateCommand(Checkout);
+            PullCommand = new DelegateCommand(() => Load(Pull));
+            PushCommand = new DelegateCommand(() => Load(Push));
+            CheckoutCommand = new DelegateCommand(() => Load(Checkout), () => !IsCurrent);
             LogCommand = new DelegateCommand(Log);
         }
 
@@ -73,6 +81,8 @@ namespace VersionrUI.ViewModels
             {
                 if (_history == null || _forceRefresh)
                     Load(Refresh);
+                else
+                    ResolveGraph();
                 if (!string.IsNullOrEmpty(SearchText))
                     return FilterHistory(_history, SearchText);
                 return _history;
@@ -99,7 +109,7 @@ namespace VersionrUI.ViewModels
                     _revisionLimit = value;
                     _forceRefresh = true;
                     NotifyPropertyChanged("RevisionLimit");
-                    NotifyPropertyChanged("History");
+                    Load(Refresh);
                 }
             }
         }
@@ -118,7 +128,9 @@ namespace VersionrUI.ViewModels
                 if (version.Message.ToLower().Contains(searchtext) ||
                     version.ID.ToString().ToLower().Contains(searchtext) ||
                     version.Author.ToLower().Contains(searchtext) ||
-                    version.Timestamp.ToString().ToLower().Contains(searchtext))
+                    version.Timestamp.ToString().ToLower().Contains(searchtext) ||
+					version.Alterations.Any(x => x.Name.ToLower().Contains(searchtext))
+				)
                 {
                     results.Add(version);
                 }
@@ -135,7 +147,7 @@ namespace VersionrUI.ViewModels
 
                 var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                List<Version> versions = _areaVM.Area.GetHistory(headVersion, limit);
+                List<Version> versions = _areaVM.Area.GetLogicalHistory(headVersion, false, false, false, limit);
                 _history = new List<VersionVM>();
 
                 foreach (Version version in versions)
@@ -144,49 +156,202 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        private void Pull()
+        {
+            OperationStatusDialog.Start("Pull");
+            _areaVM.ExecuteClientCommand((c) => c.Pull(true, Name), "pull");
+            if(IsCurrent)
+                _areaVM.Area.Update(new Versionr.Area.MergeSpecialOptions());
+            OperationStatusDialog.Finish();
+        }
+
+        private void Push()
+        {
+            OperationStatusDialog.Start("Push");
+            _areaVM.ExecuteClientCommand((c) => c.Push(Name), "push", true);
+            OperationStatusDialog.Finish();
+        }
+
         private void Checkout()
         {
             if (_areaVM.Area.Status.HasModifications(false))
             {
-                int result = CustomMessageBox.Show("Vault contains uncommitted changes.\nDo you want to force the checkout operation?",
-                                                   "Checkout",
-                                                   new string[] { "Checkout (keep unversioned files)",
-                                                                  "Checkout (purge unversioned files)",
-                                                                  "Cancel" },
-                                                   2);
+                MessageDialogResult result = MessageDialogResult.FirstAuxiliary;
+                MainWindow.Instance.Dispatcher.Invoke(async () =>
+                {
+                    MetroDialogSettings settings = new MetroDialogSettings()
+                    {
+                        AffirmativeButtonText = "Checkout (keep unversioned files)",
+                        NegativeButtonText = "Checkout (purge unversioned files)",
+                        FirstAuxiliaryButtonText = "Cancel",
+                        ColorScheme = MainWindow.DialogColorScheme
+                    };
+                    result = await MainWindow.ShowMessage("Checkout", "Vault contains uncommitted changes. Do you want to force the checkout operation?", MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
+                }).Wait();
 
                 switch (result)
                 {
-                    case 0:
-                        CheckoutAsync(false);
+                    case MessageDialogResult.Affirmative:
+                        DoCheckout(false);
                         break;
-                    case 1:
-                        CheckoutAsync(true);
+                    case MessageDialogResult.Negative:
+                        DoCheckout(true);
                         break;
-                    case 2:
+                    case MessageDialogResult.FirstAuxiliary:
                     default:
                         return;
                 }
             }
             else
             {
-                CheckoutAsync(false);
+                DoCheckout(false);
             }
         }
 
-        private void CheckoutAsync(bool purge)
+        private void DoCheckout(bool purge)
         {
-            Load(() =>
-            {
-                _areaVM.Area.Checkout(Name, purge, false, false);
-                _areaVM.RefreshChildren();
-            });
+            OperationStatusDialog.Start("Checkout");
+            _areaVM.Area.Checkout(Name, purge, false, false);
+            _areaVM.RefreshBranches();
+            OperationStatusDialog.Finish();
         }
 
         private void Log()
         {
             Version headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
             LogDialog.Show(headVersion, _areaVM.Area);
+        }
+
+        public class DAG
+        {
+            public class Link
+            {
+                public Guid Source { get; set; }
+                public bool Merge { get; set; }
+            }
+            public class ObjectAndLinks
+            {
+                public VersionVM Version { get; set; }
+                public List<Link> Links { get; set; }
+
+                public ObjectAndLinks(VersionVM obj)
+                {
+                    Version = obj;
+                    Links = new List<Link>();
+                }
+            }
+
+            public List<ObjectAndLinks> Objects { get; set; }
+            public Dictionary<Guid, VersionVM> Lookup { get; set; }
+
+            public DAG()
+            {
+                Objects = new List<ObjectAndLinks>();
+                Lookup = new Dictionary<Guid, VersionVM>();
+            }
+        }
+
+        private DAG GetDAG()
+        {
+            DAG result = new DAG();
+            foreach (VersionVM version in _history)
+            {
+                result.Lookup[version.ID] = version;
+                DAG.ObjectAndLinks initialLink = new DAG.ObjectAndLinks(version);
+                result.Objects.Add(initialLink);
+
+                if (version.Parent.HasValue)
+                    initialLink.Links.Add(new DAG.Link() { Source = version.Parent.Value, Merge = false });
+
+                IEnumerable<MergeInfo> mergeInfo = _areaVM.Area.GetMergeInfo(version.ID);
+                foreach (MergeInfo info in mergeInfo)
+                    initialLink.Links.Add(new DAG.Link() { Source = info.SourceVersion, Merge = true });
+            }
+            return result;
+        }
+
+        const int RowHeight = 25;
+        const int XSpacing = 30;
+        private void ResolveGraph()
+        {
+            var result = GetDAG();
+
+            int index = 0;
+            
+            foreach (var x in result.Objects)
+            {
+                Tuple<Color, string, int> branchInfo = GetBranchDrawingProps(x.Version.Branch);
+                x.Version.GraphNode.Color = branchInfo.Item1;
+                x.Version.GraphNode.XPos = branchInfo.Item3;
+                x.Version.GraphNode.YPos = index * RowHeight;
+
+                string name = x.Version.ID.ToString().Substring(0, 8);
+                name += string.Format("\n{0}", x.Version.Author);
+                List<Branch> mappedHeads = _areaVM.Area.MapVersionToHeads(x.Version.ID);
+                if (mappedHeads.Count > 0)
+                {
+                    foreach (var y in mappedHeads)
+                        name += string.Format("\nHead of \"{0}\"", y.Name);
+                }
+
+                x.Version.GraphNode.Name = name;
+
+                if (x != null)
+                {
+                    foreach (DAG.Link link in x.Links)
+                    {
+                        if (result.Lookup.ContainsKey(link.Source))
+                        {
+                            VersionVM sourceVM = result.Lookup[link.Source];
+                            if (sourceVM != null)
+                            {
+                                x.Version.GraphNode.Links.Add(new Link()
+                                {
+                                    CurrentVersion = x.Version,
+                                    SourceVersion = sourceVM,
+                                    Merge = link.Merge,
+                                    Color = branchInfo.Item1
+                                });
+                            }
+                        }
+                        else
+                        {
+                            VersionVM externalVersion = new VersionVM(_areaVM.Area.GetVersion(link.Source), _areaVM.Area);
+                            Tuple<Color, string, int> externalBranchInfo = GetBranchDrawingProps(externalVersion.Branch);
+                            externalVersion.GraphNode.Color = externalBranchInfo.Item1;
+                            externalVersion.GraphNode.XPos = externalBranchInfo.Item3;
+                            externalVersion.GraphNode.YPos = index * RowHeight;
+                            externalVersion.GraphNode.Name = String.Format("{0}\n{1}\n{2}", externalVersion.ID.ToString().Substring(0, 8), externalVersion.Author, externalBranchInfo.Item2);
+
+                            x.Version.GraphNode.ExternalVersions.Add(externalVersion);
+                            x.Version.GraphNode.Links.Add(new Link()
+                            {
+                                CurrentVersion = x.Version,
+                                SourceVersion = externalVersion,
+                                Merge = link.Merge,
+                                Color = externalBranchInfo.Item1
+                            });
+                        }
+                    }
+                }
+
+                index++;
+            }
+        }
+
+        private static Color[] colours = new Color[] { Colors.DarkOrange, Colors.Green, Colors.Blue, Colors.Cyan, Colors.Magenta, Colors.Red };
+        private Dictionary<Guid, Tuple<Color, string, int>> branchInfoMap = new Dictionary<Guid, Tuple<Color, string, int>>();
+        private Tuple<Color, string, int> GetBranchDrawingProps(Guid branchID)
+        {
+            Tuple<Color, string, int> branchInfo;
+            if (!branchInfoMap.TryGetValue(branchID, out branchInfo))
+            {
+                int nextColourIndex = branchInfoMap.Count % colours.Length;
+                Color colour = colours[nextColourIndex];
+                branchInfo = new Tuple<Color, string, int>(colour, _areaVM.Area.GetBranch(branchID).Name, branchInfoMap.Count * XSpacing);
+                branchInfoMap.Add(branchID, branchInfo);
+            }
+            return branchInfo;
         }
     }
 }

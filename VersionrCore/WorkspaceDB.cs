@@ -25,8 +25,9 @@ namespace Versionr
             Printer.PrintDiagnostics("Metadata DB Open.");
             EnableWAL = true;
             LocalDatabase = localDB;
-            
-            CreateTable<Objects.FormatInfo>();
+
+            if (ExecuteScalar<string>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'FormatInfo';") != "FormatInfo")
+                CreateTable<Objects.FormatInfo>();
             if (flags.HasFlag(SQLite.SQLiteOpenFlags.Create))
             {
                 ExecuteDirect("PRAGMA main.page_size = 4096;");
@@ -828,7 +829,7 @@ namespace Versionr
         {
             get
             {
-                var ver = Get<Objects.Version>(x => x.ID == LocalDatabase.Workspace.Tip);
+                var ver = Get<Objects.Version>(LocalDatabase.Workspace.Tip);
                 Printer.PrintDiagnostics("Getting current version - {0}", ver.ID);
                 return ver;
             }
@@ -838,7 +839,7 @@ namespace Versionr
         {
             get
             {
-                var branch = Get<Objects.Branch>(x => x.ID == LocalDatabase.Workspace.Branch);
+                var branch = Get<Objects.Branch>(LocalDatabase.Workspace.Branch);
                 Printer.PrintDiagnostics("Getting current branch - {0}", branch.Name);
                 return branch;
             }

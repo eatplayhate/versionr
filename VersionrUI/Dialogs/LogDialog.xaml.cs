@@ -4,12 +4,13 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using Versionr;
 using Versionr.Objects;
+using VersionrUI.Controls;
 using VersionrUI.ViewModels;
 using Version = Versionr.Objects.Version;
 
@@ -18,7 +19,7 @@ namespace VersionrUI.Dialogs
     /// <summary>
     /// Interaction logic for LogDialog.xaml
     /// </summary>
-    public partial class LogDialog : Window, INotifyPropertyChanged
+    public partial class LogDialog : INotifyPropertyChanged
     {
         private Area _area;
         private string _author;
@@ -29,10 +30,13 @@ namespace VersionrUI.Dialogs
         {
             { 50, "50" },
             { 100, "100" },
-            { 150, "150" },
             { 200, "200" },
+            { 500, "500" },
             { -1, "All" },
         };
+
+        private GridViewColumnHeader _lastHeaderClicked = null;
+        private ListSortDirection _lastDirection = ListSortDirection.Ascending;
 
         public static void Show(Version version, Area area, string pattern = null)
         {
@@ -147,7 +151,7 @@ namespace VersionrUI.Dialogs
             lock (refreshLock)
             {
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetHistory(Version, limit));
+                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetLogicalHistory(Version, false, false, false, limit));
                 
                 _history = new List<VersionVM>();
                 foreach (Version ver in versions)
@@ -182,6 +186,47 @@ namespace VersionrUI.Dialogs
             return alterations.Any(x => Regex.IsMatch(x.Record.CanonicalName));
         }
 
+        private void listViewHeader_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is ListView))
+                return;
+
+            GridViewColumnHeader headerClicked = e.OriginalSource as GridViewColumnHeader;
+            ListSortDirection direction;
+            if (headerClicked != null)
+            {
+                if (headerClicked.Role != GridViewColumnHeaderRole.Padding)
+                {
+                    if (headerClicked != _lastHeaderClicked)
+                    {
+                        direction = ListSortDirection.Ascending;
+                    }
+                    else
+                    {
+                        if (_lastDirection == ListSortDirection.Ascending)
+                            direction = ListSortDirection.Descending;
+                        else
+                            direction = ListSortDirection.Ascending;
+                    }
+
+                    string header = headerClicked.Column.Header as string;
+                    VersionrPanel.Sort(CollectionViewSource.GetDefaultView(((ListView)sender).ItemsSource), header, direction);
+
+                    if (direction == ListSortDirection.Ascending)
+                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowUp"] as DataTemplate;
+                    else
+                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
+
+                    // Remove arrow from previously sorted header
+                    if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
+                        _lastHeaderClicked.Column.HeaderTemplate = null;
+
+                    _lastHeaderClicked = headerClicked;
+                    _lastDirection = direction;
+                }
+            }
+        }
+
         #region Loading
         private bool _isLoading = false;
         public bool IsLoading
@@ -193,14 +238,14 @@ namespace VersionrUI.Dialogs
                 {
                     _isLoading = value;
                     NotifyPropertyChanged("IsLoading");
-                    NotifyPropertyChanged("LogVisibility");
+                    NotifyPropertyChanged("LogOpacity");
                 }
             }
         }
 
-        public Visibility LogVisibility
+        public float LogOpacity
         {
-            get { return IsLoading ? Visibility.Collapsed : Visibility.Visible; }
+            get { return IsLoading ? 0.3f : 1.0f; }
         }
 
         protected void Load(Action action)

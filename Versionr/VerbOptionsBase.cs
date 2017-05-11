@@ -15,6 +15,13 @@ namespace Versionr
         public abstract string Verb { get; }
         public abstract Commands.BaseCommand GetCommand();
         public abstract string[] Description { get; }
+
+        [Option("benchmark", DefaultValue = false, HelpText = "Optionally runs the command multiple times for benchmarking and outputs elapsed time.")]
+        public bool Benchmark { get; set; }
+
+        [Option("runcount", DefaultValue = 1, HelpText = "Number of times to repeat the command in benchmark mode.")]
+        public int BMC { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {

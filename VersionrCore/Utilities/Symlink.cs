@@ -13,23 +13,29 @@ namespace Versionr.Utilities
 	{
 		public static bool Exists(string path)
 		{
-			if (SvnIntegration.ApliesTo(path))
+			if (SvnIntegration.AppliesTo(path))
 				return SvnIntegration.IsSymlink(path);
 
 			path = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
 			FileInfo file = new FileInfo(path);
 			if (file.Exists)
-				return file.Attributes.HasFlag(FileAttributes.ReparsePoint);
+				return (file.Attributes & FileAttributes.ReparsePoint) != 0;
 			DirectoryInfo dir = new DirectoryInfo(path);
-			return dir.Exists && dir.Attributes.HasFlag(FileAttributes.ReparsePoint);
+			return dir.Exists && ((dir.Attributes & FileAttributes.ReparsePoint) != 0);
         }
         public static bool Exists(FileSystemInfo info, string hintpath = null)
         {
-			if (SvnIntegration.ApliesTo(info, hintpath))
-				return SvnIntegration.IsSymlink(info.FullName);
+            if (SvnIntegration.AppliesTo(info, hintpath))
+                return SvnIntegration.IsSymlink(info.FullName);
 
-			if (info.Exists)
-                return info.Attributes.HasFlag(FileAttributes.ReparsePoint);
+            if (info.Exists)
+                return (info.Attributes & FileAttributes.ReparsePoint) != 0;
+            return false;
+        }
+        public static bool ExistsForFile(string fullpath, string hintpath = null)
+        {
+			if (SvnIntegration.AppliesToFile(fullpath, hintpath))
+				return SvnIntegration.IsSymlink(fullpath);
             return false;
         }
 
@@ -38,7 +44,7 @@ namespace Versionr.Utilities
 			if (!Exists(path))
 				return;
 
-			if (SvnIntegration.ApliesTo(path))
+			if (SvnIntegration.AppliesTo(path))
 			{
 				SvnIntegration.DeleteSymlink(path);
 				return;
@@ -70,7 +76,7 @@ namespace Versionr.Utilities
 				}
 			}
 
-			if (SvnIntegration.ApliesTo(path))
+			if (SvnIntegration.AppliesTo(path))
 				return SvnIntegration.CreateSymlink(path, target);
 
 			if (MultiArchPInvoke.IsRunningOnMono)
@@ -84,7 +90,7 @@ namespace Versionr.Utilities
 			if (!Exists(path))
 				return null;
 
-			if (SvnIntegration.ApliesTo(path))
+			if (SvnIntegration.AppliesTo(path))
 				return SvnIntegration.GetSymlinkTarget(path);
 
 			if (MultiArchPInvoke.IsRunningOnMono)

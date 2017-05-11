@@ -882,6 +882,7 @@ namespace Versionr.Network
                     }
                     List<long> importList = new List<long>();
                     importList.AddRange(sharedInfo.UnknownRecords.Select(x => x).Reverse());
+                    Printer.PrintDiagnostics("Importing {0} records...", importList.Count);
                     while (importList.Count > 0)
                     {
                         List<long> delayed = new List<long>();
@@ -1373,8 +1374,8 @@ namespace Versionr.Network
             {
                 foreach (var x in info.Alterations)
                 {
-                    CheckRecord(sharedInfo, info, x.NewRecord, true, locks, ref lci);
-                    CheckRecord(sharedInfo, info, x.PriorRecord, true, locks, ref lci);
+                    CheckRecord(sharedInfo, info, x.NewRecord, sharedInfo.Client == false, locks, ref lci);
+                    CheckRecord(sharedInfo, info, x.PriorRecord, sharedInfo.Client == false, locks, ref lci);
                 }
             }
         }
@@ -1386,7 +1387,7 @@ namespace Versionr.Network
             sharedInfo.RemoteRecordMap[record.Id] = record;
             if (!sharedInfo.UnknownRecordSet.Contains(record.Id))
             {
-                if (checkLocks)
+                if (checkLocks && locks != null)
                 {
                     List<VaultLock> overlappingLocks = null;
                     sharedInfo.Workspace.CheckLocks(record.CanonicalName, info.Version.Branch, false, locks, out overlappingLocks);
@@ -1595,6 +1596,16 @@ namespace Versionr.Network
                 else
                     throw new Exception("Unrecognized object type for push object query.");
             }
+            int missing = 0;
+            int present = 0;
+            foreach (var x in response.Recognized)
+            {
+                if (x == false)
+                    missing++;
+                else
+                    present++;
+            }
+            Printer.PrintDiagnostics("Push Object Response: Type: {0}, Present: {1}, Missing: {2}", query.Type, present, missing);
             return response;
         }
     }

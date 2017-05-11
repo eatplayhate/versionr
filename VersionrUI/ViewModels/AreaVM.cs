@@ -1,14 +1,14 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Windows;
-using System.Windows.Data;
 using Versionr;
 using Versionr.LocalState;
 using Versionr.Network;
-using Versionr.Objects;
 using VersionrUI.Commands;
+using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
 {
@@ -21,64 +21,134 @@ namespace VersionrUI.ViewModels
 
     public class AreaVM : NotifyPropertyChangedBase
     {
+        public static AreaVM Create(string name, string path, Action<AreaVM, string, string> afterInit, AreaInitMode areaInitMode, string host = null, int port = 0)
+        {
+            AreaVM area = new AreaVM(name);
+            area.Init(path, areaInitMode, host, port, afterInit);
+            return area;
+        }
+
+        public DelegateCommand RefreshCommand { get; private set; }
+        public DelegateCommand<NotifyPropertyChangedBase> SelectViewCommand { get; private set; }
+        public DelegateCommand OpenInExplorerCommand { get; private set; }
 
         private Area _area;
         private string _name;
         private List<BranchVM> _branches;
         private List<RemoteConfig> _remotes;
         private StatusVM _status;
+        public SettingsVM _settings;
+        public NotifyPropertyChangedBase _selectedVM = null;
+        public BranchVM _selectedBranch = null;
+        public RemoteConfig _selectedRemote = null;
 
-        public AreaVM(string path, string name, AreaInitMode areaInitMode, string host = null, int port = 0)
+        private AreaVM(string name)
         {
-            RefreshCommand = new DelegateCommand(() => Load(() => { RefreshRemotes(); RefreshChildren(); }));
-            PullCommand = new DelegateCommand(() => Load(Pull));
-            PushCommand = new DelegateCommand(() => Load(Push));
+            RefreshCommand = new DelegateCommand(() => Load(RefreshAll));
+            SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
+            OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
 
             _name = name;
+        }
 
-            DirectoryInfo dir = new DirectoryInfo(path);
-            switch (areaInitMode)
+        public void Init(string path, AreaInitMode areaInitMode, string host, int port, Action<AreaVM, string, string> afterInit)
+        {
+            Load(() =>
             {
-                case AreaInitMode.Clone:
-                    // Spawn another dialog for the source (or put it in the Clone New button)
-                    Client client = new Client(dir);
-                    if (client.Connect(Client.ToVersionrURL(host, port, null), true))
-                    {
-                        bool result = client.Clone(true);
-                        if (!result)
-                            result = client.Clone(false);
-                        if (result)
+                DirectoryInfo dir = new DirectoryInfo(path);
+                string title = String.Empty;
+                string message = String.Empty;
+                switch (areaInitMode)
+                {
+                    case AreaInitMode.Clone:
+                        OperationStatusDialog.Start("Clone");
+                        Client client = new Client(dir);
+                    	if (client.Connect(Client.ToVersionrURL(host, port, null), true))
                         {
-                            string remoteName = "default";
-                            client.Workspace.SetRemote(Client.ToVersionrURL(client.Host, client.Port, client.Module), remoteName);
-                            client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
-                            _area = Area.Load(client.Workspace.Root);
-                            _area.Checkout(null, false, false);
+                            bool result = client.Clone(true);
+                            if (!result)
+                                result = client.Clone(false);
+                            if (result)
+                            {
+                                string remoteName = "default";
+                            	client.Workspace.SetRemote(Client.ToVersionrURL(client.Host, client.Port, client.Module), remoteName);
+                                client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
+                                _area = Area.Load(client.Workspace.Root);
+                                _area.Checkout(null, false, false);
+                            }
                         }
-                    }
-                    else
-                    {
-                        MessageBox.Show(string.Format("Couldn't connect to {0}:{1}", host, port), "Clone Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                    client.Close();
-                    break;
-                case AreaInitMode.InitNew:
-                    // Tell versionr to initialize at path
-                    try
-                    {
-                        dir.Create();
-                    }
-                    catch
-                    {
-                        MessageBox.Show("Error - couldn't create subdirectory \"{0}\"", dir.FullName);
+                        else
+                        {
+                            title = "Clone Failed";
+                            message = String.Format("Couldn't connect to {0}:{1}", host, port);
+                        }
+                        client.Close();
+                        OperationStatusDialog.Finish();
                         break;
-                    }
-                    _area = Area.Init(dir, name);
-                    break;
-                case AreaInitMode.UseExisting:
-                    // Add it to settings and refresh UI, get status etc.
-                    _area = Area.Load(dir);
-                    break;
+                    case AreaInitMode.InitNew:
+                        // Tell versionr to initialize at path
+                        try
+                        {
+                            dir.Create();
+                        }
+                        catch
+                        {
+                            title = "Init Failed";
+                            message = String.Format("Couldn't create subdirectory \"{0}\"", dir.FullName);
+                            break;
+                        }
+                        _area = Area.Init(dir, _name);
+                        break;
+                    case AreaInitMode.UseExisting:
+                        // Add it to settings and refresh UI, get status etc.
+                        _area = Area.Load(dir);
+                        if(_area == null)
+                        {
+                            title = "Missing workspace";
+                            message = String.Format("Failed to load \"{0}\". The location {1} may be have been removed.", _name, path);
+                        }
+                        break;
+                }
+                RefreshAll();
+                NotifyPropertyChanged("Directory");
+                NotifyPropertyChanged("IsValid");
+                NotifyPropertyChanged("Remotes");
+                NotifyPropertyChanged("Status");
+                NotifyPropertyChanged("Settings");
+                NotifyPropertyChanged("Branches");
+                MainWindow.Instance.Dispatcher.Invoke(afterInit, this, title, message);
+            });
+        }
+
+        public NotifyPropertyChangedBase SelectedVM
+        {
+            get { return _selectedVM; }
+            set
+            {
+                if (_selectedVM != value)
+                {
+                    _selectedVM = value;
+                    NotifyPropertyChanged("SelectedVM");
+                    NotifyPropertyChanged("IsStatusSelected");
+                    NotifyPropertyChanged("IsHistorySelected");
+                }
+            }
+        }
+
+        public BranchVM SelectedBranch
+        {
+            get { return _selectedBranch; }
+            set
+            {
+                if (_selectedBranch != value)
+                {
+                    _selectedBranch = value;
+
+                    if (IsHistorySelected)
+                        SelectedVM = _selectedBranch;
+
+                    NotifyPropertyChanged("SelectedBranch");
+                }
             }
         }
 
@@ -86,7 +156,7 @@ namespace VersionrUI.ViewModels
 
         public bool IsValid { get { return _area != null; } }
 
-        public DirectoryInfo Directory { get { return _area.Root; } }
+        public DirectoryInfo Directory { get { return _area?.Root; } }
 
         public string Name
         {
@@ -101,6 +171,18 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        public bool IsStatusSelected
+        {
+            get { return SelectedVM == Status; }
+            set { SelectedVM = Status; }
+        }
+
+        public bool IsHistorySelected
+        {
+            get { return SelectedVM is BranchVM; }
+            set { SelectedVM = SelectedBranch; }
+        }
+
         public List<RemoteConfig> Remotes
         {
             get
@@ -111,104 +193,156 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        public RemoteConfig SelectedRemote { get; set; }
-
-        public CompositeCollection Children
+        public RemoteConfig SelectedRemote
         {
-            get
+            get { return _selectedRemote; }
+            set
             {
-                if (_branches == null || _status == null)
-                    Load(RefreshChildren);
-
-                CompositeCollection collection = new CompositeCollection();
-                collection.Add(_status);
-                collection.Add(new NamedCollection("Branches", _branches));
-                return collection;
+                if (_selectedRemote != value)
+                {
+                    _selectedRemote = value;
+                    NotifyPropertyChanged("SelectedRemote");
+                }
             }
         }
 
-        #region Commands
-        public DelegateCommand RefreshCommand { get; private set; }
-        public DelegateCommand PullCommand { get; private set; }
-        public DelegateCommand PushCommand { get; private set; }
-
-        private void Pull()
+        public IEnumerable<BranchVM> Branches
         {
-            ExecuteClientCommand((c) => c.Pull(true, null), "pull");
-            _area.Update(new Area.MergeSpecialOptions());
-        }
-
-        private void Push()
-        {
-            ExecuteClientCommand((c) => c.Push(), "push", true);
-        }
-
-        private static object refreshChildrenLock = new object();
-        public void RefreshChildren()
-        {
-            lock (refreshChildrenLock)
+            get
             {
-                // Refresh status
+                if (_branches == null)
+                    Load(RefreshBranches);
+                return _branches;
+            }
+        }
+
+        public StatusVM Status
+        {
+            get
+            {
                 if (_status == null)
-                {
-                    // Assume the active directory is the root of the Area
+                    Load(RefreshStatus);
+                return _status;
+            }
+        }
+
+        public SettingsVM Settings
+        {
+            get
+            {
+                if (_settings == null)
+                    Load(RefreshSettings);
+                return _settings;
+            }
+        }
+
+        private static object refreshStatusLock = new object();
+        public void RefreshStatus()
+        {
+            lock (refreshStatusLock)
+            {
+                if (_status == null)
                     _status = new StatusVM(this);
-                }
                 else
-                {
                     _status.Refresh();
+
+                NotifyPropertyChanged("Status");
+
+                // Make sure something is displayed
+                if (SelectedVM == null)
+                    SelectedVM = _status;
+            }
+        }
+
+        private static object refreshSettingsLock = new object();
+        public void RefreshSettings()
+        {
+            if (_area != null)
+            {
+                lock (refreshSettingsLock)
+                {
+                    _settings = new SettingsVM(_area);
+                    NotifyPropertyChanged("Settings");
                 }
+            }
+        }
 
+        private static object refreshBranchesLock = new object();
+        public void RefreshBranches()
+        {
+            if (_area != null)
+            {
+                lock (refreshBranchesLock)
+                {
+                    _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent).ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
 
-                // Refresh branches
-                IEnumerable<Branch> branches = _area.Branches.OrderBy(x => x.Terminus.HasValue).ThenBy(x => x.Name);
-                _branches = new List<BranchVM>();
+                    NotifyPropertyChanged("Branches");
 
-                foreach (Branch branch in branches)
-                    _branches.Add(new BranchVM(this, branch));
-
-                NotifyPropertyChanged("Children");
+                    // Make sure something is displayed
+                    if (SelectedBranch == null)
+                        SelectedBranch = Branches.First();
+                }
             }
         }
 
         private static object refreshRemotesLock = new object();
         public void RefreshRemotes()
         {
-            lock (refreshRemotesLock)
+            if (_area != null)
             {
-                // Refresh remotes
-                List<RemoteConfig> remotes = _area.GetRemotes();
-                _remotes = new List<RemoteConfig>();
-                
-                foreach (RemoteConfig remote in remotes)
-                    _remotes.Add(remote);
+                lock (refreshRemotesLock)
+                {
+                    // Refresh remotes
+                    List<RemoteConfig> remotes = _area.GetRemotes();
+                    _remotes = new List<RemoteConfig>();
 
-                if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
-                    SelectedRemote = _remotes.FirstOrDefault();
+                    foreach (RemoteConfig remote in remotes)
+                        _remotes.Add(remote);
 
-                NotifyPropertyChanged("Remotes");
-                NotifyPropertyChanged("SelectedRemote");
+                    NotifyPropertyChanged("Remotes");
+
+                    if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
+                        SelectedRemote = _remotes.FirstOrDefault();
+                }
             }
         }
-        #endregion
+
+        private void RefreshAll()
+        {
+            RefreshRemotes();
+            RefreshStatus();
+            RefreshSettings();
+            RefreshBranches();
+        }
+
+        private void OpenInExplorer()
+        {
+            ProcessStartInfo si = new ProcessStartInfo("explorer");
+            si.Arguments = "/e /root,\"" + Directory.FullName + "\"";
+            Process.Start(si);
+        }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
         {
-            if (SelectedRemote != null)
+            if (_area != null && SelectedRemote != null)
             {
                 Client client = new Client(_area);
-                if (client.Connect(Client.ToVersionrURL(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module), requiresWriteAccess))
+                try
                 {
-                    action.Invoke(client);
+                    if (client.Connect(Client.ToVersionrURL(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module), requiresWriteAccess))
+                        action.Invoke(client);
+                    else
+                        OperationStatusDialog.Write(String.Format("Couldn't connect to remote {0}:{1} while processing {2} command!", SelectedRemote.Host, SelectedRemote.Port, command));
                 }
-                else
+                catch { }
+                finally
                 {
-                    MainWindow.Instance.Dispatcher.Invoke(() =>
-                    {
-                        MessageBox.Show(string.Format("Couldn't connect to remote {0} while processing {1} command!", SelectedRemote.Host, command), "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    });
+                    client.Close();
                 }
-                client.Close();
+            }
+            else
+            {
+                OperationStatusDialog.Write("No remote selected");
             }
         }
 
@@ -216,6 +350,36 @@ namespace VersionrUI.ViewModels
         {
             if(_status != null)
                 _status.SetStaged(entries, staged);
+        }
+        
+        internal async void CreateBranch()
+        {
+            if (_area != null)
+            {
+                MetroDialogSettings dialogSettings = new MetroDialogSettings() { ColorScheme = MainWindow.DialogColorScheme };
+
+                string branchName = await MainWindow.Instance.ShowInputAsync("Branching from " + _area.CurrentBranch.Name, "Enter a name for the new branch", dialogSettings);
+
+                if (branchName == null) // User pressed cancel
+                    return;
+
+                if (!System.Text.RegularExpressions.Regex.IsMatch(branchName, "^\\w+$"))
+                {
+                    await MainWindow.ShowMessage("Couldn't create branch", "Branch name is invalid");
+                    return;
+                }
+
+                // Branching is quick, so we probably don't need status messages. Commented for now...
+
+                //Load(() =>
+                //{
+                //    OperationStatusDialog.Start("Creating Branch");
+                _area.Branch(branchName);
+                RefreshAll();
+                SelectedBranch = Branches.First();
+                //    OperationStatusDialog.Finish();
+                //});
+            }
         }
     }
 }

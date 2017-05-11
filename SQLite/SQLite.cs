@@ -1891,6 +1891,22 @@ namespace SQLite
             return statement;
         }
 
+        internal Sqlite3DatabaseHandle GetCachedStatementMapped(string commandText, TableMapping map, out TableMapping.Column[] cols)
+        {
+            var stmt = GetCachedStatement(commandText);
+            if (!map._columnMappings.TryGetValue(commandText, out cols))
+            {
+                cols = new TableMapping.Column[SQLite3.ColumnCount(stmt)];
+                for (int i = 0; i < cols.Length; i++)
+                {
+                    var name = SQLite3.ColumnName16(stmt, i);
+                    cols[i] = map.FindColumn(name);
+                }
+                map._columnMappings.TryAdd(commandText, cols);
+            }
+            return stmt;
+        }
+
         internal void ReturnCachedStatement(Sqlite3DatabaseHandle _stmt, string commandText)
         {
             System.Collections.Concurrent.ConcurrentBag<Sqlite3DatabaseHandle> bag;
@@ -2064,6 +2080,7 @@ namespace SQLite
 		Column _autoPk;
 		Column[] _insertColumns;
 		Column[] _insertOrReplaceColumns;
+        internal System.Collections.Concurrent.ConcurrentDictionary<string, TableMapping.Column[]> _columnMappings = new System.Collections.Concurrent.ConcurrentDictionary<string, Column[]>();
 
         public TableMapping(Type type, CreateFlags createFlags = CreateFlags.None)
 		{
@@ -2606,7 +2623,7 @@ namespace SQLite
 
 		public List<T> ExecuteQuery<T> ()
 		{
-			return ExecuteDeferredQuery<T>(_conn.GetMapping(typeof(T))).ToList();
+			return ExecuteComplete<T>(_conn.GetMapping(typeof(T)));
 		}
 
 		public List<T> ExecuteQuery<T> (TableMapping map)
@@ -2636,16 +2653,11 @@ namespace SQLite
 			if (_conn.Trace) {
 				Debug.WriteLine ("Executing Query: " + this);
 			}
-            
-			var stmt = Prepare ();
+
+            TableMapping.Column[] cols;
+            var stmt = PrepareMapped(map, out cols);
             try
 			{
-				var cols = new TableMapping.Column[SQLite3.ColumnCount (stmt)];
-				for (int i = 0; i < cols.Length; i++) {
-					var name = SQLite3.ColumnName16 (stmt, i);
-					cols [i] = map.FindColumn (name);
-                }
-
                 while (SQLite3.Step (stmt) == SQLite3.Result.Row) {
 					var obj = Activator.CreateInstance(map.MappedType);
 					for (int i = 0; i < cols.Length; i++) {
@@ -2663,7 +2675,39 @@ namespace SQLite
             }
         }
 
-		public T ExecuteScalar<T> ()
+        public List<T> ExecuteComplete<T>(TableMapping map)
+        {
+            if (_conn.Trace)
+            {
+                Debug.WriteLine("Executing Complete Query: " + this);
+            }
+
+            List<T> result = new List<T>();
+            TableMapping.Column[] cols;
+            var stmt = PrepareMapped(map, out cols);
+            try
+            {
+                while (SQLite3.Step(stmt) == SQLite3.Result.Row)
+                {
+                    var obj = Activator.CreateInstance(map.MappedType);
+                    for (int i = 0; i < cols.Length; i++)
+                    {
+                        if (cols[i] == null)
+                            continue;
+                        cols[i].Setter(obj, stmt, i);
+                    }
+                    OnInstanceCreated(obj);
+                    result.Add((T)obj);
+                }
+            }
+            finally
+            {
+                Finalize(stmt);
+            }
+            return result;
+        }
+
+        public T ExecuteScalar<T> ()
 		{
 			if (_conn.Trace) {
 				Debug.WriteLine ("Executing Query: " + this);
@@ -2728,6 +2772,27 @@ namespace SQLite
             if (stmt == IntPtr.Zero)
                 stmt = SQLite3.Prepare2 (_conn.Handle, CommandText);
 			BindAll (stmt);
+			return stmt;
+		}
+
+		Sqlite3Statement PrepareMapped(TableMapping map, out TableMapping.Column[] cols)
+		{
+            if (_prepared)
+                _stmt = _conn.GetCachedStatementMapped(CommandText, map, out cols);
+            else
+                cols = null;
+            var stmt = _stmt;
+            if (stmt == IntPtr.Zero)
+            {
+                stmt = SQLite3.Prepare2(_conn.Handle, CommandText);
+                cols = new TableMapping.Column[SQLite3.ColumnCount(stmt)];
+                for (int i = 0; i < cols.Length; i++)
+                {
+                    var name = SQLite3.ColumnName16(stmt, i);
+                    cols[i] = map.FindColumn(name);
+                }
+            }
+            BindAll (stmt);
 			return stmt;
 		}
 
@@ -3185,7 +3250,7 @@ namespace SQLite
 					}
 					cmdText += " offset " + _offset.Value;
 				}
-				return Connection.CreateCommand (false, cmdText, args.ToArray ());
+				return Connection.CreateCommand (true, cmdText, args.ToArray ());
 			}
 		}
 

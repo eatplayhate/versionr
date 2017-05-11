@@ -19,7 +19,7 @@ namespace Versionr.Utilities
 
         public static string GetVRUserPath(Area area)
         {
-            return Path.Combine(area. Root.FullName, ".vruser");
+            return Path.Combine(area.Root.FullName, ".vruser");
         }
 
         public static Directives LoadVRMeta(Area area)
@@ -30,7 +30,7 @@ namespace Versionr.Utilities
         
         public static Directives LoadVRMeta(Area area, out string error)
         {
-            return LoadDirectives<Directives>(GetVRMetaPath(area), "Versionr", out error);
+            return LoadDirectives(GetVRMetaPath(area), "Versionr", out error);
         }
 
         public static Directives LoadGlobalVRUser()
@@ -41,7 +41,7 @@ namespace Versionr.Utilities
 
         public static Directives LoadGlobalVRUser(out string error)
         {
-            return LoadDirectives<Directives>(GetGlobalVRUserPath(), "Versionr", out error);
+            return LoadDirectives(GetGlobalVRUserPath(), "Versionr", out error);
         }
 
         public static Directives LoadVRUser(Area area)
@@ -52,7 +52,7 @@ namespace Versionr.Utilities
         
         public static Directives LoadVRUser(Area area, out string error)
         {
-            return LoadDirectives<Directives>(GetVRUserPath(area), "Versionr", out error);
+            return LoadDirectives(GetVRUserPath(area), "Versionr", out error);
         }
 
         public static bool WriteVRMeta(Area area, Directives directives)
@@ -70,11 +70,57 @@ namespace Versionr.Utilities
             return WriteDirectives(directives, GetVRUserPath(area));
         }
 
+        public static Directives LoadDirectives(string path, string configName, out string error)
+        {
+            Directives directives = null;
+            error = null;
+            
+            FileInfo info = new FileInfo(path);
+            if (info.Exists)
+            {
+                string data = string.Empty;
+                using (var sr = info.OpenText())
+                {
+                    try
+                    {
+                        var jr = new JsonTextReader(sr);
+                        while (jr.Read())
+                        {
+                            if (jr.TokenType == JsonToken.PropertyName)
+                            {
+                                if (jr.Value.ToString() == configName)
+                                {
+                                    jr.Read();
+                                    directives = new Directives(jr);
+                                    break;
+                                }
+                                else
+                                    jr.Skip();
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Printer.PrintError(String.Format("#x#Error:## {0} is malformed!", info.Name));
+                        Printer.PrintMessage(e.ToString());
+                        error = String.Format("Settings file is malformed {0}\n{1}", info.FullName, e.ToString());
+                        return null;
+                    }
+                }
+            }
+            else
+            {
+                error = String.Format("Settings file not found: {0}", info.FullName);
+            }
+
+            return directives;
+        }
+
         public static T LoadDirectives<T>(string path, string configName, out string error)
         {
             T directives = default(T);
             error = null;
-
+            
             FileInfo info = new FileInfo(path);
             if (info.Exists)
             {

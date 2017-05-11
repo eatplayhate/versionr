@@ -18,20 +18,20 @@ namespace Versionr
 			get
 			{
 				if (s_Plugins == null)
-				{
-					Printer.PrintDiagnostics("Initializing plugins");
+                {
+                    Printer.PrintDiagnostics("Initializing plugins");
 					s_Plugins = new List<Plugin>();
 					string baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 					string pluginDirectory = baseDirectory;
-					foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
+                    foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
 					{
 						Assembly assembly = null;
 						VersionrPluginAttribute pluginAttribute = null;
 						try
-						{
-							assembly = Assembly.LoadFile(Path.Combine(pluginDirectory, filename));
-							pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
-						}
+                        {
+                            assembly = Assembly.LoadFrom(Path.Combine(pluginDirectory, filename));
+                            pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
+                        }
 						catch { }
 
 						if (pluginAttribute != null)
@@ -43,10 +43,10 @@ namespace Versionr
 								Attributes = pluginAttribute
 							});
 						}
-					}
-				}
+                    }
+                }
 
-				return s_Plugins;
+                return s_Plugins;
 			}
 		}
 

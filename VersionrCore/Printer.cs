@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Versionr
 {
@@ -62,8 +60,7 @@ namespace Versionr
 			OutputStyles['R'] = OutputColour.Red;
 			OutputStyles['I'] = OutputColour.White;
 			OutputStyles['Y'] = OutputColour.Yellow;
-
-
+            
             try
             {
                 if (System.Console.IsOutputRedirected)
@@ -710,7 +707,6 @@ namespace Versionr
 
         internal class SpinnerBarPrinter : InteractivePrinter
         {
-            internal Func<object, string> Formatter { get; set; }
             internal int Width { get; set; }
             internal string Before { get; set; }
             internal string Final { get; set; }

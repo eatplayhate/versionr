@@ -17,6 +17,8 @@ namespace Versionr.Commands
 		public bool All { get; set; }
 		[Option('f', "flat", HelpText = "Formats list as flat, instead of partitioned by status.")]
 		public bool Flat { get; set; }
+        [Option("recordinfo", HelpText = "Shows record information.")]
+        public bool RecordInfo { get; set; }
         public override string Usage
         {
             get
@@ -73,6 +75,7 @@ namespace Versionr.Commands
     }
     class Status : FileBaseCommand
     {
+        StatusVerbOptions LocalOptions;
         protected override void Start()
         {
 			//Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
@@ -82,6 +85,7 @@ namespace Versionr.Commands
         protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
         {
             StatusVerbOptions localOptions = (StatusVerbOptions)options;
+            LocalOptions = localOptions;
             if (localOptions.Objects != null && localOptions.Objects.Count > 0)
             {
                 if (targets.Count == 0)
@@ -105,7 +109,7 @@ namespace Versionr.Commands
             }
 			if (status.MergeInputs.Count > 0)
 				Printer.WriteLineMessage("");
-			IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return x.Code != StatusCode.Ignored; });
+			IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return !(x.Code == StatusCode.Masked || (x.Code == StatusCode.Ignored && x.VersionControlRecord == null)); });
             if (!localOptions.All)
                 operands = operands.Where(x => x.Code != StatusCode.Unchanged);
             string localRestrictedPath = null;
@@ -251,10 +255,20 @@ namespace Versionr.Commands
 				name = "#q#<parent directory>##";
 			if (x.IsSymlink)
 				name += " #q# -> " + (x.FilesystemEntry != null ? x.FilesystemEntry.SymlinkTarget : x.VersionControlRecord.Fingerprint);
-			Printer.WriteLineMessage("{1}##{0}", name, GetStatus(x, flat));
+            string ro = string.Empty;
+            if (x.FilesystemEntry != null && x.FilesystemEntry.Attributes.HasFlag(Versionr.Objects.Attributes.ReadOnly))
+            {
+                if (x.VersionControlRecord != null && !x.VersionControlRecord.Attributes.HasFlag(Versionr.Objects.Attributes.ReadOnly))
+                    ro = " #q#(#b#+#q# read only)##";
+                else
+                    ro = " #q#(read only)##";
+            }
+            Printer.WriteLineMessage("{1}##{0}{2}", name, GetStatus(x, flat), ro);
 			if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
 				Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
-		}
+            if (LocalOptions.RecordInfo)
+                Printer.WriteLineMessage(" Record ID: #c#{0}", x.VersionControlRecord.DataIdentifier);
+        }
 
 		private string GetPatterns(IList<string> objects)
         {

@@ -39,12 +39,16 @@ namespace Versionr.Commands
         public string SQLLocal { get; set; }
         [Option("sql", Required = false, HelpText = "Runs an JSON-wrapped SQL command on the main DB")]
         public string SQL { get; set; }
+        [Option("blob", Required = false, HelpText = "Extracts a record blob from the database")]
+        public string Blob { get; set; }
         [Option("replicate", Required = false, HelpText = "Marks the admin command as replicatable (if possible).")]
         public bool Replicate { get; set; }
         [Option("check", Required = false, HelpText = "Runs a general purpose DB consistency check and repair function.")]
         public bool Check { get; set; }
         [Option("vacuum", Required = false, HelpText = "Runs the SQLite VACUUM instruction on the master DB.")]
         public bool Vacuum { get; set; }
+        [Option("rawblob", Required = false, HelpText = "When outputting blobs, do not decompress the blob data.")]
+        public bool RawBlob { get; set; }
         [Option("echo", Required = false, HelpText = "Echos additional information about what is being run.")]
         public bool Echo { get; set; }
     }
@@ -54,6 +58,25 @@ namespace Versionr.Commands
         {
             AdminVerbOptions localOptions = options as AdminVerbOptions;
             Printer.EnableDiagnostics = localOptions.Verbose;
+            if (!string.IsNullOrEmpty(localOptions.Blob))
+            {
+                List<string> dataIds;
+                Workspace.ObjectStore.GetAvailableStreams(localOptions.Blob, out dataIds);
+                if (dataIds != null && dataIds.Count > 0)
+                {
+                    for (int i = 0; i < dataIds.Count; i++)
+                    {
+                        using (var fout = System.IO.File.Create(string.Format("RecordData-{0}.out", i)))
+                        {
+                            Workspace.ObjectStore.ExportDataBlob(dataIds[i], localOptions.RawBlob, fout);
+                        }
+                        Printer.PrintMessage("DataID: #b#{0}", dataIds[i]);
+                        Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", i);
+                    }
+                }
+                else
+                    Printer.PrintError("#w#Warning:## Couldn't find data record.");
+            }
             if (localOptions.Check)
             {
                 if (localOptions.Replicate)
@@ -106,7 +129,7 @@ namespace Versionr.Commands
                 }
                 JArray statements = obj.GetValue("SQLStatements") as JArray;
                 Printer.PrintMessage("Loaded {1} SQL statements from \"{0}\"", SQL, statements.Count);
-                if (Printer.Prompt("Apply SQL statments to" + (mainDB ? "master" : "client") + " database?"))
+                if (Printer.Prompt("Apply SQL statments to " + (mainDB ? "master" : "client") + " database?"))
                 {
                     try
                     {

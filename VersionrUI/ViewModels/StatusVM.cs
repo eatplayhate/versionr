@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows;
 using Versionr;
 using VersionrUI.Commands;
+using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
 {
@@ -11,6 +12,7 @@ namespace VersionrUI.ViewModels
     {
         public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand CommitCommand { get; private set; }
+        public DelegateCommand CreateBranchCommand { get; private set; }
 
         private Status _status;
         private AreaVM _areaVM;
@@ -23,7 +25,8 @@ namespace VersionrUI.ViewModels
             _areaVM = areaVM;
 
             RefreshCommand = new DelegateCommand(() => Load(Refresh));
-            CommitCommand = new DelegateCommand(Commit);
+            CommitCommand = new DelegateCommand(() => Load(Commit), CanCommit);
+            CreateBranchCommand = new DelegateCommand(() => _areaVM.CreateBranch());
         }
 
         public Status Status
@@ -34,6 +37,11 @@ namespace VersionrUI.ViewModels
                     Load(Refresh);
                 return _status;
             }
+        }
+        
+        public string Name
+        {
+            get { return "Status"; }
         }
 
         public bool PushOnCommit
@@ -65,36 +73,43 @@ namespace VersionrUI.ViewModels
         private static object refreshLock = new object();
         public void Refresh()
         {
-            lock (refreshLock)
+            if (_areaVM.IsValid)
             {
-                _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
-                _elements = new List<StatusEntryVM>();
-
-                foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
+                lock (refreshLock)
                 {
-                    if (statusEntry.Code != StatusCode.Masked &&
-                        statusEntry.Code != StatusCode.Ignored &&
-                        statusEntry.Code != StatusCode.Unchanged)
+                    _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
+                    _elements = new List<StatusEntryVM>();
+
+                    foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
                     {
-                        StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
-                        if (statusEntryVM != null)
+                        if (statusEntry.Code != StatusCode.Masked &&
+                            statusEntry.Code != StatusCode.Ignored &&
+                            statusEntry.Code != StatusCode.Unchanged)
                         {
-                            _elements.Add(statusEntryVM);
-                            statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
+                            StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);
+                            if (statusEntryVM != null)
+                            {
+                                _elements.Add(statusEntryVM);
+                                statusEntryVM.PropertyChanged += StatusVM_PropertyChanged;
+                            }
                         }
                     }
-                }
 
-                NotifyPropertyChanged("Status");
-                NotifyPropertyChanged("Elements");
-                NotifyPropertyChanged("AllStaged");
+                    NotifyPropertyChanged("Status");
+                    NotifyPropertyChanged("Elements");
+                    NotifyPropertyChanged("AllStaged");
+                    MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+                }
             }
         }
 
         private void StatusVM_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == "IsStaged")
+            {
                 NotifyPropertyChanged("AllStaged");
+                MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+            }
         }
 
         public List<StatusEntryVM> Elements
@@ -133,6 +148,7 @@ namespace VersionrUI.ViewModels
                         st.IsStaged = useValue;
                     }
                     NotifyPropertyChanged("AllStaged");
+                    MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
                 }
             }
         }
@@ -151,25 +167,32 @@ namespace VersionrUI.ViewModels
             });
 
             NotifyPropertyChanged("AllStaged");
+            MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
+        }
+
+        private bool CanCommit()
+        {
+            return _elements != null && _elements.Count(x => x.IsStaged) > 0;
         }
 
         private void Commit()
         {
             if (string.IsNullOrEmpty(CommitMessage))
             {
-                MessageBox.Show("Please provide a commit message", "Denied", MessageBoxButton.OK, MessageBoxImage.Error);
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    MainWindow.ShowMessage("Not so fast...", "Please provide a commit message", MessageDialogStyle.Affirmative);
+                });
                 return;
             }
 
-            if (!_areaVM.Area.Commit(CommitMessage, false))
-            {
-                MessageBox.Show("Could not commit as it would create a new head.", "Commit failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            if (PushOnCommit)
-                _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
+            OperationStatusDialog.Start("Commit");
+            bool commitSuccessful = _areaVM.Area.Commit(CommitMessage, false);
             
+            if (commitSuccessful && PushOnCommit)
+                _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
+            OperationStatusDialog.Finish();
+
             CommitMessage = string.Empty;
             Refresh();
         }

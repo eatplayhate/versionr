@@ -12,7 +12,7 @@ namespace Versionr.Utilities
 	{
 		public static Regex[] SymlinkPatterns { get; internal set; }
 
-        public static bool ApliesTo(FileSystemInfo info, string hintPath)
+        public static bool AppliesTo(FileSystemInfo info, string hintPath)
         {
             if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
                 return false;
@@ -21,21 +21,38 @@ namespace Versionr.Utilities
             if (MultiArchPInvoke.IsRunningOnMono)
                 return false;
 
-            if (info.Attributes.HasFlag(FileAttributes.Directory))
+            if ((info.Attributes & FileAttributes.Directory) != 0)
                 return false;
 
             string path = string.IsNullOrEmpty(hintPath) ? info.FullName.Replace('\\', '/') : hintPath;
             foreach (var x in SymlinkPatterns)
             {
-                var match = x.Match(path);
-                if (match.Success)
+                if (x.IsMatch(path))
+                    return true;
+            }
+
+            return false;
+        }
+        public static bool AppliesToFile(string fullpath, string hintPath)
+        {
+            if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
+                return false;
+
+            // Only for windows
+            if (MultiArchPInvoke.IsRunningOnMono)
+                return false;
+
+            string path = string.IsNullOrEmpty(hintPath) ? fullpath.Replace('\\', '/') : hintPath;
+            foreach (var x in SymlinkPatterns)
+            {
+                if (x.IsMatch(path))
                     return true;
             }
 
             return false;
         }
 
-        public static bool ApliesTo(string path)
+        public static bool AppliesTo(string path)
 		{
 			if (SymlinkPatterns == null || SymlinkPatterns.Length == 0)
 				return false;
@@ -49,10 +66,9 @@ namespace Versionr.Utilities
 
 			path = path.Replace('\\', '/');
 			foreach (var x in SymlinkPatterns)
-			{
-				var match = x.Match(path);
-				if (match.Success)
-					return true;
+            {
+                if (x.IsMatch(path))
+                    return true;
 			}
 
 			return false;
@@ -74,15 +90,18 @@ namespace Versionr.Utilities
 		{
 			try
 			{
-				string line = File.ReadLines(path).FirstOrDefault();
-				if (line == null)
-					return null;
-				var regex = new Regex("^link (.+)$");
-				var match = regex.Match(line);
-				if (match.Success)
-					return match.Groups[1].Value;
-				return null;
-			}
+                using (StreamReader sr = File.OpenText(path))
+                {
+                    string line = sr.ReadLine();
+                    if (line == null)
+                        return null;
+                    if (line.StartsWith("link ", StringComparison.Ordinal))
+                    {
+                        return line.Substring(5);
+                    }
+                    return null;
+                }
+            }
 			catch
 			{
 				return null;

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Windows;
 
 namespace VersionrUI.ViewModels
 {
@@ -17,14 +16,14 @@ namespace VersionrUI.ViewModels
                 {
                     _isLoading = value;
                     NotifyPropertyChanged("IsLoading");
-                    NotifyPropertyChanged("Visibility");
+                    NotifyPropertyChanged("Opacity");
                 }
             }
         }
 
-        public Visibility Visibility
+        public float Opacity
         {
-            get { return IsLoading ? Visibility.Collapsed : Visibility.Visible; }
+            get { return IsLoading ? 0.3f : 1.0f; }
         }
 
         protected void Load(Action action)

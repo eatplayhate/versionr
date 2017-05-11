@@ -64,14 +64,20 @@ namespace Versionr
             }
         }
 
+        LocalState.Workspace m_Workspace = null;
+
         public LocalState.Workspace Workspace
         {
             get
             {
-                lock (this)
+                if (m_Workspace == null)
                 {
-                    return Get<LocalState.Workspace>(x => x.ID == Configuration.WorkspaceID);
+                    lock (this)
+                    {
+                        m_Workspace = Get<LocalState.Workspace>(WorkspaceID);
+                    }
                 }
+                return m_Workspace;
             }
         }
 
@@ -138,15 +144,32 @@ namespace Versionr
             }
         }
 
+        LocalState.Configuration m_Configuration = null;
+
         public LocalState.Configuration Configuration
         {
             get
             {
-                lock (this)
+                if (m_Configuration == null)
                 {
-                    var table = Table<LocalState.Configuration>();
-                    return table.First();
+                    lock (this)
+                    {
+                        m_Configuration = Query<LocalState.Configuration>("SELECT * FROM CONFIGURATION ORDER BY ROWID ASC LIMIT 1")[0];
+                    }
                 }
+                return m_Configuration;
+            }
+        }
+
+        public Guid WorkspaceID
+        {
+            get
+            {
+                if (m_Configuration == null)
+                {
+                    return ExecuteScalar<Guid>("SELECT WorkspaceID FROM CONFIGURATION ORDER BY ROWID ASC LIMIT 1");
+                }
+                return m_Configuration.WorkspaceID;
             }
         }
 
@@ -179,7 +202,7 @@ namespace Versionr
         private bool Upgrade()
         {
             RefreshPartialPath();
-            if (Configuration.Version != LocalDBVersion)
+            if (Configuration.Version < LocalDBVersion)
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
             {
@@ -264,7 +287,7 @@ namespace Versionr
                 ws.ComputerName = Environment.MachineName;
                 ws.LocalWorkspacePath = new FileInfo(DatabasePath).GetFullNameWithCorrectCase();
                 ws.MakeUnique();
-                Printer.PrintDiagnostics("WS MachineName {0}, StashCode: {1}, Journal ID: {2}.", ws.ComputerName, ws.StashCode, ws.ID);
+                Printer.PrintDiagnostics("WS MachineName {0}, StashCode: {1}, Journal ID: {2}.", ws.ComputerName, ws.StashCode, ws.JournalID);
                 Configuration conf = Configuration;
                 conf.WorkspaceID = ws.ID;
                 Update(conf);
@@ -282,9 +305,15 @@ namespace Versionr
         {
             Workspace ws = Workspace;
             if (ws.ComputerName != Environment.MachineName)
+            {
+                Printer.PrintDiagnostics("Uniqueness check: Machine name has changed (was: \"{0}\" now \"{1}\")!", ws.ComputerName, Environment.MachineName);
                 return false;
-            if (ws.LocalWorkspacePath != DatabasePath)
+            }
+            if (ws.LocalWorkspacePath != new FileInfo(DatabasePath).GetFullNameWithCorrectCase())
+            {
+                Printer.PrintDiagnostics("Uniqueness check: Patch changed (was: \"{0}\" now \"{1}\")!", ws.LocalWorkspacePath, new FileInfo(DatabasePath).GetFullNameWithCorrectCase());
                 return false;
+            }
             return true;
         }
 
@@ -418,7 +447,7 @@ namespace Versionr
         {
             Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
             bool refresh = false;
-            foreach (var x in Table<LocalState.FileTimestamp>().ToList())
+            foreach (var x in Table<LocalState.FileTimestamp>())
             {
                 if (x.CanonicalName != null)
                     result[x.CanonicalName] = x;
@@ -427,6 +456,41 @@ namespace Versionr
             }
             if (refresh)
                 ReplaceFileTimes(result);
+            return result;
+        }
+
+        internal Dictionary<string, LocalState.FileTimestamp> LoadFileTimesOptimized()
+        {
+            Dictionary<string, LocalState.FileTimestamp> result = new Dictionary<string, LocalState.FileTimestamp>();
+            var query = SQLite.SQLite3.Prepare2(this.Handle, "SELECT CanonicalName, LastSeenTime, DataIdentifier FROM FileTimestamp");
+            byte[] array = new byte[1024];
+            int bsize = 1024;
+            unsafe
+            {
+                while (SQLite.SQLite3.Step(query) == SQLite.SQLite3.Result.Row)
+                {
+                    var iptr = SQLite.SQLite3.ColumnText(query, 0);
+                    int size = SQLite.SQLite3.ColumnBytes(query, 0);
+                    if (size > bsize)
+                    {
+                        bsize = size * 2;
+                        array = new byte[bsize];
+                    }
+                    System.Runtime.InteropServices.Marshal.Copy(iptr, array, 0, size);
+                    string cname = Encoding.UTF8.GetString(array, 0, size);
+                    iptr = SQLite.SQLite3.ColumnText(query, 2);
+                    size = SQLite.SQLite3.ColumnBytes(query, 2);
+                
+                    LocalState.FileTimestamp ft = new FileTimestamp()
+                    {
+                        CanonicalName = cname,
+                        DataIdentifier = new string((sbyte*)iptr, 0, size),
+                        LastSeenTime = new DateTime(SQLite.SQLite3.ColumnInt64(query, 1)),
+                    };
+                    result[cname] = ft;
+                }
+            }
+            SQLite.SQLite3.Finalize(query);
             return result;
         }
 
@@ -558,17 +622,31 @@ namespace Versionr
 
         internal void CacheRecords(Guid iD, List<Record> results)
         {
-            BeginTransaction();
-            DeleteAll<CachedRecords>();
-            CachedRecords cr = new CachedRecords()
+            try
             {
-                AssociatedVersion = iD,
-                Data = SerializeCachedRecords(results),
-                Version = CachedRecordVersion
-            };
-            InsertOrReplace(cr);
-            
-            Commit();
+                BeginTransaction();
+                try
+                {
+                    DeleteAll<CachedRecords>();
+                    CachedRecords cr = new CachedRecords()
+                    {
+                        AssociatedVersion = iD,
+                        Data = SerializeCachedRecords(results),
+                        Version = CachedRecordVersion
+                    };
+                    InsertOrReplace(cr);
+
+                    Commit();
+                }
+                catch
+                {
+                    Rollback();
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // ignore, probably in a transaction anyway
+            }
         }
     }
 }

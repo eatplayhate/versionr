@@ -490,7 +490,7 @@ namespace Versionr.ObjectStore
 
         public override bool RecordData(ObjectStoreTransaction transaction, Record newRecord, Record priorRecord, Entry fileEntry)
         {
-            return CreateDataStreamInternal(transaction, fileEntry.Info, fileEntry.Length, GetLookup(newRecord), priorRecord != null ? GetLookup(priorRecord) : null);
+            return CreateDataStreamInternal(transaction, new FileInfo(fileEntry.FullName), fileEntry.Length, GetLookup(newRecord), priorRecord != null ? GetLookup(priorRecord) : null);
         }
 
         private ChunkedChecksum LoadSignature(FileObjectStoreData storeData)
@@ -757,6 +757,42 @@ namespace Versionr.ObjectStore
 #endif
             }
         }
+        public override bool GetAvailableStreams(string x, out List<string> dataIDs)
+        {
+            dataIDs = null;
+            lock (this)
+            {
+                var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
+                if (storeData == null)
+                {
+                    return false;
+                }
+                dataIDs = new List<string>();
+                dataIDs.Add(x);
+                if (!string.IsNullOrEmpty(storeData.DeltaBase))
+                {
+                    if (ObjectDatabase.Find<FileObjectStoreData>(storeData.DeltaBase) != null)
+                    {
+                        dataIDs.Add(storeData.DeltaBase);
+                    }
+                    else
+                        dataIDs = null;
+                }
+#if SLOW_DATA_CHECK
+                if (storeData.BlobID == null)
+                    return GetFileForDataID(x).Exists;
+                bool present = BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
+                if (present == false)
+                {
+                    requestedData = new List<string>();
+                    requestedData.Add(x);
+                }
+                return present;
+#else
+                return true;
+#endif
+            }
+        }
 
         public override bool AbortStorageTransaction(ObjectStoreTransaction transaction)
         {
@@ -984,6 +1020,7 @@ namespace Versionr.ObjectStore
                 // in this case, we will load this all into memory (probably not a good idea but oh well)
                 System.IO.MemoryStream ms = new MemoryStream();
                 WriteRecordStream(storeData, ms);
+                ms.Position = 0;
                 return ms;
             }
             throw new Exception();
@@ -993,6 +1030,20 @@ namespace Versionr.ObjectStore
         {
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(dataIdentifier);
             WriteRecordStream(storeData, outputStream);
+        }
+
+        public override void ExportDataBlob(string dataIdentifier, bool compressed, System.IO.Stream outputStream)
+        {
+            var storeData = ObjectDatabase.Find<FileObjectStoreData>(dataIdentifier);
+            System.IO.Stream stream = OpenLegacyStream(storeData);
+            if (!compressed)
+            {
+                if (storeData.Mode == StorageMode.Legacy)
+                    stream = new LZHAMLegacyStream(stream, true);
+                if (storeData.Mode == StorageMode.Flat)
+                    stream = OpenCodecStream(stream);
+            }
+            stream.CopyTo(outputStream);
         }
 
         public override void ExportRecordStream(Record record, System.IO.Stream outputStream)
@@ -1016,9 +1067,13 @@ namespace Versionr.ObjectStore
             else
             {
                 if (storeData.Mode == StorageMode.Legacy)
+                {
                     dataStream = new LZHAMLegacyStream(OpenLegacyStream(storeData), true);
+                }
                 else if (storeData.Mode == StorageMode.Flat)
+                {
                     dataStream = OpenCodecStream(OpenLegacyStream(storeData));
+                }
                 else
                     throw new Exception();
                 Printer.InteractivePrinter printer = null;
@@ -1068,7 +1123,6 @@ namespace Versionr.ObjectStore
             byte[] baseLookupData = new byte[baseLookupLength];
             stream.Read(baseLookupData, 0, baseLookupData.Length);
             string baseLookup = ASCIIEncoding.ASCII.GetString(baseLookupData);
-
             tempFileName = new FileInfo(tempFn);
             using (var tempStream = GetStreamForLookup(baseLookup))
             using (var tempStreamOut = tempFileName.Create())

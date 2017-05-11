@@ -35,6 +35,9 @@ namespace Versionr
         [VerbOption("checkout", HelpText = "Checks out a specific branch or revision from the vault.")]
         public Commands.CheckoutVerbOptions CheckoutVerb { get; set; }
 
+        [VerbOption("pristine", HelpText = "Removes all files which aren't part of the vault (skips directories which start with a '.')")]
+        public Commands.PristineVerbOptions PristineVerb { get; set; }
+
         [VerbOption("branch", HelpText = "Creates a new branch and points it to the current version.")]
         public Commands.BranchVerbOptions BranchVerb { get; set; }
 
@@ -243,17 +246,19 @@ namespace Versionr
         static IEnumerable<object> PluginOptions
 		{
 			get
-			{
-                foreach (var x in PluginOptionsAndAssemblies.Select(x => x.Item1))
-                    yield return x;
-                
-                // Return the base ones last
+            {
+                // load assemblies
+                var plugins = PluginOptionsAndAssemblies.ToList();
                 yield return new Options();
+
+                foreach (var x in plugins.Select(x => x.Item1))
+                    yield return x;
             }
 		}
 
         static void Main(string[] args)
         {
+            Versionr.Utilities.Misc.StartTimer();
             try
             {   
                 string workingDirectoryPath = Environment.CurrentDirectory;
@@ -265,8 +270,8 @@ namespace Versionr
                     (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = new System.IO.StreamWriter(nullstream); p.MutuallyExclusive = true; }));
                 CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
-
-                if (parser.ParseArguments(args, initalOpts) && initalOpts.Version)
+                
+                if (args.Length >= 1 && args[0] == "--version" && parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
                     Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
                     Printer.WriteLineMessage("#q#- A less hateful version control system.");
@@ -299,9 +304,9 @@ namespace Versionr
                 string invokedVerb = string.Empty;
                 object invokedVerbInstance = null;
                 object activatedPlugin = null;
-				foreach (object pluginOptions in PluginOptions)
-				{
-					if (silentparser.ParseArguments(args, pluginOptions,
+                foreach (object pluginOptions in PluginOptions)
+                {
+                    if (silentparser.ParseArguments(args, pluginOptions,
 						  (verb, success, subOptions) =>
 						  {
                               if (subOptions != null)
@@ -317,9 +322,9 @@ namespace Versionr
 					}
                     if (invokedVerb != string.Empty)
                         break;
-				}
+                }
 
-				if (options == null)
+                if (options == null)
                 {
                     if (invokedVerb != string.Empty && activatedPlugin != null)
                     {
@@ -356,19 +361,40 @@ namespace Versionr
                     Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
 				
                 Console.CancelKeyPress += Console_CancelKeyPress;
-                
+
                 try
                 {
-					Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
-					VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
-                    if (baseOptions != null)
-                        Printer.NoColours = baseOptions.NoColours;
-                    if (!command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance))
+                    System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                    sw.Start();
+					// because lewis broke 'lg' on purpose
+					if (args.Count() > 0 && args[0] == "lg" && invokedVerbInstance is Commands.LogVerbOptions)
+						((Commands.LogVerbOptions)invokedVerbInstance).Jrunting = true;
+                    int bmc = 1;
+                    bool bm = false;
+                    if (invokedVerbInstance is VerbOptionBase)
                     {
-                        Printer.RestoreDefaults();
-                        printerStream.Flush();
-                        Environment.Exit(2);
+                        bm = ((VerbOptionBase)invokedVerbInstance).Benchmark;
+                        bmc = ((VerbOptionBase)invokedVerbInstance).BMC;
                     }
+                    for (int i = 0; i < (bm ? bmc : 1); i++)
+                    {
+                        Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();
+                        VerbOptionBase baseOptions = invokedVerbInstance as VerbOptionBase;
+                        if (baseOptions != null)
+                            Printer.NoColours = baseOptions.NoColours;
+                        bool result = command.Run(new System.IO.DirectoryInfo(workingDirectoryPath), invokedVerbInstance);
+                        if (!result)
+                        {
+                            printerStream.Flush();
+                            Printer.RestoreDefaults();
+                            Environment.Exit(2);
+                        }
+                    }
+                    if (bm)
+                    {
+                        Printer.PrintMessage("\nOperation took #b#{0}## ms.", sw.ElapsedMilliseconds);
+                    }
+                    printerStream.Flush();
                     Printer.RestoreDefaults();
                     return;
                 }

@@ -21,8 +21,7 @@
 				".db",
 				".opendb",
 				".o",
-				".a",
-				".vruser"
+				".a"
 			],
 			"Patterns" :
 			[
@@ -41,6 +40,10 @@
 				"^bin/",
 				"^bin_debug",
 				"^packages/"
+			],
+			"FilePatterns" :
+			[
+				"\\.vruser"
 			]
 		}
 	}
