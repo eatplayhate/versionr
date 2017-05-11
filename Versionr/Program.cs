@@ -270,8 +270,7 @@ namespace Versionr
                     (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = new System.IO.StreamWriter(nullstream); p.MutuallyExclusive = true; }));
                 CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
-
-                System.Console.WriteLine("A: {0}", Versionr.Utilities.Misc.ElapsedTime());
+                
                 if (args.Length >= 1 && args[0] == "--version" && parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
                     Printer.WriteLineMessage("#b#Versionr## v{0} #q#{1}{2}", System.Reflection.Assembly.GetCallingAssembly().GetName().Version, Utilities.MultiArchPInvoke.IsX64 ? "x64" : "x86", Utilities.MultiArchPInvoke.IsRunningOnMono ? " (using Mono runtime)" : "");
@@ -299,7 +298,6 @@ namespace Versionr
                     Printer.RestoreDefaults();
                     Environment.Exit(CommandLine.Parser.DefaultExitCodeFail);
                 }
-                System.Console.WriteLine("B: {0}", Versionr.Utilities.Misc.ElapsedTime());
 
                 // We will attempt to parse the commandline first
                 object options = null;
@@ -308,7 +306,6 @@ namespace Versionr
                 object activatedPlugin = null;
                 foreach (object pluginOptions in PluginOptions)
                 {
-                    System.Console.WriteLine("Bx: {0}", Versionr.Utilities.Misc.ElapsedTime());
                     if (silentparser.ParseArguments(args, pluginOptions,
 						  (verb, success, subOptions) =>
 						  {
@@ -326,7 +323,6 @@ namespace Versionr
                     if (invokedVerb != string.Empty)
                         break;
                 }
-                System.Console.WriteLine("C: {0}", Versionr.Utilities.Misc.ElapsedTime());
 
                 if (options == null)
                 {
@@ -365,7 +361,6 @@ namespace Versionr
                     Printer.OpenLog((invokedVerbInstance as VerbOptionBase).Logfile);
 				
                 Console.CancelKeyPress += Console_CancelKeyPress;
-                System.Console.WriteLine("D: {0}", Versionr.Utilities.Misc.ElapsedTime());
 
                 try
                 {
@@ -381,7 +376,6 @@ namespace Versionr
                         bm = ((VerbOptionBase)invokedVerbInstance).Benchmark;
                         bmc = ((VerbOptionBase)invokedVerbInstance).BMC;
                     }
-                    System.Console.WriteLine("Command ready: {0}", Versionr.Utilities.Misc.ElapsedTime());
                     for (int i = 0; i < (bm ? bmc : 1); i++)
                     {
                         Commands.BaseCommand command = ((VerbOptionBase)invokedVerbInstance).GetCommand();

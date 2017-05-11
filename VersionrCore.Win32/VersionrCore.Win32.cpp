@@ -29,6 +29,7 @@ int EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ files
 						continue;
 				}
 				sprintf(filetemp, "%s%s/", folder, fndA.cFileName);
+				int xid = files->Count;
 				Versionr::FlatFSEntry e;
 				e.Attributes = fndA.dwFileAttributes;
 				e.FileTime = time;

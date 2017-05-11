@@ -97,7 +97,6 @@ namespace Versionr.Commands
             List<Versionr.Status.StatusEntry> targets = null;
             if (ComputeTargets(localOptions))
             {
-                System.Console.WriteLine("FBC Start: {0}", Versionr.Utilities.Misc.ElapsedTime());
                 status = Workspace.GetStatus(ActiveDirectory);
 
                 GetInitialList(status, localOptions, out targets);
@@ -106,9 +105,7 @@ namespace Versionr.Commands
                     status.AddRecursiveElements(targets);
 
                 ApplyFilters(status, localOptions, ref targets);
-                System.Console.WriteLine("FBC Filtered: {0}", Versionr.Utilities.Misc.ElapsedTime());
             }
-            System.Console.WriteLine("FBC Done: {0}", Versionr.Utilities.Misc.ElapsedTime());
 
             if ((targets != null && targets.Count > 0) || !RequiresTargets)
                 return RunInternal(Workspace, status, targets, localOptions);

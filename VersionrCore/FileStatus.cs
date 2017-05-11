@@ -263,9 +263,6 @@ namespace Versionr
         public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-            //sw.Restart();
-            //var zl = GetFlatEntries(root);
-            //System.Console.WriteLine("0: {0}ms - {1}", sw.ElapsedMilliseconds, zl.Count);
             sw.Restart();
             if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
             {
@@ -273,7 +270,6 @@ namespace Versionr
                 {
                     var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
                     GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
-                    //GetFSFastX = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystemX").CreateDelegate(typeof(Func<string, int>)) as Func<string, int>;
                 }
                 if (GetFSFast != null)
                 {
@@ -282,23 +278,21 @@ namespace Versionr
                     scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
                     scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
                     scan.ExtIncludes = area?.Directives?.Include?.Extensions;
-
-                    //sw.Restart();
-                    //var z = GetFSFastX(root.FullName.Replace('\\', '/') + "/");
-                    //System.Console.WriteLine("1: {0}ms - {1}", sw.ElapsedMilliseconds, z);
+                    string fn = root.FullName.Replace('\\', '/');
+                    if (fn[fn.Length - 1] != '/')
+                        fn += '/';
                     sw.Restart();
-                    var x = GetFSFast(root.FullName.Replace('\\', '/') + "/");
-                    //System.Console.WriteLine("2A: {0}ms", sw.ElapsedMilliseconds);
+                    var x = GetFSFast(fn);
                     sw.Restart();
-                    System.Threading.ThreadPool.SetMinThreads(8, 8);
                     List<Entry> e2 = new List<Entry>(x.Count);
                     System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
                     System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
                     ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
                     ce2.Signal();
                     ce2.Wait();
-                    //System.Console.WriteLine("2B: {0}ms", sw.ElapsedMilliseconds);
-                    e2.AddRange(entries2.ToArray());
+                    var ea = entries2.ToArray();
+                    e2.Capacity = ea.Length;
+                    e2.AddRange(ea);
                     return e2;
                 }
             }
