@@ -254,7 +254,11 @@ namespace Versionr.Commands
 					else if (mergemarker.Length > 0)
 						pattern += "#Y#({5})## ";
 
-				pattern += "{1} #g#({2}, {3})##";
+                var tagList = Workspace.GetTagsForVersion(v.ID);
+                if (tagList.Count > 0)
+                    pattern += "#I#[" + string.Join(" ", tagList.Select(x => "\\#" + x).ToArray()) + "]## ";
+
+                pattern += "{1} #g#({2}, {3})##";
 				Printer.PrintMessage(pattern, v.ShortName, message, v.Author, date, headString, mergemarker);
 			}
 			else if (localOptions.Concise)
