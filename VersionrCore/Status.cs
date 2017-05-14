@@ -20,8 +20,8 @@ namespace Versionr
         Renamed,
         Copied,
         Conflict,
-		Ignored,
-        Masked,
+		Excluded,
+        Ignored,
         Obstructed,
 
         Count
@@ -267,7 +267,7 @@ namespace Versionr
                                     }
                                 }
                                 else
-                                    return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+                                    return new StatusEntry() { Code = StatusCode.Excluded, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
                             }
                         }
 
@@ -366,7 +366,7 @@ namespace Versionr
                                 }
                             }
                             if (resolved || (snapshotRecord != null && snapshotRecord.Ignored))
-                                return new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) || ((objectFlags & StageFlags.MergeInfo) != 0) };
+                                return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) || ((objectFlags & StageFlags.MergeInfo) != 0) };
                             else
                                 return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
@@ -429,11 +429,17 @@ namespace Versionr
                     {
                         if (!Map.ContainsKey(x.Value.CanonicalName))
                         {
-                            var entry = new StatusEntry() { Code = StatusCode.Masked, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+                            var entry = new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
 
                             Elements.Add(entry);
                             Map[entry.CanonicalName] = entry;
                         }
+                    }
+                    else
+                    {
+                        StatusEntry se;
+                        if (Map.TryGetValue(x.Value.CanonicalName, out se))
+                            se.Code = StatusCode.Ignored;
                     }
                     IgnoredObjects++;
                     continue;
@@ -462,7 +468,7 @@ namespace Versionr
                             {
                                 if (otherEntry.Code == StatusCode.Missing || otherEntry.Code == StatusCode.Deleted)
                                 {
-                                    otherEntry.Code = StatusCode.Ignored;
+                                    otherEntry.Code = StatusCode.Excluded;
                                     return new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = otherEntry.VersionControlRecord };
                                 }
                             }
@@ -535,7 +541,7 @@ namespace Versionr
                 if (allowedRenames[x.VersionControlRecord])
                 {
                     Elements.Add(x);
-                    statusMap[x.VersionControlRecord].Code = StatusCode.Ignored;
+                    statusMap[x.VersionControlRecord].Code = StatusCode.Excluded;
                 }
                 else
                 {

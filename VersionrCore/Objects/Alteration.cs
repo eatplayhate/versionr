@@ -12,7 +12,8 @@ namespace Versionr.Objects
         Update,
         Move,
         Copy,
-        Delete
+        Delete,
+        Discard
     }
     public class Alteration
     {

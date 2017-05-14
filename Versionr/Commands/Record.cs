@@ -79,7 +79,7 @@ namespace Versionr.Commands
             if (index != name.Length - 1)
                 name = name.Insert(index + 1, "#b#");
             var previous = Status.GetStatusText(entry);
-            var now = Status.GetStatusText(code, true);
+            var now = Status.GetStatusText(code, true, entry.VersionControlRecord != null);
             string output = "#" + now.Item1 + "#(" + now.Item2 + ")## ";
             while (output.Length < 20)
                 output = " " + output;

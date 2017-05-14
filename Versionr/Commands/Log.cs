@@ -612,7 +612,9 @@ namespace Versionr.Commands
 					return "c";
 				case Objects.AlterationType.Delete:
 					return "e";
-				default:
+                case Objects.AlterationType.Discard:
+                    return "M";
+                default:
 					throw new Exception("Unknown alteration type");
 			}
 		}

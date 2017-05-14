@@ -40,9 +40,9 @@ namespace Versionr.Commands
 			base.ApplyFilters(status, localOptions, ref targets);
 
 			if (localOptions.Ignored)
-				targets = targets.Where(x => x.Code != StatusCode.Ignored).ToList();
+				targets = targets.Where(x => x.Code != StatusCode.Excluded).ToList();
 			else
-				targets = targets.Where(x => (x.Code != StatusCode.Ignored && (x.Staged || x.Code != StatusCode.Masked))).ToList();
+				targets = targets.Where(x => (x.Code != StatusCode.Excluded && (x.Staged || !(x.Code == StatusCode.Ignored && x.VersionControlRecord == null)))).ToList();
 		}
 
 		protected override IEnumerable<KeyValuePair<bool, T>> Filter<T>(IEnumerable<KeyValuePair<string, T>> input)

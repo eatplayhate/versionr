@@ -126,7 +126,7 @@ namespace Versionr.Commands
         protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
         {
             if (!localOptions.Ignored)
-                targets = targets.Where(x => x.Code != StatusCode.Masked || x.Staged == true).ToList();
+                targets = targets.Where(x => x.Staged == true || !(x.Code == StatusCode.Ignored && x.VersionControlRecord == null)).ToList();
             if (localOptions.Tracked)
                 targets = targets.Where(x => x.Staged == true || (x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed)).ToList();
             if (localOptions.SkipEmpty)

@@ -539,6 +539,10 @@ namespace Versionr
                         else
                             Printer.PrintMessage("  - Skipped, not deleted.");
                     }
+                    else if (options.Reverse && x.Alteration == AlterationType.Discard)
+                    {
+                        Printer.PrintMessage("  - Skipped, discard operations not tracked!");
+                    }
                     else if (options.Reverse && x.Alteration == AlterationType.Move)
                     {
                         Printer.PrintMessage("  - Skipped, too complex!");
@@ -713,6 +717,10 @@ namespace Versionr
                                 }
                             }
                         }
+                    }
+                    else if (x.Alteration == AlterationType.Discard)
+                    {
+                        Printer.PrintMessage("  - Skipped, discard not tracked.");
                     }
                     else if (x.Alteration == AlterationType.Delete && allowDeletes)
                     {
@@ -1272,6 +1280,10 @@ namespace Versionr
                     };
 
                     stashWriters.Add(new Tuple<StashEntry, Func<Stream, long>>(entry, (s) => { return (long)0; }));
+                }
+                else if (x.Type == AlterationType.Discard)
+                {
+                    // do nothing
                 }
                 else
                     Printer.PrintError("Cherrypick currently doesn't support a {0} alteration.", x.Type);
@@ -3928,11 +3940,12 @@ namespace Versionr
                     x.Code == StatusCode.Renamed ||
                     x.Code == StatusCode.Modified ||
                     x.Code == StatusCode.Copied ||
-                    ((x.Code == StatusCode.Masked || x.Code == StatusCode.Missing) && missing)))
+                    (x.Code == StatusCode.Ignored && x.VersionControlRecord != null) ||
+                    (x.Code == StatusCode.Missing && missing)))
                 {
                     stagedPaths.Add(x.CanonicalName);
 
-                    if (x.Code == StatusCode.Masked || x.Code == StatusCode.Missing)
+                    if (x.Code == StatusCode.Ignored || x.Code == StatusCode.Missing)
                     {
                         if (interactive)
                         {
@@ -3957,7 +3970,7 @@ namespace Versionr
                         }
 
                         if (callback != null)
-                            callback(x, StatusCode.Deleted, false);
+                            callback(x, x.Code == StatusCode.Ignored ? StatusCode.Ignored : StatusCode.Deleted, false);
                         //Printer.PrintMessage("Recorded deletion: #b#{0}##", x.VersionControlRecord.CanonicalName);
                         stageOps.Add(new StageOperation() { Operand1 = x.VersionControlRecord.CanonicalName, Type = StageOperationType.Remove });
                         removals.Add(x.VersionControlRecord.CanonicalName);
@@ -4813,7 +4826,7 @@ namespace Versionr
                                         status.Map.TryGetValue(parentName, out parentObjectEntry);
                                         directoryRemoved = Directory.Exists(GetRecordPath(parentName)) && parentObjectEntry == null;
                                         if (directoryRemoved ||
-                                            (parentObjectEntry != null && parentObjectEntry.Code == StatusCode.Masked))
+                                            (parentObjectEntry != null && parentObjectEntry.Code == StatusCode.Ignored))
                                         {
                                             parentIgnoredList[parentName] = true;
                                             resolved = true;
@@ -4886,7 +4899,7 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                         Printer.PrintDiagnostics(" > Local data is different to remote data.");
 #endif
-                        if (localObject.Code == StatusCode.Masked)
+                        if (localObject.Code == StatusCode.Ignored)
                         {
 #if MERGE_DIAGNOSTICS
                             Printer.PrintDiagnostics(" > #c#MR:## Local changes at that path are not important.");
@@ -5145,7 +5158,7 @@ namespace Versionr
 #if MERGE_DIAGNOSTICS
                         Printer.PrintDiagnostics(" > Object still exists in local filesystem.");
 #endif
-                        if (localObject.Code == StatusCode.Masked)
+                        if (localObject.Code == StatusCode.Ignored)
                         {
 #if MERGE_DIAGNOSTICS
                             Printer.PrintDiagnostics(" > #c#MR:## Object exists locally but is ignored, removing record info.");
@@ -6911,7 +6924,10 @@ namespace Versionr
                     if (stageMap.TryGetValue(x.CanonicalName, out ops))
                     {
                         foreach (var y in ops)
-                            LocalData.Delete(y);
+                        {
+                            if (y.Type != StageOperationType.MergeRecord)
+                                LocalData.Delete(y);
+                        }
                         ops.Clear();
                     }
                     if (x.Staged == true)
@@ -7222,7 +7238,27 @@ namespace Versionr
                                             alterations.Add(alteration);
                                         }
                                         break;
-                                    case StatusCode.Masked:
+                                    case StatusCode.Ignored:
+                                        if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.MergeRecord))
+                                        {
+                                            x.VersionControlRecord = GetRecord(stagedOps.First(so => so.Type == StageOperationType.MergeRecord).ReferenceObject);
+                                            Printer.PrintMessage("Discarded (ignored merge result): #b#{0}##", x.VersionControlRecord.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded discard: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
+                                            Objects.Alteration alteration = new Alteration();
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Discard;
+                                            alterations.Add(alteration);
+                                        }
+                                        if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.Remove))
+                                        {
+                                            Printer.PrintMessage("Removed (ignored): #b#{0}##", x.VersionControlRecord.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded removal: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
+                                            Objects.Alteration alteration = new Alteration();
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Delete;
+                                            alterations.Add(alteration);
+                                        }
+                                        break;
                                     case StatusCode.Added:
                                     case StatusCode.Modified:
                                     case StatusCode.Renamed:
@@ -7249,7 +7285,7 @@ namespace Versionr
                                                     {
                                                         if (op.Type == StageOperationType.MergeRecord)
                                                         {
-                                                            if (op.ReferenceObject == -1 && x.Code == StatusCode.Masked)
+                                                            if (op.ReferenceObject == -1 && x.Code == StatusCode.Ignored)
                                                             {
                                                                 record = null;
                                                                 recordIsMerged = true;
@@ -7258,7 +7294,7 @@ namespace Versionr
                                                             else
                                                             {
                                                                 Objects.Record mergedRecord = GetRecord(op.ReferenceObject);
-                                                                if (x.Code == StatusCode.Masked || (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash))
+                                                                if (x.Code == StatusCode.Ignored || (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash))
                                                                 {
                                                                     record = mergedRecord;
                                                                     recordIsMerged = true;
@@ -7268,7 +7304,7 @@ namespace Versionr
                                                         }
                                                     }
                                                 }
-                                                if (x.Code == StatusCode.Masked)
+                                                if (x.Code == StatusCode.Ignored)
                                                 {
                                                     if (recordIsMerged)
                                                     {
@@ -7311,7 +7347,7 @@ namespace Versionr
                                                 Objects.Alteration alteration = new Alteration();
                                                 try
                                                 {
-                                                    if (!x.IsDirectory && !x.IsSymlink && x.Code != StatusCode.Masked)
+                                                    if (!x.IsDirectory && !x.IsSymlink && x.Code != StatusCode.Ignored)
                                                     {
                                                         stream = x.FilesystemEntry.Info.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
                                                         FileInfo info = new FileInfo(x.FilesystemEntry.Info.FullName);
@@ -7326,6 +7362,8 @@ namespace Versionr
                                                     if (record == null)
                                                     {
                                                         record = new Objects.Record();
+                                                        record.Id = -1;
+                                                        record.CanonicalNameId = -1;
                                                         record.CanonicalName = x.FilesystemEntry.CanonicalName;
                                                         record.Attributes = x.FilesystemEntry.Attributes;
                                                         if (record.IsFile && FileClassifier.Classify(x.FilesystemEntry.Info) == FileEncoding.Binary)
@@ -7341,7 +7379,7 @@ namespace Versionr
                                                         if (x.VersionControlRecord != null)
                                                             record.Parent = x.VersionControlRecord.Id;
                                                     }
-                                                    Objects.Record possibleRecord = LocateRecord(record);
+                                                    Objects.Record possibleRecord = record.Id == -1 ? LocateRecord(record) : record;
                                                     if (possibleRecord != null)
                                                         record = possibleRecord;
 
@@ -7387,16 +7425,16 @@ namespace Versionr
                                                 }
 
                                                 ObjectName nameRecord = null;
-                                                if (canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
+                                                if (record.CanonicalNameId == -1 && canonicalNames.TryGetValue(x.FilesystemEntry.CanonicalName, out nameRecord))
                                                 {
                                                     record.CanonicalNameId = nameRecord.NameId;
                                                 }
-                                                else
+                                                else if (record.CanonicalNameId == -1)
                                                 {
                                                     canonicalNameInsertions.Add(new Tuple<Record, ObjectName>(record, new ObjectName() { CanonicalName = x.FilesystemEntry.CanonicalName }));
                                                 }
 
-                                                if (x.Code != StatusCode.Masked)
+                                                if (x.Code != StatusCode.Ignored)
                                                 {
                                                     Printer.PrintDiagnostics("Created new object record: {0}", x.FilesystemEntry.CanonicalName);
                                                     Printer.PrintDiagnostics("Record fingerprint: {0}", record.Fingerprint);
@@ -7406,7 +7444,7 @@ namespace Versionr
 
                                                 finalRecords.Add(record);
                                                 alterations.Add(alteration);
-                                                if (!recordIsMerged)
+                                                if (!recordIsMerged && record.Id == -1)
                                                     records.Add(record);
                                             }
                                             catch (Exception e)
@@ -7436,6 +7474,17 @@ namespace Versionr
                                         finalRecords.Add(x.VersionControlRecord);
                                         break;
                                     case StatusCode.Unversioned:
+                                        if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.MergeRecord))
+                                        {
+                                            x.VersionControlRecord = GetRecord(stagedOps.First(so => so.Type == StageOperationType.MergeRecord).ReferenceObject);
+                                            Printer.PrintMessage("Discarded (removed merge result): #b#{0}##", x.VersionControlRecord.CanonicalName);
+                                            Printer.PrintDiagnostics("Recorded discard: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
+                                            Objects.Alteration alteration = new Alteration();
+                                            alteration.PriorRecord = x.VersionControlRecord.Id;
+                                            alteration.Type = AlterationType.Discard;
+                                            alterations.Add(alteration);
+                                        }
+                                        break;
                                     default:
                                         break;
                                 }
