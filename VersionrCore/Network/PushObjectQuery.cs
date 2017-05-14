@@ -45,6 +45,13 @@ namespace Versionr.Network
         public Objects.Branch[] Branches { get; set; }
     }
 
+    [ProtoBuf.ProtoContract]
+    class PushHeadIds
+    {
+        [ProtoBuf.ProtoMember(1)]
+        public PushHead[] Heads { get; set; }
+    }
+
     [Compressible]
     [ProtoBuf.ProtoContract]
     class VersionPack

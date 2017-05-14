@@ -314,7 +314,7 @@ namespace Versionr.ObjectStore
                     {
                         if (priorData.Mode == StorageMode.Delta)
                             priorData = ObjectDatabase.Find<FileObjectStoreData>(x => x.Lookup == priorData.DeltaBase);
-                        if (priorData.HasSignatureData)
+                        if (priorData != null && priorData.HasSignatureData)
                         {
                             try
                             {
@@ -762,35 +762,23 @@ namespace Versionr.ObjectStore
             dataIDs = null;
             lock (this)
             {
-                var storeData = ObjectDatabase.Find<FileObjectStoreData>(x);
-                if (storeData == null)
+                string storeDataID = x;
+                while (true)
                 {
-                    return false;
-                }
-                dataIDs = new List<string>();
-                dataIDs.Add(x);
-                if (!string.IsNullOrEmpty(storeData.DeltaBase))
-                {
-                    if (ObjectDatabase.Find<FileObjectStoreData>(storeData.DeltaBase) != null)
+                    var storeData = ObjectDatabase.Find<FileObjectStoreData>(storeDataID);
+                    if (storeData == null)
                     {
-                        dataIDs.Add(storeData.DeltaBase);
+                        return false;
                     }
+                    if (dataIDs == null)
+                        dataIDs = new List<string>();
+                    dataIDs.Add(storeDataID);
+                    if (!string.IsNullOrEmpty(storeData.DeltaBase))
+                        storeDataID = storeData.DeltaBase;
                     else
-                        dataIDs = null;
+                        break;
                 }
-#if SLOW_DATA_CHECK
-                if (storeData.BlobID == null)
-                    return GetFileForDataID(x).Exists;
-                bool present = BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
-                if (present == false)
-                {
-                    requestedData = new List<string>();
-                    requestedData.Add(x);
-                }
-                return present;
-#else
                 return true;
-#endif
             }
         }
 

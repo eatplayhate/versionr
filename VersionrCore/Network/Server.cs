@@ -494,6 +494,13 @@ namespace Versionr.Network
                                     Printer.PrintDiagnostics("Client is requesting specific record data blobs.");
                                     SharedNetwork.SendRecordDataUnmapped(sharedInfo);
                                 }
+                                else if (command.Type == NetCommandType.SendBranchHeads)
+                                {
+                                    var ids = Utilities.ReceiveEncrypted<PushHeadIds>(sharedInfo);
+                                    foreach (var x in ids.Heads)
+                                        sharedInfo.RemoteHeadInfo[x.BranchID] = x.VersionID;
+                                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                                }
                                 else if (command.Type == NetCommandType.Clone)
                                 {
                                     if (!clientInfo.Access.HasFlag(Rights.Read))
@@ -517,7 +524,7 @@ namespace Versionr.Network
                                     Stack<Objects.Version> versionsToSend = new Stack<Objects.Version>();
                                     if (!SharedNetwork.SendBranchJournal(sharedInfo))
                                         throw new Exception();
-                                    if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetBranchHeadVersion(branch), out branchesToSend, out versionsToSend))
+                                    if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetBranchHeadVersion(branch), branch, out branchesToSend, out versionsToSend))
                                         throw new Exception();
                                     if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
                                         throw new Exception();
@@ -567,9 +574,14 @@ namespace Versionr.Network
                                                     clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
                                                     return false;
                                                 }
+                                                SharedNetwork.ImportBranches(clientInfo.SharedInfo);
                                                 if (clientInfo.SharedInfo.PushedVersions.Count == 0)
                                                 {
                                                     Printer.PrintDiagnostics("Skipping version import - no versions to add.");
+                                                    if (clientInfo.SharedInfo.ReceivedBranches.Count != 0)
+                                                    {
+                                                        SharedNetwork.ReceiveBranchHeads(clientInfo.SharedInfo);
+                                                    }
                                                     clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
                                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
                                                     return true;
@@ -578,6 +590,7 @@ namespace Versionr.Network
                                                 if (AcceptHeads(clientInfo, ws, out errorData))
                                                 {
                                                     ImportVersions(ws, clientInfo);
+                                                    SharedNetwork.ReceiveBranchHeads(clientInfo.SharedInfo);
                                                     clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
                                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
                                                     return true;
@@ -917,7 +930,6 @@ namespace Versionr.Network
 
         private static bool AcceptHeads(ClientStateInfo clientInfo, Area ws, out string errorData)
         {
-            SharedNetwork.ImportBranches(clientInfo.SharedInfo);
             Dictionary<Guid, List<Head>> temporaryHeads = new Dictionary<Guid, List<Head>>();
             Dictionary<Guid, Guid> pendingMerges = new Dictionary<Guid, Guid>();
             Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();

@@ -557,10 +557,11 @@ namespace Versionr.Network
                 if (!SharedNetwork.PullJournalData(SharedInfo))
                     return false;
                 Objects.Version version = Workspace.Version;
+                var branch = Workspace.CurrentBranch;
                 if (branchName != null)
                 {
                     bool multiple;
-                    var branch = Workspace.GetBranchByPartialName(branchName, out multiple);
+                    branch = Workspace.GetBranchByPartialName(branchName, out multiple);
                     if (branch == null)
                     {
                         Printer.PrintError("#e#Can't identify branch with name \"{0}\" to send!##", branchName);
@@ -575,11 +576,13 @@ namespace Versionr.Network
                     version = Workspace.GetVersion(head.Version);
                     Printer.PrintMessage("Sending branch #c#{0}## (#b#\"{1}\"##).", branch.ID, branch.Name);
                 }
-                if (!SharedNetwork.GetVersionList(SharedInfo, version, out branchesToSend, out versionsToSend))
+                if (!SharedNetwork.GetVersionList(SharedInfo, version, branch, out branchesToSend, out versionsToSend))
                     return false;
                 Printer.PrintDiagnostics("Need to send {0} versions and {1} branches.", versionsToSend.Count, branchesToSend.Count);
                 SendLocks();
                 int sendCount = versionsToSend.Count;
+                if (SharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr35)
+                    SharedNetwork.SendBranchHeads(SharedInfo, branchesToSend);
                 if (!SharedNetwork.SendBranches(SharedInfo, branchesToSend))
                     return false;
                 if (!SharedNetwork.SendVersions(SharedInfo, versionsToSend))
