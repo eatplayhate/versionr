@@ -20,6 +20,8 @@ namespace Versionr
         public static List<FlatFSEntry> GetFlatEntries(string root)
         {
             List<FlatFSEntry> entries = new List<FlatFSEntry>();
+            if (root.EndsWith("/"))
+                root = root.Substring(0, root.Length - 1);
             scandirs(root, (string name, long size, long timestamp, int attribs) =>
             {
                 if (size == -1)
