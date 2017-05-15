@@ -297,6 +297,8 @@ namespace Versionr
                                     changed = false;
                                 else
                                 {
+                                    if (snapshotRecord.ModificationTime != x.ModificationTime)
+                                        Printer.PrintDiagnostics("T0: {0} - T1: {1}", snapshotRecord.ModificationTime, x.ModificationTime);
                                     Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
                                     try
                                     {
