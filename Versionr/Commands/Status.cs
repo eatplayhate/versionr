@@ -109,7 +109,7 @@ namespace Versionr.Commands
             }
 			if (status.MergeInputs.Count > 0)
 				Printer.WriteLineMessage("");
-			IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return !(x.Code == StatusCode.Masked || (x.Code == StatusCode.Ignored && x.VersionControlRecord == null)); });
+			IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return !(x.Code == StatusCode.Excluded || (x.Code == StatusCode.Ignored && x.VersionControlRecord == null)); });
             if (!localOptions.All)
                 operands = operands.Where(x => x.Code != StatusCode.Unchanged);
             string localRestrictedPath = null;
@@ -309,10 +309,10 @@ namespace Versionr.Commands
 
         public static Tuple<char, string> GetStatusText(Versionr.Status.StatusEntry x)
         {
-            return GetStatusText(x.Code, x.Staged);
+            return GetStatusText(x.Code, x.Staged, x.VersionControlRecord != null);
         }
 
-        public static Tuple<char, string> GetStatusText(Versionr.StatusCode code, bool staged)
+        public static Tuple<char, string> GetStatusText(Versionr.StatusCode code, bool staged, bool isRecorded = false)
         {
             switch (code)
             {
@@ -334,9 +334,14 @@ namespace Versionr.Commands
                 case StatusCode.Missing:
                     return staged ? new Tuple<char, string>('e', "error")
                         : new Tuple<char, string>('w', "missing");
-                case StatusCode.Masked:
+                case StatusCode.Ignored:
+                    if (isRecorded)
+                    {
+                        return staged ? new Tuple<char, string>('q', "removed")
+                            : new Tuple<char, string>('w', "ignored");
+                    }
                     return staged ? new Tuple<char, string>('c', "merged")
-                        : new Tuple<char, string>('w', "ignored");
+                        : new Tuple<char, string>('q', "ignored");
                 case StatusCode.Modified:
                     return staged ? new Tuple<char, string>('s', "modified")
                         : new Tuple<char, string>('M', "changed");
@@ -346,7 +351,7 @@ namespace Versionr.Commands
                 case StatusCode.Unversioned:
                     return staged ? new Tuple<char, string>('e', "error")
                         : new Tuple<char, string>('a', "unversioned");
-				case StatusCode.Ignored:
+				case StatusCode.Excluded:
 					return staged ? new Tuple<char, string>('e', "error")
 						: new Tuple<char, string>('q', "ignored");
 				case StatusCode.Unchanged:

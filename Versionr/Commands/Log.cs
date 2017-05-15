@@ -254,8 +254,14 @@ namespace Versionr.Commands
 					else if (mergemarker.Length > 0)
 						pattern += "#Y#({5})## ";
 
-				pattern += "{1} #g#({2}, {3})##";
-				Printer.PrintMessage(pattern, v.ShortName, message, v.Author, date, headString, mergemarker);
+               
+                pattern += "{1} ";
+                var tagList = Workspace.GetTagsForVersion(v.ID);
+                if (tagList.Count > 0)
+                    pattern += "#I#[" + string.Join(" ", tagList.Select(x => "\\#" + x).ToArray()) + "]## ";
+                pattern += "#g#({2}, {3})##";
+
+                Printer.PrintMessage(pattern, v.ShortName, message, v.Author, date, headString, mergemarker);
 			}
 			else if (localOptions.Concise)
             {
@@ -606,7 +612,9 @@ namespace Versionr.Commands
 					return "c";
 				case Objects.AlterationType.Delete:
 					return "e";
-				default:
+                case Objects.AlterationType.Discard:
+                    return "M";
+                default:
 					throw new Exception("Unknown alteration type");
 			}
 		}

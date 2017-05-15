@@ -28,6 +28,7 @@ namespace Versionr.Network
             Protocols[SharedNetwork.Protocol.Versionr32] = "Versionr/Protocol:3.2";
             Protocols[SharedNetwork.Protocol.Versionr33] = "Versionr/Protocol:3.3";
             Protocols[SharedNetwork.Protocol.Versionr34] = "Versionr/Protocol:3.4";
+            Protocols[SharedNetwork.Protocol.Versionr35] = "Versionr/Protocol:3.5";
         }
 
         public static string GetProtocolString(SharedNetwork.Protocol protocol)

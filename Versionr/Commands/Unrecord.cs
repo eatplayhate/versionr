@@ -50,7 +50,7 @@ namespace Versionr.Commands
         public static void UnrecordFeedback(Versionr.Status.StatusEntry entry, StatusCode code)
         {
             var previous = Status.GetStatusText(entry);
-            var now = Status.GetStatusText(code, false);
+            var now = Status.GetStatusText(code, false, entry.VersionControlRecord != null);
             string output = "(#" + previous.Item1 + "#" + previous.Item2 + "## => #" + now.Item1 + "#" + now.Item2 + "##)#b# ";
             while (output.Length < 36)
                 output = " " + output;

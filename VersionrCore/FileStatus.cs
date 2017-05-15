@@ -4,9 +4,58 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
+using System.Runtime.InteropServices;
 namespace Versionr
 {
+    internal static class PosixFS
+    {
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void scandirdelegate(string name, long size, long timestamp, int attribs);
+
+        [DllImport("VersionrCore.Posix")]
+        public static extern void scandirs(string rootdir, scandirdelegate cback);
+
+        static DateTime UnixTimeEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+
+        public static List<FlatFSEntry> GetFlatEntries(string root)
+        {
+            List<FlatFSEntry> entries = new List<FlatFSEntry>();
+            if (root.EndsWith("/"))
+                root = root.Substring(0, root.Length - 1);
+            scandirs(root, (string name, long size, long timestamp, int attribs) =>
+            {
+                if (size == -1)
+                {
+                    entries.Add(new FlatFSEntry()
+                    {
+                        FullName = name + '/',
+                        ChildCount = 0,
+                        Attributes = 0,
+                        FileTime = UnixTimeEpoch.Ticks + (timestamp * TimeSpan.TicksPerSecond),
+                        Length = -1,
+                    });
+                }
+                else if (size == -2)
+                {
+                    FlatFSEntry fs = entries[entries.Count - attribs - 1];
+                    fs.ChildCount = attribs;
+                    entries[entries.Count - attribs - 1] = fs;
+                }
+                else
+                {
+                    entries.Add(new FlatFSEntry()
+                    {
+                        FullName = name,
+                        ChildCount = 0,
+                        Attributes = 0,
+                        FileTime = UnixTimeEpoch.Ticks + (timestamp * TimeSpan.TicksPerSecond),
+                        Length = size,
+                    });
+                }
+            });
+            return entries;
+        }
+    }
     public struct FlatFSEntry
     {
         public string FullName;
@@ -204,7 +253,6 @@ namespace Versionr
         }
 
         public static Func<string, List<FlatFSEntry>> GetFSFast = null;
-        public static Func<string, int> GetFSFastX = null;
 
         public static List<FlatFSEntry> GetFlatEntries(DirectoryInfo root)
         {
@@ -294,6 +342,37 @@ namespace Versionr
                     e2.Capacity = ea.Length;
                     e2.AddRange(ea);
                     return e2;
+                }
+            }
+            else
+            {
+                try
+                {
+                    FSScan scan = new FSScan();
+                    scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
+                    scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
+                    scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
+                    scan.ExtIncludes = area?.Directives?.Include?.Extensions;
+                    string fn = root.FullName.Replace('\\', '/');
+                    if (fn[fn.Length - 1] != '/')
+                        fn += '/';
+                    sw.Restart();
+                    var x = PosixFS.GetFlatEntries(fn);
+                    sw.Restart();
+                    List<Entry> e2 = new List<Entry>(x.Count);
+                    System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+                    System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
+                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                    ce2.Signal();
+                    ce2.Wait();
+                    var ea = entries2.ToArray();
+                    e2.Capacity = ea.Length;
+                    e2.AddRange(ea);
+                    return e2;
+                }
+                catch
+                {
+                    // eh
                 }
             }
             sw.Restart();

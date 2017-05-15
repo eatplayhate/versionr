@@ -19,7 +19,8 @@ namespace Versionr.Network
             Versionr31,
             Versionr32,
             Versionr33,
-            Versionr34
+            Versionr34,
+            Versionr35,
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -27,7 +28,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr35, Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -71,6 +72,7 @@ namespace Versionr.Network
             public HashSet<Guid> RemoteCheckedBranches { get; set; }
             public HashSet<Guid> RemoteCheckedBranchJournal { get; set; }
             public List<Objects.Branch> ReceivedBranches { get; set; }
+            public List<Guid> Automerges { get; set; }
             public List<VersionInfo> PushedVersions { get; set; }
             public HashSet<Guid> ReceivedVersionSet { get; set; }
             public Dictionary<long, Objects.Record> RemoteRecordMap { get; set; }
@@ -81,6 +83,8 @@ namespace Versionr.Network
 
             public IntPtr LZHLCompressor { get; set; }
             public IntPtr LZHLDecompressor { get; set; }
+
+            public Dictionary<Guid, Guid> RemoteHeadInfo { get; set; }
 
             public SharedNetworkInfo()
             {
@@ -97,6 +101,8 @@ namespace Versionr.Network
                 LZHLCompressor = Versionr.Utilities.LZHL.CreateCompressor();
                 LZHLDecompressor = Versionr.Utilities.LZHL.CreateDecompressor();
                 ChecksumType = Utilities.ChecksumCodec.Default;
+                RemoteHeadInfo = new Dictionary<Guid, Guid>();
+                Automerges = new List<Guid>();
             }
 
             #region IDisposable Support
@@ -305,10 +311,12 @@ namespace Versionr.Network
             return true;
         }
 
-        internal static bool GetVersionList(SharedNetworkInfo info, Objects.Version version, out Stack<Branch> branchesToSend, out Stack<Objects.Version> versionsToSend)
+        internal static bool GetVersionList(SharedNetworkInfo info, Objects.Version version, Objects.Branch headBranch, out Stack<Branch> branchesToSend, out Stack<Objects.Version> versionsToSend)
         {
             branchesToSend = new Stack<Branch>();
             versionsToSend = new Stack<Objects.Version>();
+            if (info.CommunicationProtocol >= Protocol.Versionr35)
+                QueryBranch(info, branchesToSend, headBranch);
             return GetVersionListInternal(info, version, branchesToSend, versionsToSend);
         }
         static bool GetVersionListInternal(SharedNetworkInfo info, Objects.Version version, Stack<Branch> branchesToSend, Stack<Objects.Version> versionsToSend)
@@ -758,6 +766,21 @@ namespace Versionr.Network
             {
                 Printer.PrintError("Error: {0}", e);
                 return false;
+            }
+        }
+
+        internal static void ReceiveBranchHeads(SharedNetworkInfo sharedInfo)
+        {
+            foreach (var x in sharedInfo.RemoteHeadInfo)
+            {
+                var branch = sharedInfo.Workspace.GetBranch(x.Key);
+                var version = sharedInfo.Workspace.GetVersion(x.Value);
+                if (branch != null && version != null)
+                {
+                    var heads = sharedInfo.Workspace.GetBranchHeads(branch);
+                    if (heads.Count == 0)
+                        sharedInfo.Workspace.AddHeadNoCommit(new Head() { Branch = x.Key, Version = x.Value });
+                }
             }
         }
 
@@ -1504,6 +1527,38 @@ namespace Versionr.Network
                 sharedInfo.Workspace.ImportBranchNoCommit(x);
             }
             Printer.PrintDiagnostics("Branches imported.");
+        }
+
+        internal static bool SendBranchHeads(SharedNetworkInfo sharedInfo, Stack<Branch> branchesToSend)
+        {
+            try
+            {
+                if (branchesToSend.Count == 0)
+                    return true;
+                Network.PushHeadIds command = new PushHeadIds();
+                List<PushHead> heads = new List<PushHead>();
+                foreach (var x in branchesToSend)
+                {
+                    try
+                    {
+                        heads.Add(new PushHead() { BranchID = x.ID, VersionID = sharedInfo.Workspace.GetBranchHead(x).Version });
+                    }
+                    catch (Exception)
+                    { }
+                }
+                Printer.PrintDiagnostics("Sending branch head pack...");
+                command.Heads = heads.ToArray();
+                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SendBranchHeads }, ProtoBuf.PrefixStyle.Fixed32);
+                Utilities.SendEncrypted(sharedInfo, command);
+                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                if (response.Type != NetCommandType.Acknowledge)
+                    return false;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         internal static bool SendBranches(SharedNetworkInfo sharedInfo, Stack<Branch> branchesToSend)

@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-fPIC -c -O3
+CFLAGS=-fPIC -c -O3 -std=c++14
 LDFLAGS=-shared -lstdc++
 SOURCES=FileSystem.cpp
 OBJECTS=$(SOURCES:.c=.o)

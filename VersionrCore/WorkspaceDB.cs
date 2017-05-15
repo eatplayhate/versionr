@@ -701,6 +701,8 @@ namespace Versionr
                             records[record.Id] = record;
                             break;
                         }
+                    case AlterationType.Discard:
+                        break;
                     case AlterationType.Delete:
 						if (deletions != null)
 						{

@@ -82,8 +82,8 @@ namespace VersionrUI.ViewModels
 
                     foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
                     {
-                        if (statusEntry.Code != StatusCode.Masked &&
-                            statusEntry.Code != StatusCode.Ignored &&
+                        if (statusEntry.Code != StatusCode.Ignored &&
+                            statusEntry.Code != StatusCode.Excluded &&
                             statusEntry.Code != StatusCode.Unchanged)
                         {
                             StatusEntryVM statusEntryVM = new StatusEntryVM(statusEntry, this, _areaVM.Area);

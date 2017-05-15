@@ -45,7 +45,9 @@ namespace Versionr.Network
         ListStashes,
         QueryJournal,
         JournalUpdateComplete,
-        PushRecords
+        PushRecords,
+        SendBranchHeads,
+        AutomergedBranches,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand
