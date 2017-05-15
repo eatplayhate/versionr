@@ -7239,17 +7239,7 @@ namespace Versionr
                                         }
                                         break;
                                     case StatusCode.Ignored:
-                                        if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.MergeRecord))
-                                        {
-                                            x.VersionControlRecord = GetRecord(stagedOps.First(so => so.Type == StageOperationType.MergeRecord).ReferenceObject);
-                                            Printer.PrintMessage("Discarded (ignored merge result): #b#{0}##", x.VersionControlRecord.CanonicalName);
-                                            Printer.PrintDiagnostics("Recorded discard: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
-                                            Objects.Alteration alteration = new Alteration();
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Discard;
-                                            alterations.Add(alteration);
-                                        }
-                                        if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.Remove))
+                                        if (x.VersionControlRecord != null || (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.Remove)))
                                         {
                                             Printer.PrintMessage("Removed (ignored): #b#{0}##", x.VersionControlRecord.CanonicalName);
                                             Printer.PrintDiagnostics("Recorded removal: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
@@ -7257,6 +7247,19 @@ namespace Versionr
                                             alteration.PriorRecord = x.VersionControlRecord.Id;
                                             alteration.Type = AlterationType.Delete;
                                             alterations.Add(alteration);
+                                        }
+                                        else if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.MergeRecord))
+                                        {
+                                            x.VersionControlRecord = GetRecord(stagedOps.First(so => so.Type == StageOperationType.MergeRecord).ReferenceObject);
+                                            if (x.VersionControlRecord != null)
+                                            {
+                                                Printer.PrintMessage("Discarded (ignored merge result): #b#{0}##", x.VersionControlRecord.CanonicalName);
+                                                Printer.PrintDiagnostics("Recorded discard: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
+                                                Objects.Alteration alteration = new Alteration();
+                                                alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                alteration.Type = AlterationType.Discard;
+                                                alterations.Add(alteration);
+                                            }
                                         }
                                         break;
                                     case StatusCode.Added:
