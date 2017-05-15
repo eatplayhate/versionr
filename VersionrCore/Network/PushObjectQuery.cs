@@ -13,6 +13,7 @@ namespace Versionr.Network
         Annotation,
         Tag,
     }
+
     [ProtoBuf.ProtoContract]
     class PushObjectQuery
     {
@@ -22,11 +23,19 @@ namespace Versionr.Network
         [ProtoBuf.ProtoMember(2)]
         public string[] IDs { get; set; }
     }
+
     [ProtoBuf.ProtoContract]
     class PushObjectResponse
     {
         [ProtoBuf.ProtoMember(1)]
         public bool[] Recognized { get; set; }
+    }
+
+    [ProtoBuf.ProtoContract]
+    class AutomergedBranchIDs
+    {
+        [ProtoBuf.ProtoMember(1)]
+        public Guid[] IDs { get; set; }
     }
 
     [ProtoBuf.ProtoContract]

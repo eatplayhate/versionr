@@ -589,6 +589,11 @@ namespace Versionr.Network
                     return false;
                 Printer.PrintDiagnostics("Committing changes remotely.");
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, new NetCommand() { Type = NetCommandType.PushHead }, ProtoBuf.PrefixStyle.Fixed32);
+
+                Network.AutomergedBranchIDs updatedHeads = new AutomergedBranchIDs() { IDs = new Guid[0] };
+                if (SharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr35)
+                    updatedHeads = Utilities.ReceiveEncrypted<Network.AutomergedBranchIDs>(SharedInfo);
+
                 NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(SharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                 if (response.Type == NetCommandType.RejectPush)
                 {
@@ -602,6 +607,12 @@ namespace Versionr.Network
                 }
                 if (sendCount > 0)
                     Printer.PrintMessage("Sent {0} versions to remote.", sendCount);
+
+                if (updatedHeads != null && updatedHeads.IDs != null && updatedHeads.IDs.Length > 0 && updatedHeads.IDs.Contains(branch.ID))
+                {
+                    m_RequestUpdate = true;
+                }
+
                 return true;
             }
             catch (Exception e)
@@ -609,6 +620,15 @@ namespace Versionr.Network
                 Printer.PrintError("Error: {0}", e);
                 Close();
                 return false;
+            }
+        }
+
+        bool m_RequestUpdate = false;
+        public bool RequestUpdate
+        {
+            get
+            {
+                return m_RequestUpdate;
             }
         }
 

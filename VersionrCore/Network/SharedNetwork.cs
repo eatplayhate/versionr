@@ -72,6 +72,7 @@ namespace Versionr.Network
             public HashSet<Guid> RemoteCheckedBranches { get; set; }
             public HashSet<Guid> RemoteCheckedBranchJournal { get; set; }
             public List<Objects.Branch> ReceivedBranches { get; set; }
+            public List<Guid> Automerges { get; set; }
             public List<VersionInfo> PushedVersions { get; set; }
             public HashSet<Guid> ReceivedVersionSet { get; set; }
             public Dictionary<long, Objects.Record> RemoteRecordMap { get; set; }
@@ -101,6 +102,7 @@ namespace Versionr.Network
                 LZHLDecompressor = Versionr.Utilities.LZHL.CreateDecompressor();
                 ChecksumType = Utilities.ChecksumCodec.Default;
                 RemoteHeadInfo = new Dictionary<Guid, Guid>();
+                Automerges = new List<Guid>();
             }
 
             #region IDisposable Support

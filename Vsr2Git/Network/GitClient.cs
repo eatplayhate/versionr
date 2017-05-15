@@ -387,10 +387,18 @@ namespace Vsr2Git.Network
 			return result;
 		}
 
-		public bool Push(string branchName = null)
+        public bool RequestUpdate
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+		public bool Push(string branchName)
 		{
-			// Populate replication map from git notes
-			try
+            // Populate replication map from git notes
+            try
 			{
 				foreach (var note in m_GitRepository.Notes["commits"])
 				{

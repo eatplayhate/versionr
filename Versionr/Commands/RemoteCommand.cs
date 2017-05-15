@@ -31,6 +31,7 @@ namespace Versionr.Commands
     abstract class RemoteCommand : BaseCommand
     {
         protected System.IO.DirectoryInfo TargetDirectory { get; set; }
+        protected string URL;
         public bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
             RemoteCommandVerbOptions localOptions = options as RemoteCommandVerbOptions;
@@ -77,7 +78,9 @@ namespace Versionr.Commands
 			else
 			{
 				client = ws.Connect(config.URL, RequiresWriteAccess);
-			}
+                URL = config.URL;
+
+            }
 			
             if (client == null || !client.Connected)
             {

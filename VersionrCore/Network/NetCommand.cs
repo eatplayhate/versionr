@@ -47,6 +47,7 @@ namespace Versionr.Network
         JournalUpdateComplete,
         PushRecords,
         SendBranchHeads,
+        AutomergedBranches,
     }
     [ProtoBuf.ProtoContract]
     class NetCommand

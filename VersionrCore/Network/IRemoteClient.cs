@@ -32,6 +32,7 @@ namespace Versionr.Network
         bool ListLocks(string path, string branch, bool allBranches, bool full);
         bool BreakLocks(string path, string branch, bool allBranches, bool full);
         bool ReleaseLocks(List<RemoteLock> locks);
+        bool RequestUpdate { get; }
     }
 
 	public interface IRemoteClientProvider

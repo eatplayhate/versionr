@@ -45,7 +45,22 @@ namespace Versionr.Commands
         protected override bool RunInternal(IRemoteClient client, RemoteCommandVerbOptions options)
         {
             PushVerbOptions localOptions = options as PushVerbOptions;
-            return client.Push(localOptions.Branch);
+            if (!client.Push(localOptions.Branch))
+                return false;
+
+            if (client.RequestUpdate)
+            {
+                Printer.PrintMessage("Server has remotely merged the current branch.");
+                if (Printer.Prompt("Update?"))
+                {
+                    client.Close();
+                    client = client.Workspace.Connect(URL, false);
+                    if (!client.Pull(true, null, false))
+                        return false;
+                    client.Workspace.Update(new Area.MergeSpecialOptions());
+                }
+            }
+            return true;
         }
 
         protected override bool RequiresWriteAccess

@@ -583,6 +583,8 @@ namespace Versionr.Network
                                                         SharedNetwork.ReceiveBranchHeads(clientInfo.SharedInfo);
                                                     }
                                                     clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
+                                                    if (clientInfo.SharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr35)
+                                                        Utilities.SendEncrypted(clientInfo.SharedInfo, new Network.AutomergedBranchIDs() { IDs = new Guid[0] });
                                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
                                                     return true;
                                                 }
@@ -592,6 +594,8 @@ namespace Versionr.Network
                                                     ImportVersions(ws, clientInfo);
                                                     SharedNetwork.ReceiveBranchHeads(clientInfo.SharedInfo);
                                                     clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
+                                                    if (clientInfo.SharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr35)
+                                                        Utilities.SendEncrypted(clientInfo.SharedInfo, new Network.AutomergedBranchIDs() { IDs = clientInfo.SharedInfo.Automerges.ToArray() });
                                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.AcceptPush }, ProtoBuf.PrefixStyle.Fixed32);
                                                     return true;
                                                 }
@@ -1024,6 +1028,7 @@ namespace Versionr.Network
                         Printer.PrintDiagnostics(" - Merge local input {0}", x.Value[0].Version);
                         Printer.PrintDiagnostics(" - Merge remote input {0}", x.Value[1].Version);
                         Printer.PrintDiagnostics(" - Head updated to {0}", result.Version.ID);
+                        clientInfo.SharedInfo.Automerges.Add(x.Key);
                         resultHeads[x.Key] = new Head() { Branch = x.Key, Version = result.Version.ID };
                         continue;
                     }
