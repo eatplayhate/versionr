@@ -15,8 +15,8 @@ namespace Versionr
         [DllImport("VersionrCore.Posix")]
         public static extern void scandirs(string rootdir, scandirdelegate cback);
 
-        static DateTime UnixTimeEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-
+        static DateTime UnixTimeEpoch = new DateTime(370, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+        
         public static List<FlatFSEntry> GetFlatEntries(string root)
         {
             List<FlatFSEntry> entries = new List<FlatFSEntry>();
