@@ -7241,12 +7241,15 @@ namespace Versionr
                                     case StatusCode.Ignored:
                                         if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.Remove))
                                         {
-                                            Printer.PrintMessage("Removed (ignored): #b#{0}##", x.VersionControlRecord.CanonicalName);
-                                            Printer.PrintDiagnostics("Recorded removal: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
-                                            Objects.Alteration alteration = new Alteration();
-                                            alteration.PriorRecord = x.VersionControlRecord.Id;
-                                            alteration.Type = AlterationType.Delete;
-                                            alterations.Add(alteration);
+                                            if (x.VersionControlRecord != null)
+                                            {
+                                                Printer.PrintMessage("Removed (ignored): #b#{0}##", x.VersionControlRecord.CanonicalName);
+                                                Printer.PrintDiagnostics("Recorded removal: {0}, old record: {1}", x.VersionControlRecord.CanonicalName, x.VersionControlRecord.Id);
+                                                Objects.Alteration alteration = new Alteration();
+                                                alteration.PriorRecord = x.VersionControlRecord.Id;
+                                                alteration.Type = AlterationType.Delete;
+                                                alterations.Add(alteration);
+                                            }
                                         }
                                         else if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.MergeRecord))
                                         {
@@ -7309,7 +7312,7 @@ namespace Versionr
                                                             else
                                                             {
                                                                 Objects.Record mergedRecord = GetRecord(op.ReferenceObject);
-                                                                if (x.Code == StatusCode.Ignored || (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash))
+                                                                if (mergedRecord != null && (x.Code == StatusCode.Ignored || (mergedRecord.Size == x.FilesystemEntry.Length && mergedRecord.Fingerprint == x.FilesystemEntry.Hash)))
                                                                 {
                                                                     record = mergedRecord;
                                                                     recordIsMerged = true;
