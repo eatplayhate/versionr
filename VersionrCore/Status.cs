@@ -389,7 +389,6 @@ namespace Versionr
                                 return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
                     }));
-                    tasks[tasks.Count - 1].Wait();
                 }
                 Task.WaitAll(tasks.ToArray());
                 Printer.PrintDiagnostics("Status record checking: {0}", sw.ElapsedTicks);
