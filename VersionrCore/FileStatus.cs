@@ -312,68 +312,79 @@ namespace Versionr
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Restart();
-            if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
-            {
-                if (GetFSFast == null)
+            try
+            { 
+                if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
                 {
-                    var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
-                    GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
+                    if (GetFSFast == null)
+                    {
+                        var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
+                        GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
+                    }
+                    if (GetFSFast != null)
+                    {
+                        FSScan scan = new FSScan();
+                        scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
+                        scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
+                        scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
+                        scan.ExtIncludes = area?.Directives?.Include?.Extensions;
+                        string fn = root.FullName.Replace('\\', '/');
+                        if (fn[fn.Length - 1] != '/')
+                            fn += '/';
+                        sw.Restart();
+                        var x = GetFSFast(fn);
+                        sw.Restart();
+                        List<Entry> e2 = new List<Entry>(x.Count);
+                        System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+                        System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
+                        ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                        if (root.FullName != area.RootDirectory.FullName)
+                            entries2.Add(new Entry(area, null, area.GetLocalPath(root.FullName) + "/", root.FullName, root.Name, root.LastWriteTimeUtc.Ticks, 0, false, (FileAttributes)root.Attributes));
+                        ce2.Signal();
+                        ce2.Wait();
+                        var ea = entries2.ToArray();
+                        e2.Capacity = ea.Length;
+                        e2.AddRange(ea);
+                        return e2;
+                    }
                 }
-                if (GetFSFast != null)
+                else
                 {
-                    FSScan scan = new FSScan();
-                    scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
-                    scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
-                    scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
-                    scan.ExtIncludes = area?.Directives?.Include?.Extensions;
-                    string fn = root.FullName.Replace('\\', '/');
-                    if (fn[fn.Length - 1] != '/')
-                        fn += '/';
-                    sw.Restart();
-                    var x = GetFSFast(fn);
-                    sw.Restart();
-                    List<Entry> e2 = new List<Entry>(x.Count);
-                    System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
-                    System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
-                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
-                    ce2.Signal();
-                    ce2.Wait();
-                    var ea = entries2.ToArray();
-                    e2.Capacity = ea.Length;
-                    e2.AddRange(ea);
-                    return e2;
+                    try
+                    {
+                        FSScan scan = new FSScan();
+                        scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
+                        scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
+                        scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
+                        scan.ExtIncludes = area?.Directives?.Include?.Extensions;
+                        string fn = root.FullName.Replace('\\', '/');
+                        if (fn[fn.Length - 1] != '/')
+                            fn += '/';
+                        sw.Restart();
+                        var x = PosixFS.GetFlatEntries(fn);
+                        sw.Restart();
+                        List<Entry> e2 = new List<Entry>(x.Count);
+                        System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+                        System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
+                        ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                        if (root.FullName != area.RootDirectory.FullName)
+                            entries2.Add(new Entry(area, null, area.GetLocalPath(root.FullName) + "/", root.FullName, root.Name, root.LastWriteTimeUtc.Ticks, 0, false, (FileAttributes)root.Attributes));
+                        ce2.Signal();
+                        ce2.Wait();
+                        var ea = entries2.ToArray();
+                        e2.Capacity = ea.Length;
+                        e2.AddRange(ea);
+                        return e2;
+                    }
+                    catch
+                    {
+                        // eh
+                    }
                 }
             }
-            else
+            catch
             {
-                try
-                {
-                    FSScan scan = new FSScan();
-                    scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
-                    scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
-                    scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
-                    scan.ExtIncludes = area?.Directives?.Include?.Extensions;
-                    string fn = root.FullName.Replace('\\', '/');
-                    if (fn[fn.Length - 1] != '/')
-                        fn += '/';
-                    sw.Restart();
-                    var x = PosixFS.GetFlatEntries(fn);
-                    sw.Restart();
-                    List<Entry> e2 = new List<Entry>(x.Count);
-                    System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
-                    System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
-                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
-                    ce2.Signal();
-                    ce2.Wait();
-                    var ea = entries2.ToArray();
-                    e2.Capacity = ea.Length;
-                    e2.AddRange(ea);
-                    return e2;
-                }
-                catch
-                {
-                    // eh
-                }
+                // eh
             }
             sw.Restart();
             System.Collections.Concurrent.ConcurrentBag<Entry> entries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
