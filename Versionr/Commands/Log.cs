@@ -227,7 +227,10 @@ namespace Versionr.Commands
 				string message = v.Message;
 				if (message == null)
 					message = string.Empty;
-				var idx = message.IndexOf('\n');
+
+                message = message.Replace("\r\n", "\n");
+
+                var idx = message.IndexOf('\n');
 				if (idx == -1)
 					idx = message.Length;
 				message = message.Substring(0, idx);

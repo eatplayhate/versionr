@@ -600,7 +600,11 @@ namespace Versionr.Network
                                                     return true;
                                                 }
                                                 else
+                                                {
+                                                    if (clientInfo.SharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr35)
+                                                        Utilities.SendEncrypted(clientInfo.SharedInfo, new Network.AutomergedBranchIDs() { IDs = new Guid[0] });
                                                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.RejectPush, AdditionalPayload = errorData }, ProtoBuf.PrefixStyle.Fixed32);
+                                                }
                                                 clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
                                                 return false;
                                             }
