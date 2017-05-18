@@ -334,14 +334,18 @@ namespace Versionr.Commands
                 case StatusCode.Missing:
                     return staged ? new Tuple<char, string>('e', "error")
                         : new Tuple<char, string>('w', "missing");
+                case StatusCode.Removed:
+                    return staged ? new Tuple<char, string>('q', "removed")
+                        : new Tuple<char, string>('w', "ignored");
                 case StatusCode.Ignored:
-                    if (isRecorded)
-                    {
-                        return staged ? new Tuple<char, string>('q', "removed")
-                            : new Tuple<char, string>('w', "ignored");
-                    }
-                    return staged ? new Tuple<char, string>('c', "merged")
-                        : new Tuple<char, string>('q', "ignored");
+                    return staged ? new Tuple<char, string>('c', "u+ignored")
+                        : isRecorded ? new Tuple<char, string>('e', "ignored") : new Tuple<char, string>('q', "ignored");
+                case StatusCode.IgnoredAdded:
+                    return staged ? new Tuple<char, string>('g', "a+ignored")
+                        : new Tuple<char, string>('e', "ignored-remote-add");
+                case StatusCode.IgnoredModified:
+                    return staged ? new Tuple<char, string>('s', "m+ignored")
+                        : new Tuple<char, string>('e', "ignored-remote-merge");
                 case StatusCode.Modified:
                     return staged ? new Tuple<char, string>('s', "modified")
                         : new Tuple<char, string>('M', "changed");

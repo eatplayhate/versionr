@@ -22,6 +22,9 @@ namespace Versionr
         Conflict,
 		Excluded,
         Ignored,
+        IgnoredModified,
+        IgnoredAdded,
+        Removed,
         Obstructed,
 
         Count
@@ -158,13 +161,14 @@ namespace Versionr
             return false;
         }
         [Flags]
-        internal enum StageFlags
+        public enum StageFlags
         {
             Recorded = 1,
             Removed = 2,
             Renamed = 4,
             Conflicted = 8,
-            MergeInfo = 16
+            MergeInfo = 16,
+            CleanMergeInfo = 48
         }
         int UpdatedFileTimeCount = 0;
         class StatusPercentage
@@ -243,7 +247,12 @@ namespace Versionr
                 if (x.Type == LocalState.StageOperationType.Rename)
                     ops |= StageFlags.Renamed;
                 if (x.Type == LocalState.StageOperationType.MergeRecord)
-                    ops |= StageFlags.MergeInfo;
+                {
+                    if (x.Operand2 == "remote")
+                        ops |= StageFlags.CleanMergeInfo;
+                    else
+                        ops |= StageFlags.MergeInfo;
+                }
                 stageInformation[x.Operand1] = ops;
             }
             try
@@ -368,11 +377,19 @@ namespace Versionr
                                 }
                             }
                             if (resolved || (snapshotRecord != null && snapshotRecord.Ignored))
-                                return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) || ((objectFlags & StageFlags.MergeInfo) != 0) };
+                            {
+                                if ((objectFlags & StageFlags.Removed) != 0)
+                                    return new StatusEntry() { Code = StatusCode.Removed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) };
+                                else if ((objectFlags & StageFlags.Recorded) != 0 && (objectFlags & StageFlags.CleanMergeInfo) == StageFlags.MergeInfo)
+                                    return new StatusEntry() { Code = StatusCode.IgnoredModified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = true };
+                                else
+                                    return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) || ((objectFlags & StageFlags.MergeInfo) != 0) };
+                            }
                             else
                                 return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
                         }
                     }));
+                    tasks[tasks.Count - 1].Wait();
                 }
                 Task.WaitAll(tasks.ToArray());
                 Printer.PrintDiagnostics("Status record checking: {0}", sw.ElapsedTicks);
@@ -441,7 +458,22 @@ namespace Versionr
                     {
                         StatusEntry se;
                         if (Map.TryGetValue(x.Value.CanonicalName, out se))
-                            se.Code = StatusCode.Ignored;
+                            se.Code = se.Code == StatusCode.IgnoredModified ? StatusCode.IgnoredModified : (se.Code == StatusCode.Deleted ? StatusCode.Removed : StatusCode.Ignored);
+                        else
+                        {
+                            StageFlags flags;
+                            if (stageInformation.TryGetValue(x.Value.CanonicalName, out flags))
+                            {
+                                if ((flags & StageFlags.MergeInfo) != 0)
+                                {
+                                    var remoteRecord = workspace.GetRecord(stage.Where(y => y.Type == LocalState.StageOperationType.MergeRecord && y.Operand1 == x.Value.CanonicalName).First().ReferenceObject);
+                                    var entry = new StatusEntry() { Code = StatusCode.IgnoredAdded, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = remoteRecord };
+
+                                    Elements.Add(entry);
+                                    Map[entry.CanonicalName] = entry;
+                                }
+                            }
+                        }
                     }
                     IgnoredObjects++;
                     continue;
