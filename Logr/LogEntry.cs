@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Xml.Serialization;
 
 namespace Logr
@@ -21,9 +22,14 @@ namespace Logr
         [XmlElement("status")]
         public BuildStatus Status { get; set; }
 
+        [XmlArray("tags")]
+        [XmlArrayItem(ElementName = "tag")]
+        public List<string> Tags { get; set; } = new List<string>();
+
+
         public LogEntry() { }
 
-        public LogEntry(string branch, uint revision, Guid id, string author, string data, string message, BuildStatus status = BuildStatus.Pending)
+        public LogEntry(string branch, uint revision, Guid id, string author, string data, string message, List<string> tags, BuildStatus status = BuildStatus.Pending)
         {
             Branch = branch;
             Revision = revision;
@@ -32,6 +38,7 @@ namespace Logr
             Date = data;
             Message = message;
             Status = status;
+            Tags = tags;
         }
     }
 }

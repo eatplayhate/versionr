@@ -80,7 +80,15 @@ namespace Logr
             IEnumerable<Version> versions = (m_Limit.HasValue && m_Limit.Value > 0) ? m_Versions.Take(m_Limit.Value) : m_Versions;
             foreach (Version version in versions)
             {
-                LogEntries.Add(new LogEntry(m_Area.GetBranch(version.Branch).Name, version.Revision, version.ID, version.Author, ToJavascriptTimestamp(version.Timestamp), version.Message, GetBuildStatus(version, buildVersion)));
+                LogEntries.Add(new LogEntry(
+                    m_Area.GetBranch(version.Branch).Name,
+                    version.Revision,
+                    version.ID,
+                    version.Author,
+                    ToJavascriptTimestamp(version.Timestamp),
+                    version.Message,
+                    m_Area.GetTagsForVersion(version.ID),
+                    GetBuildStatus(version, buildVersion)));
             }
 
             try
@@ -99,11 +107,10 @@ namespace Logr
 
         private static Log Load(string path)
         {
-            XmlSerializer serializer = new XmlSerializer(typeof(Log));
-
             Log result = null;
             try
             {
+                XmlSerializer serializer = new XmlSerializer(typeof(Log));
                 using (StreamReader reader = new StreamReader(path))
                 {
                     result = (Log)serializer.Deserialize(reader);

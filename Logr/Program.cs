@@ -12,7 +12,7 @@ namespace Logr
 
         static void ExceptionHandler(object sender, UnhandledExceptionEventArgs e)
         {
-            using (StreamWriter writer = File.AppendText(@"C:\Versionr\logr.log"))
+            using (StreamWriter writer = File.AppendText(@"D:\Versionr\logr.log"))
             {
                 writer.WriteLine("{0} {1}: {2}", DateTime.Now.ToLongTimeString(), DateTime.Now.ToLongDateString(), ((Exception)e.ExceptionObject).Message);
             }
