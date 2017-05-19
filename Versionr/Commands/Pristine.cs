@@ -78,6 +78,13 @@ namespace Versionr.Commands
                     Printer.PrintMessage("Incorrect record name - wrong case for object #b#{0}##", localName);
                 }
             });
+
+            if (filesToDelete.Count == 0 && directoriesToDelete.Count == 0)
+            {
+                Printer.PrintMessage("No changes found.");
+                return true;
+            }
+
             Printer.PrintMessage("Identified #e#{0}## files and #e#{1}## directories which will be removed.", filesToDelete.Count, directoriesToDelete.Count);
             if (Printer.Prompt("Restore to pristine state?"))
             {
