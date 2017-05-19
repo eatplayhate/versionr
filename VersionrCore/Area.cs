@@ -5168,6 +5168,23 @@ namespace Versionr
 #endif
                             Printer.PrintMessage("#q#Removing (Ignored):## #b#{0}##", x.CanonicalName);
                             delayedStageOperations.Add(new StageOperation() { Type = StageOperationType.MergeRecord, Operand1 = x.CanonicalName, ReferenceObject = -1 });
+                            if (localObject.IsDirectory || ((localObject.FilesystemEntry != null && x.DataEquals(localObject)) 
+                                || (localObject.FilesystemEntry == null && Entry.CheckHash(new FileInfo(GetRecordPath(x.CanonicalName))) == x.Fingerprint)))
+                            {
+                                deletionList.Add(x.Record);
+                            }
+                            else
+                            {
+                                Printer.PrintError("Can't remove locally ignored object \"{0}\", tree confict!", x.CanonicalName);
+                                Printer.PrintMessage("Resolve conflict by: (r)emoving file, (k)eeping local?");
+                                string resolution = System.Console.ReadLine();
+                                if (resolution.StartsWith("k"))
+                                    continue;
+                                if (resolution.StartsWith("r"))
+                                {
+                                    deletionList.Add(x.Record);
+                                }
+                            }
                         }
                         else if (!localObject.Removed && !caseInsensitiveSet.Contains(x.CanonicalName.ToLower()))
                         {

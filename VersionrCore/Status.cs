@@ -335,6 +335,8 @@ namespace Versionr
                             }
                             else
                             {
+                                if ((objectFlags & StageFlags.Removed) != 0)
+                                    return new StatusEntry() { Code = StatusCode.Removed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = true };
                                 if (((objectFlags & StageFlags.Recorded) != 0))
                                     Printer.PrintWarning("Unchanged object `{0}` still marked as recorded in commit!", x.CanonicalName);
                                 return new StatusEntry() { Code = StatusCode.Unchanged, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
@@ -457,7 +459,10 @@ namespace Versionr
                     {
                         StatusEntry se;
                         if (Map.TryGetValue(x.Value.CanonicalName, out se))
+                        {
                             se.Code = se.Code == StatusCode.IgnoredModified ? StatusCode.IgnoredModified : (se.Code == StatusCode.Deleted ? StatusCode.Removed : StatusCode.Ignored);
+                            se.FilesystemEntry = x.Value;
+                        }
                         else
                         {
                             StageFlags flags;
