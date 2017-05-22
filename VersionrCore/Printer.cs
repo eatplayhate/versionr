@@ -116,8 +116,7 @@ namespace Versionr
 			Invert,
 
 			// all of these use the DefaultBGColour
-			Blue,
-			Cyan,
+            Black,
 			DarkBlue,
 			DarkCyan,
 			DarkGray,
@@ -125,7 +124,9 @@ namespace Versionr
 			DarkMagenta,
 			DarkRed,
 			DarkYellow,
-			Gray,
+            Blue,
+            Cyan,
+            Gray,
 			Green,
 			Magenta,
 			Red,
@@ -367,7 +368,8 @@ namespace Versionr
             if (style == PreviousColour)
                 return;
             PreviousColour = style;
-            if (Utilities.MultiArchPInvoke.RunningPlatform == Utilities.Platform.Windows)
+
+            if (Utilities.MultiArchPInvoke.RunningPlatform == Utilities.Platform.Windows && !Utilities.MultiArchPInvoke.IsBashOnWindows)
             {
                 switch (style)
                 {
@@ -376,14 +378,10 @@ namespace Versionr
 						System.Console.ForegroundColor = DefaultColour;
 						break;
 
-					case OutputColour.Blue:
-						System.Console.BackgroundColor = DefaultBGColour;
-						System.Console.ForegroundColor = ConsoleColor.Blue;
-						break;
-					case OutputColour.Cyan:
-						System.Console.BackgroundColor = DefaultBGColour;
-						System.Console.ForegroundColor = ConsoleColor.Cyan;
-						break;
+                    case OutputColour.Black:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Black;
+                        break;
 					case OutputColour.DarkBlue:
 						System.Console.BackgroundColor = DefaultBGColour;
 						System.Console.ForegroundColor = ConsoleColor.DarkBlue;
@@ -412,7 +410,15 @@ namespace Versionr
 						System.Console.BackgroundColor = DefaultBGColour;
 						System.Console.ForegroundColor = ConsoleColor.DarkYellow;
 						break;
-					case OutputColour.Gray:
+                    case OutputColour.Blue:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Blue;
+                        break;
+                    case OutputColour.Cyan:
+                        System.Console.BackgroundColor = DefaultBGColour;
+                        System.Console.ForegroundColor = ConsoleColor.Cyan;
+                        break;
+                    case OutputColour.Gray:
 						System.Console.BackgroundColor = DefaultBGColour;
 						System.Console.ForegroundColor = ConsoleColor.Gray;
 						break;
@@ -460,37 +466,71 @@ namespace Versionr
                 System.Console.Write("\x1b[0m");
                 switch (style)
                 {
-                    case OutputColour.Normal:
+                    default:
+                    case OutputColour.SystemDefault:
+                        System.Console.Write("\x1b[0m");
                         break;
-                    case OutputColour.Success:
-                        System.Console.Write("\x1b[92m");
+
+                    case OutputColour.Black:
+                        System.Console.Write("\x1b[30m");
                         break;
+                    case OutputColour.DarkBlue:
+                        System.Console.Write("\x1b[34m");
+                        break;
+                    case OutputColour.DarkCyan:
+                        System.Console.Write("\x1b[36m");
+                        break;
+                    case OutputColour.DarkGray:
+                        System.Console.Write("\x1b[90m");
+                        break;
+                    case OutputColour.DarkGreen:
+                        System.Console.Write("\x1b[32m");
+                        break;
+                    case OutputColour.DarkMagenta:
+                        System.Console.Write("\x1b[35m");
+                        break;
+                    case OutputColour.DarkRed:
+                        System.Console.Write("\x1b[31m");
+                        break;
+                    case OutputColour.DarkYellow:
+                        System.Console.Write("\x1b[33m");
+                        break;
+
                     case OutputColour.Blue:
+                        System.Console.Write("\x1b[94m");
+                        break;
+                    case OutputColour.Cyan:
                         System.Console.Write("\x1b[96m");
                         break;
-                    case OutputColour.Emphasis:
-                        System.Console.Write("\x1b[1m");
+                    case OutputColour.Gray:
+                        System.Console.Write("\x1b[37m");
                         break;
-                    case OutputColour.Warning:
-                        System.Console.Write("\x1b[93m");
+                    case OutputColour.Green:
+                        System.Console.Write("\x1b[92m");
                         break;
-                    case OutputColour.Error:
+                    case OutputColour.Magenta:
+                        System.Console.Write("\x1b[95m");
+                        break;
+                    case OutputColour.Red:
                         System.Console.Write("\x1b[91m");
                         break;
+                    case OutputColour.Yellow:
+                        System.Console.Write("\x1b[93m");
+                        break;
+                    case OutputColour.White:
+                        System.Console.Write("\x1b[97m");
+                        break;
+
                     case OutputColour.ErrorHeader:
                         System.Console.Write("\x1b[101;97m");
                         break;
                     case OutputColour.WarningHeader:
                         System.Console.Write("\x1b[30;103m");
                         break;
-                    case OutputColour.Trace:
-                        System.Console.Write("\x1b[37m");
-                        break;
+
                     case OutputColour.Invert:
-                        System.Console.Write("\x1b[7m");
-                        break;
-                    default:
-                        System.Console.Write("\x1b[0m");
+                        System.Console.Write("\033[1;97m");
+                        System.Console.Write("\033[0;30m");
                         break;
                 }
             }

@@ -45,6 +45,15 @@ namespace Versionr.Utilities
                 return m_Platform.Value;
             }
         }
+
+        public static bool IsBashOnWindows
+        {
+            get
+            {
+                return Environment.GetEnvironmentVariable("SHELL") != null;
+            }
+        }
+
         static bool? m_IsRunningOnMono;
         public static bool IsRunningOnMono
         {
