@@ -529,8 +529,7 @@ namespace Versionr
                         break;
 
                     case OutputColour.Invert:
-                        System.Console.Write("\033[1;97m");
-                        System.Console.Write("\033[0;30m");
+                        System.Console.Write("\x1b[7m");
                         break;
                 }
             }
