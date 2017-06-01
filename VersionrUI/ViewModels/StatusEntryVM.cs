@@ -127,7 +127,7 @@ namespace VersionrUI.ViewModels
                     text.Inlines.Add(new Run("Object: "));
                     text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
                     text.Inlines.Add(new Run(" is "));
-                    text.Inlines.Add(new Run("different") { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(220, 255, 220)) });
+                    text.Inlines.Add(new Run("different") { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(0, 35, 0)) });
                     text.Inlines.Add(new Run("."));
                     diffPreviewDocument.Blocks.Add(text);
                 }
@@ -461,13 +461,13 @@ namespace VersionrUI.ViewModels
                     {
                         line0++;
                         if (line0 >= reg.Start1 && line0 <= reg.End1)
-                            region.Inlines.Add(new Run(string.Format("-{0}" + Environment.NewLine, diff[i].file1[j - 1])) { Foreground = Brushes.Red, Background = new SolidColorBrush(Color.FromRgb(255, 220, 220)) });
+                            region.Inlines.Add(new Run(string.Format("-{0}" + Environment.NewLine, diff[i].file1[j - 1])) { Foreground = Brushes.Red, Background = new SolidColorBrush(Color.FromRgb(35, 0, 0)) });
                     }
                     for (int j = 1; j <= cf1; j++)
                     {
                         line1++;
                         if (line1 >= reg.Start2 && line1 <= reg.End2)
-                            region.Inlines.Add(new Run(string.Format("+{0}" + Environment.NewLine, diff[i].file2[j - 1])) { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(220, 255, 220)) });
+                            region.Inlines.Add(new Run(string.Format("+{0}" + Environment.NewLine, diff[i].file2[j - 1])) { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(0, 35, 0)) });
                     }
                 }
                 document.Blocks.Add(region);
