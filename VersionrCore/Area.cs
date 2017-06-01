@@ -3182,7 +3182,9 @@ namespace Versionr
                         automerged = true;
                     }
                     merged = true;
-                    if ((showMerges || (!rebased && !followBranches)) && (!automerged || showAutoMerges))
+                    bool head = GetBranchHead(GetBranch(x.Branch)).Version == x.ID;
+
+                    if ((showMerges || (!rebased && !followBranches)) && (!automerged || showAutoMerges) || head)
                     {
                         if (!added)
                         {
@@ -6054,7 +6056,10 @@ namespace Versionr
             Printer.PrintDiagnostics("Checking for existing branch \"{0}\".", v);
             var branch = GetBranchByName(v).FirstOrDefault();
             if (branch != null)
-                throw new Exception(string.Format("Branch \"{0}\" already exists!", v));
+            {
+                Printer.PrintError(string.Format("Branch \"{0}\" already exists!", v));
+                return;
+            }
 
             Objects.Version currentVer = Database.Version;
             branch = Objects.Branch.Create(v, currentVer.ID, currentVer.Branch);
