@@ -1042,6 +1042,8 @@ namespace Versionr
                 else if (hasRejectedHunks)
                 {
                     Printer.PrintError("#w# - Patch not clean, generating rejection file!");
+                    if (File.Exists(Path.GetFullPath(resultPath) + ".rejected"))
+                        File.Delete(Path.GetFullPath(resultPath) + ".rejected");
                     File.Move(rejectionFile, Path.GetFullPath(resultPath) + ".rejected");
                 }
             }
@@ -1176,7 +1178,7 @@ namespace Versionr
                         }));
                     }
                 }
-                else if (x.Type == AlterationType.Update)
+                else if (x.Type == AlterationType.Update || (x.Type == AlterationType.Move && GetRecord(x.NewRecord.Value).Fingerprint != GetRecord(x.PriorRecord.Value).Fingerprint))
                 {
                     Record newRecord = GetRecord(x.NewRecord.Value);
                     Record oldRecord = GetRecord(x.PriorRecord.Value);
@@ -1195,7 +1197,7 @@ namespace Versionr
 
                     StashEntry entry = new StashEntry()
                     {
-                        Alteration = AlterationType.Update,
+                        Alteration = x.Type,
                         CanonicalName = newRecord.CanonicalName,
                         OriginalCanonicalName = string.Empty,
                         NewHash = newRecord.Fingerprint,
