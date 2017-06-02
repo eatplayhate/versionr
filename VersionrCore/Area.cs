@@ -488,6 +488,10 @@ namespace Versionr
 
                     Status.StatusEntry ws = null;
                     st.Map.TryGetValue(x.CanonicalName, out ws);
+                    if (ws == null && File.Exists(GetRecordPath(x.CanonicalName)))
+                    {
+                        ws = st.Map.Where(m => m.Key.Equals(x.CanonicalName, StringComparison.OrdinalIgnoreCase)).Select(m => m.Value).FirstOrDefault();
+                    }
 
                     string rpath = GetRecordPath(x.CanonicalName);
 
