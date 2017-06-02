@@ -3234,6 +3234,31 @@ namespace Versionr
             return Database.GetHistory(version, limit);
         }
 
+        public List<Objects.Version> Versions
+        {
+            get { return Database.Table<Objects.Version>().ToList(); }
+        }
+
+        // Returns versions by branch or all, with limit, in date descending order.
+        public List<Objects.Version> GetVersions(Objects.Branch branch, int? limit = null)
+        {
+            if (branch == null)
+            {
+                if (limit.HasValue)
+                    return Database.Query<Objects.Version>("SELECT * FROM Version ORDER BY Timestamp DESC LIMIT ?", limit.Value).ToList();
+                else
+                    return Database.Query<Objects.Version>("SELECT * FROM Version ORDER BY Timestamp DESC").ToList();
+            }
+            else
+            {
+                if (limit.HasValue)
+                    return Database.Query<Objects.Version>("SELECT * FROM Version WHERE Version.Branch = ? ORDER BY Timestamp DESC LIMIT ?",
+                        branch.ID, limit.Value).ToList();
+                else
+                    return Database.Query<Objects.Version>("SELECT * FROM Version WHERE Version.Branch = ? ORDER BY Timestamp DESC", branch.ID).ToList();
+            }
+        }
+
         public static string CoreVersion
         {
             get

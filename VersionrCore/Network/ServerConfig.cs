@@ -19,6 +19,7 @@ namespace Versionr.Network
         public bool AllowVaultCreation { get; set; }
         public string AutoDomains { get; set; }
         public WebConfig WebService { get; set; }
+        public RestConfig RestService { get; set; }
         public bool RequiresAuthentication
         {
             get

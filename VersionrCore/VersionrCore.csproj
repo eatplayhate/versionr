@@ -80,6 +80,8 @@
     <Compile Include="Network\Locks.cs" />
     <Compile Include="Network\NetCommand.cs" />
     <Compile Include="Network\PushObjectQuery.cs" />
+    <Compile Include="Network\RestConfig.cs" />
+    <Compile Include="Network\RestService.cs" />
     <Compile Include="Network\Server.cs" />
     <Compile Include="Network\ServerConfig.cs" />
     <Compile Include="Network\SharedNetwork.cs" />
@@ -144,6 +146,10 @@
     <ProjectReference Include="..\commandline-stable-1.9.71.2\src\libcmdline\CommandLine.csproj">
       <Project>{5dea2811-2ffa-4959-830b-cad3acacabeb}</Project>
       <Name>CommandLine</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Grapevine-4.0.0.82\src\Grapevine\Grapevine.csproj">
+      <Project>{c79e6853-f7a0-426f-883c-169651123256}</Project>
+      <Name>Grapevine</Name>
     </ProjectReference>
     <ProjectReference Include="..\SQLite\SQLite.csproj">
       <Project>{8e2f144c-b039-478d-a479-487c83cdab79}</Project>

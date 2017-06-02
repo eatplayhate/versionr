@@ -107,6 +107,13 @@ namespace Versionr.Network
                     RunWebServer();
                 });
             }
+            if (Config.RestService != null && Config.RestService.Port != 0)
+            {
+                Task.Run(() =>
+                {
+                    RunRestServer(info);
+                });
+            }
             Printer.PrintMessage("Server started, bound to #b#{0}##.", listener.LocalEndpoint);
             while (true)
             {
@@ -142,6 +149,30 @@ namespace Versionr.Network
                 {
                     Printer.PrintError("Error: {0}", e.ToString());
                     Printer.PrintMessage("Error starting web interface. Restarting in 10s.");
+                    System.Threading.Thread.Sleep(10000);
+                }
+            }
+        }
+
+        private static void RunRestServer(System.IO.DirectoryInfo info)
+        {
+            while (true)
+            {
+                try
+                {
+                    RestService service = new RestService(Config, info);
+                    service.Run();
+                }
+                catch (Grapevine.Exceptions.Server.UnableToStartHostException e)
+                {
+                    Printer.PrintError("Error: {0}", e.ToString());
+                    Printer.PrintMessage("You may need to add a http reservation as an administrator, e.g.");
+                    Printer.PrintMessage($"netsh http add urlacl url=\"http://+:{Config.RestService.Port}/\" user=%USERDOMAIN%\\%USERNAME%");
+                }
+                catch (Exception e)
+                {
+                    Printer.PrintError("Error: {0}", e.ToString());
+                    Printer.PrintMessage("Error starting rest interface. Restarting in 10s.");
                     System.Threading.Thread.Sleep(10000);
                 }
             }
