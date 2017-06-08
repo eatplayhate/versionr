@@ -43,6 +43,8 @@ namespace Versionr.Commands
         public bool All { get; set; }
         [Option('i', "ignore-case", HelpText = "Ignore case for tag values.")]
         public bool IgnoreCase { get; set; }
+        [Option('f', "fuzzy", HelpText = "Finds any part of the specified tag. Will ignore case.")]
+        public bool Fuzzy { get; set; }
         [ValueList(typeof(List<string>))]
         public List<string> Tags { get; set; }
     }
@@ -65,7 +67,13 @@ namespace Versionr.Commands
                     Printer.PrintMessage("#e#Error:## tag {0} doesn't start with #b#\\###!", x);
                     return false;
                 }
-                IEnumerable<Guid> getTags = Workspace.FindTags(x.Substring(1), localOptions.IgnoreCase).Select(y => y.Version);
+                string search = x.Substring(1);
+                if (localOptions.Fuzzy)
+                {
+                    localOptions.IgnoreCase = true;
+                    search = $"%{search}%";
+                }
+                IEnumerable<Guid> getTags = Workspace.FindTags(search, localOptions.IgnoreCase).Select(y => y.Version);
                 if (!localOptions.All || first)
                     results = results.Concat(getTags).Distinct().ToList();
                 else
@@ -76,7 +84,10 @@ namespace Versionr.Commands
             foreach (var x in results)
             {
                 Objects.Version ver = Workspace.GetVersion(x);
-                Printer.PrintMessage(" - #b#{0}## on #c#{1}## ##[#s#{4}##] #q#by {2} at {3}", ver.ID, Workspace.GetBranch(ver.Branch).Name, ver.Author, ver.Timestamp.ToLocalTime(), string.Join(" ", Workspace.GetTagsForVersion(ver.ID).Select(t => "\\#" + t).ToArray()));
+                if (ver != null)
+                    Printer.PrintMessage(" - #b#{0}## on #c#{1}## ##[#s#{4}##] #q#by {2} at {3}", ver.ID, Workspace.GetBranch(ver.Branch).Name, ver.Author, ver.Timestamp.ToLocalTime(), string.Join(" ", Workspace.GetTagsForVersion(ver.ID).Select(t => "\\#" + t).ToArray()));
+                else
+                    Printer.PrintError(" - {0} wasn't found", x);
             }
             return true;
         }
