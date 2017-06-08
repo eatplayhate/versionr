@@ -35,10 +35,6 @@
     <Reference Include="BCrypt.Net">
       <HintPath>..\References\BCrypt.Net.dll</HintPath>
     </Reference>
-    <Reference Include="Grapevine, Version=4.1.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Grapevine.4.1.0.0\lib\net40\Grapevine.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="LZ4">
       <HintPath>..\References\LZ4.dll</HintPath>
     </Reference>
@@ -151,6 +147,10 @@
     <ProjectReference Include="..\commandline-stable-1.9.71.2\src\libcmdline\CommandLine.csproj">
       <Project>{5dea2811-2ffa-4959-830b-cad3acacabeb}</Project>
       <Name>CommandLine</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Grapevine-4.0.0.82\src\Grapevine\Grapevine.csproj">
+      <Project>{c79e6853-f7a0-426f-883c-169651123256}</Project>
+      <Name>Grapevine</Name>
     </ProjectReference>
     <ProjectReference Include="..\SQLite\SQLite.csproj">
       <Project>{8e2f144c-b039-478d-a479-487c83cdab79}</Project>
