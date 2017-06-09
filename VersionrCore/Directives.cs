@@ -82,7 +82,7 @@ namespace Versionr
             }
             set
             {
-                m_Extensions = value.Select(x => x.ToLowerInvariant()).ToArray();
+                m_Extensions = value?.Select(x => x.ToLowerInvariant()).ToArray();
             }
         }
         public string[] Patterns
