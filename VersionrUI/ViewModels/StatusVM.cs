@@ -5,6 +5,9 @@ using System.Linq;
 using Versionr;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
+using System;
+using System.Collections.ObjectModel;
+using System.Windows.Controls;
 
 namespace VersionrUI.ViewModels
 {
@@ -13,10 +16,13 @@ namespace VersionrUI.ViewModels
         public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand CommitCommand { get; private set; }
         public DelegateCommand CreateBranchCommand { get; private set; }
+        public DelegateCommand<TextBox> AddTagCommand { get; private set; }
+        public DelegateCommand<string> RemoveTagCommand { get; private set; }
 
         private Status _status;
         private AreaVM _areaVM;
         private List<StatusEntryVM> _elements;
+        private List<TagPresetVM> _tagPresets;
         private bool _pushOnCommit;
         private string _commitMessage;
 
@@ -24,9 +30,13 @@ namespace VersionrUI.ViewModels
         {
             _areaVM = areaVM;
 
+            CustomTags = new ObservableCollection<CustomTagVM>();
+
             RefreshCommand = new DelegateCommand(() => Load(Refresh));
             CommitCommand = new DelegateCommand(() => Load(Commit), CanCommit);
             CreateBranchCommand = new DelegateCommand(() => _areaVM.CreateBranch());
+            AddTagCommand = new DelegateCommand<TextBox>(AddTag, CanAddTag);
+            RemoveTagCommand = new DelegateCommand<string>(RemoveTag);
         }
 
         public Status Status
@@ -70,6 +80,24 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        public List<TagPresetVM> TagPresets
+        {
+            get
+            {
+                if (_tagPresets == null)
+                    Load(Refresh);
+                return _tagPresets;
+            }
+        }
+
+        public ObservableCollection<CustomTagVM> CustomTags { get; private set; }
+
+        private List<string> GetCommitTags()
+        {
+            return TagPresets.Where(x => x.IsChecked).Select(x => x.Tag)
+                .Union(CustomTags.Select(x => x.Tag)).ToList();
+        }
+
         private static object refreshLock = new object();
         public void Refresh()
         {
@@ -79,6 +107,10 @@ namespace VersionrUI.ViewModels
                 {
                     _status = _areaVM.Area.GetStatus(_areaVM.Area.Root);
                     _elements = new List<StatusEntryVM>();
+                    
+                    _tagPresets = new List<TagPresetVM>();
+                    if(_areaVM.Area.Directives.TagPresets != null)
+                        _tagPresets.AddRange(_areaVM.Area.Directives.TagPresets.Select(x => new TagPresetVM(x)));
 
                     foreach (Status.StatusEntry statusEntry in Status.Elements.OrderBy(x => x.CanonicalName))
                     {
@@ -98,6 +130,7 @@ namespace VersionrUI.ViewModels
                     NotifyPropertyChanged("Status");
                     NotifyPropertyChanged("Elements");
                     NotifyPropertyChanged("AllStaged");
+                    NotifyPropertyChanged("TagPresets");
                     MainWindow.Instance.Dispatcher.Invoke(() => CommitCommand.RaiseCanExecuteChanged());
                 }
             }
@@ -187,14 +220,52 @@ namespace VersionrUI.ViewModels
             }
 
             OperationStatusDialog.Start("Commit");
-            bool commitSuccessful = _areaVM.Area.Commit(CommitMessage, false);
+            bool commitSuccessful = _areaVM.Area.Commit(CommitMessage, false, GetCommitTags());
             
             if (commitSuccessful && PushOnCommit)
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
             OperationStatusDialog.Finish();
 
             CommitMessage = string.Empty;
+            TagPresets.ForEach(x => x.IsChecked = false);
+            MainWindow.Instance.Dispatcher.Invoke(() => CustomTags.Clear());
+
             Refresh();
+        }
+
+        private bool CanAddTag(TextBox textbox)
+        {
+            string tag = textbox?.Text;
+            return ValidateTag(tag) &&
+                TagPresets != null &&
+                !TagPresets.Any(x => x.Tag == tag) &&
+                !CustomTags.Any(x => x.Tag == tag);
+        }
+
+        private void AddTag(TextBox textbox)
+        {
+            if(CanAddTag(textbox))
+            {
+                string tag = textbox?.Text;
+                CustomTags.Add(new CustomTagVM(tag));
+                textbox.Text = String.Empty;
+            }
+        }
+
+        private void RemoveTag(string tag)
+        {
+            List<CustomTagVM> itemsToRemove = CustomTags.Where(x => x.Tag == tag).ToList();
+
+            foreach (CustomTagVM itemToRemove in itemsToRemove)
+                CustomTags.Remove(itemToRemove);
+        }
+
+        private bool ValidateTag(string tag)
+        {
+            return !String.IsNullOrEmpty(tag) &&
+                tag[0] == '#' &&
+                !tag.Contains(' ') &&
+                !tag.Contains('\t');
         }
     }
 }

@@ -306,7 +306,7 @@
             <Grid>
                 <Grid Opacity="{Binding Opacity}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="120" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
@@ -327,23 +327,79 @@
                                         Content="Push after commit"
                                         IsChecked="{Binding PushOnCommit}" />
                         </StackPanel>
-                        <DockPanel DockPanel.Dock="Bottom">
-                            <CheckBox Margin="4" Content="Select all" IsThreeState="True" IsChecked="{Binding AllStaged}" />
-                        </DockPanel>
-                        <DockPanel>
-                            <Label Margin="4" DockPanel.Dock="Left" Content="Message:" />
-                            <TextBox Margin="4"
+                        <CheckBox DockPanel.Dock="Bottom" Margin="4" Content="Select all" IsThreeState="True" IsChecked="{Binding AllStaged}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" MinHeight="80" />
+                                <RowDefinition Height="34" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Column="0" Grid.Row="0"
+                                       Margin="4" Text="Message:" />
+                            <TextBox Grid.Column="1" Grid.Row="0"
+                                     Margin="4"
                                      mahapps:TextBoxHelper.Watermark="Message"
                                      Text="{Binding CommitMessage}"
                                      TextWrapping="Wrap"
                                      AcceptsReturn="True" />
-                        </DockPanel>
+                            <TextBlock Grid.Column="0" Grid.Row="1"
+                                       VerticalAlignment="Center"
+                                       Margin="4" Text="Tags:" />
+                            <StackPanel Grid.Column="1" Grid.Row="1"
+                                        Orientation="Horizontal">
+                                <ItemsControl Margin="4" ItemsSource="{Binding TagPresets}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="{x:Type ItemsControl}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TagPresets.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"></StackPanel>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <ItemsControl Margin="4" ItemsSource="{Binding CustomTags}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="{x:Type ItemsControl}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CustomTags.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"></StackPanel>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <TextBox x:Name="newTagText" Margin="4" Width="90" Height="20"
+                                         mahapps:TextBoxHelper.Watermark="New tag"
+                                         TextChanged="newTagText_TextChanged"
+                                         KeyUp="newTagText_KeyUp"
+                                         ToolTip="Tags must consist of one word prefixed with a hash (#) character" />
+                                <Button Content="Add"
+                                        Height="20"
+                                        Command="{Binding AddTagCommand}"
+                                        CommandParameter="{Binding ElementName=newTagText}"
+                                        ToolTip="Add new tag" />
+                            </StackPanel>
+                        </Grid>
                     </DockPanel>
                     <GridSplitter Grid.Row="1"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Center"
-                                    ShowsPreview="True"
-                                    Height="5" />
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Center"
+                                  ShowsPreview="True"
+                                  Height="5" />
                     <ListView Grid.Row="2"
                               x:Name="listView"
                               ItemsSource="{Binding Elements}"
@@ -515,6 +571,28 @@
             </WrapPanel>
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:TagPresetVM}">
+            <CheckBox VerticalAlignment="Center"
+                      Margin="4"
+                      Content="{Binding Tag}"
+                      ToolTip="{Binding Description}"
+                      IsChecked="{Binding IsChecked}" />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:CustomTagVM}">
+            <StackPanel VerticalAlignment="Center"
+                        Margin="4" Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center"
+                           Text="{Binding Tag}" />
+                <Button Content="X"
+                        Margin="2"
+                        BorderThickness="0"
+                        VerticalAlignment="Center"
+                        Command="{Binding DataContext.RemoveTagCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ItemsControl}}}"
+                        CommandParameter="{Binding Tag}" />
+            </StackPanel>
+        </DataTemplate>
+        
         <DataTemplate x:Key="HeaderTemplateArrowUp">
             <DockPanel LastChildFill="True" Width="{Binding ActualWidth, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type GridViewColumnHeader}}}">
                 <Path x:Name="arrowUp" StrokeThickness="1" Fill="Gray" Data="M 5,10 L 15,10 L 10,5 L 5,10" DockPanel.Dock="Right" Width="20" HorizontalAlignment="Right" Margin="5,0,5,0" SnapsToDevicePixels="True"/>

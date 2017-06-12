@@ -262,6 +262,38 @@ namespace Versionr
         }
     }
 
+    public class TagPreset
+    {
+        public string Tag { get; set; }
+        public string Description { get; set; }
+        public TagPreset(JsonReader reader)
+        {
+            string currentProperty = null;
+            while (reader.Read())
+            {
+                switch (reader.TokenType)
+                {
+                    case JsonToken.PropertyName:
+                        currentProperty = reader.Value.ToString();
+                        break;
+                    case JsonToken.String:
+                        if (currentProperty == "Tag")
+                            Tag = reader.Value.ToString();
+                        else if (currentProperty == "Description")
+                            Description = reader.Value.ToString();
+                        else
+                            throw new Exception();
+                        break;
+                    case JsonToken.EndObject:
+                        return;
+                    default:
+                        throw new Exception();
+                }
+            }
+            throw new Exception();
+        }
+    }
+
     public class Directives
     {
         public Ignores Ignore { get; set; }
@@ -274,18 +306,19 @@ namespace Versionr
         public string ExternalMerge2Way { get; set; }
         public SvnCompatibility Svn { get; set; }
         public Dictionary<string, Extern> Externals { get; set; }
-
         private string m_UserName;
         public string UserName
         {
             get { return (String.IsNullOrEmpty(m_UserName)) ? Environment.UserName : m_UserName; }
             set { m_UserName = value; }
         }
+        public List<TagPreset> TagPresets { get; set; }
 
         public Directives()
         {
             Ignore = new Ignores();
             Externals = new Dictionary<string, Extern>();
+            TagPresets = new List<TagPreset>();
         }
         public Directives(JsonReader reader)
         {
@@ -354,6 +387,28 @@ namespace Versionr
                             }
                         }
                         break;
+                    case JsonToken.StartArray:
+                        if (currentProperty == "TagPresets")
+                        {
+                            TagPresets = new List<TagPreset>();
+                            while(reader.Read())
+                            {
+                                if (reader.TokenType == JsonToken.StartObject)
+                                {
+                                    TagPreset tag = new TagPreset(reader);
+                                    if (!String.IsNullOrEmpty(tag.Tag) &&
+                                        tag.Tag[0] == '#' &&
+                                        !tag.Tag.Contains(' ') &&
+                                        !tag.Tag.Contains('\t'))
+                                        TagPresets.Add(tag);
+                                }
+                                else if (reader.TokenType == JsonToken.EndArray)
+                                    break;
+                                else
+                                    throw new Exception();
+                            }
+                        }
+                        break;
                     default:
                         throw new Exception();
                 }
@@ -393,6 +448,14 @@ namespace Versionr
                     Externals = new Dictionary<string, Extern>();
                 foreach (var x in other.Externals)
                     Externals[x.Key] = x.Value;
+            }
+
+            if (other.TagPresets != null)
+            {
+                if (TagPresets == null)
+                    TagPresets = new List<TagPreset>();
+                TagPresets.AddRange(other.TagPresets);
+                TagPresets = TagPresets.Distinct().ToList();
             }
         }
     }

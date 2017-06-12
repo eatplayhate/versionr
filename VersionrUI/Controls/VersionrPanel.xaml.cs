@@ -14,6 +14,7 @@ using VersionrUI.ViewModels;
 using System.Windows.Media;
 using MahApps.Metro.Controls.Dialogs;
 using System.Collections.Generic;
+using System.Windows.Input;
 
 namespace VersionrUI.Controls
 {
@@ -282,6 +283,20 @@ namespace VersionrUI.Controls
                      SetSelectedItem(checkbox.DataContext);
                 
                 _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), checkbox.IsChecked == true);
+            }
+        }
+
+        private void newTagText_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            SelectedArea?.Status.AddTagCommand.RaiseCanExecuteChanged();
+        }
+
+        private void newTagText_KeyUp(object sender, KeyEventArgs e)
+        {
+            TextBox textbox = sender as TextBox;
+            if (textbox != null && (e.Key == Key.Return || e.Key == Key.Enter))
+            {
+                SelectedArea?.Status.AddTagCommand.Execute(textbox);
             }
         }
     }
