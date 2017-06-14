@@ -4065,6 +4065,7 @@ namespace Versionr
             }
             End:
             // add parent directories
+            List<string> removedPaths = new List<string>();
             foreach (var x in stageOps.ToArray())
             {
                 if (x.Type == StageOperationType.Add)
@@ -4088,24 +4089,43 @@ namespace Versionr
                         }
                     }
                 }
-                else if (x.Type == StageOperationType.Remove)
+                else if (x.Type == StageOperationType.Remove && x.Operand1.EndsWith("/"))
+                    removedPaths.Add(x.Operand1);
+            }
+            if (removedPaths.Count > 0)
+            {
+                removedPaths.Sort();
+                var sortedElements = status.Elements.OrderBy(z => z.CanonicalName).ToList();
+                List<bool> maskedFiles = new List<bool>(status.Elements.Count);
+                for (int i = 0; i < status.Elements.Count; i++)
+                    maskedFiles.Add(false);
+                foreach (var x in removedPaths)
                 {
-                    Status.StatusEntry entry = status.Map[x.Operand1];
-                    if (entry.IsDirectory)
+                    var entry = status.Map[x];
+                    int index = sortedElements.BinarySearch(entry, Comparer<Status.StatusEntry>.Create((a, b) => {  return a.CanonicalName.CompareTo(b.CanonicalName); }));
+
+                    if (maskedFiles[index])
+                        continue;
+                    maskedFiles[index] = true;
+                    for (int i = index + 1; i < sortedElements.Count; i++)
                     {
-                        foreach (var y in status.Elements)
+                        // already checked
+                        if (maskedFiles[i])
+                            break;
+                        var y = sortedElements[i];
+                        if (y.CanonicalName.StartsWith(x))
                         {
-                            if (y.CanonicalName.StartsWith(entry.CanonicalName))
+                            maskedFiles[i] = true;
+                            if (y.Code != StatusCode.Deleted && !removals.Contains(y.CanonicalName))
                             {
-                                if (y.Code != StatusCode.Deleted && !removals.Contains(y.CanonicalName))
-                                {
-                                    if (callback != null)
-                                        callback(entry, StatusCode.Deleted, true);
-                                    Printer.PrintMessage("#x#Error:##\n  Can't stage removal of \"#b#{0}##\", obstructed by object \"#b#{1}##\". Remove contained objects first.", x.Operand1, y.CanonicalName);
-                                    return false;
-                                }
+                                if (callback != null)
+                                    callback(entry, StatusCode.Deleted, true);
+                                Printer.PrintMessage("#x#Error:##\n  Can't stage removal of \"#b#{0}##\", obstructed by object \"#b#{1}##\". Remove contained objects first.", x, y.CanonicalName);
+                                return false;
                             }
                         }
+                        else
+                            break;
                     }
                 }
             }

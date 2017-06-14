@@ -333,13 +333,13 @@ namespace Versionr
                             fn += '/';
                         sw.Restart();
                         var x = GetFSFast(fn);
+                        if (area.GetLocalPath(fn) != "")
+                            x.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = x.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
                         sw.Restart();
                         List<Entry> e2 = new List<Entry>(x.Count);
                         System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
                         System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
                         ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
-                        if (root.FullName != area.RootDirectory.FullName)
-                            entries2.Add(new Entry(area, null, area.GetLocalPath(root.FullName) + "/", root.FullName, root.Name, root.LastWriteTimeUtc.Ticks, 0, false, (FileAttributes)root.Attributes));
                         ce2.Signal();
                         ce2.Wait();
                         var ea = entries2.ToArray();
@@ -362,13 +362,13 @@ namespace Versionr
                             fn += '/';
                         sw.Restart();
                         var x = PosixFS.GetFlatEntries(fn);
+                        if (area.GetLocalPath(fn) != "")
+                            x.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = x.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
                         sw.Restart();
                         List<Entry> e2 = new List<Entry>(x.Count);
                         System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
                         System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
                         ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
-                        if (root.FullName != area.RootDirectory.FullName)
-                            entries2.Add(new Entry(area, null, area.GetLocalPath(root.FullName) + "/", root.FullName, root.Name, root.LastWriteTimeUtc.Ticks, 0, false, (FileAttributes)root.Attributes));
                         ce2.Signal();
                         ce2.Wait();
                         var ea = entries2.ToArray();
@@ -477,6 +477,21 @@ namespace Versionr
                     e2.Add(parent);
                     if (ignoreDirectory)
                     {
+                        // have to find child files and mark them specifically as ignored
+                        int next = r.ChildCount + i + 1;
+                        for (int x = i + 1; x < next; x++)
+                        {
+                            if (results[x].Length != -1)
+                            {
+                                var f = results[x];
+                                string fn = f.FullName.Substring(rootFolder.Length + 1);
+
+                                var ignoredFile = new Entry(area, parent, fn, f.FullName, f.FullName.Substring(parent.FullName.Length), f.FileTime, f.Length, true, (FileAttributes)f.Attributes);
+                                e2.Add(ignoredFile);
+                            }
+                            else
+                                x += results[x].ChildCount;
+                        }
                         i += r.ChildCount;
                     }
                     else

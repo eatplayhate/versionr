@@ -33,12 +33,16 @@ namespace Versionr.Commands
                 return "pristine";
             }
         }
+
+        [Option('f', "force", HelpText = "Forces the command - suitable for unattended runs")]
+        public bool Force { get; set; }
     }
     class Pristine : BaseWorkspaceCommand
     {
         public override bool Headless { get { return true; } }
         protected override bool RunInternal(object options)
         {
+            PristineVerbOptions localOptions = options as PristineVerbOptions;
             var records = Workspace.GetRecords(Workspace.Version);
             HashSet<string> recordNames = new HashSet<string>();
             HashSet<string> lowercaseRecordNames = new HashSet<string>();
@@ -84,9 +88,9 @@ namespace Versionr.Commands
                 Printer.PrintMessage("No changes found.");
                 return true;
             }
-
+            
             Printer.PrintMessage("Identified #e#{0}## files and #e#{1}## directories which will be removed.", filesToDelete.Count, directoriesToDelete.Count);
-            if (Printer.Prompt("Restore to pristine state?"))
+            if (localOptions.Force || Printer.Prompt("Restore to pristine state?"))
             {
                 foreach (var x in filesToDelete)
                 {
