@@ -49,5 +49,6 @@ namespace Versionr.ObjectStore
         }
 
         public abstract void EraseData(string dataIdentifier);
+        public abstract void EraseData(string[] dataIdentifier);
     }
 }

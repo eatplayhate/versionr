@@ -1711,7 +1711,7 @@ namespace Versionr
             Printer.PrintMessage("  #b#{0}## Alterations", Database.Table<Objects.Alteration>().Count());
             Printer.PrintMessage("  #b#{0}## Branch Journal Entries", Database.Table<Objects.BranchJournal>().Count());
 
-            List<long> churnCount = new List<long>();
+            List<KeyValuePair<long, long>> churnCount = new List<KeyValuePair<long, long>>();
             List<Record> records = new List<Record>();
             Dictionary<long, Record> recordMap = new Dictionary<long, Record>();
             Dictionary<long, string> nameMap = new Dictionary<long, string>();
@@ -1724,8 +1724,9 @@ namespace Versionr
                 {
                     records.Add(x);
                     while (x.CanonicalNameId >= churnCount.Count)
-                        churnCount.Add(-1);
-                    churnCount[(int)x.CanonicalNameId]++;
+                        churnCount.Add(new KeyValuePair<long, long>(-1, 0));
+                    var old = churnCount[(int)x.CanonicalNameId];
+                    churnCount[(int)x.CanonicalNameId] = new KeyValuePair<long, long>(old.Key + 1, old.Value + x.Size);
                 }
             }
 
@@ -1764,11 +1765,11 @@ namespace Versionr
             Printer.PrintMessage("  #e#{0:N2}## Deletions", deletions / (double)vcount);
             Printer.PrintMessage("And requires #c#{0}## of space.", Versionr.Utilities.Misc.FormatSizeFriendly((long)versionSize.Values.Average()));
 
-            var top = churnCount.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(20);
+            var topC = churnCount.SelectIndexed().Where(x => x.Item2.Key != -1).OrderByDescending(x => x.Item2.Key).Take(20);
             Printer.PrintMessage("\nFiles with the #b#most## churn:");
-            foreach (var x in top)
+            foreach (var x in topC)
             {
-                Printer.PrintMessage("  #b#{0}##: #c#{1}## stored revisions.", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, x.Item2 + 1);
+                Printer.PrintMessage("  #b#{0}##: #c#{1}## stored revisions (#c#{2}## total).", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, x.Item2.Key + 1, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2.Value));
             }
             HashSet<long> ids = new HashSet<long>();
             var largest = records.OrderByDescending(x => x.Size).Where(x => !ids.Contains(x.CanonicalNameId)).Take(10);
@@ -1788,11 +1789,11 @@ namespace Versionr
                 else
                     objectSize[(int)x.CanonicalNameId] += x.Size;
             }
-            top = objectSize.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(10);
+            var top = objectSize.SelectIndexed().Where(x => x.Item2 != -1).OrderByDescending(x => x.Item2).Take(10);
             Printer.PrintMessage("\n#b#Largest## committed size:");
             foreach (var x in top)
             {
-                Printer.PrintMessage("  #b#{0}##: {1} total over {2} revisions", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(x.Item2), churnCount[x.Item1] + 1);
+                Printer.PrintMessage("  #b#{0}##: {1} total over {2} revisions", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(churnCount[x.Item1].Value), churnCount[x.Item1].Key + 1);
             }
             List<long> allocatedSize = new List<long>();
             Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
@@ -1852,7 +1853,7 @@ namespace Versionr
             }
             Printer.PrintMessage("\n#b#Core Object Store Stats:##");
             Printer.PrintMessage("  Missing data for #b#{0} ({1:N2}%)## records.", missingData, 100.0 * missingData / (double)recordMap.Count);
-            Printer.PrintMessage("  #b#{0}/{2}## Entries ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordMap.Count, ObjectStore.GetEntryCount());
+            Printer.PrintMessage("  #b#{0}/{2}## unique data objects ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordMap.Count, recordInfoMap.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
             Printer.PrintMessage("  Unpacked size of all objects: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(storedObjectUnpackedSize));
@@ -1873,7 +1874,7 @@ namespace Versionr
                     Versionr.Utilities.Misc.FormatSizeFriendly(allocObjectSize[x.Item1]),
                     Versionr.Utilities.Misc.FormatSizeFriendly(allocatedSize[x.Item1]),
                     x.Item2 * 100.0,
-                    churnCount[x.Item1] + 1);
+                    churnCount[x.Item1].Key + 1);
             }
             Printer.PrintMessage("\n#e#Worst## compression:");
             foreach (var x in ratios.Where(x => allocatedSize[x.Item1] > 1024).OrderByDescending(x => x.Item2).Take(10))
@@ -1882,7 +1883,7 @@ namespace Versionr
                     Versionr.Utilities.Misc.FormatSizeFriendly(allocObjectSize[x.Item1]),
                     Versionr.Utilities.Misc.FormatSizeFriendly(allocatedSize[x.Item1]),
                     x.Item2 * 100.0,
-                    churnCount[x.Item1] + 1);
+                    churnCount[x.Item1].Key + 1);
             }
         }
 
@@ -8080,10 +8081,21 @@ namespace Versionr
             }
         }
 
-        public void Prune()
+        public class PruneOptions
+        {
+            public TimeSpan? CandidateTimespan { get; set; } = TimeSpan.FromDays(30);
+            public int? MinimumVersionsToKeep { get; set; }
+            public bool KeepDeadBranches { get; set; } = false;
+            public long? MinimumCandidateFileSize { get; set; } = 768 * 1024;
+        }
+        public void Prune(PruneOptions options)
         {
             HashSet<long> preservedRecords = new HashSet<long>();
             HashSet<Guid> processedVersions = new HashSet<Guid>();
+            DateTime earliestTime = new DateTime(0);
+            if (options.CandidateTimespan.HasValue)
+                earliestTime = DateTime.UtcNow.Subtract(options.CandidateTimespan.Value);
+
             Action<Objects.Version> preserveRecords = (ver) =>
             {
                 if (processedVersions.Contains(ver.ID))
@@ -8091,15 +8103,17 @@ namespace Versionr
                 var records = GetRecords(ver);
                 foreach (var x in records)
                     preservedRecords.Add(x.Id);
-                int count = 25;
+                int count = options.MinimumVersionsToKeep.HasValue ? options.MinimumVersionsToKeep.Value : int.MaxValue;
                 while (count > 0)
                 {
                     if (!ver.Parent.HasValue)
                         break;
                     if (processedVersions.Contains(ver.Parent.Value))
                         break;
-                    processedVersions.Add(ver.Parent.Value);
                     ver = GetVersion(ver.Parent.Value);
+                    if (ver.Timestamp < earliestTime)
+                        break;
+                    processedVersions.Add(ver.ID);
                     var alts = GetAlterations(ver);
                     foreach (var x in alts)
                     {
@@ -8112,21 +8126,31 @@ namespace Versionr
             var branches = Branches;
             for (int i = 0; i < branches.Count; i++)
             {
-                foreach (var y in GetBranchHeads(branches[i]))
-                    preserveRecords(GetVersion(y.Version));
-                Printer.PrintMessage("Processed branch {1}/{2}: {0}", branches[i].Name, i + 1, branches.Count);
+                if (!options.KeepDeadBranches && branches[i].Terminus != null)
+                    continue;
+                if (branches[i].Terminus != null)
+                {
+                    if (!options.KeepDeadBranches)
+                        continue;
+                    preserveRecords(GetVersion(branches[i].Terminus.Value));
+                    Printer.PrintMessage("Processed deleted branch {1}/{2}: {0}", branches[i].Name, i + 1, branches.Count);
+                }
+                else
+                {
+                    foreach (var y in GetBranchHeads(branches[i]))
+                        preserveRecords(GetVersion(y.Version));
+                    Printer.PrintMessage("Processed branch {1}/{2}: {0}", branches[i].Name, i + 1, branches.Count);
+                }
             }
             HashSet<string> dataIdentifiers = new HashSet<string>();
             long size = 0;
             var allRecords = Database.Table<Objects.Record>().ToList();
+            long minsize = options.MinimumCandidateFileSize.HasValue ? options.MinimumCandidateFileSize.Value : 0;
             foreach (var x in allRecords)
             {
                 if (preservedRecords.Contains(x.Id))
                     continue;
-                if (x.Size < 1024 * 512)
-                    continue;
-                var name = Database.Get<Objects.ObjectName>(x.CanonicalNameId).CanonicalName;
-                if (name.EndsWith(".cpp") || name.EndsWith(".cs") || name.EndsWith(".h") || name.EndsWith(".hpp"))
+                if (x.Size < minsize)
                     continue;
                 if (!dataIdentifiers.Contains(x.DataIdentifier))
                 {
@@ -8138,8 +8162,10 @@ namespace Versionr
             Printer.PrintMessage("Preserved {0} of {1} records.", preservedRecords.Count, allRecords.Count);
             Printer.PrintMessage("About to prune {0} objects with a combined unpacked size of {1}.", dataIdentifiers.Count, Utilities.Misc.FormatSizeFriendly(size));
 
-            foreach (var x in dataIdentifiers)
-                ObjectStore.EraseData(x);
+            if (Printer.Prompt("#e#PERFORMING A PRUNE ON A SERVER WILL RESULT IN IRRECONCILABLE DATA LOSS##\nExecute data pruning?"))
+            {
+                ObjectStore.EraseData(dataIdentifiers.ToArray());
+            }
         }
 
         public static Area Init(DirectoryInfo workingDir, string branchname = "master")

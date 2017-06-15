@@ -721,6 +721,27 @@ namespace Versionr.ObjectStore
                 {
                     GetFileForDataID(dataIdentifier).Delete();
                 }
+                ObjectDatabase.Delete<FileObjectStoreData>(dataIdentifier);
+            }
+        }
+
+        public override void EraseData(string[] dataIdentifiers)
+        {
+            ObjectDatabase.BeginTransaction();
+            BlobDatabase.BeginTransaction();
+            try
+            {
+                foreach (var x in dataIdentifiers)
+                    EraseData(x);
+                BlobDatabase.Commit();
+                ObjectDatabase.Commit();
+
+                BlobDatabase.ExecuteDirect("VACUUM");
+            }
+            catch
+            {
+                ObjectDatabase.Rollback();
+                BlobDatabase.Rollback();
             }
         }
         public override bool HasDataDirect(string x, out List<string> requestedData)

@@ -39,7 +39,8 @@ namespace Versionr.Commands
         {
             PruneVerbOptions localOptions = options as PruneVerbOptions;
 
-            Workspace.Prune();
+            Area.PruneOptions pruneOptions = new Area.PruneOptions();
+            Workspace.Prune(pruneOptions);
 
             return true;
         }
