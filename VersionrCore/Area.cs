@@ -1795,6 +1795,7 @@ namespace Versionr
             {
                 Printer.PrintMessage("  #b#{0}##: {1} total over {2} revisions", Database.Get<Objects.ObjectName>(x.Item1).CanonicalName, Versionr.Utilities.Misc.FormatSizeFriendly(churnCount[x.Item1].Value), churnCount[x.Item1].Key + 1);
             }
+            Printer.PrintMessage("\n#b#Core Object Store Stats:##");
             List<long> allocatedSize = new List<long>();
             Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
             long missingData = 0;
@@ -1851,9 +1852,8 @@ namespace Versionr
                     }
                 }
             }
-            Printer.PrintMessage("\n#b#Core Object Store Stats:##");
             Printer.PrintMessage("  Missing data for #b#{0} ({1:N2}%)## records.", missingData, 100.0 * missingData / (double)recordMap.Count);
-            Printer.PrintMessage("  #b#{0}/{2}## unique data objects ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordMap.Count, recordInfoMap.Count);
+            Printer.PrintMessage("  #b#{0}/{2}## local data objects ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordInfoMap.Count, recordInfoMap.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
             Printer.PrintMessage("  Unpacked size of all objects: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(storedObjectUnpackedSize));
