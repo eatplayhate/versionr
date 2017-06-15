@@ -149,7 +149,7 @@ namespace Bomerman
                 }
                 else if (data[i] == (byte)' ')
                 {
-                    if (trim)
+                    if (trim && !newline)
                     {
                         int trimcount = 1;
                         for (int j = i + 1; j < data.Length; j++)
@@ -175,7 +175,7 @@ namespace Bomerman
                             newline = false;
                         }
                     }
-                    if (addTabs && newline)
+                    else if (addTabs && newline)
                     {
                         int span = 1;
                         for (int j = i + 1; j < i + tabSize && j < data.Length; j++)
@@ -201,7 +201,7 @@ namespace Bomerman
                 }
                 else if (data[i] == (byte)'\t')
                 {
-                    if (trim)
+                    if (trim && !newline)
                     {
                         int trimcount = 1;
                         for (int j = i + 1; j < data.Length; j++)
@@ -227,7 +227,7 @@ namespace Bomerman
                             newline = false;
                         }
                     }
-                    if (!addTabs && newline)
+                    else if (!addTabs && newline)
                     {
                         for (int j = 0; j < tabSize; j++)
                             ms.WriteByte((byte)' ');
