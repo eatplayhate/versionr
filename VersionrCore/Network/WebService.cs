@@ -20,6 +20,25 @@ namespace Versionr.Network.SimpleWebService
             Handler.Invoke(context);
         }
     }
+    internal static class Netsh
+    {
+        internal static void AddUrlacl(string bind)
+        {
+            if (!Versionr.Utilities.MultiArchPInvoke.IsRunningOnMono)
+            {
+                System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
+                {
+                    Verb = "runas",
+                    FileName = "netsh",
+                    Arguments = string.Format("http add urlacl url=\"{0}\" user=everyone", bind),
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process ps = System.Diagnostics.Process.Start(psi);
+                ps.WaitForExit();
+            }
+        }
+    }
+
     internal class WebService
     {
         static bool TriedToRunNetSH = false;
@@ -44,17 +63,7 @@ namespace Versionr.Network.SimpleWebService
             {
                 if (!Versionr.Utilities.MultiArchPInvoke.IsRunningOnMono && e.NativeErrorCode == 5 && TriedToRunNetSH == false)
                 {
-                    // access denied - we probably need to run netsh
-                    Printer.PrintError("Unable to bind web interface. Requesting access rights.");
-                    System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo()
-                    {
-                        Verb = "runas",
-                        FileName = "netsh",
-                        Arguments = string.Format("http add urlacl url=\"{0}\" user=everyone", bind),
-                        UseShellExecute = true
-                    };
-                    System.Diagnostics.Process ps = System.Diagnostics.Process.Start(psi);
-                    ps.WaitForExit();
+                    Netsh.AddUrlacl(bind);
                     TriedToRunNetSH = true;
                     goto Retry;
                 }

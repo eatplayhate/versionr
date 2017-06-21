@@ -40,6 +40,22 @@ namespace Versionr.Network
         public string branch { get; set; }
         public string timestamp { get; set; }
         public List<string> tags { get; set; }
+
+        public static RestVersion FromVersion(Area ws, Version version)
+        {
+            if (version == null)
+                return null;
+            return new RestVersion()
+            {
+                author = version.Author,
+                id = version.ID.ToString(),
+                message = version.Message,
+                parent = version.Parent.HasValue ? version.Parent.Value.ToString() : string.Empty,
+                branch = ws.Branches.Where(x => x.ID == version.Branch).First().Name,
+                timestamp = version.Timestamp.ToProperTimeStamp(),
+                tags = ws.GetTagsForVersion(version.ID)
+            };
+        }
     };
 
     internal class RestList
@@ -66,6 +82,19 @@ namespace Versionr.Network
     internal class RestBranchList : RestList
     {
         public List<RestBranchEntry> branches { get; set; } = new List<RestBranchEntry>();
+    }
+
+    internal class RestTagJournalEntry
+    {
+        public RestVersion version { get; set; }
+        public bool removing { get; set; }
+        public string value { get; set; }
+        public string time { get; set; }
+    }
+
+    internal class RestTagJournalList : RestList
+    {
+        public List<RestTagJournalEntry> tagjournals { get; set; } = new List<RestTagJournalEntry>();
     }
 
     [RestResource]
@@ -123,16 +152,7 @@ namespace Versionr.Network
                     restVersionList.total = versions.Count;
                     foreach (var version in versions)
                     {
-                        restVersionList.versions.Add(new RestVersion()
-                        {
-                            author = version.Author,
-                            id = version.ID.ToString(),
-                            message = version.Message,
-                            parent = version.Parent.HasValue ? version.Parent.Value.ToString() : string.Empty,
-                            branch = ws.Branches.Where(x => x.ID == version.Branch).First().Name,
-                            timestamp = version.Timestamp.ToProperTimeStamp(),
-                            tags = ws.GetTagsForVersion(version.ID)
-                        });
+                        restVersionList.versions.Add(RestVersion.FromVersion(ws, version));
                     }
 
                 }
@@ -186,6 +206,52 @@ namespace Versionr.Network
             return context;
         }
 
+        [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/tagjournal")]
+        public IHttpContext TagJournal(IHttpContext context)
+        {
+            int maxResults = 0;
+            int startAt = 0;
+            if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
+            {
+                maxResults = 50;
+            }
+            if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
+            {
+                startAt = 0;
+            }
+
+            RestTagJournalList restTagJournalList = new RestTagJournalList() { maxResults = maxResults, startAt = startAt };
+
+            Area ws = Area.Load(Info, true, true);
+            if (ws != null)
+            {
+                var tagJournalList = ws.GetTagJournalTimeOrder().Skip(startAt).Take(maxResults + 1).ToList();
+                restTagJournalList.isLast = tagJournalList.Count <= maxResults;
+                if (!restTagJournalList.isLast)
+                {
+                    tagJournalList.RemoveAt(tagJournalList.Count - 1);
+                }
+                restTagJournalList.total = tagJournalList.Count;
+                foreach (var tagJournalEntry in tagJournalList)
+                {
+                    var restVersion = RestVersion.FromVersion(ws, ws.GetVersion(tagJournalEntry.Version));
+                    // Some versions may not have replicated, soz.
+                    if (restVersion == null)
+                        continue;
+                    restTagJournalList.tagjournals.Add(new RestTagJournalEntry()
+                    {
+                        version = restVersion,
+                        removing = tagJournalEntry.Removing,
+                        value = tagJournalEntry.Value,
+                        time = tagJournalEntry.Time.ToProperTimeStamp(),
+                    });
+                }
+            }
+
+            context.Response.SendResponse(JsonConvert.SerializeObject(restTagJournalList));
+
+            return context;
+        }
 
         // Default should be the last function in the class.
         // ORDER MATTERS
@@ -197,11 +263,12 @@ namespace Versionr.Network
             sb.AppendLine("/versions for version list (aka log).");
             sb.AppendLine("  branch (string), filters to specific branch name");
             sb.AppendLine("/branches for branch entry list.");
+            sb.AppendLine("/tagjournal for tag journal list.");
             sb.AppendLine("All lists return:");
             sb.AppendLine("  maxResults (integer), defaults to 50.");
             sb.AppendLine("  startAt (integer), defaults to 0.");
             sb.AppendLine("  total (integer), count of results returned.");
-            sb.AppendLine("  isLast (bool), true if results contains the last result obtainable.");
+            sb.AppendLine("  isLast (bool), true if results contain the last result obtainable.");
             sb.AppendLine("All lists take:");
             sb.AppendLine("  maxResults, optionally specify desired entry count.");
             sb.AppendLine("  startAt, optionally specify desired start entry.");

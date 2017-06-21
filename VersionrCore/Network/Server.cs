@@ -156,6 +156,7 @@ namespace Versionr.Network
 
         private static void RunRestServer(System.IO.DirectoryInfo info)
         {
+            bool triedNetsh = false;
             while (true)
             {
                 try
@@ -165,9 +166,16 @@ namespace Versionr.Network
                 }
                 catch (Grapevine.Exceptions.Server.UnableToStartHostException e)
                 {
-                    Printer.PrintError("Error: {0}", e.ToString());
-                    Printer.PrintMessage("You may need to add a http reservation as an administrator, e.g.");
-                    Printer.PrintMessage($"netsh http add urlacl url=\"http://+:{Config.RestService.Port}/\" user=%USERDOMAIN%\\%USERNAME%");
+                    if (triedNetsh == false)
+                    {
+                        Versionr.Network.SimpleWebService.Netsh.AddUrlacl($"http://+:{Config.RestService.Port}/");
+                        triedNetsh = true;
+                    }
+                    else
+                    {
+                        Printer.PrintError("Error: {0}", e.ToString());
+                        return;
+                    }
                 }
                 catch (Exception e)
                 {

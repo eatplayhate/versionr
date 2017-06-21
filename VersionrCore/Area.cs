@@ -121,6 +121,11 @@ namespace Versionr
             return Database.Table<Objects.TagJournal>().ToList();
         }
 
+        public List<Objects.TagJournal> GetTagJournalTimeOrder()
+        {
+            return Database.Query<Objects.TagJournal>("SELECT * FROM TagJournal ORDER BY Time DESC");
+        }
+
         internal List<Objects.JournalMap> GetJournalTips()
         {
             return Database.Table<Objects.JournalMap>().ToList();
@@ -3286,6 +3291,14 @@ namespace Versionr
                 else
                     return Database.Query<Objects.Version>("SELECT * FROM Version WHERE Version.Branch = ? ORDER BY Timestamp DESC", branch.ID).ToList();
             }
+        }
+
+        public List<Objects.Version> GetTaggedVersions(int? limit = null)
+        {
+            if (limit.HasValue)
+                return Database.Query<Objects.Version>("SELECT * FROM Version INNER JOIN Tag ON Version.ID == Tag.Version ORDER BY Version.Timestamp DESC LIMIT ?", limit.Value);
+            else
+                return Database.Query<Objects.Version>("SELECT * FROM Version INNER JOIN Tag ON Version.ID == Tag.Version ORDER BY Version.Timestamp DESC");
         }
 
         public static string CoreVersion
