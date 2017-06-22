@@ -128,7 +128,13 @@ namespace Versionr
                 return Utilities.Symlink.GetTarget(FullName);
 			}
 		}
-		public bool Ignored { get; private set; }
+
+        public bool IsVersionrRoot
+        {
+            get { return IsDirectory && DirectoryInfo.GetDirectories().Where(x => x.Name == ".versionr").Count() > 0; }
+        }
+
+        public bool Ignored { get; private set; }
 
         public Entry(Area area, Entry parent, string cname, string fullname, string localName, long time, long size, bool ignored, FileAttributes attribs)
         {

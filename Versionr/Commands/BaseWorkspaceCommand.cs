@@ -18,6 +18,7 @@ namespace Versionr.Commands
             VerbOptionBase localOptions = options as VerbOptionBase;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Printer.Quiet = localOptions.Quiet;
+            DirectExtern = DirectExtern || localOptions.BreachContainment;
 
             using (Workspace = Area.Load(workingDirectory, Headless, DirectExtern))
             {

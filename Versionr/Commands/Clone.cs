@@ -92,7 +92,7 @@ namespace Versionr.Commands
 
             try
             {
-                var ws = Area.Load(TargetDirectory, Headless);
+                var ws = Area.Load(TargetDirectory, Headless, localOptions.BreachContainment);
                 if (ws != null)
                 {
                     CloneVerbOptions cloneOptions = options as CloneVerbOptions;
