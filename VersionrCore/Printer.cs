@@ -36,7 +36,6 @@ namespace Versionr
             EnableDiagnostics = false;
             OutputStyles = new Dictionary<char, OutputColour>();
             OutputStyles['b'] = OutputColour.Emphasis;
-            OutputStyles['c'] = OutputColour.Cyan;
             OutputStyles['w'] = OutputColour.Warning;
             OutputStyles['e'] = OutputColour.Error;
             OutputStyles['x'] = OutputColour.ErrorHeader;

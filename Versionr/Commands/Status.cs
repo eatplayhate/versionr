@@ -246,8 +246,9 @@ namespace Versionr.Commands
 			if (FilterOptions.WindowsPaths)
 				name = name.Replace('/', '\\');
 
-			if (localRestrictedPath != null)
-				name = name.Substring(localRestrictedPath.Length);
+			if (name != ".vrmeta" && localRestrictedPath != null)
+                name = name.Substring(localRestrictedPath.Length);
+                
 			int index = name.LastIndexOf('/');
 			if (index != name.Length - 1)
 				name = name.Insert(index + 1, "#b#");
@@ -358,6 +359,9 @@ namespace Versionr.Commands
 				case StatusCode.Excluded:
 					return staged ? new Tuple<char, string>('e', "error")
 						: new Tuple<char, string>('q', "ignored");
+                case StatusCode.RogueRepository:
+                    return staged ? new Tuple<char, string>('M', "rogue-repo")
+                        : new Tuple<char, string>('M', "rogue-repo");
 				case StatusCode.Unchanged:
 					return staged ? new Tuple<char, string>('e', "unchanged")
 						: new Tuple<char, string>('q', "unchanged");

@@ -22,6 +22,9 @@ namespace Versionr
         [Option("runcount", DefaultValue = 1, HelpText = "Number of times to repeat the command in benchmark mode.")]
         public int BMC { get; set; }
 
+        [Option("breach-containment", DefaultValue = false, HelpText ="Allow repository to be cloned and used inside a containing repository.")]
+        public bool BreachContainment { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {

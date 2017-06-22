@@ -26,6 +26,7 @@ namespace Versionr
         IgnoredAdded,
         Removed,
         Obstructed,
+        RogueRepository,
 
         Count
     }
@@ -78,7 +79,7 @@ namespace Versionr
             {
                 get { return IsFile && CanonicalName == ".vrmeta";}
             }
-
+            
             public bool DataEquals(Record x)
             {
                 if (FilesystemEntry != null)
@@ -183,6 +184,10 @@ namespace Versionr
                 restrictedPath += "/";
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
+            var allVRoots = currentSnapshot.Entries.Where(x => x.IsVersionrRoot).ToList();
+            currentSnapshot.Entries = currentSnapshot.Entries.Where(x =>
+                { return !allVRoots.Any(r => { return x.FullName.Contains(r.FullName); }); }).Concat(allVRoots).ToList();
+
             StatusPercentage pct = new StatusPercentage()
             {
                 Snapshot = currentSnapshot,
@@ -552,6 +557,10 @@ namespace Versionr
                         if ((objectFlags & StageFlags.Conflicted) != 0)
                         {
                             return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = null };
+                        }
+                        if (x.Value.IsVersionrRoot)
+                        {
+                            return new StatusEntry() { Code = StatusCode.RogueRepository, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
                         }
                         return new StatusEntry() { Code = StatusCode.Unversioned, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
                     }));
