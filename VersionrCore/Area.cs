@@ -3216,7 +3216,7 @@ namespace Versionr
                         automerged = true;
                     }
                     merged = true;
-                    bool head = GetBranchHead(GetBranch(x.Branch)).Version == x.ID;
+                    bool head = GetBranchHeads(GetBranch(x.Branch)).Any(z => z.Version == x.ID);
 
                     if ((showMerges || (!rebased && !followBranches)) && (!automerged || showAutoMerges) || head)
                     {
