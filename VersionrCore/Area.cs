@@ -7759,13 +7759,16 @@ namespace Versionr
                         Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
                     else
                         feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
-                    directory.Create();
+                    FileSystem.CreateDirectory(recPath);
                     ApplyAttributes(directory, referenceTime, rec);
                 }
                 return;
             }
+            
+            FSHandle fileHandle = overridePath == null ? new FSHandle(GetRecordPath(rec)) : new FSHandle(overridePath);
             FileInfo dest = overridePath == null ? new FileInfo(GetRecordPath(rec)) : new FileInfo(overridePath);
-            if (overridePath == null && dest.Exists)
+            
+            if (overridePath == null && fileHandle.Exists)
             {
                 FileInfo caseCheck = dest.GetCorrectCase();
                 if (caseCheck.Name != dest.Name)
@@ -7835,6 +7838,7 @@ namespace Versionr
                         ObjectStore.ExportRecordStream(rec, fsd);
                     }
                     dest = new FileInfo(dest.FullName);
+                    var yay = new FSHandle(dest.FullName);
                 }
                 ApplyAttributes(dest, referenceTime, rec);
                 if (dest.Length != rec.Size)

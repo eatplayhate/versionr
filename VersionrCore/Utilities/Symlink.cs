@@ -17,12 +17,10 @@ namespace Versionr.Utilities
 				return SvnIntegration.IsSymlink(path);
 
 			path = path.EndsWith("/") ? path.Remove(path.Length - 1) : path;
-			FileInfo file = new FileInfo(path);
-			if (file.Exists)
-				return (file.Attributes & FileAttributes.ReparsePoint) != 0;
-			DirectoryInfo dir = new DirectoryInfo(path);
-			return dir.Exists && ((dir.Attributes & FileAttributes.ReparsePoint) != 0);
+            var fh = new FSHandle(path);
+            return fh.Exists && fh.HasReparsePoint;
         }
+
         public static bool Exists(FileSystemInfo info, string hintpath = null)
         {
             if (SvnIntegration.AppliesTo(info, hintpath))
@@ -32,6 +30,7 @@ namespace Versionr.Utilities
                 return (info.Attributes & FileAttributes.ReparsePoint) != 0;
             return false;
         }
+
         public static bool ExistsForFile(string fullpath, string hintpath = null)
         {
 			if (SvnIntegration.AppliesToFile(fullpath, hintpath))
