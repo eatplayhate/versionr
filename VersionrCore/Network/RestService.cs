@@ -292,8 +292,10 @@ namespace Versionr.Network
             {
                 server.Host = "+";
                 server.Port = Config.RestService.Port.ToString();
-                server.LogToConsole().Start();
-                while(true)
+                //server.LogToConsole();
+                server.Start();
+                Printer.PrintMessage($"Rest server started, bound to port #b#{server.Port}##.");
+                while (true)
                 {
                     System.Threading.Thread.Sleep(5000);
                 }
