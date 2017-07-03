@@ -7764,7 +7764,10 @@ namespace Versionr
                 }
                 return;
             }
-            FileInfo dest = overridePath == null ? new FileInfo(GetRecordPath(rec)) : new FileInfo(overridePath);
+
+            string pathstr = "\\\\?\\" + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
+            FileInfo dest = new FileInfo(pathstr);
+
             if (overridePath == null && dest.Exists)
             {
                 FileInfo caseCheck = dest.GetCorrectCase();
