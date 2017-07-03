@@ -74,6 +74,7 @@ namespace Versionr
 			EnumerateFS(lf, context.marshal_as<const char*>(fs));
 			return lf;
 		}
+
 		int FileSystem::EnumerateFileSystemX(System::String^ fs)
 		{
 			msclr::interop::marshal_context context;
@@ -81,6 +82,74 @@ namespace Versionr
 			int count = 0;
 			EnumerateFSC(count, context.marshal_as<const char*>(fs), 0, index);
 			return count;
+		}
+
+		System::String^ FileSystem::GetFullPath(System::String^ path)
+		{
+			msclr::interop::marshal_context context;
+			auto p = context.marshal_as<wchar_t const*>(path);
+			wchar_t buf[2048];
+			wchar_t** fbuf = nullptr;
+
+			auto r = ::GetFullPathNameW(p, 1024, buf, fbuf);
+			if (r == 0)
+				return "";
+
+			if (fbuf)
+				wcscpy(buf + r, *fbuf);
+
+			System::String^ rs = gcnew System::String(buf);
+			return rs;
+		}
+
+		bool FileSystem::Exists(System::String^ path)
+		{
+			msclr::interop::marshal_context context;
+			auto p = context.marshal_as<wchar_t const*>(path);
+			DWORD attribs = GetFileAttributesW(p);
+			return attribs != INVALID_FILE_ATTRIBUTES;
+		}
+
+		DWORD FileSystem::GetAttributes(System::String^ path)
+		{
+			msclr::interop::marshal_context context;
+			auto p = context.marshal_as<wchar_t const*>(path);
+			DWORD attribs = GetFileAttributesW(p);
+			return attribs;
+		}
+
+		void FileSystem::ReadData(System::String^ path, [Out]DateTime% created, [Out]DateTime% accessed, [Out]DateTime% written, [Out]UInt64% size)
+		{
+			msclr::interop::marshal_context context;
+			auto p = context.marshal_as<wchar_t const*>(path);
+			HANDLE h = CreateFile(p, GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, 0);
+			if (h == INVALID_HANDLE_VALUE)
+				return;
+
+			// get file times (0x800... is adding 1600 years)
+			::FILETIME c, a, w;
+			long long t;
+			GetFileTime(h, &c, &a, &w);
+			t = ((long long)c.dwHighDateTime << 32) | (long long)c.dwLowDateTime;
+			created = DateTime::FromFileTimeUtc(t);
+			t = ((long long)a.dwHighDateTime << 32) | (long long)a.dwLowDateTime;
+			accessed = DateTime::FromFileTimeUtc(t);
+			t = ((long long)w.dwHighDateTime << 32) | (long long)w.dwLowDateTime;
+			written = DateTime::FromFileTimeUtc(t);
+
+			// file size
+			DWORD szh;
+			DWORD szl = GetFileSize(h, &szh);
+			size = ((UInt64)szh << 32) | (UInt64)szl;
+			
+			CloseHandle(h);
+		}
+
+		void FileSystem::CreateDirectory(System::String^ path)
+		{
+			msclr::interop::marshal_context context;
+			auto p = context.marshal_as<wchar_t const*>(path);
+			::CreateDirectoryW(p, nullptr);
 		}
 	}
 }
