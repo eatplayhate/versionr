@@ -398,6 +398,33 @@ namespace Versionr.Commands
 						}
                     }
                 }
+                else if (FilterOptions.Objects.Count != 0)
+                {
+                    Printer.PrintMessage("");
+                    Printer.PrintMessage("#b#Alterations:##");
+                    List<KeyValuePair<string, ResolvedAlteration>> altList = new List<KeyValuePair<string, ResolvedAlteration>>();
+                    foreach (var y in GetAlterations(v))
+                    {
+                        string recName = y.Record.CanonicalName;
+                        altList.Add(new KeyValuePair<string, ResolvedAlteration>(recName, y));
+                    }
+                    foreach (var y in FilterObjects(altList).Select(x => x.Value))
+                    {
+                        if (y.Alteration.Type == Objects.AlterationType.Move || y.Alteration.Type == Objects.AlterationType.Copy)
+                        {
+                            string operationName = y.Alteration.Type.ToString().ToLower();
+                            Objects.Record prior = Workspace.GetRecord(y.Alteration.PriorRecord.Value);
+                            Objects.Record next = Workspace.GetRecord(y.Alteration.NewRecord.Value);
+                            if (y.Alteration.Type == Objects.AlterationType.Move && !next.IsDirectory && prior.DataIdentifier != next.DataIdentifier)
+                                operationName = "refactor";
+                            Printer.PrintMessage("#{2}#({0})## {1}\n  <- #q#{3}##", operationName, y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type), prior.CanonicalName);
+                        }
+                        else
+                        {
+                            Printer.PrintMessage("#{2}#({0})## {1}", y.Alteration.Type.ToString().ToLower(), y.Record.CanonicalName, GetAlterationFormat(y.Alteration.Type));
+                        }
+                    }
+                }
 
                 Printer.Prefix = "";
                 // Same-branch merge revisions. This only sort-of respects the limit :(
@@ -559,10 +586,12 @@ namespace Versionr.Commands
 			m_Tip = Workspace.Version;
 			Objects.Version last = null;
 			m_Branches = new Dictionary<Guid, Objects.Branch>();
+            bool anything = false;
 			foreach (var x in ApplyHistoryFilter(history, localOptions))
 			{
 				last = x.Item1.Item1;
 				FormatLog(x.Item1, x.Item2, localOptions);
+                anything = true;
 			}
 
 			if (localOptions.Xml)
@@ -571,18 +600,27 @@ namespace Versionr.Commands
 			}
 			else
 			{
-				if (!localOptions.Jrunting && last != null && last.ID != m_Tip.ID)
-				{
-					var branch = Workspace.CurrentBranch;
-					var heads = Workspace.GetBranchHeads(branch);
-					bool isHead = heads.Any(x => x.Version == m_Tip.ID);
-					bool isOnlyHead = heads.Count == 1;
-					if (!isHead)
-						Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
-					else if (!isOnlyHead)
-						Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
-				}
-
+                if (!localOptions.Jrunting)
+                {
+                    if (last != null && last.ID != m_Tip.ID)
+                    {
+                        var branch = Workspace.CurrentBranch;
+                        var heads = Workspace.GetBranchHeads(branch);
+                        bool isHead = heads.Any(x => x.Version == m_Tip.ID);
+                        bool isOnlyHead = heads.Count == 1;
+                        if (!isHead)
+                            Printer.PrintMessage("\nCurrent version #b#{0}## is #e#not the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
+                        else if (!isOnlyHead)
+                            Printer.PrintMessage("\nCurrent version #b#{0}## is #w#not only the head## of branch #b#{1}## (#b#\"{2}\"##)", m_Tip.ShortName, branch.ShortID, branch.Name);
+                    }
+                    if (!anything)
+                    {
+                        if (!nullableLimit.HasValue || nullableLimit.Value <= 0)
+                            Printer.PrintMessage("\nNo versions matched your history/filter query (searched #b#all## revisions).");
+                        else
+                            Printer.PrintMessage("\nNo versions matched your history/filter query (searched #b#{0}## revisions).\n\nTry setting #b#--limit## to a larger value (or #b#0## for all revisions).", nullableLimit.Value);
+                    }
+                }
 				if (versionAutoSelected)
 				{
 					if (targetHeadObjects.Count > 1)
@@ -597,10 +635,9 @@ namespace Versionr.Commands
 						}
 					}
 				}
-			}
-
-				return true;
-		}
+            }
+            return true;
+        }
 
 		private string GetAlterationFormat(Objects.AlterationType code)
 		{
