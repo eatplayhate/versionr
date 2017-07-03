@@ -7764,11 +7764,11 @@ namespace Versionr
                 }
                 return;
             }
-            
-            FSHandle fileHandle = overridePath == null ? new FSHandle(GetRecordPath(rec)) : new FSHandle(overridePath);
-            FileInfo dest = overridePath == null ? new FileInfo(GetRecordPath(rec)) : new FileInfo(overridePath);
-            
-            if (overridePath == null && fileHandle.Exists)
+
+            string pathstr = "\\\\?\\" + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
+            FileInfo dest = new FileInfo(pathstr);
+
+            if (overridePath == null && dest.Exists)
             {
                 FileInfo caseCheck = dest.GetCorrectCase();
                 if (caseCheck.Name != dest.Name)
@@ -7818,7 +7818,11 @@ namespace Versionr
             Retry:
             try
             {
-                dest.Directory.Create();
+                if (!Directory.Exists(dest.DirectoryName))
+                {
+                    Directory.CreateDirectory(dest.DirectoryName);
+                }
+
                 if (rec.Size == 0)
                 {
                     using (var fs = dest.Create()) { }
@@ -7838,7 +7842,6 @@ namespace Versionr
                         ObjectStore.ExportRecordStream(rec, fsd);
                     }
                     dest = new FileInfo(dest.FullName);
-                    var yay = new FSHandle(dest.FullName);
                 }
                 ApplyAttributes(dest, referenceTime, rec);
                 if (dest.Length != rec.Size)
