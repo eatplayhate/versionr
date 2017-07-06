@@ -93,7 +93,7 @@ namespace VersionrUI.ViewModels
                 _area.GetMissingObjects(new Record[] { _priorRecord, _newRecord }, null);
                 _area.RestoreRecord(_priorRecord, DateTime.UtcNow, tmpPrior);
                 _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
-                LimitedTaskDispatcher.Factory.StartNew(() =>
+                _area.GetTaskFactory().StartNew(() =>
                 {
                     try
                     {
@@ -121,7 +121,7 @@ namespace VersionrUI.ViewModels
                 string tmpNew = DiffTool.GetTempFilename();
                 _area.GetMissingObjects(new Record[] { _newRecord }, null);
                 _area.RestoreRecord(_newRecord, DateTime.UtcNow, tmpNew);
-                LimitedTaskDispatcher.Factory.StartNew(() =>
+                _area.GetTaskFactory().StartNew(() =>
                 {
                     try
                     {

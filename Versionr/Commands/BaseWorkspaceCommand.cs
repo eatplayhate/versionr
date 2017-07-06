@@ -32,5 +32,10 @@ namespace Versionr.Commands
         }
 
         protected abstract bool RunInternal(object options);
+
+        protected TaskFactory GetTaskFactory(object options)
+        {
+            return Workspace?.GetTaskFactory((options as VerbOptionBase).Threads);
+        }
     }
 }

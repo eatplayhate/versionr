@@ -177,7 +177,7 @@ namespace VersionrUI.ViewModels
                     string tmp = DiffTool.GetTempFilename();
                     if (_area.ExportRecord(_statusEntry.CanonicalName, _area.Version, tmp))
                     {
-                        LimitedTaskDispatcher.Factory.StartNew(() =>
+                        _area.GetTaskFactory().StartNew(() =>
                         {
                             try
                             {

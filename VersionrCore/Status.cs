@@ -264,7 +264,7 @@ namespace Versionr
             {
                 foreach (var x in records)
                 {
-                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew<StatusEntry>(() =>
+                    tasks.Add(Workspace.GetTaskFactory().StartNew<StatusEntry>(() =>
                     {
                         StageFlags objectFlags;
                         stageInformation.TryGetValue(x.CanonicalName, out objectFlags);
@@ -494,7 +494,7 @@ namespace Versionr
                 stageInformation.TryGetValue(x.Value.CanonicalName, out objectFlags);
                 if (!foundEntries.Contains(x.Value))
                 {
-                    tasks.Add(Utilities.LimitedTaskDispatcher.Factory.StartNew<StatusEntry>(() =>
+                    tasks.Add(Workspace.GetTaskFactory().StartNew<StatusEntry>(() =>
                     {
                         Record possibleRename = null;
                         Dictionary<string, Record> hashes = null;

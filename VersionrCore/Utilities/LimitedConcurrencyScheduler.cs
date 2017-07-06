@@ -7,10 +7,6 @@ using System.Threading.Tasks;
 
 namespace Versionr.Utilities
 {
-    public static class LimitedTaskDispatcher
-    {
-        public static TaskFactory Factory = new TaskFactory(new LimitedConcurrencyScheduler(16));
-    }
     public class LimitedConcurrencyScheduler : TaskScheduler
     {
         [ThreadStatic]
@@ -48,8 +44,7 @@ namespace Versionr.Utilities
                 {
                     while (true)
                     {
-                        Task item;
-                        if (!InternalList.TryDequeue(out item))
+                        if (!InternalList.TryDequeue(out Task item))
                         {
                             System.Threading.Interlocked.Decrement(ref m_DelegatesQueuedOrRunning);
                             break;

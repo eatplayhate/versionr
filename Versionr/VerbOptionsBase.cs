@@ -25,6 +25,9 @@ namespace Versionr
         [Option("breach-containment", DefaultValue = false, HelpText ="Allow repository to be cloned and used inside a containing repository.")]
         public bool BreachContainment { get; set; }
 
+        [Option("threads", DefaultValue = 0, HelpText = "Number of threads to use. Zero means use defaults for platform (x86: 4, x64: 16).")]
+        public int Threads { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {

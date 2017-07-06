@@ -689,7 +689,7 @@ namespace Versionr
                     else
                     {
                         ce.AddCount();
-                        Utilities.LimitedTaskDispatcher.Factory.StartNew(() => { PopulateList(entries, ce, area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory); ce.Signal(); });
+                        area.GetTaskFactory().StartNew(() => { PopulateList(entries, ce, area, parentEntry, x as DirectoryInfo, name, adminFolder, ignoreDirectory); ce.Signal(); });
                     }
                 }
                 else if (!ignoreContents)
