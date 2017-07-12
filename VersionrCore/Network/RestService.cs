@@ -158,7 +158,7 @@ namespace Versionr.Network
                 }
             }
 
-            context.Response.SendResponse(JsonConvert.SerializeObject(restVersionList));
+            SendResponse(context, JsonConvert.SerializeObject(restVersionList));
 
             return context;
         }
@@ -201,7 +201,7 @@ namespace Versionr.Network
                 }
             }
 
-            context.Response.SendResponse(JsonConvert.SerializeObject(restBranchList));
+            SendResponse(context, JsonConvert.SerializeObject(restBranchList));
 
             return context;
         }
@@ -248,7 +248,7 @@ namespace Versionr.Network
                 }
             }
 
-            context.Response.SendResponse(JsonConvert.SerializeObject(restTagJournalList));
+            SendResponse(context, JsonConvert.SerializeObject(restTagJournalList));
 
             return context;
         }
@@ -272,8 +272,14 @@ namespace Versionr.Network
             sb.AppendLine("All lists take:");
             sb.AppendLine("  maxResults, optionally specify desired entry count.");
             sb.AppendLine("  startAt, optionally specify desired start entry.");
-            context.Response.SendResponse(sb.ToString());
+            SendResponse(context, sb.ToString());
             return context;
+        }
+
+        private void SendResponse(IHttpContext context, string contents)
+        {
+            context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
+            context.Response.SendResponse(contents);
         }
     }
 
