@@ -46,6 +46,56 @@ namespace Versionr.Utilities
             }
         }
 
+        static bool? m_UseLongFilenameDelimiter;
+
+        public static bool UseLongFilenameDelimiter
+        {
+            get
+            {
+                if (!m_UseLongFilenameDelimiter.HasValue)
+                {
+                    if (RunningPlatform == Platform.Windows)
+                    {
+                        var targetFwArray = System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(System.Runtime.Versioning.TargetFrameworkAttribute), false);
+                        if (targetFwArray != null && targetFwArray[0] is System.Runtime.Versioning.TargetFrameworkAttribute)
+                        {
+                            System.Runtime.Versioning.TargetFrameworkAttribute targetFw = targetFwArray[0] as System.Runtime.Versioning.TargetFrameworkAttribute;
+                            string version = targetFw.FrameworkName.Substring(targetFw.FrameworkName.LastIndexOf('v'));
+                            System.Text.RegularExpressions.Regex fwVersion = new System.Text.RegularExpressions.Regex("([0-9]+)\\.([0-9]+)(?:\\.([0-9]+))?");
+                            var match = fwVersion.Match(version);
+                            if (match.Success)
+                            {
+                                try
+                                {
+                                    int major = int.Parse(match.Groups[1].Value);
+                                    int minor = int.Parse(match.Groups[2].Value);
+                                    int point = 0;
+                                    if (match.Groups[3].Success)
+                                        point = int.Parse(match.Groups[3].Value);
+                                    if (major == 4 && minor == 6 && point >= 2)
+                                        m_UseLongFilenameDelimiter = true;
+                                    else
+                                        m_UseLongFilenameDelimiter = false;
+                                }
+                                catch
+                                {
+                                    m_UseLongFilenameDelimiter = false;
+                                }
+                            }
+                            else
+                                m_UseLongFilenameDelimiter = false;
+                        }
+                        else
+                            m_UseLongFilenameDelimiter = false;
+                    }
+                    else
+                        m_UseLongFilenameDelimiter = false;
+                }
+                return m_UseLongFilenameDelimiter.Value;
+
+            }
+        }
+
         public static bool IsBashOnWindows
         {
             get

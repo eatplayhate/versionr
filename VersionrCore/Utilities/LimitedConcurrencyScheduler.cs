@@ -44,7 +44,8 @@ namespace Versionr.Utilities
                 {
                     while (true)
                     {
-                        if (!InternalList.TryDequeue(out Task item))
+                        Task item;
+                        if (!InternalList.TryDequeue(out item))
                         {
                             System.Threading.Interlocked.Decrement(ref m_DelegatesQueuedOrRunning);
                             break;

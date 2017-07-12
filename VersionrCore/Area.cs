@@ -7782,7 +7782,7 @@ namespace Versionr
                 return;
             }
 
-            string pathstr = "\\\\?\\" + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
+            string pathstr = (MultiArchPInvoke.UseLongFilenameDelimiter ? "\\\\?\\" : string.Empty) + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
             FileInfo dest = new FileInfo(pathstr);
 
             if (overridePath == null && dest.Exists)
