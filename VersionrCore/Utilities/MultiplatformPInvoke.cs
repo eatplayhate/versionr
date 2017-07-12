@@ -60,7 +60,7 @@ namespace Versionr.Utilities
                         if (targetFwArray != null && targetFwArray[0] is System.Runtime.Versioning.TargetFrameworkAttribute)
                         {
                             System.Runtime.Versioning.TargetFrameworkAttribute targetFw = targetFwArray[0] as System.Runtime.Versioning.TargetFrameworkAttribute;
-                            string version = targetFw.FrameworkName.Substring(targetFw.FrameworkName.LastIndexOf('v' + 1));
+                            string version = targetFw.FrameworkName.Substring(targetFw.FrameworkName.LastIndexOf('v') + 1);
                             System.Text.RegularExpressions.Regex fwVersion = new System.Text.RegularExpressions.Regex("([0-9]+)\\.([0-9]+)(?:\\.([0-9]+))?");
                             var match = fwVersion.Match(version);
                             if (match.Success)
