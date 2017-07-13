@@ -7341,6 +7341,7 @@ namespace Versionr
                             List<Tuple<Record, Record, Entry>> pendingRecordDataList = new List<Tuple<Record, Record, Entry>>();
                             List<KeyValuePair<AlterationType, string>> alterationToCNames = new List<KeyValuePair<AlterationType, string>>();
 
+                            transaction = ObjectStore.BeginStorageTransaction();
                             foreach (var x in st.Elements)
                             {
                                 List<StageOperation> stagedOps;
@@ -7493,6 +7494,7 @@ namespace Versionr
                                                     List<string> ignored;
                                                     if (!ObjectStore.HasData(record, out ignored))
                                                     {
+                                                        ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
                                                         pendingRecordDataList.Add(new Tuple<Record, Record, Entry>(record, x.VersionControlRecord, x.FilesystemEntry));
                                                     }
 
@@ -7581,16 +7583,9 @@ namespace Versionr
                                 Printer.PrintMessage("Commit aborted by hook.");
                                 throw new Exception("Aborted");
                             }
+                            
+                            ObjectStore.EndStorageTransaction(transaction);
 
-                            if (pendingRecordDataList.Count > 0)
-                            {
-                                transaction = ObjectStore.BeginStorageTransaction();
-                                foreach (var p in pendingRecordDataList)
-                                {
-                                    ObjectStore.RecordData(transaction, p.Item1, p.Item2, p.Item3);
-                                }
-                                ObjectStore.EndStorageTransaction(transaction);
-                            }
                             transaction = null;
 
                             Printer.PrintMessage("Updating internal state.");
