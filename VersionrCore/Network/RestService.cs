@@ -20,7 +20,7 @@ namespace Versionr.Network
         /// </summary>
         /// <param name="that"></param>
         /// <returns></returns>
-        public static string ToProperTimeStamp(this DateTime that, bool toUTC = true)
+        public static string ToProperTimeStamp(this DateTime that, bool toUTC = false)
         {
             if (toUTC)
             {
@@ -101,17 +101,7 @@ namespace Versionr.Network
     internal class RestInterface
     {
         public static System.IO.DirectoryInfo Info { get; set; }
-
-        public static string ToProperTimeStamp(DateTime dt, bool toUTC = true)
-        {
-            if (toUTC)
-            {
-                return ((dt.ToUniversalTime().Ticks - 621355968000000000m) / 10000000m).ToString("F6");
-            }
-            else
-                return dt.Subtract(new DateTime(1970, 1, 1)).TotalSeconds.ToString();
-        }
-
+        
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/versions")]
         public IHttpContext Versions(IHttpContext context)
         {
