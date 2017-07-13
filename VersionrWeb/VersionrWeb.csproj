@@ -1,0 +1,290 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{D6F2ECDE-5766-4203-A5F9-BD7F6517B427}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>VersionrWeb</RootNamespace>
+    <AssemblyName>VersionrWeb</AssemblyName>
+    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\bin_debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Nancy, Version=1.4.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nancy.1.4.3\lib\net40\Nancy.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nancy.Hosting.Self, Version=1.4.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nancy.Hosting.Self.1.4.1\lib\net40\Nancy.Hosting.Self.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nancy.ViewEngines.Razor, Version=1.4.2.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nancy.Viewengines.Razor.1.4.3\lib\net40\Nancy.ViewEngines.Razor.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Web.Razor, Version=2.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.AspNet.Razor.2.0.30506.0\lib\net40\System.Web.Razor.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Bootstrap\CustomBootstrapper.cs" />
+    <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
+    <Compile Include="Bootstrap\RazorConfig.cs" />
+    <Compile Include="Models\DirectoryBrowseModel.cs" />
+    <Compile Include="Models\DateTimeExtensions.cs" />
+    <Compile Include="Models\FileBrowseModel.cs" />
+    <Compile Include="Models\LogModel.cs" />
+    <Compile Include="Models\Util.cs" />
+    <Compile Include="Models\VersionGraph.cs" />
+    <Compile Include="Models\VersionModel.cs" />
+    <Compile Include="Modules\AreaExtensions.cs" />
+    <Compile Include="Modules\BrowseModule.cs" />
+    <Compile Include="Modules\LogModule.cs" />
+    <Compile Include="Modules\ModuleExtensions.cs" />
+    <Compile Include="Modules\RawModule.cs" />
+    <Compile Include="Modules\RootModule.cs" />
+    <Compile Include="Modules\VersionModule.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+    <None Include="Content\assets\font-awesome-4.5.0\fonts\fontawesome-webfont.eot" />
+    <None Include="Content\assets\font-awesome-4.5.0\fonts\fontawesome-webfont.ttf" />
+    <None Include="Content\assets\font-awesome-4.5.0\fonts\fontawesome-webfont.woff" />
+    <None Include="Content\assets\font-awesome-4.5.0\fonts\fontawesome-webfont.woff2" />
+    <None Include="Content\assets\font-awesome-4.5.0\fonts\FontAwesome.otf" />
+    <None Include="Content\assets\octicons-3.5.0\octicons.eot" />
+    <None Include="Content\assets\octicons-3.5.0\octicons.ttf" />
+    <None Include="Content\assets\octicons-3.5.0\octicons.woff" />
+    <None Include="Content\css\themes\basic\assets\fonts\icons.eot" />
+    <None Include="Content\css\themes\basic\assets\fonts\icons.ttf" />
+    <None Include="Content\css\themes\basic\assets\fonts\icons.woff" />
+    <None Include="Content\css\themes\default\assets\fonts\icons.eot" />
+    <None Include="Content\css\themes\default\assets\fonts\icons.otf" />
+    <None Include="Content\css\themes\default\assets\fonts\icons.ttf" />
+    <None Include="Content\css\themes\default\assets\fonts\icons.woff" />
+    <None Include="Content\css\themes\default\assets\fonts\icons.woff2" />
+    <None Include="Content\css\themes\github\assets\fonts\octicons-local.ttf" />
+    <None Include="Content\css\themes\github\assets\fonts\octicons.ttf" />
+    <None Include="Content\css\themes\github\assets\fonts\octicons.woff" />
+    <None Include="Content\less\gogs.less" />
+    <None Include="Content\less\_admin.less" />
+    <None Include="Content\less\_base.less" />
+    <None Include="Content\less\_dashboard.less" />
+    <None Include="Content\less\_emojify.less" />
+    <None Include="Content\less\_explore.less" />
+    <None Include="Content\less\_form.less" />
+    <None Include="Content\less\_home.less" />
+    <None Include="Content\less\_install.less" />
+    <None Include="Content\less\_markdown.less" />
+    <None Include="Content\less\_organization.less" />
+    <None Include="Content\less\_repository.less" />
+    <None Include="Content\less\_user.less" />
+    <None Include="Content\plugins\pdfjs-1.4.20\LICENSE" />
+    <None Include="packages.config" />
+    <None Include="Views\Browse\Directory.cshtml" />
+    <None Include="Views\Browse\File.cshtml" />
+    <None Include="Views\Browse\_BrowseFooter.cshtml" />
+    <None Include="Views\Browse\_BrowseHeader.cshtml" />
+    <None Include="Views\Log\Log.cshtml" />
+    <None Include="Views\Log\Version.cshtml" />
+    <None Include="Views\Log\_AlterationTable.cshtml" />
+    <None Include="Views\Log\_VersionTable.cshtml" />
+    <None Include="Views\_BranchSelect.cshtml" />
+    <None Include="Views\_PathBreadcrumb.cshtml" />
+    <None Include="Views\_RepoTabs.cshtml" />
+    <None Include="Views\_Footer.cshtml" />
+    <None Include="Views\_Header.cshtml" />
+    <None Include="Views\Root.cshtml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VersionrCore\VersionrCore.csproj">
+      <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
+      <Name>VersionrCore</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Content\assets\font-awesome-4.5.0\css\font-awesome.min.css" />
+    <Content Include="Content\assets\font-awesome-4.5.0\fonts\fontawesome-webfont.svg" />
+    <Content Include="Content\assets\octicons-3.5.0\octicons.css" />
+    <Content Include="Content\assets\octicons-3.5.0\octicons.svg" />
+    <Content Include="Content\css\github.min.css" />
+    <Content Include="Content\css\gogs.css" />
+    <Content Include="Content\css\semantic-2.1.8.min.css" />
+    <Content Include="Content\css\themes\basic\assets\fonts\icons.svg" />
+    <Content Include="Content\css\themes\default\assets\fonts\icons.svg" />
+    <Content Include="Content\css\themes\default\assets\images\flags.png" />
+    <Content Include="Content\css\themes\github\assets\fonts\octicons.svg" />
+    <Content Include="Content\img\404.png" />
+    <Content Include="Content\img\500.png" />
+    <Content Include="Content\img\avatar_default.png" />
+    <Content Include="Content\img\checkmark.png" />
+    <Content Include="Content\img\favicon.png" />
+    <Content Include="Content\img\gogs-large-resize.png" />
+    <Content Include="Content\img\gogs-lg.png" />
+    <Content Include="Content\img\slack.png" />
+    <Content Include="Content\js\gogs.js" />
+    <Content Include="Content\js\jquery-1.11.3.min.js" />
+    <Content Include="Content\js\jquery.are-you-sure.js" />
+    <Content Include="Content\js\libs\clipboard-1.5.9.min.js" />
+    <Content Include="Content\js\libs\emojify-1.1.0.min.js" />
+    <Content Include="Content\js\semantic-2.1.8.min.js" />
+    <Content Include="Content\plugins\dropzone-4.2.0\dropzone.css" />
+    <Content Include="Content\plugins\dropzone-4.2.0\dropzone.js" />
+    <Content Include="Content\plugins\highlight-9.2.0\default.css" />
+    <Content Include="Content\plugins\highlight-9.2.0\github.css" />
+    <Content Include="Content\plugins\highlight-9.2.0\highlight.pack.js" />
+    <Content Include="Content\plugins\jquery.datetimepicker-2.4.5\jquery.datetimepicker.css" />
+    <Content Include="Content\plugins\jquery.datetimepicker-2.4.5\jquery.datetimepicker.js" />
+    <Content Include="Content\plugins\jquery.minicolors-2.2.3\jquery.minicolors.css" />
+    <Content Include="Content\plugins\jquery.minicolors-2.2.3\jquery.minicolors.min.js" />
+    <Content Include="Content\plugins\jquery.minicolors-2.2.3\jquery.minicolors.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\build\pdf.js" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\build\pdf.worker.js" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\compatibility.js" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\debugger.js" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-check.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-comment.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-help.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-insert.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-key.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-newparagraph.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-noicon.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-note.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\annotation-paragraph.svg" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-next%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-next-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-next-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-next.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-previous%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-previous-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-previous-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\findbarButton-previous.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\grab.cur" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\grabbing.cur" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\loading-icon.gif" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\loading-small%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\loading-small.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-documentProperties%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-documentProperties.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-firstPage%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-firstPage.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-handTool%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-handTool.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-lastPage%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-lastPage.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-rotateCcw%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-rotateCcw.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-rotateCw%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\secondaryToolbarButton-rotateCw.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\shadow.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\texture.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-bookmark%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-bookmark.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-download%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-download.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-menuArrows%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-menuArrows.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-openFile%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-openFile.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageDown%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageDown-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageDown-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageDown.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageUp%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageUp-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageUp-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-pageUp.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-presentationMode%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-presentationMode.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-print%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-print.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-search%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-search.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-secondaryToolbarToggle%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-secondaryToolbarToggle-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-secondaryToolbarToggle-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-secondaryToolbarToggle.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-sidebarToggle%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-sidebarToggle-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-sidebarToggle-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-sidebarToggle.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewAttachments%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewAttachments.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewOutline%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewOutline-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewOutline-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewOutline.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewThumbnail%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-viewThumbnail.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-zoomIn%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-zoomIn.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-zoomOut%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\toolbarButton-zoomOut.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\treeitem-collapsed%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\treeitem-collapsed-rtl%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\treeitem-collapsed-rtl.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\treeitem-collapsed.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\treeitem-expanded%402x.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\images\treeitem-expanded.png" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\viewer.css" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\viewer.html" />
+    <Content Include="Content\plugins\pdfjs-1.4.20\web\viewer.js" />
+    <Content Include="Content\plugins\simplemde-1.10.1\simplemde.min.css" />
+    <Content Include="Content\plugins\simplemde-1.10.1\simplemde.min.js" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\packages\Nancy.Viewengines.Razor.1.4.3\build\Nancy.ViewEngines.Razor.targets" Condition="Exists('..\packages\Nancy.Viewengines.Razor.1.4.3\build\Nancy.ViewEngines.Razor.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Nancy.Viewengines.Razor.1.4.3\build\Nancy.ViewEngines.Razor.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Nancy.Viewengines.Razor.1.4.3\build\Nancy.ViewEngines.Razor.targets'))" />
+  </Target>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

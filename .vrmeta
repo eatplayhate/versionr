@@ -39,6 +39,7 @@
 				"^lib/",
 				"^bin/",
 				"^bin_debug",
+				"^VersionrWeb/bin/",
 				"^packages/"
 			],
 			"FilePatterns" :

@@ -1,0 +1,36 @@
+@helper Active(string tab) {
+	if (tab == ViewBag.RepoTab) {
+		@:active
+	}
+}
+
+<div class="header-wrapper">
+	<div class="ui container"><!-- start container -->
+		<div class="ui vertically padded grid head"><!-- start grid -->
+			<div class="column"><!-- start column -->
+				<div class="ui header">
+					<div class="ui huge breadcrumb">
+						<i class="mega-octicon octicon-repo"></i>
+						@*<a href="{{AppSubUrl}}/{{.Owner.Name}}">{{.Owner.Name}}</a>
+						<div class="divider"> / </div>*@
+						<a href="/">@ViewBag.RepositoryName</a>
+					</div>
+				</div>
+			</div><!-- end column -->
+		</div><!-- end grid -->
+	</div><!-- end container -->
+	<div class="ui tabs container">
+		<div class="ui tabular menu navbar">
+			<a class="item @Active("src")" href="/src">
+				<i class="icon octicon octicon-code"></i> Code
+			</a>
+			<a class="item @Active("log")" href="/log"> @* TODO add branch to href *@
+				<i class="icon octicon octicon-history"></i> Commits
+			</a>
+			<a class="item @Active("tags")" href="/tags">
+				<i class="icon octicon octicon-tag"></i> Tags
+			</a>
+		</div>
+	</div>
+	<div class="ui tabs divider"></div>
+</div>

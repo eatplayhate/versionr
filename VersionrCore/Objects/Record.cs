@@ -85,11 +85,19 @@ namespace Versionr.Objects
         {
             get
             {
-                int index = CanonicalName.LastIndexOf('/');
+				int index;
+				if (CanonicalName.EndsWith("/", StringComparison.Ordinal))
+				{
+					index = CanonicalName.LastIndexOf('/', CanonicalName.Length - 2);
+					return CanonicalName.Substring(index + 1, CanonicalName.Length - index - 1);
+				}
+
+				index = CanonicalName.LastIndexOf('/');
                 if (index == -1)
                     return CanonicalName;
-                return CanonicalName.Substring(index + 1);
-            }
+
+				return CanonicalName.Substring(index + 1);
+			}
         }
 
         [ProtoBuf.ProtoIgnore]

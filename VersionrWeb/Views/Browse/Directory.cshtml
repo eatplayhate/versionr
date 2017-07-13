@@ -1,0 +1,38 @@
+﻿@Html.Partial("_BrowseHeader")
+
+<table id="repo-files-table" class="ui fixed single line table">
+	<tbody>
+		@if (ViewBag.ParentPath != null) {
+			<tr class="has-parent">
+				<td colspan="3"><i class="icon octicon octicon-mail-reply"></i><a href="@ViewBag.ParentPath">..</a></td>
+			</tr>
+		}
+		@foreach (var record in Model.Entries) {
+			<tr>
+				<td class="name" class="four wide">
+					@if (record.IsDirectory) {
+						<span class="icon octicon octicon-file-directory"></span>
+					}
+					else {
+						<span class="icon octicon octicon-file-text"></span>
+					}
+					<a href="@Model.BasePath@record.Name">@record.Name</a>
+				</td>
+				<td class="nine wide message collapsing has-emoji" >
+					<a rel="nofollow" class="ui sha label" href="@Util.CreateVersionLink(record.Version)">@Util.ShortGuid(record.Version)</a>
+					@record.Message
+				</td>
+				<td class="three wide text grey right age">@Util.ApproxRelativeTime(record.Timestamp)</td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+@*
+{{if .ReadmeExist}}
+	{{template "repo/view_file" .}}
+{{end}}
+*@
+
+
+@Html.Partial("_BrowseFooter")
