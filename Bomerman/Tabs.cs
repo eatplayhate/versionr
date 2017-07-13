@@ -95,7 +95,7 @@ namespace Bomerman
                 List<Task> tasks = new List<Task>();
                 foreach (var x in realTargets)
                 {
-                    tasks.Add(Versionr.Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                    tasks.Add(GetTaskFactory(options).StartNew(() =>
                     {
                         var newFileType = Versionr.Utilities.FileClassifier.Classify(x.FilesystemEntry.Info);
                         if (newFileType == Versionr.Utilities.FileEncoding.Binary)

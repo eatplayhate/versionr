@@ -282,6 +282,23 @@ namespace Versionr
             }
         }
 
+        public TaskFactory GetTaskFactory(int requestedThreads = 0)
+        {
+            if (taskFactory == null)
+            {
+                int platformThreads = Utilities.MultiArchPInvoke.IsX64 ? 16 : 4;
+                int threads = (requestedThreads == 0)
+                    ? platformThreads
+                    : Math.Max(requestedThreads, platformThreads);
+
+                taskFactory = new TaskFactory(new Utilities.LimitedConcurrencyScheduler(threads));
+            }
+
+            return taskFactory;
+        }
+
+        private TaskFactory taskFactory;
+
         public bool FindStashExact(string guidString)
         {
             Guid guid = new Guid(guidString);
@@ -6631,7 +6648,7 @@ namespace Versionr
                     else
                     {
                         //RestoreRecord(x, newRefTime);
-                        tasks.Add(LimitedTaskDispatcher.Factory.StartNew(() => {
+                        tasks.Add(GetTaskFactory().StartNew(() => {
                             RestoreRecord(x, newRefTime, null, updatedTimestamps, feedback);
                         }));
                     }
@@ -7078,7 +7095,7 @@ namespace Versionr
                         recordMap.TryGetValue(x.CanonicalName, out rec);
                         if (rec != null)
                         {
-                            tasks.Add(Versionr.Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                            tasks.Add(GetTaskFactory().StartNew(() =>
                             {
                                 Printer.PrintMessage("Reverted: #b#{0}##", x.CanonicalName);
                                 RestoreRecord(rec, DateTime.UtcNow);
@@ -7787,7 +7804,10 @@ namespace Versionr
                 }
                 return;
             }
-            FileInfo dest = overridePath == null ? new FileInfo(GetRecordPath(rec)) : new FileInfo(overridePath);
+
+            string pathstr = (MultiArchPInvoke.UseLongFilenameDelimiter ? "\\\\?\\" : string.Empty) + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
+            FileInfo dest = new FileInfo(pathstr);
+
             if (overridePath == null && dest.Exists)
             {
                 FileInfo caseCheck = dest.GetCorrectCase();

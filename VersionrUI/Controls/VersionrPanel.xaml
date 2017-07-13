@@ -142,7 +142,7 @@
                         <TextBox Grid.Column="1"
                                  x:Name="logSearch"
                                  mahapps:TextBoxHelper.Watermark="Search"
-                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}" />
                         <Label Grid.Column="2">Limit:</Label>
                         <ComboBox Grid.Column="3"
                                   SelectedValuePath="Key"
@@ -153,7 +153,7 @@
                     <ListView Grid.Row="1"
                               x:Name="listView"
                               ItemsSource="{Binding History}"
-                              SelectedItem="{Binding SelectedVersion}"
+                              SelectedItem="{Binding SelectedVersion, Mode=OneWay}"
                               SelectionMode="Single"
                               GridViewColumnHeader.Click="listViewHeader_Click"
                               ScrollViewer.IsDeferredScrollingEnabled="False"
@@ -261,7 +261,7 @@
                         <TextBox Grid.Column="1"
                                  x:Name="alterationSearch"
                                  mahapps:TextBoxHelper.Watermark="Search"
-                                 Text="{Binding SelectedVersion.SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                 Text="{Binding SelectedVersion.SearchText, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}" />
                     </Grid>
                     <ContentPresenter Grid.Row="6" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>

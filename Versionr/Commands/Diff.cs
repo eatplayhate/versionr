@@ -143,7 +143,7 @@ namespace Versionr.Commands
                                     tempFiles.Add(tmp);
                                     bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
                                     nonblocking |= localOptions.ExternalNonBlocking;
-                                    var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                                    var t = GetTaskFactory(options).StartNew(() =>
                                     {
                                         var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), x.Name, ws.Directives.ExternalDiff, nonblocking);
                                         if (diffResult != null)
@@ -218,7 +218,7 @@ namespace Versionr.Commands
                                     {
                                         tempFiles.Add(tmp);
                                         bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
-                                        var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                                        var t = GetTaskFactory(options).StartNew(() =>
                                         {
                                             var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name, ws.Directives.ExternalDiff, nonblocking);
                                             if (diffResult != null)
@@ -277,7 +277,7 @@ namespace Versionr.Commands
                                 tempFiles.Add(tmpVersion);
                                 tempFiles.Add(tmpParent);
                                 bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
-                                var t = Utilities.LimitedTaskDispatcher.Factory.StartNew(() =>
+                                var t = GetTaskFactory(options).StartNew(() =>
                                 {
                                     var diffResult = Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName, ws.Directives.ExternalDiff, nonblocking);
                                     if (diffResult != null)

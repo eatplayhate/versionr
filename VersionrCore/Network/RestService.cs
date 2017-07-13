@@ -20,7 +20,7 @@ namespace Versionr.Network
         /// </summary>
         /// <param name="that"></param>
         /// <returns></returns>
-        public static string ToProperTimeStamp(this DateTime that, bool toUTC = true)
+        public static string ToProperTimeStamp(this DateTime that, bool toUTC = false)
         {
             if (toUTC)
             {
@@ -101,17 +101,7 @@ namespace Versionr.Network
     internal class RestInterface
     {
         public static System.IO.DirectoryInfo Info { get; set; }
-
-        public static string ToProperTimeStamp(DateTime dt, bool toUTC = true)
-        {
-            if (toUTC)
-            {
-                return ((dt.ToUniversalTime().Ticks - 621355968000000000m) / 10000000m).ToString("F6");
-            }
-            else
-                return dt.Subtract(new DateTime(1970, 1, 1)).TotalSeconds.ToString();
-        }
-
+        
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/versions")]
         public IHttpContext Versions(IHttpContext context)
         {
@@ -158,7 +148,7 @@ namespace Versionr.Network
                 }
             }
 
-            context.Response.SendResponse(JsonConvert.SerializeObject(restVersionList));
+            SendResponse(context, JsonConvert.SerializeObject(restVersionList));
 
             return context;
         }
@@ -201,7 +191,7 @@ namespace Versionr.Network
                 }
             }
 
-            context.Response.SendResponse(JsonConvert.SerializeObject(restBranchList));
+            SendResponse(context, JsonConvert.SerializeObject(restBranchList));
 
             return context;
         }
@@ -248,7 +238,7 @@ namespace Versionr.Network
                 }
             }
 
-            context.Response.SendResponse(JsonConvert.SerializeObject(restTagJournalList));
+            SendResponse(context, JsonConvert.SerializeObject(restTagJournalList));
 
             return context;
         }
@@ -272,8 +262,14 @@ namespace Versionr.Network
             sb.AppendLine("All lists take:");
             sb.AppendLine("  maxResults, optionally specify desired entry count.");
             sb.AppendLine("  startAt, optionally specify desired start entry.");
-            context.Response.SendResponse(sb.ToString());
+            SendResponse(context, sb.ToString());
             return context;
+        }
+
+        private void SendResponse(IHttpContext context, string contents)
+        {
+            context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
+            context.Response.SendResponse(contents);
         }
     }
 
@@ -292,8 +288,10 @@ namespace Versionr.Network
             {
                 server.Host = "+";
                 server.Port = Config.RestService.Port.ToString();
-                server.LogToConsole().Start();
-                while(true)
+                //server.LogToConsole();
+                server.Start();
+                Printer.PrintMessage($"Rest server started, bound to port #b#{server.Port}##.");
+                while (true)
                 {
                     System.Threading.Thread.Sleep(5000);
                 }
