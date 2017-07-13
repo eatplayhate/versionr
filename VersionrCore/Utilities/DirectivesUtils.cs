@@ -117,6 +117,7 @@ namespace Versionr.Utilities
         }
 
         public static T LoadDirectives<T>(string path, string configName, out string error)
+            where T : class
         {
             T directives = default(T);
             error = null;
@@ -134,7 +135,11 @@ namespace Versionr.Utilities
                     JObject configuration = JObject.Parse(data);
                     var element = configuration[configName];
                     if (element != null)
+                    {
+                        if (typeof(T) == typeof(JObject))
+                            return configuration as T;
                         directives = JsonConvert.DeserializeObject<T>(element.ToString());
+                    }
                     else
                         error = String.Format("\"{0}\" element not found in {1}", configName, info.FullName);
                 }

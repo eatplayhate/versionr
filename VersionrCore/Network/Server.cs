@@ -37,6 +37,7 @@ namespace Versionr.Network
             public System.IO.DirectoryInfo Directory { get; set; }
             public bool Bare { get; set; }
             public BackupInfo Backup { get; set; }
+            public Guid Domain { get; set; } = Guid.Empty;
 
             public DomainInfo()
             {
@@ -52,7 +53,8 @@ namespace Versionr.Network
         static Dictionary<string, DomainInfo> Domains = new Dictionary<string, DomainInfo>();
         public static string ConfigFile;
         public static System.IO.DirectoryInfo BaseDirectory;
-        public static bool Run(System.IO.DirectoryInfo info, int port, string configFile = null, bool? encryptData = null)
+        public static Hooks.HookProcessor HookProcessor;
+        public static bool Run(System.IO.DirectoryInfo info, int? port, string configFile = null, bool? encryptData = null)
         {
             BaseDirectory = info;
             Area ws = Area.Load(info, true);
@@ -66,8 +68,20 @@ namespace Versionr.Network
                 ConfigFile = configFile;
                 LoadConfig();
             }
+            HookProcessor = new Hooks.HookProcessor(Config.Hooks);
             if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count == 0))
+            {
                 Domains[string.Empty] = new DomainInfo() { Bare = ws == null, Directory = info };
+                if (ws != null)
+                    Domains[string.Empty].Domain = ws.Domain;
+            }
+            if (!port.HasValue)
+            {
+                if (Config.Port.HasValue)
+                    port = Config.Port.Value;
+                else
+                    port = Network.Client.VersionrDefaultPort;
+            }
             bool enableEncryption = encryptData.HasValue ? encryptData.Value : Config.Encrypted;
             if (enableEncryption)
             {
@@ -81,21 +95,21 @@ namespace Versionr.Network
             }
             System.Net.Sockets.TcpListener listener = null;
 #if __MonoCS__
-            listener = new TcpListener(System.Net.IPAddress.Any, port);
+            listener = new TcpListener(System.Net.IPAddress.Any, port.Value);
 #else
             try
             {
                 if (System.Net.Sockets.Socket.OSSupportsIPv6)
                 {
-                    listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.IPv6Any, port);
+                    listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.IPv6Any, port.Value);
                     listener.Server.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
                 }
                 else
-                    listener = new TcpListener(System.Net.IPAddress.Any, port);
+                    listener = new TcpListener(System.Net.IPAddress.Any, port.Value);
             }
             catch
             {
-                listener = new TcpListener(System.Net.IPAddress.Any, port);
+                listener = new TcpListener(System.Net.IPAddress.Any, port.Value);
             }
 #endif
             Printer.PrintDiagnostics("Binding to {0}.", listener.LocalEndpoint);
@@ -238,9 +252,9 @@ namespace Versionr.Network
                             {
                                 dm = null;
                             }
-                            Printer.PrintMessage("Module: {0} => ./{1} {2}", x.Key, domInfo, dm == null ? "bare" : dm.Domain.ToString());
+                            Printer.PrintMessage("Module: {0} => ./{1} ({2})", x.Key, domInfo, dm == null ? "bare" : dm.Domain.ToString());
 
-                            DomainInfo info = new DomainInfo() { Bare = dm == null, Directory = domInfo };
+                            DomainInfo info = new DomainInfo() { Bare = dm == null, Directory = domInfo, Domain = dm.Domain };
                             Domains[x.Key] = info;
                             if (dm != null)
                                 dm.Dispose();
@@ -252,8 +266,8 @@ namespace Versionr.Network
                     {
                         using (Area a = Area.Load(BaseDirectory))
                         {
-                            Domains[string.Empty] = new DomainInfo() { Bare = a == null, Directory = BaseDirectory };
-                            Printer.PrintMessage("Root Module {1} {2}", BaseDirectory, a == null ? "bare" : a.Domain.ToString());
+                            Domains[string.Empty] = new DomainInfo() { Bare = a == null, Directory = BaseDirectory, Domain = a.Domain };
+                            Printer.PrintMessage("<root> {0} ({1})", BaseDirectory, a == null ? "bare" : a.Domain.ToString());
                         }
                     }
                     else if (Config.IncludeRoot.HasValue && Config.IncludeRoot.Value == false)
@@ -268,6 +282,7 @@ namespace Versionr.Network
         internal class ClientStateInfo
         {
             public Dictionary<Guid, Objects.Head> UpdatedHeads { get; set; }
+            public Dictionary<Guid, List<Objects.Version>> ConsideredVersions { get; set; }
             public List<VersionInfo> MergeVersions { get; set; }
             public HashSet<Guid> Locks { get; set; }
             public SharedNetwork.SharedNetworkInfo SharedInfo { get; set; }
@@ -276,6 +291,7 @@ namespace Versionr.Network
             public ClientStateInfo()
             {
                 MergeVersions = new List<VersionInfo>();
+                ConsideredVersions = new Dictionary<Guid, List<Objects.Version>>();
                 Locks = new HashSet<Guid>();
                 BareAccessRequired = false;
             }
@@ -984,12 +1000,19 @@ namespace Versionr.Network
             {
                 Branch branch = ws.GetBranch(x.Version.Branch);
                 List<Head> heads;
+                List<Objects.Version> consideredList;
+                if (!clientInfo.ConsideredVersions.TryGetValue(x.Version.Branch, out consideredList))
+                {
+                    consideredList = new List<Objects.Version>();
+                    clientInfo.ConsideredVersions[x.Version.Branch] = consideredList;
+                }
                 if (!temporaryHeads.TryGetValue(branch.ID, out heads))
                 {
                     heads = ws.GetBranchHeads(branch);
                     if (heads.Count == 0)
                         heads.Add(new Head() { Branch = branch.ID, Version = x.Version.ID });
                     temporaryHeads[branch.ID] = heads;
+                    consideredList.Add(x.Version);
                 }
                 bool considerHeadUpdate = true;
                 foreach (var head in heads)
@@ -1004,6 +1027,7 @@ namespace Versionr.Network
                         }
                         if (headAncestors.Contains(x.Version.ID))
                         {
+                            consideredList.Add(x.Version);
                             considerHeadUpdate = false;
                             break;
                         }
@@ -1025,6 +1049,7 @@ namespace Versionr.Network
                             {
                                 headAncestry.Remove(head.Version);
                                 head.Version = x.Version.ID;
+                                consideredList.Add(x.Version);
                                 addHead = false;
                                 break;
                             }
@@ -1033,6 +1058,7 @@ namespace Versionr.Network
                     if (addHead)
                     {
                         heads.Add(new Head() { Branch = branch.ID, Version = x.Version.ID });
+                        consideredList.Add(x.Version);
                     }
                 }
                 HashSet<Guid> headIDs = new HashSet<Guid>();
@@ -1121,7 +1147,17 @@ namespace Versionr.Network
                 foreach (var x in clientInfo.MergeVersions)
                     ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, false);
                 foreach (var x in clientInfo.UpdatedHeads)
+                {
+                    var newHead = ws.GetVersion(x.Value.Version);
+                    var oldHead = ws.GetBranchHeads(ws.GetBranch(x.Key)).FirstOrDefault();
+                    Objects.Version oldVersion = null;
+                    if (oldHead != null)
+                        oldVersion = ws.GetVersion(oldHead.Version);
+                    Server.HookProcessor.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion,
+                        clientInfo.ConsideredVersions[x.Key]));
+
                     ws.ImportHeadNoCommit(x);
+                }
                 return true;
             }
         }

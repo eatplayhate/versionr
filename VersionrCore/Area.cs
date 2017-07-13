@@ -40,6 +40,8 @@ namespace Versionr
         public Directives Directives { get; set; }
         public DateTime ReferenceTime { get; set; }
 
+        public Hooks.HookProcessor HookProcessor { get; set; } = new Hooks.HookProcessor(null);
+
         public Dictionary<string, FileTimestamp> FileTimeCache { get; set; }
 
         public List<Objects.Version> GetMergeList(Guid iD)
@@ -4199,6 +4201,8 @@ namespace Versionr
             directives = DirectivesUtils.LoadVRUser(this, out error);
             if (directives != null)
                 Directives.Merge(directives);
+
+            HookProcessor = new Hooks.HookProcessor(Directives.Hooks);
         }
 
         private bool Load(bool headless = false)
@@ -7334,7 +7338,8 @@ namespace Versionr
                                 canonicalNames[x.CanonicalName] = x;
                             List<Tuple<Record, ObjectName>> canonicalNameInsertions = new List<Tuple<Record, ObjectName>>();
 
-                            transaction = ObjectStore.BeginStorageTransaction();
+                            List<Tuple<Record, Record, Entry>> pendingRecordDataList = new List<Tuple<Record, Record, Entry>>();
+                            List<KeyValuePair<AlterationType, string>> alterationToCNames = new List<KeyValuePair<AlterationType, string>>();
 
                             foreach (var x in st.Elements)
                             {
@@ -7350,6 +7355,7 @@ namespace Versionr
                                             alteration.PriorRecord = x.VersionControlRecord.Id;
                                             alteration.Type = AlterationType.Delete;
                                             alterations.Add(alteration);
+                                            alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.VersionControlRecord.CanonicalName));
                                         }
                                         break;
                                     case StatusCode.Removed:
@@ -7361,6 +7367,7 @@ namespace Versionr
                                             alteration.PriorRecord = x.VersionControlRecord.Id;
                                             alteration.Type = AlterationType.Delete;
                                             alterations.Add(alteration);
+                                            alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.VersionControlRecord.CanonicalName));
                                         }
                                         break;
                                     case StatusCode.IgnoredAdded:
@@ -7371,6 +7378,7 @@ namespace Versionr
                                             alteration.NewRecord = x.VersionControlRecord.Id;
                                             alteration.Type = AlterationType.Add;
                                             alterations.Add(alteration);
+                                            alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.VersionControlRecord.CanonicalName));
                                         }
                                         break;
                                     case StatusCode.Ignored:
@@ -7388,6 +7396,7 @@ namespace Versionr
                                                     alteration.NewRecord = newRecord.Id;
                                                     alteration.Type = AlterationType.Update;
                                                     alterations.Add(alteration);
+                                                    alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.VersionControlRecord.CanonicalName));
                                                 }
                                             }
                                         }
@@ -7483,7 +7492,9 @@ namespace Versionr
                                                     }
                                                     List<string> ignored;
                                                     if (!ObjectStore.HasData(record, out ignored))
-                                                        ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                    {
+                                                        pendingRecordDataList.Add(new Tuple<Record, Record, Entry>(record, x.VersionControlRecord, x.FilesystemEntry));
+                                                    }
 
                                                     if (stream != null)
                                                         stream.Close();
@@ -7514,6 +7525,7 @@ namespace Versionr
 
                                                 finalRecords.Add(record);
                                                 alterations.Add(alteration);
+                                                alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.CanonicalName));
                                                 if (!recordIsMerged && record.Id == -1)
                                                     records.Add(record);
                                             }
@@ -7555,6 +7567,7 @@ namespace Versionr
                                                 alteration.PriorRecord = x.VersionControlRecord.Id;
                                                 alteration.Type = AlterationType.Discard;
                                                 alterations.Add(alteration);
+                                                alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.VersionControlRecord.CanonicalName));
                                             }
                                         }
                                         break;
@@ -7563,7 +7576,21 @@ namespace Versionr
                                 }
                             }
 
-                            ObjectStore.EndStorageTransaction(transaction);
+                            if (!HookProcessor.Raise(new Hooks.PreCommitHook(this, Username, branch, parentVersion, message, alterationToCNames)))
+                            {
+                                Printer.PrintMessage("Commit aborted by hook.");
+                                throw new Exception("Aborted");
+                            }
+
+                            if (pendingRecordDataList.Count > 0)
+                            {
+                                transaction = ObjectStore.BeginStorageTransaction();
+                                foreach (var p in pendingRecordDataList)
+                                {
+                                    ObjectStore.RecordData(transaction, p.Item1, p.Item2, p.Item3);
+                                }
+                                ObjectStore.EndStorageTransaction(transaction);
+                            }
                             transaction = null;
 
                             Printer.PrintMessage("Updating internal state.");
@@ -7650,6 +7677,7 @@ namespace Versionr
                             Printer.PrintDiagnostics("Finished.");
                             CleanStage(false);
                             Printer.PrintMessage("At version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Database.Version.ID, Database.Branch.Name, Database.Version.Revision);
+                            HookProcessor.Raise(new Hooks.PostCommitHook(this, Username, branch, vs, parentVersion, alterationToCNames));
                         }
                         catch (Exception e)
                         {

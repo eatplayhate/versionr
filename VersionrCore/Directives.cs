@@ -307,6 +307,8 @@ namespace Versionr
         public SvnCompatibility Svn { get; set; }
         public Dictionary<string, Extern> Externals { get; set; }
         private string m_UserName;
+        public Newtonsoft.Json.Linq.JArray Hooks { get; set; }
+        public Dictionary<string, Newtonsoft.Json.Linq.JToken> Tokens { get; set; } = new Dictionary<string, Newtonsoft.Json.Linq.JToken>();
         public string UserName
         {
             get { return (String.IsNullOrEmpty(m_UserName)) ? Environment.UserName : m_UserName; }
@@ -351,7 +353,8 @@ namespace Versionr
                                 UserName = reader.Value.ToString();
                                 break;
                             default:
-                                throw new Exception();
+                                Tokens[currentProperty] = Newtonsoft.Json.Linq.JToken.FromObject(reader.Value);
+                                break;
                         }
                         break;
                     case JsonToken.Boolean:
@@ -360,7 +363,7 @@ namespace Versionr
                         else if (currentProperty == "UseTortoiseMerge")
                             UseTortoiseMerge = System.Boolean.Parse(reader.Value.ToString());
                         else
-                            throw new Exception();
+                            Tokens[currentProperty] = Newtonsoft.Json.Linq.JToken.FromObject(reader.Value);
                         break;
                     case JsonToken.EndObject:
                         return;
@@ -386,6 +389,8 @@ namespace Versionr
                                     throw new Exception();
                             }
                         }
+                        else
+                            Tokens[currentProperty] = Newtonsoft.Json.Linq.JObject.Load(reader);
                         break;
                     case JsonToken.StartArray:
                         if (currentProperty == "TagPresets")
@@ -408,9 +413,16 @@ namespace Versionr
                                     throw new Exception();
                             }
                         }
+                        else if (currentProperty == "Hooks")
+                        {
+                            Hooks = Newtonsoft.Json.Linq.JArray.Load(reader);
+                        }
+                        else
+                            Tokens[currentProperty] = Newtonsoft.Json.Linq.JArray.Load(reader);
                         break;
                     default:
-                        throw new Exception();
+                        throw new Exception("Unhandled setup in configuration file");
+                        break;
                 }
             }
         }
@@ -448,6 +460,34 @@ namespace Versionr
                     Externals = new Dictionary<string, Extern>();
                 foreach (var x in other.Externals)
                     Externals[x.Key] = x.Value;
+            }
+
+            foreach (var x in other.Tokens)
+            {
+                Newtonsoft.Json.Linq.JToken prior;
+                if (Tokens.TryGetValue(x.Key, out prior))
+                {
+                    if (prior.Type == Newtonsoft.Json.Linq.JTokenType.Array && x.Value.Type == Newtonsoft.Json.Linq.JTokenType.Array)
+                    {
+                        Newtonsoft.Json.Linq.JArray array = prior as Newtonsoft.Json.Linq.JArray;
+                        Newtonsoft.Json.Linq.JArray merge = x.Value as Newtonsoft.Json.Linq.JArray;
+                        foreach (var y in merge)
+                            array.Add(y);
+                        continue;
+                    }
+                }
+                Tokens[x.Key] = x.Value;
+            }
+
+            if (other.Hooks != null)
+            {
+                if (Hooks != null)
+                {
+                    foreach (var x in other.Hooks)
+                        Hooks.Add(x);
+                }
+                else
+                    Hooks = other.Hooks;
             }
 
             if (other.TagPresets != null)

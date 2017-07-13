@@ -59,6 +59,12 @@
     <Compile Include="Area.cs" />
     <Compile Include="Directives.cs" />
     <Compile Include="FileStatus.cs" />
+    <Compile Include="Hooks\Actions\LogResponse.cs" />
+    <Compile Include="Hooks\IHookAction.cs" />
+    <Compile Include="Hooks\IHook.cs" />
+    <Compile Include="Hooks\HookListener.cs" />
+    <Compile Include="Hooks\HookProcessor.cs" />
+    <Compile Include="Hooks\InternalHooks.cs" />
     <Compile Include="ICheckoutOrderable.cs" />
     <Compile Include="Network\ClientProvider.cs" />
     <Compile Include="Network\IRemoteClient.cs" />
@@ -85,6 +91,7 @@
     <Compile Include="Network\RestService.cs" />
     <Compile Include="Network\Server.cs" />
     <Compile Include="Network\ServerConfig.cs" />
+    <Compile Include="Network\ServerHooks.cs" />
     <Compile Include="Network\SharedNetwork.cs" />
     <Compile Include="Network\SimpleAuth.cs" />
     <Compile Include="Network\StartClientTransaction.cs" />
@@ -164,6 +171,7 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

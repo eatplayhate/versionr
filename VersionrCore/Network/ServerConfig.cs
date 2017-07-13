@@ -16,10 +16,12 @@ namespace Versionr.Network
         public bool AllowUnauthenticatedWrite { get; set; }
         public Dictionary<string, string> Domains { get; set; }
         public bool? IncludeRoot { get; set; }
+        public int? Port { get; set; }
         public bool AllowVaultCreation { get; set; }
         public string AutoDomains { get; set; }
         public WebConfig WebService { get; set; }
         public RestConfig RestService { get; set; }
+        public Newtonsoft.Json.Linq.JArray Hooks { get; set; }
         public bool RequiresAuthentication
         {
             get
