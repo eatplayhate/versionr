@@ -47,9 +47,15 @@ namespace VersionrWeb.Models
 		{
 			var s = string.Format("/src/{0}/{1}", branchOrVersion, path);
 			return new NonEncodedHtmlString(s);
-		}
-		
-		public static IHtmlString CreateRawLink(dynamic branchOrVersion, string path)
+        }
+
+        public static IHtmlString CreateDiffLink(dynamic branchOrVersion, string path)
+        {
+            var s = string.Format("/diff/{0}/{1}", branchOrVersion, path);
+            return new NonEncodedHtmlString(s);
+        }
+
+        public static IHtmlString CreateRawLink(dynamic branchOrVersion, string path)
 		{
 			var s = string.Format("/raw/{0}/{1}", branchOrVersion, path);
 			return new NonEncodedHtmlString(s);
@@ -81,7 +87,10 @@ namespace VersionrWeb.Models
 				case Versionr.Objects.AlterationType.Update:
 					s = "purple";
 					break;
-				default:
+                case Versionr.Objects.AlterationType.Discard:
+                    s = "darkred";
+                    break;
+                default:
 					throw new NotImplementedException();
 			}
 			return new NonEncodedHtmlString(s);

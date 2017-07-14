@@ -17,7 +17,8 @@ namespace VersionrWeb.Models
 
 		public bool IsContentImage;
 		public bool IsContentText;
-		public string ContentText;
+        public bool IsContentPDF = false;
+        public string ContentText;
 
 		public string HighlightClass;
 
@@ -30,8 +31,9 @@ namespace VersionrWeb.Models
 			using (var stream = area.ObjectStore.GetRecordStream(record))
 			{
 				stream.Position = 0;
-				var encoding = GuessEncoding(stream);
-				if (encoding == null)
+                var fileEncoding = Versionr.Utilities.FileClassifier.Classify(stream);
+
+                if (fileEncoding == Versionr.Utilities.FileEncoding.Binary)
 				{
 					IsContentText = false;
 					IsContentImage = GuessIsContentImage(record.CanonicalName);
@@ -41,7 +43,7 @@ namespace VersionrWeb.Models
 					IsContentText = true;
 					byte[] bytes = new byte[stream.Length];
 					stream.Read(bytes, 0, bytes.Length);
-					ContentText = encoding.GetString(bytes);
+					ContentText = Versionr.Utilities.FileClassifier.GetEncoding(fileEncoding).GetString(bytes);
 					HighlightClass = GuessHighlightClass(record.CanonicalName);
 				}
 			}
@@ -63,7 +65,7 @@ namespace VersionrWeb.Models
 			// No BOM, check if first four bytes are ASCII printable
 			foreach (byte b in bom)
 			{
-				if (b < 32 || b > 127)
+				if ((b < 32 || b > 127) && (b != 0xD && b != 0xA))
 					return null;
 			}
 

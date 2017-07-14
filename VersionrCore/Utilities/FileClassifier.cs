@@ -44,6 +44,65 @@ namespace Versionr.Utilities
             }
             return result;
         }
+        static public FileEncoding Classify(System.IO.Stream sr, int sampleSize = 8192)
+        {
+            byte[] data = new byte[sampleSize];
+            int actualCount = sr.Read(data, 0, data.Length);
+            if (actualCount != data.Length)
+                data = data.Take(actualCount).ToArray();
+            sr.Position = 0;
+
+            var result = ClassifyData(data);
+            if (result == FileEncoding.ASCII || result == FileEncoding.Latin1)
+            {
+                // try again just to make sure it's not UTF8....
+                data = new byte[sr.Length];
+                actualCount = sr.Read(data, 0, data.Length);
+                if (actualCount != data.Length)
+                    data = data.Take(actualCount).ToArray();
+                sr.Position = 0;
+
+                return PossiblyUTF8(data, 0) ? FileEncoding.UTF8 : result;
+            }
+            return result;
+        }
+
+        static public System.Text.Encoding GetEncoding(FileEncoding type)
+        {
+            switch (type)
+            {
+                case FileEncoding.ASCII:
+                    return Encoding.ASCII;
+                case FileEncoding.Latin1:
+                    return Encoding.Default;
+                case FileEncoding.UTF7:
+                    return Encoding.UTF7;
+                case FileEncoding.UTF7_BOM:
+                    return new UTF7Encoding(false);
+                case FileEncoding.UTF8:
+                    return new UTF8Encoding(false);
+                case FileEncoding.UTF8_BOM:
+                    return Encoding.UTF8;
+                case FileEncoding.UTF16_BE:
+                    return new UnicodeEncoding(true, false);
+                case FileEncoding.UTF16_BE_BOM:
+                    return Encoding.BigEndianUnicode;
+                case FileEncoding.UTF16_LE:
+                    return new UnicodeEncoding(false, false);
+                case FileEncoding.UTF16_LE_BOM:
+                    return Encoding.Unicode;
+                case FileEncoding.UCS4_BE:
+                    return new UTF32Encoding(true, false);
+                case FileEncoding.UCS4_BE_BOM:
+                    return new UTF32Encoding(true, false);
+                case FileEncoding.UCS4_LE:
+                    return new UTF32Encoding(false, false);
+                case FileEncoding.UCS4_LE_BOM:
+                    return Encoding.UTF32;
+                default:
+                    throw new Exception("Unsupported text encoding");
+            }
+        }
 
         static public FileEncoding ClassifyData(byte[] data)
         {

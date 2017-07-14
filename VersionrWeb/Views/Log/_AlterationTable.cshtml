@@ -38,7 +38,7 @@
 			<div class="ui right">
 				@if (entry.Type == Versionr.Objects.AlterationType.Update ||
 					 entry.Type == Versionr.Objects.AlterationType.Copy) {
-					<a class="ui basic tiny button" rel="nofollow" href="@Util.CreateSourceLink(Model.Version.ID, entry.NewName)">Diff</a>
+					<a class="ui basic tiny button" rel="nofollow" href="@Util.CreateDiffLink(Model.Version.ID, entry.NewName)">Diff</a>
 				}
 				@* TODO view deleted file *@
 				<a class="ui basic tiny button" rel="nofollow" href="@Util.CreateSourceLink(Model.Version.ID, entry.NewName)">View</a>

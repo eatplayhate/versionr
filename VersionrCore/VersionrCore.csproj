@@ -142,6 +142,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Status.cs" />
     <Compile Include="Utilities\ChunkedStream.cs" />
+    <Compile Include="Utilities\DiffFormatter.cs" />
     <Compile Include="Utilities\DiffMerge.cs" />
     <Compile Include="Utilities\DirectivesUtils.cs" />
     <Compile Include="Utilities\FileClassifier.cs" />

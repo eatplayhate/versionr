@@ -66,6 +66,8 @@
     <Compile Include="Bootstrap\CustomBootstrapper.cs" />
     <Compile Include="Bootstrap\HotReloadRootPathProvider.cs" />
     <Compile Include="Bootstrap\RazorConfig.cs" />
+    <Compile Include="Models\DirectoryDiffModel.cs" />
+    <Compile Include="Models\FileDiffModel.cs" />
     <Compile Include="Models\DirectoryBrowseModel.cs" />
     <Compile Include="Models\DateTimeExtensions.cs" />
     <Compile Include="Models\FileBrowseModel.cs" />
@@ -75,6 +77,7 @@
     <Compile Include="Models\VersionModel.cs" />
     <Compile Include="Modules\AreaExtensions.cs" />
     <Compile Include="Modules\BrowseModule.cs" />
+    <Compile Include="Modules\DiffModule.cs" />
     <Compile Include="Modules\LogModule.cs" />
     <Compile Include="Modules\ModuleExtensions.cs" />
     <Compile Include="Modules\RawModule.cs" />
@@ -123,6 +126,10 @@
     <None Include="Views\Browse\File.cshtml" />
     <None Include="Views\Browse\_BrowseFooter.cshtml" />
     <None Include="Views\Browse\_BrowseHeader.cshtml" />
+    <None Include="Views\Diff\Directory.cshtml" />
+    <None Include="Views\Diff\View.cshtml" />
+    <None Include="Views\Diff\_BrowseFooter.cshtml" />
+    <None Include="Views\Diff\_BrowseHeader.cshtml" />
     <None Include="Views\Log\Log.cshtml" />
     <None Include="Views\Log\Version.cshtml" />
     <None Include="Views\Log\_AlterationTable.cshtml" />
@@ -272,6 +279,7 @@
     <Content Include="Content\plugins\simplemde-1.10.1\simplemde.min.css" />
     <Content Include="Content\plugins\simplemde-1.10.1\simplemde.min.js" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Nancy.Viewengines.Razor.1.4.3\build\Nancy.ViewEngines.Razor.targets" Condition="Exists('..\packages\Nancy.Viewengines.Razor.1.4.3\build\Nancy.ViewEngines.Razor.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
