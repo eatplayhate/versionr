@@ -12,22 +12,22 @@ namespace Versionr.Hooks.Actions
         {
 
         }
-        public bool Raise(IHook hook)
+        public bool Raise(IHook hook, string filtername)
         {
-            Printer.PrintMessage("{2}: Got a hook event: {0}{1}", hook.Name, hook.IsServerHook ? " (server)" : " (client)", hook.Timestamp);
+            Printer.PrintMessage("{2}: Got a hook event: {0}{1} [{3}]", hook.Name, hook.IsServerHook ? " (server)" : " (client)", hook.Timestamp, string.IsNullOrEmpty(filtername) ? "no filter" : filtername);
 
             if (!string.IsNullOrEmpty(hook.Message))
                 Printer.PrintMessage("Message: {0}", hook.Message);
 
             var branch = hook.Branch;
             if (branch != null)
-                Printer.PrintMessage("Associated with branch: {0}", branch.Name);
+                Printer.PrintMessage("Associated with branch: {0} ({1})", branch.Name, branch.ID);
             var versionList = hook.AdditionalVersions;
             if (versionList != null)
             {
                 foreach (var x in versionList)
                 {
-                    Printer.PrintMessage("Associated with v {0}", x.ID);
+                    Printer.PrintMessage("Associated with v {0}: b - {1}", x.ID, x.Branch);
                 }
             }
             var modifications = hook.Modifications;

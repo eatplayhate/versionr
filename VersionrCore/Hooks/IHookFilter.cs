@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace Versionr.Hooks
 {
-    public interface IHookAction
+    public interface IHookFilter
     {
-        bool Raise(IHook hook, string filterName);
+        bool Accept(IHook hook);
     }
 }

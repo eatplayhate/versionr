@@ -65,10 +65,13 @@
     <Compile Include="FileStatus.cs" />
     <Compile Include="FileSystem.cs" />
     <Compile Include="Hooks\Actions\LogResponse.cs" />
+    <Compile Include="Hooks\Filters\BranchFilter.cs" />
+    <Compile Include="Hooks\Filters\ContentsFilter.cs" />
     <Compile Include="Hooks\IHookAction.cs" />
     <Compile Include="Hooks\IHook.cs" />
     <Compile Include="Hooks\HookListener.cs" />
     <Compile Include="Hooks\HookProcessor.cs" />
+    <Compile Include="Hooks\IHookFilter.cs" />
     <Compile Include="Hooks\InternalHooks.cs" />
     <Compile Include="ICheckoutOrderable.cs" />
     <Compile Include="Network\ClientProvider.cs" />

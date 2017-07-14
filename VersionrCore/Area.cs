@@ -6439,7 +6439,7 @@ namespace Versionr
 		public Objects.Version GetVersion(Record record)
 		{
 			var alteration = Database.Table<Objects.Alteration>().Where(x => x.NewRecord == record.Id).First();
-			return Database.Table<Objects.Version>().Where(x => x.AlterationList == alteration.Owner).First();
+			return Database.Table<Objects.Version>().Where(x => x.AlterationList == alteration.Owner || x.Snapshot == alteration.Owner).First();
 		}
 
         private static IEnumerable<T> CheckoutOrder<T>(IList<T> targetRecords)

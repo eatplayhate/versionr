@@ -70,7 +70,7 @@ namespace Versionr.Network
                 HashSet<string> newRecords = new HashSet<string>();
                 if (oldHead != null)
                 {
-                    foreach (var rec in ws.GetRecords(oldHead))
+                    foreach (var rec in ws.GetRecords(ws.GetVersion(oldHead.ID)))
                     {
                         oldRecords.Add(rec.CanonicalName, rec.Fingerprint);
                     }
@@ -78,7 +78,7 @@ namespace Versionr.Network
                 List<KeyValuePair<Objects.AlterationType, string>> results = new List<KeyValuePair<Objects.AlterationType, string>>();
                 if (newHead != null)
                 {
-                    foreach (var rec in ws.GetRecords(newHead))
+                    foreach (var rec in ws.GetRecords(ws.GetVersion(newHead.ID)))
                     {
                         string oldfp;
                         if (oldRecords.TryGetValue(rec.CanonicalName, out oldfp))

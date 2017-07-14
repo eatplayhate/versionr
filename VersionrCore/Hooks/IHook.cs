@@ -88,5 +88,28 @@ namespace Versionr.Hooks
                 return null;
             }
         }
+        public IEnumerable<Objects.Version> AllVersions
+        {
+            get
+            {
+                if (Version != null)
+                    yield return Version;
+                var associated = AdditionalVersions;
+                if (associated != null)
+                {
+                    foreach (var x in associated)
+                        yield return x;
+                }
+            }
+        }
+        public IEnumerable<string> AllTags
+        {
+            get
+            {
+                if (Workspace == null)
+                    return new string[0];
+                return AllVersions.SelectMany(z => Workspace.GetTagsForVersion(z.ID));
+            }
+        }
     }
 }

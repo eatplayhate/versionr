@@ -28,7 +28,7 @@ namespace Versionr.Hooks
             {
                 if (x.EventType.IsAssignableFrom(hook.GetType()))
                 {
-                    if (!x.Action.Raise(hook))
+                    if (!x.Raise(hook))
                         return false;
                 }
             }
@@ -66,6 +66,18 @@ namespace Versionr.Hooks
             }
         }
 
+        Type[] m_HookFilterTypes;
+        private Type[] HookFilterTypes
+        {
+            get
+            {
+                if (m_HookFilterTypes == null)
+                    m_HookFilterTypes = FindSubclassesOf(typeof(IHookFilter));
+
+                return m_HookFilterTypes;
+            }
+        }
+
         Type[] m_HookTypes;
         private Type[] HookTypes
         {
@@ -75,6 +87,27 @@ namespace Versionr.Hooks
                     m_HookTypes = FindSubclassesOf(typeof(IHook));
 
                 return m_HookTypes;
+            }
+        }
+
+        Dictionary<string, Type> m_HookFilterTypeMap;
+        private Dictionary<string, Type> HookFilterTypeMap
+        {
+            get
+            {
+                if (m_HookFilterTypeMap == null)
+                {
+                    m_HookFilterTypeMap = new Dictionary<string, Type>();
+                    foreach (var x in HookFilterTypes)
+                    {
+                        var eventNameProperty = x.GetProperty("FilterName", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, typeof(string), new Type[0], null);
+                        if (eventNameProperty != null)
+                            m_HookFilterTypeMap[eventNameProperty.GetMethod.Invoke(null, null) as string] = x;
+                        m_HookFilterTypeMap[x.FullName] = x;
+                        m_HookFilterTypeMap[x.Name] = x;
+                    }
+                }
+                return m_HookFilterTypeMap;
             }
         }
 
@@ -128,12 +161,16 @@ namespace Versionr.Hooks
             {
                 Type hookType;
                 JToken hookName;
+                JToken filters;
                 if (!x.TryGetValue("Event", out hookName) || hookName.Type != JTokenType.String)
                     throw new Exception("Missing/invalid hook \"Event\" property!");
 
                 if (HookTypeMap.TryGetValue(hookName.ToString(), out hookType))
                 {
-                    HookListener listener = new HookListener()
+                    x.TryGetValue("Filters", out filters);
+                    List<KeyValuePair<string, IHookFilter>> filterList = ConstructFilters(hookName.ToString(), filters);
+
+                    HookListener listener = new HookListener(filterList)
                     {
                         Event = hookName.ToString(),
                         EventType = hookType
@@ -149,6 +186,62 @@ namespace Versionr.Hooks
                 Printer.PrintWarning("Error installing hook - exception: {0}\n\nHook code:\n{1}", e, x);
             }
             return null;
+        }
+
+        private List<KeyValuePair<string, IHookFilter>> ConstructFilters(string hookName, JToken filters)
+        {
+            List<KeyValuePair<string, IHookFilter>> results = null;
+            if (filters != null && filters.Type == JTokenType.Array)
+            {
+                results = new List<KeyValuePair<string, IHookFilter>>();
+                JArray filterArray = filters as JArray;
+                foreach (var x in filterArray)
+                {
+                    try
+                    {
+                        if (x.Type != JTokenType.Object)
+                            throw new Exception("Filter object is not a compound object type.");
+                        string name = null;
+                        string filterTypeName = null;
+                        JObject filterTypeArguments = null;
+                        foreach (var field in (x as JObject))
+                        {
+                            if (field.Key == "Name")
+                            {
+                                if (field.Value.Type != JTokenType.String)
+                                    throw new Exception("Filter \"Name\" should be a string.");
+                                name = field.Value.ToString();
+                            }
+                            else if (filterTypeName != null)
+                                throw new Exception("Filter objects should have only a name and a single object.");
+                            else
+                            {
+                                filterTypeName = field.Key;
+                                if (field.Value.Type != JTokenType.Object)
+                                    throw new Exception("Filter parameter object is not a compound object.");
+                                filterTypeArguments = field.Value as JObject;
+                            }
+                        }
+                        if (filterTypeName == null || name == null || filterTypeArguments == null)
+                            throw new Exception("Filter is missing one or more of \"Name\" or the object type to install.");
+
+                        Type filterType;
+                        if (HookFilterTypeMap.TryGetValue(filterTypeName.ToString(), out filterType))
+                        {
+                            results.Add(new KeyValuePair<string, IHookFilter>(name, Activator.CreateInstance(filterType, filterTypeArguments) as IHookFilter));
+                        }
+                        else
+                            throw new Exception(string.Format("Couldn't find hook filter type \"{0}\"!", filterTypeName));
+                    }
+                    catch (Exception e)
+                    {
+                        Printer.PrintWarning("Error installing hook for filter: {0} - {1}", hookName, e.ToString());
+                    }
+                }
+            }
+            else if (filters != null)
+                Printer.PrintWarning("Unable to add filters to hook {0} - wrong format for filter array!", hookName);
+            return results;
         }
 
         private IHookAction ConstructHookAction(JObject action)

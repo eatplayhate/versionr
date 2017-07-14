@@ -283,6 +283,7 @@ namespace Versionr.Network
         {
             public Dictionary<Guid, Objects.Head> UpdatedHeads { get; set; }
             public Dictionary<Guid, List<Objects.Version>> ConsideredVersions { get; set; }
+            public Dictionary<Guid, Network.VersionInfo> ReceivedVersionMap { get; set; }
             public List<VersionInfo> MergeVersions { get; set; }
             public HashSet<Guid> Locks { get; set; }
             public SharedNetwork.SharedNetworkInfo SharedInfo { get; set; }
@@ -291,6 +292,7 @@ namespace Versionr.Network
             public ClientStateInfo()
             {
                 MergeVersions = new List<VersionInfo>();
+                ReceivedVersionMap = new Dictionary<Guid, VersionInfo>();
                 ConsideredVersions = new Dictionary<Guid, List<Objects.Version>>();
                 Locks = new HashSet<Guid>();
                 BareAccessRequired = false;
@@ -644,9 +646,11 @@ namespace Versionr.Network
                                                     return true;
                                                 }
                                                 Printer.PrintDiagnostics("Importing {0} versions.", clientInfo.SharedInfo.PushedVersions.Count);
+                                                bool acceptHeads = false;
                                                 if (AcceptHeads(clientInfo, ws, out errorData))
+                                                    acceptHeads = ImportVersions(ws, clientInfo);
+                                                if (acceptHeads)
                                                 {
-                                                    ImportVersions(ws, clientInfo);
                                                     SharedNetwork.ReceiveBranchHeads(clientInfo.SharedInfo);
                                                     clientInfo.SharedInfo.Workspace.CommitDatabaseTransaction();
                                                     if (clientInfo.SharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr35)
@@ -911,6 +915,57 @@ namespace Versionr.Network
             Printer.PrintDiagnostics("Ended client processor task!");
         }
 
+        private static bool RaisePushHeadEvents(ClientStateInfo clientInfo, Area ws)
+        {
+            bool accept = true;
+            foreach (var x in clientInfo.UpdatedHeads)
+            {
+                Network.VersionInfo newHeadInfo;
+                if (clientInfo.ReceivedVersionMap.TryGetValue(x.Value.Version, out newHeadInfo))
+                {
+                    var newHead = newHeadInfo.Version;
+                    var oldHead = ws.GetBranchHeads(ws.GetBranch(x.Key)).FirstOrDefault();
+                    Objects.Version oldVersion = null;
+                    if (oldHead != null)
+                        oldVersion = ws.GetVersion(oldHead.Version);
+                    HashSet<Guid> mergedVersions = new HashSet<Guid>();
+                    List<Objects.Version> associatedVersions = new List<Objects.Version>();
+                    Stack<Objects.Version> versionsToProcess = new Stack<Objects.Version>();
+                    foreach (var v in clientInfo.ConsideredVersions[x.Key])
+                        versionsToProcess.Push(v);
+                    while (versionsToProcess.Count > 0)
+                    {
+                        Objects.Version v = versionsToProcess.Pop();
+                        if (!mergedVersions.Add(v.ID))
+                        {
+                            associatedVersions.Add(v);
+
+                            // only have to deal with merges, the considered version list includes mainline
+                            Network.VersionInfo vinfo;
+                            if (clientInfo.ReceivedVersionMap.TryGetValue(v.ID, out vinfo))
+                            {
+                                if (vinfo.MergeInfos != null)
+                                {
+                                    foreach (var m in vinfo.MergeInfos.Where(z => z.DestinationVersion == v.ID))
+                                    {
+                                        Network.VersionInfo priorMerge;
+                                        if (clientInfo.ReceivedVersionMap.TryGetValue(m.SourceVersion, out priorMerge))
+                                            versionsToProcess.Push(priorMerge.Version);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (!Server.HookProcessor.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion,
+                        associatedVersions)))
+                    {
+                        return false;
+                    }
+                }
+            }
+            return accept;
+        }
+
         private static bool HandleAuthentication(ClientStateInfo clientInfo, TcpClient client, SharedNetwork.SharedNetworkInfo sharedInfo)
         {
             if (Config.RequiresAuthentication)
@@ -998,6 +1053,7 @@ namespace Versionr.Network
             Dictionary<Guid, HashSet<Guid>> headAncestry = new Dictionary<Guid, HashSet<Guid>>();
             foreach (var x in clientInfo.SharedInfo.PushedVersions.Reverse<VersionInfo>())
             {
+                clientInfo.ReceivedVersionMap[x.Version.ID] = x;
                 Branch branch = ws.GetBranch(x.Version.Branch);
                 List<Head> heads;
                 List<Objects.Version> consideredList;
@@ -1146,18 +1202,10 @@ namespace Versionr.Network
                 }
                 foreach (var x in clientInfo.MergeVersions)
                     ws.ImportVersionNoCommit(clientInfo.SharedInfo, x, false);
+                if (!RaisePushHeadEvents(clientInfo, ws))
+                    return false;
                 foreach (var x in clientInfo.UpdatedHeads)
-                {
-                    var newHead = ws.GetVersion(x.Value.Version);
-                    var oldHead = ws.GetBranchHeads(ws.GetBranch(x.Key)).FirstOrDefault();
-                    Objects.Version oldVersion = null;
-                    if (oldHead != null)
-                        oldVersion = ws.GetVersion(oldHead.Version);
-                    Server.HookProcessor.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion,
-                        clientInfo.ConsideredVersions[x.Key]));
-
                     ws.ImportHeadNoCommit(x);
-                }
                 return true;
             }
         }
