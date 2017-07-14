@@ -1,4 +1,4 @@
-﻿@Html.Partial("../_Header")
+﻿@Html.Partial("Shared/_Header")
 
 @{
 	var version = Model.Version;
@@ -6,7 +6,7 @@
 }
 
 <div class="repository diff">
-	@Html.Partial("../_RepoTabs")
+	@Html.Partial("Shared/_RepoTabs")
 
 	<div class="ui container"> @*{{if .IsSplitStyle}}fluid padded{{end}}*@
 		<div class="ui top attached info clearing segment">
@@ -38,4 +38,4 @@
 		@Html.Partial("Log/_AlterationTable", Model)
 	</div>
 </div>
-@Html.Partial("../_Footer")
+@Html.Partial("Shared/_Footer")

@@ -20,7 +20,7 @@ namespace VersionrWeb.Bootstrap
 			string assemblyPath = Assembly.GetExecutingAssembly().Location;
 			string binDirectory = Path.GetDirectoryName(assemblyPath);
 			string hotReloadPath = Path.Combine(binDirectory, "..", "VersionrWeb");
-			if (Directory.Exists(hotReloadPath))
+            if (Directory.Exists(hotReloadPath))
 				return hotReloadPath;
 			else
 				return binDirectory;

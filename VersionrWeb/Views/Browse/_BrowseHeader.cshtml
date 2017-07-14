@@ -1,14 +1,14 @@
-﻿@Html.Partial("../_Header")
+﻿@Html.Partial("Shared/_Header")
 
 <div class="repository file list">
 	
-	@Html.Partial("_RepoTabs")
+	@Html.Partial("Shared/_RepoTabs")
 
 	<div class="ui container">
 		
 		<div class="ui secondary menu">
-			@Html.Partial("../_BranchSelect")
-			@Html.Partial("../_PathBreadcrumb")
+			@Html.Partial("Shared/_BranchSelect")
+			@Html.Partial("Shared/_PathBreadcrumb")
 			@*
 			{{if eq $n 0}}
 				<div class="right fitted item">
