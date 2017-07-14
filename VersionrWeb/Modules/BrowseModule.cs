@@ -30,10 +30,11 @@ namespace VersionrWeb.Modules
 			ViewBag.RepoTab = "src";
 			ViewBag.BranchOrVersion = branchOrVersion;
 			ViewBag.Path = path;
-			ViewBag.ParentPath = path == "" ? null : string.Format("/src/{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
-			
-			// Decode version or lookup head of branch
-			var area = this.CreateArea();
+            ViewBag.TabPath = path == "" ? branchOrVersion : string.Format("{0}/{1}", branchOrVersion, Path.GetDirectoryName(path).Replace('\\', '/'));
+            ViewBag.ParentPath = path == "" ? null : string.Format("/src/{0}", ViewBag.TabPath);
+
+            // Decode version or lookup head of branch
+            var area = this.CreateArea();
 			Guid versionId = area.GetVersionId(branchOrVersion);
 			var version = area.GetVersion(versionId);
 			var records = area.GetRecords(version);

@@ -15,6 +15,13 @@ namespace VersionrWeb.Models
 			return new NonEncodedHtmlString(s);
 		}
 
+        public static IHtmlString Join(string start, string end)
+        {
+            if (string.IsNullOrEmpty(end))
+                return new NonEncodedHtmlString(start);
+            return new NonEncodedHtmlString(start + "/" + end);
+        }
+
 		public static IHtmlString ApproxRelativeTime(DateTime dateTime)
 		{
 			var s = dateTime.ToRelativeDateString(true);

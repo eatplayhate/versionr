@@ -24,7 +24,7 @@
 			<a class="item @Active("src")" href="/src">
 				<i class="icon octicon octicon-code"></i> Code
 			</a>
-            <a class="item @Active("diff")" href="/diff">
+            <a class="item @Active("diff")" href="@Util.Join("/diff", @ViewBag.TabPath)">
                 <i class="icon octicon octicon-code"></i> Differences
             </a>
 			<a class="item @Active("log")" href="/log"> @* TODO add branch to href *@
