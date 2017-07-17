@@ -163,15 +163,15 @@ namespace Versionr.ObjectStore
             }
             DefaultCompression = cmode;
 
-            ObjectDatabase.BeginTransaction();
             ObjectDatabase.EnableWAL = true;
+            ObjectDatabase.BeginTransaction();
             ObjectDatabase.CreateTable<FileObjectStoreData>();
             ObjectDatabase.CreateTable<PackfileObject>();
             ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
             ObjectDatabase.Commit();
 
-            BlobDatabase.BeginTransaction();
             BlobDatabase.EnableWAL = true;
+            BlobDatabase.BeginTransaction();
             BlobDatabase.CreateTable<Blobject>();
             BlobDatabase.CreateTable<Blobsize>();
             BlobDatabase.Commit();
@@ -896,7 +896,7 @@ namespace Versionr.ObjectStore
                                         if (blobID.HasValue)
                                         {
                                             x.Data.BlobID = blobID;
-                                            ObjectDatabase.Update(x.Data);
+                                            ObjectDatabase.CreateCommand(true, "UPDATE FileObjectStoreData SET BlobID = ? WHERE Lookup = ?", blobID, x.Data.Lookup);
                                         }
                                         else
                                         {
@@ -1211,10 +1211,21 @@ namespace Versionr.ObjectStore
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
             if (storeData == null)
                 return null;
+            long deltaID = -1;
+            FileObjectStoreData delta = storeData;
+            while (delta.Mode == StorageMode.Delta)
+            {
+                delta = ObjectDatabase.Find<FileObjectStoreData>(delta.DeltaBase);
+                if (delta == null)
+                    break;
+            }
+            if (delta != null && delta != storeData)
+                deltaID = delta.ID;
             return new RecordInfo()
             {
                 AllocatedSize = GetTransmissionLengthInternal(storeData),
                 DeltaCompressed = storeData.Mode == StorageMode.Delta,
+                DeltaBaseID = deltaID,
                 ID = storeData.ID
             };
         }

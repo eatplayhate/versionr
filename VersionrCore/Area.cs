@@ -1822,6 +1822,7 @@ namespace Versionr
             Printer.PrintMessage("\n#b#Core Object Store Stats:##");
             List<long> allocatedSize = new List<long>();
             Dictionary<Record, ObjectStore.RecordInfo> recordInfoMap = new Dictionary<Record, Versionr.ObjectStore.RecordInfo>();
+            Dictionary<long, ObjectStore.RecordInfo> recordInfoIdMap = new Dictionary<long, ObjectStore.RecordInfo>();
             long missingData = 0;
             List<long> allocObjectSize = new List<long>();
             foreach (var x in records)
@@ -1836,6 +1837,7 @@ namespace Versionr
                 recordInfoMap[x] = info;
                 if (info != null)
                 {
+                    recordInfoIdMap[info.ID] = info;
                     if (allocatedSize[(int)x.CanonicalNameId] == -1)
                     {
                         allocObjectSize[(int)x.CanonicalNameId] = x.Size;
@@ -1853,6 +1855,7 @@ namespace Versionr
             long snapSize = 0;
             long deltaCount = 0;
             long deltaSize = 0;
+            long deltaEstimatedSize = 0;
             long storedObjectUnpackedSize = 0;
             HashSet<long> objectIDs = new HashSet<long>();
             foreach (var x in recordInfoMap)
@@ -1866,6 +1869,11 @@ namespace Versionr
                     objectIDs.Add(x.Value.ID);
                     if (x.Value.DeltaCompressed)
                     {
+                        ObjectStore.RecordInfo dbaseRecord;
+                        if (recordInfoIdMap.TryGetValue(x.Value.DeltaBaseID, out dbaseRecord))
+                            deltaEstimatedSize += dbaseRecord.AllocatedSize;
+                        else
+                            deltaEstimatedSize += x.Value.AllocatedSize * 2;
                         deltaCount++;
                         deltaSize += x.Value.AllocatedSize;
                     }
@@ -1880,6 +1888,7 @@ namespace Versionr
             Printer.PrintMessage("  #b#{0}/{2}## local data objects ({1:N2}% of records)", objectEntries, 100.0 * objectEntries / (double)recordInfoMap.Count, recordInfoMap.Count);
             Printer.PrintMessage("  #b#{0} ({1})## Snapshots", snapCount, Versionr.Utilities.Misc.FormatSizeFriendly(snapSize));
             Printer.PrintMessage("  #b#{0} ({1})## Deltas", deltaCount, Versionr.Utilities.Misc.FormatSizeFriendly(deltaSize));
+            Printer.PrintMessage("    Estimated size without delta compresion: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(deltaEstimatedSize));
             Printer.PrintMessage("  Unpacked size of all objects: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(storedObjectUnpackedSize));
             Printer.PrintMessage("  Total size of all records: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(records.Select(x => x.Size).Sum()));
             Printer.PrintMessage("  Total size of all versions: #b#{0}##", Versionr.Utilities.Misc.FormatSizeFriendly(versionSize.Values.Sum()));

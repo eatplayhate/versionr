@@ -17,6 +17,7 @@ namespace Versionr.ObjectStore
     {
         public long AllocatedSize { get; set; }
         public bool DeltaCompressed { get; set; }
+        public long DeltaBaseID { get; set; }
         public long ID { get; set; }
     }
     public abstract class ObjectStoreBase
