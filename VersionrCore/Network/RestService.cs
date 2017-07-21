@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Versionr.Objects;
@@ -95,6 +96,19 @@ namespace Versionr.Network
     internal class RestTagJournalList : RestList
     {
         public List<RestTagJournalEntry> tagjournals { get; set; } = new List<RestTagJournalEntry>();
+    }
+
+    internal class RestAnnotationEntry
+    {
+        public string author { get; set; }
+        public string id { get; set; }
+        public string time { get; set; }
+    }
+
+    internal class RestAnnotationDictionary
+    {
+        // string is "key"
+        public Dictionary<string, List<RestAnnotationEntry>> annotations { get; set; } = new Dictionary<string, List<RestAnnotationEntry>>();
     }
 
     [RestResource]
@@ -243,6 +257,78 @@ namespace Versionr.Network
             return context;
         }
 
+        [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/annotations/([0-9a-f\\-]+)")]
+        public IHttpContext Annotations(IHttpContext context)
+        {
+            RestAnnotationDictionary restAnnotationList = new RestAnnotationDictionary();
+
+            string versionString = context.Request.PathParameters["p0"]; // the group from PathInfo in RestRouteAttribute
+
+            List<Objects.Annotation> annotations = new List<Objects.Annotation>();
+            Area ws = Area.Load(Info, true, true);
+            Version ver = ws.GetPartialVersion(versionString);
+
+            if (ver != null)
+            {
+                bool activeOnly = true;
+                annotations.AddRange(ws.GetAnnotationsForVersion(ver.ID, activeOnly));
+                for (int i = 0; i < annotations.Count; i++)
+                {
+                    var key = annotations[i].Key;
+                    if (!restAnnotationList.annotations.ContainsKey(key))
+                    {
+                        restAnnotationList.annotations.Add(key, new List<RestAnnotationEntry>());
+                    }
+                    restAnnotationList.annotations[key].Add(new RestAnnotationEntry
+                    {
+                        author = annotations[i].Author,
+                        id = annotations[i].ID.ToString(),
+                        time = annotations[i].Timestamp.ToProperTimeStamp()
+                    });
+                }
+            }
+
+            SendResponse(context, JsonConvert.SerializeObject(restAnnotationList));
+
+            return context;
+        }
+
+        // Each group in the PathInfo is "p0" "p1" etc. in context.Request.PathParameters
+        [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/annotation/([0-9a-f\\-]+)/([^/]+)")]
+        [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/annotation/([0-9a-f\\-]+)/([^/]+)/([0-9a-f\\-]+)")]
+        public IHttpContext Annotation(IHttpContext context)
+        {
+            string versionString = context.Request.PathParameters["p0"];
+            string keyString = context.Request.PathParameters["p1"];
+            bool getAnnotationId = context.Request.PathParameters.Count == 3;
+            string annotationIdString = getAnnotationId ? context.Request.PathParameters["p2"] : null;
+
+            Area ws = Area.Load(Info, true, true);
+            Version ver = ws.GetPartialVersion(versionString);
+
+            if (ver != null)
+            {
+                bool ignoreCase = true;
+                Annotation annotation = null;
+                if (getAnnotationId)
+                    annotation = ws.GetAllAnnotations(ver.ID, keyString, ignoreCase).FirstOrDefault(a => a.ID.ToString().StartsWith(annotationIdString.ToLowerInvariant()));
+                else
+                    annotation = ws.GetAnnotation(ver.ID, keyString, ignoreCase);
+
+                if (annotation != null)
+                    SendResponse(context, annotation.Value);
+                else
+                    context.Response.SendResponse(Grapevine.Shared.HttpStatusCode.NotFound);
+            }
+            else
+            {
+                context.Response.SendResponse(Grapevine.Shared.HttpStatusCode.NotFound);
+            }
+
+            return context;
+        }
+
+
         // Default should be the last function in the class.
         // ORDER MATTERS
         [RestRoute]
@@ -254,6 +340,9 @@ namespace Versionr.Network
             sb.AppendLine("  branch (string), filters to specific branch name");
             sb.AppendLine("/branches for branch entry list.");
             sb.AppendLine("/tagjournal for tag journal list.");
+            sb.AppendLine("/annotations/<partial or full version id> for a dictionary of annotations by key.");
+            sb.AppendLine("/annotation/<partial or full version id>/<key> for the current annotation contents.");
+            sb.AppendLine("/annotation/<partial or full version id>/<key>/<partial or full annotation id> for specific annotation contents.");
             sb.AppendLine("All lists return:");
             sb.AppendLine("  maxResults (integer), defaults to 50.");
             sb.AppendLine("  startAt (integer), defaults to 0.");
@@ -271,6 +360,12 @@ namespace Versionr.Network
             context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
             context.Response.SendResponse(contents);
         }
+
+        private void SendResponse(IHttpContext context, byte[] contents)
+        {
+            context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
+            context.Response.SendResponse(contents);
+        }
     }
 
     internal class RestService
@@ -284,7 +379,10 @@ namespace Versionr.Network
 
         internal void Run()
         {
-            using (var server = new RestServer())
+            // Set up to scan this assembly only.
+            ServerSettings restServerSettings = new ServerSettings();
+            restServerSettings.Router.Register(Assembly.GetExecutingAssembly());
+            using (var server = new RestServer(restServerSettings))
             {
                 server.Host = "+";
                 server.Port = Config.RestService.Port.ToString();
