@@ -149,7 +149,7 @@ namespace Versionr.ObjectStore
             InitializeDBTypes();
 
             var meta = new StandardObjectStoreMetadata();
-            meta.Version = 3;
+            meta.Version = 4;
             ObjectDatabase.InsertSafe(meta);
         }
 
@@ -219,6 +219,23 @@ namespace Versionr.ObjectStore
                 ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
                 var meta = new StandardObjectStoreMetadata();
                 meta.Version = 3;
+                ObjectDatabase.InsertSafe(meta);
+                ObjectDatabase.Commit();
+            }
+            else if (version.Version < 4)
+            {
+                Printer.PrintMessage("Upgrading object store database...");
+                ObjectDatabase.BeginExclusive();
+                foreach (var x in ObjectDatabase.Table<FileObjectStoreData>())
+                {
+                    List<string> missingData;
+                    if (!HasDataDirect(x.Lookup, out missingData, true))
+                        ObjectDatabase.Delete(x);
+                }
+                ObjectDatabase.DropTable<StandardObjectStoreMetadata>();
+                ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
+                var meta = new StandardObjectStoreMetadata();
+                meta.Version = 4;
                 ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
             }
@@ -746,6 +763,11 @@ namespace Versionr.ObjectStore
         }
         public override bool HasDataDirect(string x, out List<string> requestedData)
         {
+            return HasDataDirect(x, out requestedData, false);
+        }
+
+        public bool HasDataDirect(string x, out List<string> requestedData, bool slowCheck)
+        {
             requestedData = null;
             lock (this)
             {
@@ -763,19 +785,21 @@ namespace Versionr.ObjectStore
                         return false;
                     }
                 }
-#if SLOW_DATA_CHECK
-                if (storeData.BlobID == null)
-                    return GetFileForDataID(x).Exists;
-                bool present = BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
-                if (present == false)
+                if (slowCheck)
                 {
-                    requestedData = new List<string>();
-                    requestedData.Add(x);
+                    bool present = true;
+                    if (storeData.BlobID == null)
+                        present = GetFileForDataID(x).Exists;
+                    else
+                        present = BlobDatabase.Find<Blobject>(storeData.BlobID.Value) != null;
+                    if (present == false)
+                    {
+                        requestedData = new List<string>();
+                        requestedData.Add(x);
+                    }
+                    return present;
                 }
-                return present;
-#else
                 return true;
-#endif
             }
         }
         public override bool GetAvailableStreams(string x, out List<string> dataIDs)
@@ -896,7 +920,7 @@ namespace Versionr.ObjectStore
                                         if (blobID.HasValue)
                                         {
                                             x.Data.BlobID = blobID;
-                                            ObjectDatabase.CreateCommand(true, "UPDATE FileObjectStoreData SET BlobID = ? WHERE Lookup = ?", blobID, x.Data.Lookup);
+                                            ObjectDatabase.CreateCommand(true, "UPDATE FileObjectStoreData SET BlobID = ? WHERE Lookup = ?", blobID, x.Data.Lookup).ExecuteNonQuery();
                                         }
                                         else
                                         {
