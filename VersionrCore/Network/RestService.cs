@@ -316,7 +316,7 @@ namespace Versionr.Network
                     annotation = ws.GetAnnotation(ver.ID, keyString, ignoreCase);
 
                 if (annotation != null)
-                    SendResponse(context, annotation.Value);
+                    SendResponse(context, ws.GetAnnotationAsString(annotation));
                 else
                     SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);
             }
