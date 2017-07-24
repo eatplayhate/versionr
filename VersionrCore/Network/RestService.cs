@@ -318,11 +318,11 @@ namespace Versionr.Network
                 if (annotation != null)
                     SendResponse(context, annotation.Value);
                 else
-                    context.Response.SendResponse(Grapevine.Shared.HttpStatusCode.NotFound);
+                    SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);
             }
             else
             {
-                context.Response.SendResponse(Grapevine.Shared.HttpStatusCode.NotFound);
+                SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);
             }
 
             return context;
@@ -365,6 +365,12 @@ namespace Versionr.Network
         {
             context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
             context.Response.SendResponse(contents);
+        }
+
+        private void SendResponse(IHttpContext context, Grapevine.Shared.HttpStatusCode statusCode)
+        {
+            context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
+            context.Response.SendResponse(statusCode);
         }
     }
 
