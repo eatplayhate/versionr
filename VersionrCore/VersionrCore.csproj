@@ -73,6 +73,7 @@
     <Compile Include="Hooks\HookProcessor.cs" />
     <Compile Include="Hooks\IHookFilter.cs" />
     <Compile Include="Hooks\InternalHooks.cs" />
+    <Compile Include="Hooks\Actions\WebHookAction.cs" />
     <Compile Include="ICheckoutOrderable.cs" />
     <Compile Include="Network\ClientProvider.cs" />
     <Compile Include="Network\IRemoteClient.cs" />
