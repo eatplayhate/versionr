@@ -25,6 +25,8 @@ namespace Versionr.Objects
         public List<JournalMap> Tips { get; set; }
         [ProtoBuf.ProtoMember(2)]
         public Guid LocalJournal { get; set; }
+        [ProtoBuf.ProtoMember(3, IsRequired = false)]
+        public bool Finalized { get; set; }
     }
 
     [ProtoBuf.ProtoContract]

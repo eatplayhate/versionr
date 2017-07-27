@@ -133,6 +133,95 @@ namespace Versionr
             return Database.Table<Objects.JournalMap>().ToList();
         }
 
+        internal List<Objects.JournalMap> FindJournalIntersection(List<Objects.JournalMap> remoteTips)
+        {
+            Dictionary<Guid, Objects.JournalMap> remoteTipMap = new Dictionary<Guid, JournalMap>();
+            foreach (var x in remoteTips)
+            {
+                remoteTipMap[x.JournalID] = x;
+            }
+            HashSet<Guid> processedValues = new HashSet<Guid>();
+
+            foreach (var localTip in GetJournalTips())
+            {
+                processedValues.Add(localTip.JournalID);
+                if (localTip.JournalID == LocalJournalID)
+                {
+                    remoteTipMap[localTip.JournalID] = localTip;
+                    continue;
+                }
+                Objects.JournalMap remoteMap;
+                if (remoteTipMap.TryGetValue(localTip.JournalID, out remoteMap))
+                {
+                    bool matchesAnnotationSequence = remoteMap.AnnotationSequenceID == localTip.AnnotationSequenceID;
+                    bool matchesTagSequence = remoteMap.TagSequenceID == localTip.TagSequenceID;
+                    if (!matchesAnnotationSequence)
+                    {
+                        var enumerable = Database.DeferredQuery<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE journalID = ? ORDER BY 1 DESC", localTip.JournalID);
+                        foreach (var a in enumerable)
+                        {
+                            if (a.SequenceID == remoteMap.AnnotationSequenceID)
+                            {
+                                matchesAnnotationSequence = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!matchesTagSequence)
+                    {
+                        var enumerable = Database.DeferredQuery<TagJournal>("SELECT * FROM TagJournal WHERE journalID = ? ORDER BY 1 DESC", localTip.JournalID);
+                        foreach (var a in enumerable)
+                        {
+                            if (a.SequenceID == remoteMap.TagSequenceID)
+                            {
+                                matchesAnnotationSequence = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!matchesTagSequence || !matchesAnnotationSequence)
+                        remoteTipMap[localTip.JournalID] = localTip;
+                    else
+                        remoteTipMap.Remove(localTip.JournalID);
+                }
+                else
+                    remoteTipMap[localTip.JournalID] = localTip;
+            }
+            return remoteTipMap.Values.Where(x => processedValues.Contains(x.JournalID)).ToList();
+        }
+
+        internal List<Objects.JournalMap> CompareRemoteTips(List<Objects.JournalMap> remoteTips, List<Objects.JournalMap> localTips)
+        {
+            Dictionary<Guid, Objects.JournalMap> localTipMap = new Dictionary<Guid, JournalMap>();
+            foreach (var local in localTips)
+                localTipMap[local.JournalID] = local;
+            
+            List<Objects.JournalMap> results = new List<JournalMap>();
+
+            foreach (var tip in remoteTips)
+            {
+                JournalMap localMap = Database.Find<JournalMap>(tip.JournalID);
+                bool hasAnnotation = tip.AnnotationSequenceID == 0;
+                bool hasTags = tip.TagSequenceID == 0;
+                if (tip.AnnotationSequenceID != 0)
+                {
+                    hasAnnotation = Database.Query<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.AnnotationSequenceID) != null;
+                }
+                if (tip.TagSequenceID != 0)
+                {
+                    hasTags = Database.Query<TagJournal>("SELECT * FROM TagJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.TagSequenceID) != null;
+                }
+                if (hasTags && hasAnnotation)
+                    continue;
+                else if (hasTags)
+                    localTipMap[tip.JournalID].TagSequenceID = tip.TagSequenceID;
+                else if (hasAnnotation)
+                    localTipMap[tip.JournalID].AnnotationSequenceID = tip.AnnotationSequenceID;
+                results.Add(localTipMap[tip.JournalID]);
+            }
+            return results;
+        }
+
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
@@ -837,12 +926,14 @@ namespace Versionr
                 }
                 else
                 {
-                    Database.Insert(payload);
-                    UpdateJournalMap(x.JournalID, x.SequenceID, null);
-                    long size;
-                    string data = GetDataIdentifierFromAnnotation(payload, out size);
-                    if (data != null && !HasObjectDataDirect(data))
-                        dataUniqueRequests.Add(data);
+                    if (!Database.InsertSafe(payload))
+                    {
+                        UpdateJournalMap(x.JournalID, x.SequenceID, null);
+                        long size;
+                        string data = GetDataIdentifierFromAnnotation(payload, out size);
+                        if (data != null && !HasObjectDataDirect(data))
+                            dataUniqueRequests.Add(data);
+                    }
                 }
                 Database.Insert(x);
             }

@@ -583,6 +583,11 @@ namespace Versionr.Network
                                         throw new Exception();
                                     if (!SharedNetwork.GetVersionList(sharedInfo, sharedInfo.Workspace.GetBranchHeadVersion(branch), branch, out branchesToSend, out versionsToSend))
                                         throw new Exception();
+                                    if (sharedInfo.CommunicationProtocol >= SharedNetwork.Protocol.Versionr36)
+                                    {
+                                        if (!SharedNetwork.SendBranchHeads(sharedInfo, branchesToSend))
+                                            throw new Exception();
+                                    }
                                     if (!SharedNetwork.SendBranches(sharedInfo, branchesToSend))
                                         throw new Exception();
                                     if (!SharedNetwork.SendVersions(sharedInfo, versionsToSend))
@@ -903,7 +908,7 @@ namespace Versionr.Network
                 }
                 catch (Exception e)
                 {
-                    Printer.PrintDiagnostics("Client was a terrible person, because: {0}", e);
+                    Printer.PrintError("Client was a terrible person, because: {0}", e);
                 }
                 finally
                 {
