@@ -406,7 +406,8 @@
                               SelectionMode="Extended"
                               GridViewColumnHeader.Click="listViewHeader_Click"
                               ScrollViewer.IsDeferredScrollingEnabled="False"
-                              Style="{StaticResource VirtualisedMetroListView}">
+                              Style="{StaticResource VirtualisedMetroListView}"
+                              BorderThickness="0">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Staged">
@@ -455,7 +456,8 @@
                                                   IsReadOnly="True"
                                                   FontFamily="Consolas"
                                                   HorizontalScrollBarVisibility="Auto"
-                                                  VerticalScrollBarVisibility="Auto" />
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  BorderBrush="DarkSlateGray" />
                 </Grid>
                 <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
             </Grid>
