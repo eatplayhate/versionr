@@ -873,7 +873,7 @@ namespace SQLite
 		public T Get<T> (object pk) where T : new()
 		{
 			var map = GetMapping (typeof(T));
-			return Query<T> (map.GetByPrimaryKeySql, pk).First ();
+			return Query<T> (map.GetByPrimaryKeySqlOne, pk).First ();
 		}
 
         /// <summary>
@@ -907,7 +907,7 @@ namespace SQLite
 		public T Find<T> (object pk) where T : new ()
 		{
 			var map = GetMapping (typeof (T));
-			return Query<T> (map.GetByPrimaryKeySql, pk).FirstOrDefault ();
+			return Query<T> (map.GetByPrimaryKeySqlOne, pk).FirstOrDefault ();
 		}
 
 		/// <summary>
@@ -927,7 +927,7 @@ namespace SQLite
 		/// </returns>
 		public object Find (object pk, TableMapping map)
 		{
-			return Query (map, map.GetByPrimaryKeySql, pk).FirstOrDefault ();
+			return Query (map, map.GetByPrimaryKeySqlOne, pk).FirstOrDefault ();
 		}
 		
 		/// <summary>
@@ -2077,6 +2077,8 @@ namespace SQLite
 
 		public string GetByPrimaryKeySql { get; private set; }
 
+		public string GetByPrimaryKeySqlOne { get; private set; }
+
 		Column _autoPk;
 		Column[] _insertColumns;
 		Column[] _insertOrReplaceColumns;
@@ -2152,14 +2154,19 @@ namespace SQLite
                     GetByPrimaryKeySql = string.Format("select rowid, * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
                 else
                     GetByPrimaryKeySql = string.Format ("select * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
-			}
+
+                GetByPrimaryKeySqlOne = GetByPrimaryKeySql + " limit 1";
+            }
 			else {
 				// People should not be calling Get/Find without a PK
                 if (WantsRowID)
                     GetByPrimaryKeySql = string.Format("select rowid, * from \"{0}\" limit 1", TableName);
                 else
                     GetByPrimaryKeySql = string.Format ("select * from \"{0}\" limit 1", TableName);
-			}
+
+                GetByPrimaryKeySqlOne = GetByPrimaryKeySql;
+
+            }
 			_insertCommandMap = new ConcurrentStringDictionary ();
 		}
 
@@ -3812,6 +3819,18 @@ namespace SQLite
 
 		[DllImport (LibraryPath, EntryPoint = "sqlite3_libversion_number", CallingConvention = CallingConvention.Cdecl)]
 		public static extern int LibVersionNumber ();
+
+		[DllImport (LibraryPath, EntryPoint = "sqlite3_libversion", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+		private static extern IntPtr LibVersion();
+
+        public static string LibraryVersion
+        {
+            get
+            {
+                return Marshal.PtrToStringAnsi(LibVersion());
+            }
+        }
+
 #else
 		public static Result Open(string filename, out Sqlite3DatabaseHandle db)
 		{

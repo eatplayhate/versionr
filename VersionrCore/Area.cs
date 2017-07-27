@@ -1700,11 +1700,12 @@ namespace Versionr
             return stashfn;
         }
 
+        Guid m_Domain;
         public Guid Domain
         {
             get
             {
-                return Database.Domain;
+                return m_Domain;
             }
         }
 
@@ -3417,6 +3418,16 @@ namespace Versionr
             RootDirectory = new System.IO.DirectoryInfo(AdministrationFolder.Parent.GetFullNameWithCorrectCase());
             AdministrationFolder.Create();
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
+
+            if (SQLite.SQLite3.LibraryVersion != "3.19.3")
+            {
+                if (SQLite.SQLite3.LibVersionNumber() < 3011000)
+                    throw new Exception("Incorrect sqlite3 bindings. Possibly missing/misconfigured native libraries.");
+                else if (SQLite.SQLite3.LibVersionNumber() < 3019003)
+                    Printer.PrintWarning("(Warning) Sqlite3 library is lower than expected version.");
+                else
+                    Printer.PrintDiagnostics("SQlite3 engine is newer than expected: {0}", SQLite.SQLite3.LibraryVersion);
+            }
         }
 
         public bool ImportDB()
@@ -3479,6 +3490,7 @@ namespace Versionr
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
             ws.Domain = initialRevision;
+            m_Domain = initialRevision;
 
             Printer.PrintDiagnostics("Starting DB transaction.");
             LocalData.BeginTransaction();
@@ -3521,6 +3533,7 @@ namespace Versionr
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
             ws.Domain = domain.InitialRevision;
+            m_Domain = domain.InitialRevision;
 
             Printer.PrintDiagnostics("Starting DB transaction.");
             LocalData.BeginTransaction();
@@ -3737,6 +3750,7 @@ namespace Versionr
             config.WorkspaceID = ws.ID;
             version.Branch = branch.ID;
             ws.Domain = domain.InitialRevision;
+            m_Domain = domain.InitialRevision;
 
             Printer.PrintDiagnostics("Created initial state version {0}, message: \"{1}\".", version.ID, version.Message);
             Printer.PrintDiagnostics("Created head node to track branch {0} with version {1}.", branch.ID, version.ID);
@@ -4242,14 +4256,15 @@ namespace Versionr
             {
                 if (!MetadataFile.Exists)
                     return false;
-                LocalData = LocalDB.Open(LocalMetadataFile.FullName);
+                LocalData = LocalDB.Open(LocalMetadataFile.FullName, headless);
                 // Load metadata DB
                 if (!LocalData.Valid)
                     return false;
                 Database = WorkspaceDB.Open(LocalData, MetadataFile.FullName);
                 if (!Database.Valid)
                     return false;
-                if (LocalData.Domain != Database.Domain)
+                m_Domain = Database.Domain;
+                if (LocalData.Domain != Domain)
                     return false;
                 
                 if (LocalData.RefreshLocalTimes)
@@ -6881,8 +6896,15 @@ namespace Versionr
 				var client = clientProvider.Connect(this, url, requiresWriteAccess);
 				if (client != null)
 					return client;
-			}
-			return null;
+            }
+            Printer.PrintError("#e#No provider connected to remote URL");
+            Printer.PrintError("#b#Client providers:##");
+            int providerID = 1;
+            foreach (var clientProvider in PluginCache.GetImplementations<IRemoteClientProvider>())
+            {
+                Printer.PrintError("#q# [{0}]: {1}", providerID++, clientProvider.GetType().FullName);
+            }
+            return null;
 		}
 
         public bool GetMissingObjects(IEnumerable<Record> targetRecords, IEnumerable<string> targetData)

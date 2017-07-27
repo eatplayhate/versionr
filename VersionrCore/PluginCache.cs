@@ -22,7 +22,7 @@ namespace Versionr
                     Printer.PrintDiagnostics("Initializing plugins");
 					s_Plugins = new List<Plugin>();
 					string baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-					string pluginDirectory = baseDirectory;
+					string pluginDirectory = Path.Combine(baseDirectory, "Plugins");
                     foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
 					{
 						Assembly assembly = null;
@@ -44,6 +44,8 @@ namespace Versionr
 							});
 						}
                     }
+
+                    s_Plugins.Add(new Plugin() { Assembly = Assembly.GetExecutingAssembly(), Attributes = Assembly.GetExecutingAssembly().GetCustomAttribute<VersionrPluginAttribute>() });
                 }
 
                 return s_Plugins;

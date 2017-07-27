@@ -21,7 +21,8 @@ namespace Versionr.Network
             XXHash,
             Adler32,
             MurMur3,
-            Default = Adler32
+            FastFNV,
+            Default
         }
         [ProtoBuf.ProtoContract]
         public class Packet
@@ -98,11 +99,20 @@ namespace Versionr.Network
             }
 
             ChecksumCodec ccode = info.ChecksumType;
+            if (ccode == ChecksumCodec.Default)
+            {
+                if (info.CommunicationProtocol <= SharedNetwork.Protocol.Versionr35)
+                    ccode = ChecksumCodec.Adler32;
+                else
+                    ccode = ChecksumCodec.FastFNV;
+            }
             uint checksum = 0;
             if (ccode == ChecksumCodec.XXHash)
                 checksum = ComputeChecksumXXHash(result);
             if (ccode == ChecksumCodec.Adler32)
                 checksum = ComputeChecksumAdler32(result);
+            if (ccode == ChecksumCodec.FastFNV)
+                checksum = ComputeChecksumFNVWeak(result);
             if (ccode == ChecksumCodec.MurMur3)
             {
                 var hasher = new Versionr.Utilities.Murmur3();
@@ -153,6 +163,25 @@ namespace Versionr.Network
             else
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(target, packet, ProtoBuf.PrefixStyle.Fixed32);
         }
+
+        public static uint ComputeChecksumFNVWeak(byte[] result)
+        {
+            uint fnv = 2166136261;
+            int size = result.Length;
+            int i = 0;
+            for (; i < size - 4; i += 4)
+            {
+                fnv ^= BitConverter.ToUInt32(result, i);
+                fnv *= 16777619;
+            }
+            while (i != size)
+            {
+                fnv ^= result[i++];
+                fnv *= 16777619;
+            }
+            return fnv;
+        }
+
         public static T ReceiveEncrypted<T>(SharedNetwork.SharedNetworkInfo info)
         {
             Packet packet = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Packet>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
@@ -200,6 +229,8 @@ namespace Versionr.Network
                     checksum = ComputeChecksumXXHash(decryptedData);
                 if (packet.Checksum == ChecksumCodec.Adler32)
                     checksum = ComputeChecksumAdler32(decryptedData);
+                if (packet.Checksum == ChecksumCodec.FastFNV)
+                    checksum = ComputeChecksumFNVWeak(decryptedData);
                 if (packet.Checksum == ChecksumCodec.MurMur3)
                 {
                     var hasher = new Versionr.Utilities.Murmur3();

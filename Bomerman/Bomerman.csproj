@@ -17,7 +17,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\bin_debug\</OutputPath>
+    <OutputPath>..\bin_debug\Plugins\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -25,7 +25,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\bin\</OutputPath>
+    <OutputPath>..\bin\Plugins\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -53,14 +53,17 @@
     <ProjectReference Include="..\commandline-stable-1.9.71.2\src\libcmdline\CommandLine.csproj">
       <Project>{5DEA2811-2FFA-4959-830B-CAD3ACACABEB}</Project>
       <Name>CommandLine</Name>
+      <Private>False</Private>
     </ProjectReference>
     <ProjectReference Include="..\VersionrCore\VersionrCore.csproj">
       <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
       <Name>VersionrCore</Name>
+      <Private>False</Private>
     </ProjectReference>
     <ProjectReference Include="..\Versionr\Versionr.csproj">
       <Project>{9af5bb18-ace3-400d-affe-8dd9add453fb}</Project>
       <Name>Versionr</Name>
+      <Private>False</Private>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

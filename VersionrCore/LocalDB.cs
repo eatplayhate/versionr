@@ -189,17 +189,17 @@ namespace Versionr
             }
         }
 
-        public static LocalDB Open(string fullPath)
+        public static LocalDB Open(string fullPath, bool headless)
         {
             LocalDB db = new LocalDB(fullPath, SQLite.SQLiteOpenFlags.ReadWrite | SQLite.SQLiteOpenFlags.FullMutex);
-            if (!db.Upgrade())
+            if (!db.Upgrade(headless))
                 return null;
             return db;
         }
 
         public bool RefreshLocalTimes { get; set; }
 
-        private bool Upgrade()
+        private bool Upgrade(bool headless)
         {
             RefreshPartialPath();
             if (Configuration.Version < LocalDBVersion)
