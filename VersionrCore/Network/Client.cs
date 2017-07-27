@@ -1143,12 +1143,12 @@ namespace Versionr.Network
 			}
 
             IEnumerator<SharedNetwork.Protocol> protocols = SharedNetwork.AllowedProtocols.Cast<SharedNetwork.Protocol>().GetEnumerator();
-            Retry:
             if (!protocols.MoveNext())
             {
                 Printer.PrintMessage("#e#No valid protocols available.##");
                 return false;
             }
+            Retry:
             Host = host;
             Port = port;
             Module = module;
@@ -1193,7 +1193,13 @@ namespace Versionr.Network
                             return false;
                         }
                         Printer.PrintError("#b#Attempting to retry with a lower protocol.##");
-                        goto Retry;
+                        while (protocols.MoveNext())
+                        {
+                            if (Handshake.GetProtocolString(protocols.Current) == startTransaction.ServerHandshake.VersionrProtocol)
+                                goto Retry;
+                        }
+                        Printer.PrintMessage("#e#No valid protocols available.##");
+                        return false;
                     }
                     Printer.PrintDiagnostics("Server domain: {0}", startTransaction.Domain);
                     if (Workspace != null && !string.IsNullOrEmpty(startTransaction.Domain) && startTransaction.Domain != Workspace.Domain.ToString())
