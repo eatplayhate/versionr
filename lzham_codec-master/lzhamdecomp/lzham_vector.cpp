@@ -38,7 +38,7 @@ namespace lzham
                return false;
                
             char buf[256];
-            sprintf_s(buf, sizeof(buf), "vector: lzham_realloc() failed allocating %u bytes", desired_size);
+            sprintf_s(buf, sizeof(buf), "vector: lzham_realloc() failed allocating %u bytes", (unsigned int)desired_size);
             LZHAM_FAIL(buf);
          }
          m_p = new_p;
@@ -52,7 +52,7 @@ namespace lzham
                return false;
                
             char buf[256];
-            sprintf_s(buf, sizeof(buf), "vector: lzham_malloc() failed allocating %u bytes", desired_size);
+            sprintf_s(buf, sizeof(buf), "vector: lzham_malloc() failed allocating %u bytes", (unsigned int)desired_size);
             LZHAM_FAIL(buf);
          }
          

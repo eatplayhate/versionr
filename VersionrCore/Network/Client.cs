@@ -801,6 +801,13 @@ namespace Versionr.Network
                             SharedNetwork.ReceiveBranchJournal(SharedInfo);
                         else if (command.Type == NetCommandType.PushBranch)
                             SharedNetwork.ReceiveBranches(SharedInfo);
+                        else if (command.Type == NetCommandType.SendBranchHeads)
+                        {
+                            var ids = Utilities.ReceiveEncrypted<PushHeadIds>(SharedInfo);
+                            foreach (var x in ids.Heads)
+                                SharedInfo.RemoteHeadInfo[x.BranchID] = x.VersionID;
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+                        }
                         else if (command.Type == NetCommandType.PushVersions)
                             SharedNetwork.ReceiveVersions(SharedInfo);
                         else if (command.Type == NetCommandType.SynchronizeRecords)
@@ -1100,6 +1107,12 @@ namespace Versionr.Network
                         Printer.PrintMessage("Updating internal state...");
                         foreach (var x in autoMerged)
                             Workspace.ImportVersionNoCommit(sharedInfo, x, false);
+                        if (SharedInfo.ReceivedBranches.Count != 0 && SharedInfo.RemoteHeadInfo != null)
+                        {
+                            foreach (var x in temporaryHeads)
+                                SharedInfo.RemoteHeadInfo.Remove(x.Key);
+                            SharedNetwork.ReceiveBranchHeads(SharedInfo);
+                        }
                         foreach (var x in temporaryHeads)
                         {
                             if (x.Value != null)

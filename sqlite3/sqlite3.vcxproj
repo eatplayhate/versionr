@@ -104,7 +104,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;SQLITE3_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SQLITE_ENABLE_FTS5;SQLITE_ENABLE_STAT4;SQLITE_OMIT_SHARED_CACHE;SQLITE_OMIT_DEPRECATED;SQLITE_OMIT_DECLTYPE;SQLITE_MAX_EXPR_DEPTH=0;SQLITE_DEFAULT_WAL_SYNCHRONOUS=1;SQLITE_DEFAULT_MEMSTATUS=0;SQLITE_TEMP_STORE=2;WIN32;_DEBUG;_WINDOWS;_USRDLL;SQLITE3_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -136,7 +136,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;SQLITE3_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SQLITE_ENABLE_FTS5;SQLITE_ENABLE_STAT4;SQLITE_OMIT_SHARED_CACHE;SQLITE_OMIT_DEPRECATED;SQLITE_OMIT_DECLTYPE;SQLITE_MAX_EXPR_DEPTH=0;SQLITE_DEFAULT_WAL_SYNCHRONOUS=1;SQLITE_DEFAULT_MEMSTATUS=0;SQLITE_TEMP_STORE=2;WIN32;NDEBUG;_WINDOWS;_USRDLL;SQLITE3_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

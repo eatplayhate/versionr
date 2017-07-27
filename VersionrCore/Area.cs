@@ -133,6 +133,95 @@ namespace Versionr
             return Database.Table<Objects.JournalMap>().ToList();
         }
 
+        internal List<Objects.JournalMap> FindJournalIntersection(List<Objects.JournalMap> remoteTips)
+        {
+            Dictionary<Guid, Objects.JournalMap> remoteTipMap = new Dictionary<Guid, JournalMap>();
+            foreach (var x in remoteTips)
+            {
+                remoteTipMap[x.JournalID] = x;
+            }
+            HashSet<Guid> processedValues = new HashSet<Guid>();
+
+            foreach (var localTip in GetJournalTips())
+            {
+                processedValues.Add(localTip.JournalID);
+                if (localTip.JournalID == LocalJournalID)
+                {
+                    remoteTipMap[localTip.JournalID] = localTip;
+                    continue;
+                }
+                Objects.JournalMap remoteMap;
+                if (remoteTipMap.TryGetValue(localTip.JournalID, out remoteMap))
+                {
+                    bool matchesAnnotationSequence = remoteMap.AnnotationSequenceID == localTip.AnnotationSequenceID;
+                    bool matchesTagSequence = remoteMap.TagSequenceID == localTip.TagSequenceID;
+                    if (!matchesAnnotationSequence)
+                    {
+                        var enumerable = Database.DeferredQuery<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE journalID = ? ORDER BY 1 DESC", localTip.JournalID);
+                        foreach (var a in enumerable)
+                        {
+                            if (a.SequenceID == remoteMap.AnnotationSequenceID)
+                            {
+                                matchesAnnotationSequence = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!matchesTagSequence)
+                    {
+                        var enumerable = Database.DeferredQuery<TagJournal>("SELECT * FROM TagJournal WHERE journalID = ? ORDER BY 1 DESC", localTip.JournalID);
+                        foreach (var a in enumerable)
+                        {
+                            if (a.SequenceID == remoteMap.TagSequenceID)
+                            {
+                                matchesAnnotationSequence = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!matchesTagSequence || !matchesAnnotationSequence)
+                        remoteTipMap[localTip.JournalID] = localTip;
+                    else
+                        remoteTipMap.Remove(localTip.JournalID);
+                }
+                else
+                    remoteTipMap[localTip.JournalID] = localTip;
+            }
+            return remoteTipMap.Values.Where(x => processedValues.Contains(x.JournalID)).ToList();
+        }
+
+        internal List<Objects.JournalMap> CompareRemoteTips(List<Objects.JournalMap> remoteTips, List<Objects.JournalMap> localTips)
+        {
+            Dictionary<Guid, Objects.JournalMap> localTipMap = new Dictionary<Guid, JournalMap>();
+            foreach (var local in localTips)
+                localTipMap[local.JournalID] = local;
+            
+            List<Objects.JournalMap> results = new List<JournalMap>();
+
+            foreach (var tip in remoteTips)
+            {
+                JournalMap localMap = Database.Find<JournalMap>(tip.JournalID);
+                bool hasAnnotation = tip.AnnotationSequenceID == 0;
+                bool hasTags = tip.TagSequenceID == 0;
+                if (tip.AnnotationSequenceID != 0)
+                {
+                    hasAnnotation = Database.Query<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.AnnotationSequenceID) != null;
+                }
+                if (tip.TagSequenceID != 0)
+                {
+                    hasTags = Database.Query<TagJournal>("SELECT * FROM TagJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.TagSequenceID) != null;
+                }
+                if (hasTags && hasAnnotation)
+                    continue;
+                else if (hasTags)
+                    localTipMap[tip.JournalID].TagSequenceID = tip.TagSequenceID;
+                else if (hasAnnotation)
+                    localTipMap[tip.JournalID].AnnotationSequenceID = tip.AnnotationSequenceID;
+                results.Add(localTipMap[tip.JournalID]);
+            }
+            return results;
+        }
+
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GeneratePatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GeneratePatch(string file1, string file2, string output);
@@ -837,12 +926,14 @@ namespace Versionr
                 }
                 else
                 {
-                    Database.Insert(payload);
-                    UpdateJournalMap(x.JournalID, x.SequenceID, null);
-                    long size;
-                    string data = GetDataIdentifierFromAnnotation(payload, out size);
-                    if (data != null && !HasObjectDataDirect(data))
-                        dataUniqueRequests.Add(data);
+                    if (!Database.InsertSafe(payload))
+                    {
+                        UpdateJournalMap(x.JournalID, x.SequenceID, null);
+                        long size;
+                        string data = GetDataIdentifierFromAnnotation(payload, out size);
+                        if (data != null && !HasObjectDataDirect(data))
+                            dataUniqueRequests.Add(data);
+                    }
                 }
                 Database.Insert(x);
             }
@@ -1700,11 +1791,12 @@ namespace Versionr
             return stashfn;
         }
 
+        Guid m_Domain;
         public Guid Domain
         {
             get
             {
-                return Database.Domain;
+                return m_Domain;
             }
         }
 
@@ -3417,6 +3509,16 @@ namespace Versionr
             RootDirectory = new System.IO.DirectoryInfo(AdministrationFolder.Parent.GetFullNameWithCorrectCase());
             AdministrationFolder.Create();
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
+
+            if (SQLite.SQLite3.LibraryVersion != "3.19.3")
+            {
+                if (SQLite.SQLite3.LibVersionNumber() < 3011000)
+                    throw new Exception("Incorrect sqlite3 bindings. Possibly missing/misconfigured native libraries.");
+                else if (SQLite.SQLite3.LibVersionNumber() < 3019003)
+                    Printer.PrintWarning("(Warning) Sqlite3 library is lower than expected version.");
+                else
+                    Printer.PrintDiagnostics("SQlite3 engine is newer than expected: {0}", SQLite.SQLite3.LibraryVersion);
+            }
         }
 
         public bool ImportDB()
@@ -3479,6 +3581,7 @@ namespace Versionr
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
             ws.Domain = initialRevision;
+            m_Domain = initialRevision;
 
             Printer.PrintDiagnostics("Starting DB transaction.");
             LocalData.BeginTransaction();
@@ -3521,6 +3624,7 @@ namespace Versionr
             ws.Tip = version.ID;
             config.WorkspaceID = ws.ID;
             ws.Domain = domain.InitialRevision;
+            m_Domain = domain.InitialRevision;
 
             Printer.PrintDiagnostics("Starting DB transaction.");
             LocalData.BeginTransaction();
@@ -3737,6 +3841,7 @@ namespace Versionr
             config.WorkspaceID = ws.ID;
             version.Branch = branch.ID;
             ws.Domain = domain.InitialRevision;
+            m_Domain = domain.InitialRevision;
 
             Printer.PrintDiagnostics("Created initial state version {0}, message: \"{1}\".", version.ID, version.Message);
             Printer.PrintDiagnostics("Created head node to track branch {0} with version {1}.", branch.ID, version.ID);
@@ -4242,14 +4347,15 @@ namespace Versionr
             {
                 if (!MetadataFile.Exists)
                     return false;
-                LocalData = LocalDB.Open(LocalMetadataFile.FullName);
+                LocalData = LocalDB.Open(LocalMetadataFile.FullName, headless);
                 // Load metadata DB
                 if (!LocalData.Valid)
                     return false;
                 Database = WorkspaceDB.Open(LocalData, MetadataFile.FullName);
                 if (!Database.Valid)
                     return false;
-                if (LocalData.Domain != Database.Domain)
+                m_Domain = Database.Domain;
+                if (LocalData.Domain != Domain)
                     return false;
                 
                 if (LocalData.RefreshLocalTimes)
@@ -6881,8 +6987,15 @@ namespace Versionr
 				var client = clientProvider.Connect(this, url, requiresWriteAccess);
 				if (client != null)
 					return client;
-			}
-			return null;
+            }
+            Printer.PrintError("#e#No provider connected to remote URL");
+            Printer.PrintError("#b#Client providers:##");
+            int providerID = 1;
+            foreach (var clientProvider in PluginCache.GetImplementations<IRemoteClientProvider>())
+            {
+                Printer.PrintError("#q# [{0}]: {1}", providerID++, clientProvider.GetType().FullName);
+            }
+            return null;
 		}
 
         public bool GetMissingObjects(IEnumerable<Record> targetRecords, IEnumerable<string> targetData)

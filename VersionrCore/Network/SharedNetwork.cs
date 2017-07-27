@@ -21,6 +21,7 @@ namespace Versionr.Network
             Versionr33,
             Versionr34,
             Versionr35,
+            Versionr36,
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -28,7 +29,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr35, Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr36, Protocol.Versionr35, Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -414,11 +415,20 @@ namespace Versionr.Network
                 var journalTips = info.Workspace.GetJournalTips();
 
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(info.Stream, new NetCommand() { Type = NetCommandType.QueryJournal }, ProtoBuf.PrefixStyle.Fixed32);
-                Utilities.SendEncrypted(info, new JournalTips() { Tips = journalTips, LocalJournal = info.Workspace.LocalJournalID });
+                Utilities.SendEncrypted(info, new JournalTips() { Tips = journalTips, LocalJournal = info.Workspace.LocalJournalID, Finalized = false });
 
                 NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
                 if (response.Type == NetCommandType.Acknowledge)
                 {
+                    if (info.CommunicationProtocol >= Protocol.Versionr36)
+                    {
+                        if (journalTips != null && journalTips.Count != 0)
+                        {
+                            var remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
+                            Utilities.SendEncrypted(info, new JournalTips() { Tips = info.Workspace.CompareRemoteTips(remoteTips.Tips, journalTips), LocalJournal = info.Workspace.LocalJournalID, Finalized = true });
+                        }
+                    }
+
                     JournalResults results = Utilities.ReceiveEncrypted<JournalResults>(info);
                     if (results.Tags == null)
                         results.Tags = new List<TagJournal>();
@@ -460,6 +470,13 @@ namespace Versionr.Network
         static public bool ProcessJournalQuery(SharedNetworkInfo info)
         {
             JournalTips remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
+            
+            if (remoteTips.Tips != null && remoteTips.Tips.Count != 0 && info.CommunicationProtocol >= Protocol.Versionr36)
+            {
+                Utilities.SendEncrypted(info, new JournalTips() { Tips = info.Workspace.FindJournalIntersection(remoteTips.Tips), LocalJournal = info.Workspace.LocalJournalID, Finalized = false });
+                remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
+            }
+
             Dictionary<Guid, JournalMap> tipInfo = new Dictionary<Guid, JournalMap>();
             JournalResults results = new JournalResults();
             results.ReturnedJournalMap = new JournalMap();
@@ -480,6 +497,11 @@ namespace Versionr.Network
 
             foreach (var localTip in info.Workspace.GetJournalTips())
             {
+                if (info.CommunicationProtocol >= Protocol.Versionr36)
+                {
+                    if (!tipInfo.ContainsKey(localTip.JournalID))
+                        continue;
+                }
                 JournalMap remoteJournalMap = null;
                 IEnumerable<AnnotationJournal> missingAnnotations = new AnnotationJournal[0];
                 IEnumerable<TagJournal> missingTags = new TagJournal[0];
