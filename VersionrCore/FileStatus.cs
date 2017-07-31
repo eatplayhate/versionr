@@ -210,6 +210,8 @@ namespace Versionr
     {
         [DllImport("VersionrCore.Posix")]
         public static unsafe extern int getfullpath(string rootdir, byte* data, int dataLength);
+        
+        private static Func<string, string> GetPathCorrectCase = null;
 
         public static string GetFullPathNative(FileSystemInfo info)
         {
@@ -226,6 +228,15 @@ namespace Versionr
                         }
                     }
                 }
+            }
+            else
+            {
+                if (GetPathCorrectCase == null)
+                {
+                    var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
+                    GetPathCorrectCase = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithCorrectCase").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
+                }
+                return GetPathCorrectCase(info.FullName);
             }
             return null;
         }

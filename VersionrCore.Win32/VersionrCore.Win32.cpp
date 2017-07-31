@@ -75,23 +75,30 @@ namespace Versionr
 			return lf;
 		}
 
-		System::String^ GetPathWithCorrectCase(System::String^ fs)
+		System::String^ FileSystem::GetPathWithCorrectCase(System::String^ fs)
 		{
 			msclr::interop::marshal_context context;
-			auto p = context.marshal_as<wchar_t const*>(path);
-			HANDLE h = CreateFile(p, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, 0);
+			auto p = context.marshal_as<wchar_t const*>(fs);
+			HANDLE h = CreateFileW(p, 0, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 			if (h == INVALID_HANDLE_VALUE)
 				return fs;
 			unsigned int block[16 * 1024 + 1];
+			memset(block, 0, sizeof(block));
 
 			FILE_NAME_INFO* fni = (FILE_NAME_INFO*)block;
 			fni->FileNameLength = 16 * 1024 * 2; //wchar_t
 
 			GetFileInformationByHandleEx(h, FileNameInfo, fni, sizeof(block));
 
+			wchar_t output[MAX_PATH];
+			GetVolumePathNameW(p, output, MAX_PATH);
 			CloseHandle(h);
 
-			return gcnew String(fni->FileName);
+			wchar_t* ptr = fni->FileName;
+			if (*ptr == '\\' || *ptr == '/')
+				ptr++;
+
+			return gcnew String(output) + gcnew String(ptr);
 		}
 
 		int FileSystem::EnumerateFileSystemX(System::String^ fs)

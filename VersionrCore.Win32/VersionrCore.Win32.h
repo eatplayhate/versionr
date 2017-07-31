@@ -16,6 +16,7 @@ namespace Versionr
 		public:
 			static System::Collections::Generic::List<Versionr::FlatFSEntry>^ EnumerateFileSystem(System::String^ fs);
 			static int EnumerateFileSystemX(System::String^ fs);
+			static System::String^ GetPathWithCorrectCase(System::String^ fs);
 
 			static System::String^ GetFullPath(System::String^ path);
 			static bool Exists(System::String^ path);

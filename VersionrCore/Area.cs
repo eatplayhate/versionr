@@ -3510,9 +3510,9 @@ namespace Versionr
         public Area(DirectoryInfo adminFolder)
         {
             Utilities.MultiArchPInvoke.BindDLLs();
-            AdministrationFolder = adminFolder;
-            RootDirectory = new System.IO.DirectoryInfo(AdministrationFolder.Parent.GetFullNameWithCorrectCase());
-            AdministrationFolder.Create();
+            RootDirectory = new System.IO.DirectoryInfo(adminFolder.Parent.GetFullNameWithCorrectCase());
+            adminFolder.Create();
+            AdministrationFolder = new System.IO.DirectoryInfo(adminFolder.GetFullNameWithCorrectCase());
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
 
             if (SQLite.SQLite3.LibraryVersion != "3.19.3")
