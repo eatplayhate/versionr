@@ -14,10 +14,6 @@
 
 extern "C"
 {
-	int main()
-	{
-		return 0;
-	}
 	bool WRAPPER_API DestroyCompressionStream(z_stream* str)
 	{
 		if (deflateEnd(str) != Z_OK)
@@ -77,6 +73,21 @@ extern "C"
 
 		if (inflateInit2(stream, dictionaryBits) != Z_OK)
 			return NULL;
+		return stream;
+	}
+
+	WRAPPER_API lzham_z_stream* ResetDecompressionStream(lzham_z_stream* stream)
+	{
+		if (inflateReset(stream) != Z_OK)
+		{
+			DestroyDecompressionStream(stream);
+			return nullptr;
+		}
+		stream->next_in = NULL;
+		stream->avail_in = 0;
+		stream->next_out = NULL;
+		stream->avail_out = 0;
+
 		return stream;
 	}
 

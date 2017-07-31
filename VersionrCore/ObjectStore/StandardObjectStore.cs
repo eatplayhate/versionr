@@ -1,4 +1,4 @@
-﻿//#define SLOW_DATA_CHECK
+//#define SLOW_DATA_CHECK
 
 using System;
 using System.Collections.Generic;
@@ -1044,6 +1044,8 @@ namespace Versionr.ObjectStore
         private Stream GetStreamForLookup(string lookup)
         {
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
+            if (storeData == null)
+                throw new Exception("No data for record.");
             if (storeData.Mode == StorageMode.Legacy)
                 return new LZHAMLegacyStream(OpenLegacyStream(storeData), true);
             if (storeData.Mode == StorageMode.Flat)
@@ -1111,7 +1113,8 @@ namespace Versionr.ObjectStore
                     throw new Exception();
                 Printer.InteractivePrinter printer = null;
                 long total = 0;
-                byte[] dataBlob = new byte[16 * 1024 * 1024];
+                int blockSize = (int)System.Math.Min(storeData.FileSize, 16 * 1024 * 1024);
+                byte[] dataBlob = new byte[blockSize];
                 while (true)
                 {
                     var res = dataStream.Read(dataBlob, 0, dataBlob.Length);
@@ -1121,6 +1124,8 @@ namespace Versionr.ObjectStore
                         printer.Update(total);
                     outputStream.Write(dataBlob, 0, res);
                     total += res;
+                    if (total == storeData.FileSize)
+                        break;
                 }
                 if (printer != null)
                     printer.End(total);
@@ -1169,9 +1174,9 @@ namespace Versionr.ObjectStore
             {
                 case CompressionMode.LZ4:
                 case CompressionMode.LZ4HC:
-                    return new LZ4ReaderStream(deltaLength, stream);
+                    return LZ4ReaderStream.OpenStream(deltaLength, stream);
                 case CompressionMode.LZHAM:
-                    return new LZHAMReaderStream(deltaLength, stream);
+                    return LZHAMReaderStream.OpenStream(deltaLength, stream);
                 case CompressionMode.None:
                     return new RestrictedStream(stream, deltaLength);
                 default:
@@ -1181,6 +1186,12 @@ namespace Versionr.ObjectStore
 
         private Stream OpenCodecStream(Stream stream)
         {
+            long len;
+            return OpenCodecStream(stream, out len);
+        }
+
+        private Stream OpenCodecStream(Stream stream, out long flength)
+        {
             byte[] buffer = new byte[8];
             stream.Read(buffer, 0, 8);
             if (buffer[0] != 'd' || buffer[1] != 'b' || buffer[2] != 'l' || buffer[3] != 'k')
@@ -1188,6 +1199,7 @@ namespace Versionr.ObjectStore
             int data = BitConverter.ToInt32(buffer, 4);
             stream.Read(buffer, 0, 8);
             long length = BitConverter.ToInt64(buffer, 0);
+            flength = length;
             if (((uint)data & 0x8000) != 0)
                 ChunkedChecksum.Skip(stream);
             switch ((CompressionMode)(data & 0x0FFF))
@@ -1195,11 +1207,10 @@ namespace Versionr.ObjectStore
                 case CompressionMode.None:
                     return new RestrictedStream(stream, length);
                 case CompressionMode.LZHAM:
-                    return new LZHAMReaderStream(length, stream);
+                    return LZHAMReaderStream.OpenStream(length, stream);
                 case CompressionMode.LZ4:
-                    return new LZ4ReaderStream(length, stream);
                 case CompressionMode.LZ4HC:
-                    return new LZ4ReaderStream(length, stream);
+                    return LZ4ReaderStream.OpenStream(length, stream);
                 default:
                     throw new Exception();
             }

@@ -553,7 +553,7 @@ namespace Versionr
                             result.Write("+++ " + GetLocalCanonicalName(x.CanonicalName) + "\n");
                             result.Flush();
 
-                            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, fs);
+                            var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(patchSize, fs);
                             reader.CopyTo(result.BaseStream);
 
                             result.Write("\n");
@@ -713,7 +713,7 @@ namespace Versionr
                             ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
                             {
                                 br.BaseStream.Position = xp.Value;
-                                Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(x.NewSize, br.BaseStream);
+                                var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(x.NewSize, br.BaseStream);
                                 using (FileStream fout = File.Open(path, FileMode.Create))
                                     reader.CopyTo(fout);
                             });
@@ -1145,7 +1145,7 @@ namespace Versionr
             BinaryReader br = new BinaryReader(baseStream);
             long patchSize = br.ReadInt64();
 
-            Versionr.ObjectStore.LZHAMReaderStream reader = new Versionr.ObjectStore.LZHAMReaderStream(patchSize, baseStream);
+            var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(patchSize, baseStream);
             using (FileStream fout = File.Open(patchFile, FileMode.Create))
                 reader.CopyTo(fout);
 

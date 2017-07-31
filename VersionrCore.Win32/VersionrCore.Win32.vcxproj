@@ -172,6 +172,8 @@
   <ItemGroup>
     <ProjectReference Include="..\VersionrCore\VersionrCore.csproj">
       <Project>{55c6b198-e938-427f-96a5-c1252cb06acd}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+      <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

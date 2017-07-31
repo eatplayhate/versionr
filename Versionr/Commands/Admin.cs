@@ -60,22 +60,34 @@ namespace Versionr.Commands
             Printer.EnableDiagnostics = localOptions.Verbose;
             if (!string.IsNullOrEmpty(localOptions.Blob))
             {
-                List<string> dataIds;
-                Workspace.ObjectStore.GetAvailableStreams(localOptions.Blob, out dataIds);
-                if (dataIds != null && dataIds.Count > 0)
+                if (localOptions.RawBlob)
                 {
-                    for (int i = 0; i < dataIds.Count; i++)
+                    List<string> dataIds;
+                    Workspace.ObjectStore.GetAvailableStreams(localOptions.Blob, out dataIds);
+                    if (dataIds != null && dataIds.Count > 0)
                     {
-                        using (var fout = System.IO.File.Create(string.Format("RecordData-{0}.out", i)))
+                        for (int i = 0; i < dataIds.Count; i++)
                         {
-                            Workspace.ObjectStore.ExportDataBlob(dataIds[i], localOptions.RawBlob, fout);
+                            using (var fout = System.IO.File.Create(string.Format("RecordData-{0}.out", i)))
+                            {
+                                Workspace.ObjectStore.ExportDataBlob(dataIds[i], localOptions.RawBlob, fout);
+                            }
+                            Printer.PrintMessage("DataID: #b#{0}", dataIds[i]);
+                            Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", i);
                         }
-                        Printer.PrintMessage("DataID: #b#{0}", dataIds[i]);
-                        Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", i);
                     }
+                    else
+                        Printer.PrintError("#w#Warning:## Couldn't find data record.");
                 }
                 else
-                    Printer.PrintError("#w#Warning:## Couldn't find data record.");
+                {
+                    using (var fout = System.IO.File.Create(string.Format("RecordData-{0}.out", 0)))
+                    {
+                        Printer.PrintMessage("DataID: #b#{0}", localOptions.Blob);
+                        Workspace.ObjectStore.ExportDataStream(localOptions.Blob, fout);
+                        Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", 0);
+                    }
+                }
             }
             if (localOptions.Check)
             {

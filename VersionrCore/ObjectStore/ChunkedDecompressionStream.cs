@@ -23,7 +23,7 @@ namespace Versionr.ObjectStore
         int m_CurrentChunkSize;
         System.IO.Stream m_UnderlyingStream;
 
-        public ChunkedDecompressionStream(long size, Stream baseStream)
+        public ChunkedDecompressionStream(long size, int chunksize, Stream baseStream)
         {
             m_UnderlyingStream = baseStream;
             m_Length = size;
@@ -35,8 +35,7 @@ namespace Versionr.ObjectStore
             List<long> offsets = new List<long>();
             List<uint> sizes = new List<uint>();
             byte[] temp = new byte[4];
-            baseStream.Read(temp, 0, 4);
-            m_ChunkSize = BitConverter.ToInt32(temp, 0);
+            m_ChunkSize = chunksize;
             while (true)
             {
                 baseStream.Read(temp, 0, 4);
@@ -59,6 +58,22 @@ namespace Versionr.ObjectStore
             m_ChunkOffsets = offsets.ToArray();
             m_ChunkSizes = sizes.ToArray();
             m_ChunkIndex = -1;
+        }
+
+        protected static Stream OpenStreamFast(long fileSize, Stream baseStream, out int chunkSize, Func<byte[], int, int, int, byte[]> decompress)
+        {
+            byte[] temp = new byte[4];
+            baseStream.Read(temp, 0, 4);
+            chunkSize = BitConverter.ToInt32(temp, 0);
+            if (chunkSize >= fileSize)
+            {
+                baseStream.Read(temp, 0, 4);
+                uint compressedSize = BitConverter.ToUInt32(temp, 0);
+                byte[] compressedData = new byte[compressedSize];
+                baseStream.Read(compressedData, 0, (int)compressedSize);
+                return new MemoryStream(decompress(compressedData, 0, compressedData.Length, (int)fileSize));
+            }
+            return null;
         }
 
         protected void Reset()
