@@ -208,10 +208,36 @@ namespace Versionr
     }
     public static class FileSystemInfoExt
     {
+        [DllImport("VersionrCore.Posix")]
+        public static unsafe extern int getfullpath(string rootdir, byte* data, int dataLength);
+
+        public static string GetFullPathNative(FileSystemInfo info)
+        {
+            if (Versionr.Utilities.MultiArchPInvoke.IsRunningOnMono)
+            {
+                byte[] buffer = new byte[16535];
+                unsafe
+                {
+                    fixed (byte* b = &buffer[0])
+                    {
+                        if (getfullpath(info.FullName, b, buffer.Length) == 1)
+                        {
+                            return Encoding.UTF8.GetString(buffer, 0, buffer.Count(x => x != 0));
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         public static String GetFullNameWithCorrectCase(this FileSystemInfo fileOrFolder)
         {
             //Check whether null to simulate instance method behavior
             if (Object.ReferenceEquals(fileOrFolder, null)) throw new NullReferenceException();
+            string s1 = GetFullPathNative(fileOrFolder);
+            if (s1 != null)
+                return s1;
+                
             //Initialize common variables
             String myResult = GetCorrectCaseOfParentFolder(fileOrFolder.FullName);
             return myResult;

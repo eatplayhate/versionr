@@ -30,6 +30,12 @@
 #include "xdiff.h"
 #include "xtestutils.h"
 
+#ifdef _MSC_VER
+#define XDIFF_EXPORT __declspec(dllexport)
+#else
+#define XDIFF_EXPORT __attribute__ ((visibility ("default")))
+#endif
+
 static int markfail(void *priv, mmbuffer_t *mb, int nbuf)
 {
 	*(int*)priv = 1;
@@ -87,7 +93,7 @@ void Init()
 	xdl_set_allocator(&malt);
 }
 
-int __declspec(dllexport) Merge3Way(const char* base, const char* f1, const char* f2, const char* out)
+int XDIFF_EXPORT Merge3Way(const char* base, const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2, mfb;
 	xpparam_t xpp;
@@ -137,7 +143,7 @@ int __declspec(dllexport) Merge3Way(const char* base, const char* f1, const char
 }
 
 
-int __declspec(dllexport) GeneratePatch(const char* f1, const char* f2, const char* out)
+int XDIFF_EXPORT GeneratePatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -176,7 +182,7 @@ int __declspec(dllexport) GeneratePatch(const char* f1, const char* f2, const ch
 	return 0;
 }
 
-int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char* out, const char* errors, int reverse)
+int XDIFF_EXPORT ApplyPatch(const char* f1, const char* f2, const char* out, const char* errors, int reverse)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -223,7 +229,7 @@ int __declspec(dllexport) ApplyPatch(const char* f1, const char* f2, const char*
 	return 0;
 }
 
-int __declspec(dllexport) GenerateBinaryPatch(const char* f1, const char* f2, const char* out)
+int XDIFF_EXPORT GenerateBinaryPatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -261,7 +267,7 @@ int __declspec(dllexport) GenerateBinaryPatch(const char* f1, const char* f2, co
 	return 0;
 }
 
-int __declspec(dllexport) ApplyBinaryPatch(const char* f1, const char* f2, const char* out)
+int XDIFF_EXPORT ApplyBinaryPatch(const char* f1, const char* f2, const char* out)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;

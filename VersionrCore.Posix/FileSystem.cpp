@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <map>
 
+#include <sys/syslimits.h>
+#include <fcntl.h>
+
 int scanrec(DIR* dir, const char* path, void (*handler)(char* name, long long size, long long timestamp, int attribs))
 {
     char fn[2048];
@@ -48,4 +51,40 @@ __attribute__((visibility("default"))) extern "C" void scandirs(char* root, void
     DIR* dir = opendir(root);
     scanrec(dir, root, handler);
     closedir(dir);
+}
+
+__attribute__((visibility("default"))) extern "C" int getfullpath(char* object, char* buffer, int bufsz)
+{
+    if (bufsz < PATH_MAX + 1)
+        return -PATH_MAX;
+
+    FILE* f = fopen(object, "rb");
+    if (f == NULL)
+    {
+        DIR* d = opendir(object);
+        if (d == NULL)
+            return 0;
+        int fd = dirfd(d);
+#if __APPLE__
+        fcntl(fd, F_GETPATH, buffer);
+#else
+        char fdpath[1024];
+        sprintf(fdpath, "/proc/self/fd/%d", fd);
+        readlink(fdpath, buffer, bufsz);
+#endif
+        closedir(d);
+    }
+    else
+    {
+        int fd = fileno(f);
+#if __APPLE__
+        fcntl(fd, F_GETPATH, buffer);
+#else
+        char fdpath[1024];
+        sprintf(fdpath, "/proc/self/fd/%d", fd);
+        readlink(fdpath, buffer, bufsz);
+#endif
+        fclose(f);
+    }
+    return 1;
 }

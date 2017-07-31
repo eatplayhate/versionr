@@ -8,7 +8,7 @@ ifeq ($(OS),Windows_NT)
 else
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Darwin)
-		DLL=libsqlite3.dylib
+		DLL=libsqlite3.0.dylib
 		ARCHOVERRIDE=-arch i386
     else
 		DLL=libsqlite3.so.0

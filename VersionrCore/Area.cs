@@ -375,11 +375,16 @@ namespace Versionr
         {
             if (taskFactory == null)
             {
-                int platformThreads = Utilities.MultiArchPInvoke.IsX64 ? 16 : 4;
+                int platformThreads = Utilities.MultiArchPInvoke.IsX64 ? Environment.ProcessorCount * 2 : Environment.ProcessorCount;
+                if (!Utilities.MultiArchPInvoke.IsX64 && Utilities.MultiArchPInvoke.IsRunningOnMono)
+                {
+                    var pc = new System.Diagnostics.PerformanceCounter("Mono Memory", "Total Physical Memory");
+                    platformThreads = (int)System.Math.Max(2, System.Math.Min(Environment.ProcessorCount * 2, pc.RawValue / (1024 * 1024 * 1024)));
+                }
                 int threads = (requestedThreads == 0)
                     ? platformThreads
                     : Math.Max(requestedThreads, platformThreads);
-
+                Printer.PrintDiagnostics("Initialized threading pool with {0} concurrent threads.", threads);
                 taskFactory = new TaskFactory(new Utilities.LimitedConcurrencyScheduler(threads));
             }
 
@@ -7903,7 +7908,18 @@ namespace Versionr
             {
                 string recPath = GetRecordPath(rec);
                 DirectoryInfo directory = new DirectoryInfo(recPath);
+                if (!directory.Exists)
+                {
+                    if (feedback == null)
+                        Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
+                    else
+                        feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
+                    directory.Create();
+                    ApplyAttributes(directory, referenceTime, rec);
+                    return;
+                }
                 string fullCasedPath = directory.GetFullNameWithCorrectCase();
+                recPath = recPath.TrimEnd('/');
                 if (MultiArchPInvoke.RunningPlatform == Platform.Windows)
                     recPath = recPath.Replace('/', '\\');
                 if (fullCasedPath != recPath)
@@ -7925,19 +7941,15 @@ namespace Versionr
                         casedInfo = casedInfo.Parent;
                     }
                 }
-                if (!directory.Exists)
-                {
-                    if (feedback == null)
-                        Printer.PrintMessage("Creating directory {0}", GetLocalCanonicalName(rec));
-                    else
-                        feedback(RecordUpdateType.Created, GetLocalCanonicalName(rec), rec);
-                    directory.Create();
-                    ApplyAttributes(directory, referenceTime, rec);
-                }
                 return;
             }
 
-            string pathstr = (MultiArchPInvoke.UseLongFilenameDelimiter ? "\\\\?\\" : string.Empty) + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
+            string pathstr;
+            if (MultiArchPInvoke.RunningPlatform == Platform.Windows)
+                pathstr = (MultiArchPInvoke.UseLongFilenameDelimiter ? "\\\\?\\" : string.Empty) + (overridePath == null ? GetRecordPath(rec).Replace('/', '\\') : overridePath);
+            else
+                pathstr = overridePath ?? GetRecordPath(rec);
+
             FileInfo dest = new FileInfo(pathstr);
 
             if (overridePath == null && dest.Exists)
@@ -7960,6 +7972,7 @@ namespace Versionr
                 if (dest.Length == rec.Size)
                 {
                     Printer.PrintDiagnostics("Hashing: " + rec.CanonicalName);
+                    Printer.PrintDiagnostics("LastSeenUTC: {0}, LastWriteUTC: {1}", fst.LastSeenTime, dest.LastWriteTimeUtc);
                     if (Entry.CheckHash(dest) == rec.Fingerprint)
                     {
                         if (updatedTimestamps == null)

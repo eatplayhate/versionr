@@ -75,6 +75,25 @@ namespace Versionr
 			return lf;
 		}
 
+		System::String^ GetPathWithCorrectCase(System::String^ fs)
+		{
+			msclr::interop::marshal_context context;
+			auto p = context.marshal_as<wchar_t const*>(path);
+			HANDLE h = CreateFile(p, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, 0);
+			if (h == INVALID_HANDLE_VALUE)
+				return fs;
+			unsigned int block[16 * 1024 + 1];
+
+			FILE_NAME_INFO* fni = (FILE_NAME_INFO*)block;
+			fni->FileNameLength = 16 * 1024 * 2; //wchar_t
+
+			GetFileInformationByHandleEx(h, FileNameInfo, fni, sizeof(block));
+
+			CloseHandle(h);
+
+			return gcnew String(fni->FileName);
+		}
+
 		int FileSystem::EnumerateFileSystemX(System::String^ fs)
 		{
 			msclr::interop::marshal_context context;

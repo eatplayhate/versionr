@@ -92,7 +92,6 @@ namespace Versionr.Utilities
                         m_UseLongFilenameDelimiter = false;
                 }
                 return m_UseLongFilenameDelimiter.Value;
-
             }
         }
 

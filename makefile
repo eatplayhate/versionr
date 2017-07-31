@@ -1,4 +1,10 @@
 OUTPUT_DIRECTORY=bin
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	LIBEXTS = *.dylib
+else
+	LIBEXTS = *.so
+endif
 
 all:
 	$(MAKE) -C lzhamwrapper all
@@ -7,11 +13,12 @@ all:
 	$(MAKE) -C XDiffEngine all
 	$(MAKE) -C VersionrCore.Posix all
 	$(shell test -d $(OUTPUT_DIRECTORY) || mkdir -p $(OUTPUT_DIRECTORY))
-	cp lzhl-master/*.so bin
-	cp lzhamwrapper/*.so bin
-	cp XDiffEngine/*.so bin
-	cp VersionrCore.Posix/*.so bin
-	cp sqlite3/*.so.0 bin
+	cp lzhl-master/$(LIBEXTS) bin
+	cp lzhamwrapper/$(LIBEXTS) bin
+	cp XDiffEngine/$(LIBEXTS) bin
+	cp VersionrCore.Posix/$(LIBEXTS) bin
+	cp sqlite3/$(LIBEXTS) bin
+
 	cp References/*.dll ./bin
 	cd Versionr; \
 		xbuild /p:Configuration=Release
