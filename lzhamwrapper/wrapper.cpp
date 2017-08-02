@@ -81,7 +81,7 @@ extern "C"
 		if (inflateReset(stream) != Z_OK)
 		{
 			DestroyDecompressionStream(stream);
-			return nullptr;
+			return NULL;
 		}
 		stream->next_in = NULL;
 		stream->avail_in = 0;
