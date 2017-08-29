@@ -1072,6 +1072,11 @@ namespace Versionr.Network
                     heads = ws.GetBranchHeads(branch);
                     if (heads.Count == 0)
                         heads.Add(new Head() { Branch = branch.ID, Version = x.Version.ID });
+                    if (heads.Count > 1)
+                    {
+                        errorData = string.Format("Remote node is pending a merge for branch {0}.", branch.Name);
+                        return false;
+                    }
                     temporaryHeads[branch.ID] = heads;
                     consideredList.Add(x.Version);
                 }
