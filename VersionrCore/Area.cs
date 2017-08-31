@@ -205,11 +205,11 @@ namespace Versionr
                 bool hasTags = tip.TagSequenceID == 0;
                 if (tip.AnnotationSequenceID != 0)
                 {
-                    hasAnnotation = Database.Query<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.AnnotationSequenceID) != null;
+                    hasAnnotation = Database.Query<AnnotationJournal>("SELECT * FROM AnnotationJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.AnnotationSequenceID).Count != 0;
                 }
                 if (tip.TagSequenceID != 0)
                 {
-                    hasTags = Database.Query<TagJournal>("SELECT * FROM TagJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.TagSequenceID) != null;
+                    hasTags = Database.Query<TagJournal>("SELECT * FROM TagJournal WHERE JournalID = ? AND SequenceID = ? LIMIT 1", tip.JournalID, tip.TagSequenceID).Count != 0;
                 }
                 if (hasTags && hasAnnotation)
                     continue;
