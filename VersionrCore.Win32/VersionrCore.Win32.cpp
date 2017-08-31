@@ -98,7 +98,10 @@ namespace Versionr
 			if (*ptr == '\\' || *ptr == '/')
 				ptr++;
 
-			return gcnew String(output) + gcnew String(ptr);
+			String^ volume = gcnew String(output);
+			if (volume->Length > 1 && volume[1] == ':')
+				volume = System::Char::ToUpper(volume[0]) + volume->Substring(1);
+			return volume + gcnew String(ptr);
 		}
 
 		int FileSystem::EnumerateFileSystemX(System::String^ fs)

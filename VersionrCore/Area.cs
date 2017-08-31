@@ -201,6 +201,11 @@ namespace Versionr
             foreach (var tip in remoteTips)
             {
                 JournalMap localMap = Database.Find<JournalMap>(tip.JournalID);
+                if (localMap == null)
+                {
+                    results.Add(new JournalMap() { JournalID = tip.JournalID, AnnotationSequenceID = 0, TagSequenceID = 0 });
+                    continue;
+                }
                 bool hasAnnotation = tip.AnnotationSequenceID == 0;
                 bool hasTags = tip.TagSequenceID == 0;
                 if (tip.AnnotationSequenceID != 0)
@@ -213,9 +218,9 @@ namespace Versionr
                 }
                 if (hasTags && hasAnnotation)
                     continue;
-                else if (hasTags)
+                else if (hasTags && tip.TagSequenceID != 0)
                     localTipMap[tip.JournalID].TagSequenceID = tip.TagSequenceID;
-                else if (hasAnnotation)
+                else if (hasAnnotation && tip.AnnotationSequenceID != 0)
                     localTipMap[tip.JournalID].AnnotationSequenceID = tip.AnnotationSequenceID;
                 results.Add(localTipMap[tip.JournalID]);
             }

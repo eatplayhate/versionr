@@ -309,7 +309,7 @@ namespace Versionr
                 Printer.PrintDiagnostics("Uniqueness check: Machine name has changed (was: \"{0}\" now \"{1}\")!", ws.ComputerName, Environment.MachineName);
                 return false;
             }
-            if (ws.LocalWorkspacePath != new FileInfo(DatabasePath).GetFullNameWithCorrectCase())
+            if (new FileInfo(ws.LocalWorkspacePath).GetFullNameWithCorrectCase() != new FileInfo(DatabasePath).GetFullNameWithCorrectCase())
             {
                 Printer.PrintDiagnostics("Uniqueness check: Patch changed (was: \"{0}\" now \"{1}\")!", ws.LocalWorkspacePath, new FileInfo(DatabasePath).GetFullNameWithCorrectCase());
                 return false;
