@@ -6877,7 +6877,7 @@ namespace Versionr
                         directory.Create();
 					string url = x.Value.Host;
                     Client client = null;
-                    Area external = LoadWorkspace(directory, false, true);
+                    Area external = Load(directory, false, true);
                     bool fresh = false;
                     if (external == null)
                     {
@@ -8386,7 +8386,7 @@ namespace Versionr
 
         private static Area CreateWorkspace(DirectoryInfo workingDir, bool skipContainmentCheck = false)
         {
-            Area ws = LoadWorkspace(workingDir, false, skipContainmentCheck);
+            Area ws = Load(workingDir, false, skipContainmentCheck);
             if (ws != null)
             {
                 Printer.Write(Printer.MessageType.Error, string.Format("#x#Error:#e# Vault Initialization Failed##\n  The current directory #b#`{0}`## is already part of a versionr vault located in #b#`{1}`##.\n", workingDir.FullName, ws.Root.FullName));
@@ -8398,17 +8398,24 @@ namespace Versionr
             return ws;
         }
 
-        public static Area Load(DirectoryInfo workingDir, bool headless = false, bool skipContainment = false)
+        public static Area LoadDirect(DirectoryInfo adminDir, bool headless = false)
         {
-            Area ws = LoadWorkspace(workingDir, headless, skipContainment);
+            Area ws = LoadWorkspace(adminDir, headless);
             return ws;
         }
 
-        private static Area LoadWorkspace(DirectoryInfo workingDir, bool headless = false, bool skipContainmentCheck = false)
+        public static Area Load(DirectoryInfo workingDir, bool headless = false, bool skipContainment = false)
         {
-            DirectoryInfo adminFolder = FindAdministrationFolder(workingDir, skipContainmentCheck);
+            DirectoryInfo adminFolder = FindAdministrationFolder(workingDir, skipContainment);
             if (adminFolder == null)
                 return null;
+
+            Area ws = LoadWorkspace(adminFolder, headless);
+            return ws;
+        }
+
+        private static Area LoadWorkspace(DirectoryInfo adminFolder, bool headless = false)
+        {
             Area ws = new Area(adminFolder);
             if (!ws.Load(headless))
                 return null;

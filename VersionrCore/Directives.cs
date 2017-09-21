@@ -9,7 +9,7 @@ namespace Versionr
 {
     public class JSONHelper
     {
-        public static string[] ReadStringArray(JsonReader jr)
+        public static List<string> ReadStringList(JsonReader jr)
         {
             List<string> results = new List<string>();
             while (jr.Read())
@@ -17,11 +17,15 @@ namespace Versionr
                 if (jr.TokenType == JsonToken.String)
                     results.Add(jr.Value.ToString());
                 else if (jr.TokenType == JsonToken.EndArray)
-                    return results.ToArray();
+                    return results;
                 else
                     throw new Exception();
             }
             throw new Exception();
+        }
+        public static string[] ReadStringArray(JsonReader jr)
+        {
+            return ReadStringList(jr).ToArray();
         }
     }
     public class Extern
@@ -315,6 +319,8 @@ namespace Versionr
             set { m_UserName = value; }
         }
         public List<TagPreset> TagPresets { get; set; }
+        public List<string> Sparse { get; set; } = new List<string>();
+        public List<string> Excludes { get; set; } = new List<string>();
 
         public Directives()
         {
@@ -413,6 +419,14 @@ namespace Versionr
                                     throw new Exception();
                             }
                         }
+                        else if (currentProperty == "Sparse")
+                        {
+                            Sparse = JSONHelper.ReadStringList(reader);
+                        }
+                        else if (currentProperty == "Excludes")
+                        {
+                            Excludes = JSONHelper.ReadStringList(reader);
+                        }
                         else if (currentProperty == "Hooks")
                         {
                             Hooks = Newtonsoft.Json.Linq.JArray.Load(reader);
@@ -489,6 +503,11 @@ namespace Versionr
                 else
                     Hooks = other.Hooks;
             }
+
+            if (other.Sparse.Count > 0)
+                Sparse = Sparse.Concat(other.Sparse).ToList();
+            if (other.Excludes.Count > 0)
+                Excludes = Excludes.Concat(other.Excludes).ToList();
 
             if (other.TagPresets != null)
             {

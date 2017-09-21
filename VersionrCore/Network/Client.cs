@@ -1132,6 +1132,62 @@ namespace Versionr.Network
         }
 
         public const int VersionrDefaultPort = 5122;
+
+        public bool Connect(Area remoteArea)
+        {
+            System.Net.Sockets.TcpListener listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            Task.Run(() =>
+            {
+                System.Net.Sockets.TcpClient server = listener.AcceptTcpClient();
+                Server.DomainInfo domainInfo = new Server.DomainInfo()
+                {
+                    Bare = false,
+                    Directory = remoteArea.RootDirectory,
+                    Domain = remoteArea.Domain
+                };
+
+                Network.SharedNetwork.SharedNetworkInfo serverSharedInfo = new SharedNetwork.SharedNetworkInfo()
+                {
+                    ChecksumType = Utilities.ChecksumCodec.None,
+                    CommunicationProtocol = SharedNetwork.DefaultProtocol,
+                    Client = false,
+                    Workspace = remoteArea,
+                    Stream = server.GetStream()
+                };
+
+                Server.ClientStateInfo serverInfo = new Server.ClientStateInfo()
+                {
+                    Access = Rights.Write | Rights.Read,
+                    BareAccessRequired = false,
+                    SharedInfo = serverSharedInfo
+                };
+                using (remoteArea)
+                {
+                    Server.RunServerConnection(remoteArea, domainInfo, serverInfo);
+                    server.Close();
+                }
+            });
+
+            RemoteDomain = remoteArea.Domain.ToString();
+
+            System.Net.Sockets.TcpClient client = new System.Net.Sockets.TcpClient();
+            client.Connect(listener.LocalEndpoint as System.Net.IPEndPoint);
+            Connection = client;
+            Connected = true;
+            SharedNetwork.SharedNetworkInfo sharedInfo = new SharedNetwork.SharedNetworkInfo()
+            {
+                DecryptorFunction = null,
+                EncryptorFunction = null,
+                Stream = Connection.GetStream(),
+                Workspace = Workspace,
+                Client = true,
+                CommunicationProtocol = SharedNetwork.DefaultProtocol
+            };
+            SharedInfo = sharedInfo;
+            return true;
+        }
+
         public bool Connect(string url, bool requirewrite = false)
         {
 			string host;
