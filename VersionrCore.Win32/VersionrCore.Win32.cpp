@@ -25,8 +25,6 @@ int EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ files
 				{
 					if ((fndA.cFileName[1] == 0 || fndA.cFileName[1] == '.'))
 						continue;
-					if (strcmp(fndA.cFileName, ".versionr") == 0)
-						continue;
 				}
 				sprintf(filetemp, "%s%s/", folder, fndA.cFileName);
 				int xid = files->Count;
@@ -37,7 +35,9 @@ int EnumerateFS(System::Collections::Generic::List<Versionr::FlatFSEntry>^ files
 				e.FullName = gcnew System::String(filetemp);
 				int loc = files->Count;
 				files->Add(e);
-				int cc = EnumerateFS(files, filetemp);
+				int cc = 0;
+				if (strcmp(fndA.cFileName, ".versionr") != 0)
+					cc = EnumerateFS(files, filetemp);
 				e.ChildCount = cc;
 				files[loc] = e;
 				count += 1 + cc;

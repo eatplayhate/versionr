@@ -21,8 +21,6 @@ int scanrec(DIR* dir, const char* path, void (*handler)(char* name, long long si
         {
             if (in->d_name[1] == '.' || in->d_name[1] == 0)
                 continue;
-            if (strcmp(in->d_name, ".versionr") == 0)
-                continue;
         }
         if (in->d_type == DT_DIR)
         {
@@ -30,7 +28,11 @@ int scanrec(DIR* dir, const char* path, void (*handler)(char* name, long long si
             lstat(fn, &stbuf);
             handler(fn, (long long)-1, (long long)stbuf.st_mtime, 0);
             DIR* subdir = opendir(fn);
-            int ccount = scanrec(subdir, fn, handler);
+			int ccount = 0;
+
+			if (strcmp(in->d_name, ".versionr") != 0)
+				ccount = scanrec(subdir, fn, handler);
+
             handler(fn, (long long)-2, (long long)stbuf.st_mtime, ccount);
             count += 1 + ccount;
             closedir(subdir);

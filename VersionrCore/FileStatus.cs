@@ -284,15 +284,257 @@ namespace Versionr
         }
 
     }
+    public class FileTreeEntry
+    {
+        public Entry Object { get; set; }
+        public FileTreeEntry Parent { get; set; }
+
+        public FileTreeEntry()
+        {
+        }
+
+        public FileTreeEntry(Entry e)
+        {
+            Object = e;
+        }
+
+        public bool IsRoot
+        {
+            get
+            {
+                return Object == null;
+            }
+        }
+        public virtual bool IsDirectory
+        {
+            get
+            {
+                return false;
+            }
+        }
+        public virtual bool IsEmpty
+        {
+            get
+            {
+                return false;
+            }
+        }
+        public virtual bool IsEmptyStrict
+        {
+            get
+            {
+                return false;
+            }
+        }
+        public virtual bool IsVersionrRoot
+        {
+            get
+            {
+                return false;
+            }
+        }
+        public string FullName
+        {
+            get
+            {
+                if (Object != null)
+                    return Object.FullName;
+                return string.Empty;
+            }
+        }
+        public string Name
+        {
+            get
+            {
+                if (Object != null)
+                    return Object.Name;
+                return string.Empty;
+            }
+        }
+
+        public virtual IEnumerable<FileTreeEntry> Contents
+        {
+            get
+            {
+                return Enumerable.Empty<FileTreeEntry>();
+            }
+        }
+        public virtual IEnumerable<FileTreeFolder> Folders
+        {
+            get
+            {
+                return Enumerable.Empty<FileTreeFolder>();
+            }
+        }
+        public virtual IEnumerable<FileTreeEntry> Files
+        {
+            get
+            {
+                return Enumerable.Empty<FileTreeEntry>();
+            }
+        }
+        public virtual FileTreeEntry this[string name]
+        {
+            get
+            {
+                return null;
+            }
+        }
+
+        internal virtual void Initialize()
+        {
+
+        }
+
+        internal virtual void Add(FileTreeEntry e)
+        {
+            throw new NotImplementedException();
+        }
+        public override string ToString()
+        {
+            return Object.CanonicalName;
+        }
+    }
+    public class FileTreeFolder : FileTreeEntry
+    {
+        protected Lazy<Dictionary<string, FileTreeEntry>> m_Lookup;
+        protected List<FileTreeFolder> m_Folders = new List<FileTreeFolder>();
+        protected List<FileTreeEntry> m_Files = new List<FileTreeEntry>();
+
+        public FileTreeFolder() : base()
+        {
+        }
+        public FileTreeFolder(Entry e) : base(e)
+        {
+        }
+        public override bool IsVersionrRoot
+        {
+            get
+            {
+                var lastEntry = m_Folders.TakeWhile(x => x.Name.CompareTo(".versionr/") <= 0).LastOrDefault();
+                if (lastEntry != null)
+                    return lastEntry.Name == ".versionr/";
+                return false;
+            }
+        }
+        public override bool IsEmpty
+        {
+            get
+            {
+                return m_Folders.Count == 0 && m_Files.Count == 0;
+            }
+        }
+        public override bool IsEmptyStrict
+        {
+            get
+            {
+                return m_Files.Count == 0 && m_Folders.All(x => x.IsEmptyStrict);
+            }
+        }
+        public override bool IsDirectory
+        {
+            get
+            {
+                return true;
+            }
+        }
+        public override IEnumerable<FileTreeFolder> Folders
+        {
+            get
+            {
+                return m_Folders;
+            }
+        }
+        public override IEnumerable<FileTreeEntry> Files
+        {
+            get
+            {
+                return m_Files;
+            }
+        }
+        public override IEnumerable<FileTreeEntry> Contents
+        {
+            get
+            {
+                return m_Folders.Concat(m_Files);
+            }
+        }
+        public override FileTreeEntry this[string name]
+        {
+            get
+            {
+                FileTreeEntry entry;
+                if (m_Lookup.Value.TryGetValue(name, out entry))
+                    return entry;
+                return null;
+            }
+        }
+
+        internal override void Initialize()
+        {
+            m_Files.Sort((a, b) => (b.Name.CompareTo(a.Name)));
+            m_Folders.Sort((a, b) => (b.Name.CompareTo(a.Name)));
+
+            m_Lookup = new Lazy<Dictionary<string, FileTreeEntry>>(() =>
+            {
+                Dictionary<string, FileTreeEntry> d = new Dictionary<string, FileTreeEntry>();
+                foreach (var x in Contents)
+                {
+                    d[x.Object.Name] = x;
+                }
+                return d;
+            });
+        }
+        internal override void Add(FileTreeEntry e)
+        {
+            e.Parent = this;
+            if (e.IsDirectory)
+                m_Folders.Add(e as FileTreeFolder);
+            else
+                m_Files.Add(e);
+        }
+    }
     public class FileStatus
     {
         public List<Entry> Entries { get; set; }
+        public FileTreeEntry Root { get; set; }
+
         public FileStatus(Area root, DirectoryInfo rootFolder)
         {
             rootFolder = new DirectoryInfo(rootFolder.GetFullNameWithCorrectCase());
             Entries = GetEntryList(root, rootFolder, root.AdministrationFolder);
-            int files = Entries.Where(x => !x.IsDirectory).Count();
+            BuildTree();
+        }
+
+        private void BuildTree()
+        {
+            Root = new FileTreeFolder();
+            Dictionary<Entry, FileTreeEntry> mapping = new Dictionary<Entry, FileTreeEntry>();
+            int files = 0;
+            foreach (var x in Entries)
+            {
+                var fte = GetEntry(mapping, x);
+                if (!fte.IsDirectory)
+                    files++;
+            }
+            foreach (var x in mapping)
+            {
+                x.Value.Initialize();
+            }
             Printer.PrintDiagnostics("Current working directory has {0} file{1} in {2} director{3}.", files, files == 1 ? "" : "s", Entries.Count - files, (Entries.Count - files) == 1 ? "y" : "ies");
+        }
+
+        private FileTreeEntry GetEntry(Dictionary<Entry, FileTreeEntry> mapping, Entry x)
+        {
+            if (x == null)
+                return Root;
+            FileTreeEntry parentEntry;
+            if (mapping.TryGetValue(x, out parentEntry))
+                return parentEntry;
+            FileTreeEntry fte = x.IsDirectory ? new FileTreeFolder(x) : new FileTreeEntry(x);
+            mapping.Add(x, fte);
+            GetEntry(mapping, x.Parent).Add(fte);
+            return fte;
         }
 
         public static Func<string, List<FlatFSEntry>> GetFSFast = null;
@@ -311,7 +553,7 @@ namespace Versionr
             {
                 if ((x.Attributes & FileAttributes.Directory) != 0)
                 {
-                    if (x.Name == "." || x.Name == ".." || x.Name == ".versionr")
+                    if (x.Name == "." || x.Name == "..")
                         continue;
                     FlatFSEntry fse = new FlatFSEntry()
                     {
@@ -322,7 +564,9 @@ namespace Versionr
                     };
                     int loc = result.Count;
                     result.Add(fse);
-                    int cc = GetEntriesRecursive(result, fse.FullName, new DirectoryInfo(fn + x.Name));
+                    int cc = 0;
+                    if (x.Name != ".versionr")
+                        cc = GetEntriesRecursive(result, fse.FullName, new DirectoryInfo(fn + x.Name));
                     fse.ChildCount = cc;
                     result[loc] = fse;
                     count += 1 + cc;
@@ -351,12 +595,13 @@ namespace Versionr
             public string[] ExtIgnores;
         }
 
-        public static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
+        private static List<Entry> GetEntryList(Area area, DirectoryInfo root, DirectoryInfo adminFolder)
         {
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Restart();
             try
-            { 
+            {
+                Func<string, List<FlatFSEntry>> nativeGenerator = null;
                 if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
                 {
                     if (GetFSFast == null)
@@ -364,70 +609,43 @@ namespace Versionr
                         var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
                         GetFSFast = asm.GetType("Versionr.Win32.FileSystem").GetMethod("EnumerateFileSystem").CreateDelegate(typeof(Func<string, List<FlatFSEntry>>)) as Func<string, List<FlatFSEntry>>;
                     }
-                    if (GetFSFast != null)
-                    {
-                        FSScan scan = new FSScan();
-                        scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
-                        scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
-                        scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
-                        scan.ExtIncludes = area?.Directives?.Include?.Extensions;
-                        string fn = root.FullName.Replace('\\', '/');
-                        if (fn[fn.Length - 1] != '/')
-                            fn += '/';
-                        sw.Restart();
-                        var x = GetFSFast(fn);
-                        if (area.GetLocalPath(fn) != "")
-                            x.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = x.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
-                        sw.Restart();
-                        List<Entry> e2 = new List<Entry>(x.Count);
-                        System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
-                        System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
-                        ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
-                        ce2.Signal();
-                        ce2.Wait();
-                        var ea = entries2.ToArray();
-                        e2.Capacity = ea.Length;
-                        e2.AddRange(ea);
-                        return e2;
-                    }
+                    nativeGenerator = GetFSFast;
                 }
                 else
                 {
-                    try
-                    {
-                        FSScan scan = new FSScan();
-                        scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
-                        scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
-                        scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
-                        scan.ExtIncludes = area?.Directives?.Include?.Extensions;
-                        string fn = root.FullName.Replace('\\', '/');
-                        if (fn[fn.Length - 1] != '/')
-                            fn += '/';
-                        sw.Restart();
-                        var x = PosixFS.GetFlatEntries(fn);
-                        if (area.GetLocalPath(fn) != "")
-                            x.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = x.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
-                        sw.Restart();
-                        List<Entry> e2 = new List<Entry>(x.Count);
-                        System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
-                        System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
-                        ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
-                        ce2.Signal();
-                        ce2.Wait();
-                        var ea = entries2.ToArray();
-                        e2.Capacity = ea.Length;
-                        e2.AddRange(ea);
-                        return e2;
-                    }
-                    catch
-                    {
-                        // eh
-                    }
+                    nativeGenerator = PosixFS.GetFlatEntries;
+                }
+
+                if (nativeGenerator != null)
+                {
+                    FSScan scan = new FSScan();
+                    scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
+                    scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
+                    scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
+                    scan.ExtIncludes = area?.Directives?.Include?.Extensions;
+                    string fn = root.FullName.Replace('\\', '/');
+                    if (fn[fn.Length - 1] != '/')
+                        fn += '/';
+                    sw.Restart();
+                    var x = nativeGenerator(fn);
+                    if (area.GetLocalPath(fn) != "")
+                        x.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = x.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
+                    sw.Restart();
+                    List<Entry> e2 = new List<Entry>(x.Count);
+                    System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+                    System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
+                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                    ce2.Signal();
+                    ce2.Wait();
+                    var ea = entries2.ToArray();
+                    e2.Capacity = ea.Length;
+                    e2.AddRange(ea);
+                    return e2;
                 }
             }
             catch
             {
-                // eh
+                // try again with the slow mode
             }
             sw.Restart();
             System.Collections.Concurrent.ConcurrentBag<Entry> entries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
@@ -437,7 +655,6 @@ namespace Versionr
             ce.Wait();
             Entry[] entryArray = entries.ToArray();
             Array.Sort(entryArray, (Entry x, Entry y) => { return string.CompareOrdinal(x.CanonicalName, y.CanonicalName); });
-            System.Console.WriteLine("3: {0}ms", sw.ElapsedMilliseconds);
             return entryArray.ToList();
         }
 
@@ -450,70 +667,21 @@ namespace Versionr
                 {
                     bool ignoreDirectory = false;
                     bool ignoreContents = false;
+                    bool hide = false;
                     string slashedSubdirectory = r.FullName.Substring(rootFolder.Length + 1);
-                    if (area != null && area.Directives != null && area.Directives.Include != null)
+                    if (parentEntry == null && slashedSubdirectory == ".versionr/")
                     {
-                        ignoreDirectory = true;
-                        foreach (var y in area.Directives.Include.Directories)
-                        {
-                            if (y.StartsWith(slashedSubdirectory, StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (slashedSubdirectory.Length <= y.Length - 1)
-                                    ignoreContents = true;
-                                ignoreDirectory = false;
-                                break;
-                            }
-                            else if (slashedSubdirectory.StartsWith(y))
-                            {
-                                ignoreDirectory = false;
-                                break;
-                            }
-                        }
-                        if (area.Directives.Include.RegexDirectoryPatterns != null)
-                        {
-                            foreach (var y in area.Directives.Include.RegexDirectoryPatterns)
-                            {
-                                if (y.IsMatch(slashedSubdirectory))
-                                {
-                                    ignoreDirectory = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexDirectoryPatterns != null)
-                    {
-                        string ssi = slashedSubdirectory.ToLowerInvariant();
-                        foreach (var y in area.Directives.Ignore.Directories)
-                        {
-                            if (ssi.StartsWith(y, StringComparison.Ordinal))
-                            {
-                                ignoreDirectory = true;
-                                break;
-                            }
-                        }
-                        foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
-                        {
-                            if (y.IsMatch(ssi))
-                            {
-                                ignoreDirectory = true;
-                                break;
-                            }
-                        }
+                        if (r.ChildCount != 0)
+                            throw new Exception();
+                        continue;
                     }
 
-                    if (area != null && area.Directives != null && area.Directives.Externals != null)
+                    CheckDirectoryIgnores(area, slashedSubdirectory, ref ignoreDirectory, ref ignoreContents, ref hide);
+
+                    if (hide)
                     {
-                        foreach (var x in area.Directives.Externals)
-                        {
-                            string extdir = x.Value.Location.Replace('\\', '/');
-                            if (extdir[extdir.Length - 1] != '/')
-                                extdir += "/";
-                            if (string.Equals(slashedSubdirectory, extdir, StringComparison.OrdinalIgnoreCase))
-                            {
-                                return;
-                            }
-                        }
+                        i += r.ChildCount;
+                        continue;
                     }
 
                     var parent = new Entry(area, parentEntry, slashedSubdirectory, r.FullName, parentEntry == null ? slashedSubdirectory : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, 0, ignoreDirectory, (FileAttributes)r.Attributes);
@@ -559,59 +727,137 @@ namespace Versionr
                     {
                         string fn = r.FullName.Substring(rootFolder.Length + 1);
                         string fnI = fn.ToLowerInvariant();
-                        bool ignored = false;
-                        if (area != null && scan.FRIncludes != null)
+                        bool ignored = CheckFileIgnores(area, fn, fnI, scan.FRIncludes, scan.FRIgnores, scan.ExtIncludes, scan.ExtIgnores);
+                        e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
+                    }
+                }
+            }
+        }
+
+        private static bool CheckFileIgnores(Area area, string fn, string fnI, System.Text.RegularExpressions.Regex[] frIncludes, System.Text.RegularExpressions.Regex[] frIgnores, string[] extIncludes, string[] extIgnores)
+        {
+            bool ignored = false;
+            if (area != null && frIncludes != null)
+            {
+                ignored = true;
+                foreach (var y in frIncludes)
+                {
+                    if (y.IsMatch(fn))
+                    {
+                        ignored = false;
+                        break;
+                    }
+                }
+            }
+            int lastIndex = fn.LastIndexOf('.');
+            if (lastIndex > 0)
+            {
+                int remainder = fn.Length - lastIndex;
+                if (!ignored && extIncludes != null)
+                {
+                    ignored = true;
+                    foreach (var y in extIncludes)
+                    {
+                        if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
+                        {
+                            ignored = false;
+                            break;
+                        }
+                    }
+                }
+                if (!ignored && extIgnores != null)
+                {
+                    foreach (var y in extIgnores)
+                    {
+                        if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
                         {
                             ignored = true;
-                            foreach (var y in scan.FRIncludes)
-                            {
-                                if (y.IsMatch(fn))
-                                {
-                                    ignored = false;
-                                    break;
-                                }
-                            }
+                            break;
                         }
-                        int lastIndex = fn.LastIndexOf('.');
-                        if (lastIndex > 0)
+                    }
+                }
+            }
+            if (!ignored && frIgnores != null)
+            {
+                foreach (var y in frIgnores)
+                {
+                    if (y.IsMatch(fnI))
+                    {
+                        ignored = true;
+                        break;
+                    }
+                }
+            }
+            return ignored;
+        }
+
+        private static void CheckDirectoryIgnores(Area area, string slashedSubdirectory, ref bool ignoreDirectory, ref bool ignoreContents, ref bool hide)
+        {
+            if (area?.Directives?.Include != null)
+            {
+                ignoreDirectory = true;
+                foreach (var y in area.Directives.Include.Directories)
+                {
+                    if (y.StartsWith(slashedSubdirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (slashedSubdirectory.Length <= y.Length - 1)
+                            ignoreContents = true;
+                        ignoreDirectory = false;
+                        break;
+                    }
+                    else if (slashedSubdirectory.StartsWith(y))
+                    {
+                        ignoreDirectory = false;
+                        break;
+                    }
+                }
+                if (area.Directives.Include.RegexDirectoryPatterns != null)
+                {
+                    foreach (var y in area.Directives.Include.RegexDirectoryPatterns)
+                    {
+                        if (y.IsMatch(slashedSubdirectory))
                         {
-                            int remainder = fn.Length - lastIndex;
-                            if (!ignored && scan.ExtIncludes != null)
-                            {
-                                ignored = true;
-                                foreach (var y in scan.ExtIncludes)
-                                {
-                                    if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
-                                    {
-                                        ignored = false;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (!ignored && scan.ExtIgnores != null)
-                            {
-                                foreach (var y in scan.ExtIgnores)
-                                {
-                                    if (y.Length == remainder && string.CompareOrdinal(fnI, lastIndex, y, 0, y.Length) == 0)
-                                    {
-                                        ignored = true;
-                                        break;
-                                    }
-                                }
-                            }
+                            ignoreDirectory = false;
+                            break;
                         }
-                        if (!ignored && scan.FRIgnores != null)
+                    }
+                }
+            }
+            if (area?.Directives?.Ignore != null)
+            {
+                string ssi = slashedSubdirectory.ToLowerInvariant();
+                foreach (var y in area.Directives.Ignore.Directories)
+                {
+                    if (ssi.StartsWith(y, StringComparison.Ordinal))
+                    {
+                        ignoreDirectory = true;
+                        break;
+                    }
+                }
+                if (area.Directives.Ignore.RegexDirectoryPatterns != null)
+                {
+                    foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
+                    {
+                        if (y.IsMatch(ssi))
                         {
-                            foreach (var y in scan.FRIgnores)
-                            {
-                                if (y.IsMatch(fnI))
-                                {
-                                    ignored = true;
-                                    break;
-                                }
-                            }
+                            ignoreDirectory = true;
+                            break;
                         }
-                        e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
+                    }
+                }
+            }
+
+            if (area?.Directives?.Externals != null)
+            {
+                foreach (var x in area.Directives.Externals)
+                {
+                    string extdir = x.Value.Location.Replace('\\', '/');
+                    if (extdir[extdir.Length - 1] != '/')
+                        extdir += "/";
+                    if (string.Equals(slashedSubdirectory, extdir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hide = true;
+                        return;
                     }
                 }
             }
@@ -627,69 +873,17 @@ namespace Versionr
             {
                 if (slashedSubdirectory[slashedSubdirectory.Length - 1] != '/')
                     slashedSubdirectory += '/';
-                if (area != null && area.Directives != null && area.Directives.Include != null)
+
+                bool hide = false;
+                if (parentEntry == null && slashedSubdirectory == ".versionr/")
                 {
-                    ignoreDirectory = true;
-                    foreach (var y in area.Directives.Include.Directories)
-                    {
-                        if (y.StartsWith(slashedSubdirectory, StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (slashedSubdirectory.Length <= y.Length - 1)
-                                ignoreContents = true;
-                            ignoreDirectory = false;
-                            break;
-                        }
-                        else if (slashedSubdirectory.StartsWith(y))
-                        {
-                            ignoreDirectory = false;
-                            break;
-                        }
-                    }
-                    if (area.Directives.Include.RegexDirectoryPatterns != null)
-                    {
-                        foreach (var y in area.Directives.Include.RegexDirectoryPatterns)
-                        {
-                            if (y.IsMatch(slashedSubdirectory))
-                            {
-                                ignoreDirectory = false;
-                                break;
-                            }
-                        }
-                    }
+                    return;
                 }
-                if (area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexDirectoryPatterns != null)
-                {
-                    foreach (var y in area.Directives.Ignore.Directories)
-                    {
-                        if (slashedSubdirectory.StartsWith(y, StringComparison.OrdinalIgnoreCase))
-                        {
-                            ignoreDirectory = true;
-                            break;
-                        }
-                    }
-                    foreach (var y in area.Directives.Ignore.RegexDirectoryPatterns)
-					{
-                        if (y.IsMatch(slashedSubdirectory))
-						{
-							ignoreDirectory = true;
-							break;
-						}
-					}
-				}
-                
-                if (area != null && area.Directives != null && area.Directives.Externals != null)
-                {
-                    foreach (var x in area.Directives.Externals)
-                    {
-                        string extdir = x.Value.Location.Replace('\\', '/');
-                        if (extdir[extdir.Length - 1] != '/')
-                            extdir += "/";
-                        if (string.Equals(slashedSubdirectory, extdir, StringComparison.OrdinalIgnoreCase))
-                        {
-                            return;
-                        }
-                    }
-                }
+
+                CheckDirectoryIgnores(area, slashedSubdirectory, ref ignoreDirectory, ref ignoreContents, ref hide);
+
+                if (hide)
+                    return;
 
 				parentEntry = new Entry(area, parentEntry, slashedSubdirectory, info.FullName, info.Name, info.LastWriteTimeUtc.ToFileTimeUtc(), 0, ignoreDirectory, info.Attributes);
                 entries.Add(parentEntry);
@@ -706,6 +900,10 @@ namespace Versionr
             foreach (var x in info.GetFileSystemInfos())
             {
                 string fn = x.Name;
+                if (fn.EndsWith(".pch"))
+                {
+                    int qx = 0;
+                }
                 string name = prefix + fn;
                 if ((x.Attributes & FileAttributes.Directory) != 0)
                 {
@@ -731,58 +929,7 @@ namespace Versionr
                 }
                 else if (!ignoreContents)
                 {
-                    bool ignored = ignoreDirectory;
-                    if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.RegexFilePatterns != null)
-                    {
-                        ignored = true;
-                        foreach (var y in area.Directives.Include.RegexFilePatterns)
-                        {
-                            if (y.IsMatch(name))
-                            {
-                                ignored = false;
-                                break;
-                            }
-                        }
-                    }
-                    int lastIndex = fn.LastIndexOf('.');
-                    if (lastIndex > 0)
-                    {
-                        string ext = fn.Substring(lastIndex);
-                        if (!ignored && area != null && area.Directives != null && area.Directives.Include != null && area.Directives.Include.Extensions != null)
-                        {
-                            ignored = true;
-                            foreach (var y in area.Directives.Include.Extensions)
-                            {
-                                if (ext.Equals(y, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    ignored = false;
-                                    break;
-                                }
-                            }
-                        }
-                        if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.Extensions != null)
-                        {
-                            foreach (var y in area.Directives.Ignore.Extensions)
-                            {
-                                if (ext.Equals(y, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    ignored = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (!ignored && area != null && area.Directives != null && area.Directives.Ignore != null && area.Directives.Ignore.RegexFilePatterns != null)
-                    {
-                        foreach (var y in area.Directives.Ignore.RegexFilePatterns)
-                        {
-                            if (y.IsMatch(name))
-                            {
-                                ignored = true;
-                                break;
-                            }
-                        }
-                    }
+                    bool ignored = CheckFileIgnores(area, name, name.ToLowerInvariant(), area?.Directives?.Include?.RegexFilePatterns, area?.Directives?.Ignore?.RegexFilePatterns, area?.Directives?.Include?.Extensions, area?.Directives?.Ignore?.Extensions);
                     entries.Add(new Entry(area, parentEntry, name, x.FullName, x.Name, x.LastWriteTimeUtc.ToFileTimeUtc(), new FileInfo(x.FullName).Length, ignored, x.Attributes));
                 }
             }
