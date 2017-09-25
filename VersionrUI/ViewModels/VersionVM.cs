@@ -129,7 +129,7 @@ namespace VersionrUI.ViewModels
         public string SearchText
         {
             get { return _searchText; }
-            private set
+            set
             {
                 _searchText = value;
                 NotifyPropertyChanged("SearchText");
@@ -163,7 +163,7 @@ namespace VersionrUI.ViewModels
 
         public NodeDescrption GraphNode { get; private set; }
 
-        private static object refreshLock = new object();
+        private static readonly object refreshLock = new object();
         private void Refresh()
         {
             lock (refreshLock)

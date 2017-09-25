@@ -21,12 +21,12 @@ namespace VersionrUI.Dialogs
     /// </summary>
     public partial class LogDialog : INotifyPropertyChanged
     {
-        private Area _area;
+        private readonly Area _area;
         private string _author;
         private string _pattern;
         private List<VersionVM> _history;
         private int _revisionLimit;
-        private static Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
+        private static readonly Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
         {
             { 50, "50" },
             { 100, "100" },
@@ -38,12 +38,29 @@ namespace VersionrUI.Dialogs
         private GridViewColumnHeader _lastHeaderClicked = null;
         private ListSortDirection _lastDirection = ListSortDirection.Ascending;
 
+        public static DependencyProperty ApplyFilterToResultsProperty =
+            DependencyProperty.Register("ApplyFilterToResults", typeof(bool), typeof(LogDialog),
+                new UIPropertyMetadata(false, ApplyFilterToResultChanged));
+
+        public bool ApplyFilterToResults
+        {
+            get => (bool)GetValue(ApplyFilterToResultsProperty);
+            set => SetValue(ApplyFilterToResultsProperty, value);
+        }
+
+        private static void ApplyFilterToResultChanged(DependencyObject o, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(o is LogDialog logDialog)) return;
+            logDialog.History.ForEach(x =>
+                x.SearchText = logDialog.ApplyFilterToResults ? logDialog.Pattern : string.Empty);
+        }
+
         public static void Show(Version version, Area area, string pattern = null)
         {
             // Showing modal for now because sqlite dies a horrible death if multiple windows access the db.
             // If that ever gets fixed, uncomment the code below so we can have multiple log windows.
             new LogDialog(version, area, pattern).ShowDialog();
-
+            
             //Thread newWindowThread = new Thread(() =>
             //{
             //    new LogDialog(version, area, pattern).Show();
@@ -61,7 +78,7 @@ namespace VersionrUI.Dialogs
             _pattern = pattern;
 
             _revisionLimit = RevisionLimitOptions.First().Key;
-
+            
             InitializeComponent();
             mainGrid.DataContext = this;
 
@@ -73,37 +90,31 @@ namespace VersionrUI.Dialogs
         }
 
         public Version Version { get; private set; }
-        public Area Area { get { return _area; } }
+        public Area Area => _area;
 
         public string Author
         {
-            get { return _author; }
+            get => _author;
             set
             {
-                if (_author != value)
-                {
-                    _author = value;
-                    NotifyPropertyChanged("Author");
-                    Load(RefreshHistory);
-                }
+                if (_author == value) return;
+                _author = value;
+                NotifyPropertyChanged("Author");
+                Load(RefreshHistory);
             }
         }
 
-        public Dictionary<int, string> RevisionLimitOptions
-        {
-            get { return _revisionLimitOptions; }
-        }
+        public Dictionary<int, string> RevisionLimitOptions => _revisionLimitOptions;
+
         public int RevisionLimit
         {
-            get { return _revisionLimit; }
+            get => _revisionLimit;
             set
             {
-                if (_revisionLimit != value)
-                {
-                    _revisionLimit = value;
-                    NotifyPropertyChanged("RevisionLimit");
-                    Load(RefreshHistory);
-                }
+                if (_revisionLimit == value) return;
+                _revisionLimit = value;
+                NotifyPropertyChanged("RevisionLimit");
+                Load(RefreshHistory);
             }
         }
 
@@ -111,7 +122,7 @@ namespace VersionrUI.Dialogs
         {
             get
             {
-                if (String.IsNullOrEmpty(Pattern))
+                if (string.IsNullOrEmpty(Pattern))
                     return new Regex(".*");
 
                 // TODO: Needs more work...
@@ -122,16 +133,14 @@ namespace VersionrUI.Dialogs
 
         public string Pattern
         {
-            get { return _pattern; }
+            get => _pattern;
             set
             {
-                if (_pattern != value)
-                {
-                    _pattern = value;
-                    NotifyPropertyChanged("Pattern");
-                    NotifyPropertyChanged("Regex");
-                    Load(RefreshHistory);
-                }
+                if (_pattern == value) return;
+                _pattern = value;
+                NotifyPropertyChanged("Pattern");
+                NotifyPropertyChanged("Regex");
+                Load(RefreshHistory);
             }
         }
 
@@ -145,7 +154,7 @@ namespace VersionrUI.Dialogs
             }
         }
 
-        private static object refreshLock = new object();
+        private static readonly object refreshLock = new object();
         private void RefreshHistory()
         {
             lock (refreshLock)
@@ -270,6 +279,7 @@ namespace VersionrUI.Dialogs
                 PropertyChanged(this, new PropertyChangedEventArgs(info));
         }
         #endregion
+
     }
     class ResolvedAlteration
     {
