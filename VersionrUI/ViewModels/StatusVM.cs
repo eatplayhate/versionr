@@ -25,6 +25,7 @@ namespace VersionrUI.ViewModels
         private List<TagPresetVM> _tagPresets;
         private bool _pushOnCommit;
         private string _commitMessage;
+        private string _tagString;
 
         public StatusVM(AreaVM areaVM)
         {
@@ -77,6 +78,16 @@ namespace VersionrUI.ViewModels
                     _commitMessage = value;
                     NotifyPropertyChanged("CommitMessage");
                 }
+            }
+        }
+
+        public string TagString
+        {
+            get { return _tagString; }
+            set
+            {
+                _tagString = value;
+                NotifyPropertyChanged("TagString");
             }
         }
 
@@ -219,9 +230,22 @@ namespace VersionrUI.ViewModels
                 return;
             }
 
+            // Tag has been typed in but not added
+            if (!string.IsNullOrEmpty(TagString) && CustomTags.All(x => x.Tag != TagString))
+            {
+                MessageDialogResult result = MessageDialogResult.Negative;
+                MainWindow.Instance.Dispatcher.Invoke(async () =>
+                {
+                     result = await MainWindow.ShowMessage("Missing Tag",
+                        "You seem to have a tag that has not been added. Do you want to continue without adding the tag?",
+                        MessageDialogStyle.AffirmativeAndNegative);
+                }).Wait();
+                if (result == MessageDialogResult.Negative) return;
+            }
+
             OperationStatusDialog.Start("Commit");
             bool commitSuccessful = _areaVM.Area.Commit(CommitMessage, false, GetCommitTags());
-            
+
             if (commitSuccessful && PushOnCommit)
                 _areaVM.ExecuteClientCommand((c) => c.Push(), "push", true);
             OperationStatusDialog.Finish();

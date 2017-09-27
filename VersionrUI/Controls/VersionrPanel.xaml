@@ -386,6 +386,7 @@
                                          mahapps:TextBoxHelper.Watermark="New tag"
                                          TextChanged="newTagText_TextChanged"
                                          KeyUp="newTagText_KeyUp"
+                                         Text="{Binding TagString}"
                                          ToolTip="Tags must consist of one word prefixed with a hash (#) character" />
                                 <Button Content="Add"
                                         Height="20"
