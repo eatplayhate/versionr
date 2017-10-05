@@ -3440,7 +3440,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.2.4";
+                return "v1.2.6";
             }
         }
 
@@ -6509,9 +6509,6 @@ namespace Versionr
 
         public Objects.Version GetPartialVersion(string v)
         {
-            Objects.Version version = Database.Find<Objects.Version>(v);
-            if (version != null)
-                return version;
             List<Objects.Version> potentials;
             string searchmode = "ID prefix";
             if (v.StartsWith("%"))
@@ -6519,13 +6516,41 @@ namespace Versionr
                 searchmode = "revnumber";
                 potentials = Database.Query<Objects.Version>("SELECT rowid, * FROM Version WHERE Version.rowid IS ?", int.Parse(v.Substring(1)));
             }
+            else if (v.StartsWith("^"))
+            {
+                int count;
+                if (int.TryParse(v.Substring(1), out count))
+                {
+                    Objects.Version version = Version;
+                    while (--count > 0)
+                    {
+                        if (!version.Parent.HasValue)
+                        {
+                            Printer.PrintError("Ran out of parents while trying to parse version from cursor ({0})!", v);
+                            return null;
+                        }
+                        version = GetVersion(version.Parent.Value);
+                    }
+                    return version;
+                }
+                else
+                {
+                    Printer.PrintError("Can't parse version from cursor ({0})!", v);
+                    return null;
+                }
+            }
             else if (v.StartsWith("..."))
             {
                 searchmode = "ID suffix";
                 potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '%{0}'", v.Substring(3)));
             }
             else
+            {
+                Objects.Version version = Database.Find<Objects.Version>(v);
+                if (version != null)
+                    return version;
                 potentials = Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '{0}%'", v));
+            }
             if (potentials.Count > 1)
             {
                 Printer.PrintError("Can't find a unique version with {1}: {0}##\nCould be:", v, searchmode);
