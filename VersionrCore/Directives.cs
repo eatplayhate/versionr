@@ -322,6 +322,7 @@ namespace Versionr
         public List<string> Sparse { get; set; } = new List<string>();
         public List<string> Excludes { get; set; } = new List<string>();
 
+        public string ObjectStorePath = null;
         public Directives()
         {
             Ignore = new Ignores();
@@ -357,6 +358,9 @@ namespace Versionr
                                 break;
                             case "UserName":
                                 UserName = reader.Value.ToString();
+                                break;
+                            case "ObjectStorePath":
+                                ObjectStorePath = reader.Value.ToString();
                                 break;
                             default:
                                 Tokens[currentProperty] = Newtonsoft.Json.Linq.JToken.FromObject(reader.Value);
@@ -467,6 +471,8 @@ namespace Versionr
                 NonBlockingDiff = other.NonBlockingDiff;
             if (other.m_UserName != null)
                 m_UserName = other.m_UserName;
+            if (!string.IsNullOrEmpty(other.ObjectStorePath))
+                ObjectStorePath = other.ObjectStorePath;
 
             if (other.Externals != null)
             {
