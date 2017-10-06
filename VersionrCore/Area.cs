@@ -198,6 +198,9 @@ namespace Versionr
             
             List<Objects.JournalMap> results = new List<JournalMap>();
 
+            if (remoteTips == null)
+                return results;
+
             foreach (var tip in remoteTips)
             {
                 JournalMap localMap = Database.Find<JournalMap>(tip.JournalID);
@@ -8300,16 +8303,18 @@ namespace Versionr
             string rootFolder = Root.FullName.Replace('\\', '/');
             string localFolder = fullName.Replace('\\', '/');
             if (!localFolder.StartsWith(rootFolder, StringComparison.OrdinalIgnoreCase))
-                throw new Exception(string.Format("{0} doesn't start with {1}", localFolder, rootFolder));
-            else
             {
-                if (localFolder == rootFolder)
-                    return PartialPath == null ? "" : PartialPath;
-                string local = localFolder.Substring(rootFolder.Length + 1);
-                if (local.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
-                    return local;
-                return PartialPath + local;
+                if (localFolder.EndsWith(":"))
+                    localFolder += "/";
+                else
+                    throw new Exception(string.Format("{0} doesn't start with {1}", localFolder, rootFolder));
             }
+            if (localFolder == rootFolder)
+                return PartialPath == null ? "" : PartialPath;
+            string local = localFolder.Substring(rootFolder.Length + 1);
+            if (local.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
+                return local;
+            return PartialPath + local;
         }
 
         public class PruneOptions

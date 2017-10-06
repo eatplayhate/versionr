@@ -38,7 +38,7 @@ namespace Versionr.Commands
         {
             get
             {
-                return $"#b#versionr #i#{Verb}#q# [options] ##[base-branch-or-version] #q#compare-branch-or-version##";
+                return $"#b#versionr #i#{Verb}#q# [options] #q#--base [base-branch-or-version] ##--version compare-branch-or-version##";
             }
         }
 
@@ -139,7 +139,7 @@ namespace Versionr.Commands
                 if (!compareLookup.TryGetValue(baseRecord.CanonicalName, out compareRecord))
                     continue;
 
-                if (compareRecord.DataIdentifier != baseRecord.DataIdentifier || compareRecord.Attributes != baseRecord.Attributes)
+                if (compareRecord.Fingerprint != baseRecord.Fingerprint)
                     modified.Add(compareRecord);
             }
             Report("Modify", modified);

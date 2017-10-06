@@ -583,8 +583,11 @@ namespace Versionr.Network
                 else if (command.Type == NetCommandType.SendBranchHeads)
                 {
                     var ids = Utilities.ReceiveEncrypted<PushHeadIds>(sharedInfo);
-                    foreach (var x in ids.Heads)
-                        sharedInfo.RemoteHeadInfo[x.BranchID] = x.VersionID;
+                    if (ids.Heads != null)
+                    {
+                        foreach (var x in ids.Heads)
+                            sharedInfo.RemoteHeadInfo[x.BranchID] = x.VersionID;
+                    }
                     ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
                 }
                 else if (command.Type == NetCommandType.Clone)

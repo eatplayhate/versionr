@@ -109,7 +109,19 @@ namespace Versionr.Commands
             }
 			if (status.MergeInputs.Count > 0)
 				Printer.WriteLineMessage("");
-			IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x => { codeCount[(int)x.Code]++; return !(x.Code == StatusCode.Excluded || (x.Code == StatusCode.Ignored && x.VersionControlRecord == null)); });
+            IEnumerable<Versionr.Status.StatusEntry> operands = targets.Where(x =>
+            {
+                codeCount[(int)x.Code]++;
+                if (x.Code == StatusCode.Excluded)
+                    return false;
+                if (x.Code == StatusCode.Ignored)
+                {
+                    if (x.VersionControlRecord != null)
+                        return true;
+                    return localOptions.Ignored;
+                }
+                return true;
+            });
             if (!localOptions.All)
                 operands = operands.Where(x => x.Code != StatusCode.Unchanged);
             string localRestrictedPath = null;

@@ -44,13 +44,21 @@ namespace VersionrUI.Dialogs
 
         public bool ApplyFilterToResults
         {
-            get => (bool)GetValue(ApplyFilterToResultsProperty);
-            set => SetValue(ApplyFilterToResultsProperty, value);
+            get
+            {
+                return (bool)GetValue(ApplyFilterToResultsProperty);
+            }
+            set
+            {
+                SetValue(ApplyFilterToResultsProperty, value);
+            }
         }
 
         private static void ApplyFilterToResultChanged(DependencyObject o, DependencyPropertyChangedEventArgs e)
         {
-            if (!(o is LogDialog logDialog)) return;
+            if (!(o is LogDialog))
+                return;
+            LogDialog logDialog = (LogDialog)o;
             logDialog.History.ForEach(x =>
                 x.SearchText = logDialog.ApplyFilterToResults ? logDialog.Pattern : string.Empty);
         }
@@ -94,7 +102,10 @@ namespace VersionrUI.Dialogs
 
         public string Author
         {
-            get => _author;
+            get
+            {
+                return _author;
+            }
             set
             {
                 if (_author == value) return;
@@ -108,7 +119,10 @@ namespace VersionrUI.Dialogs
 
         public int RevisionLimit
         {
-            get => _revisionLimit;
+            get
+            {
+                return _revisionLimit;
+            }
             set
             {
                 if (_revisionLimit == value) return;
@@ -133,7 +147,10 @@ namespace VersionrUI.Dialogs
 
         public string Pattern
         {
-            get => _pattern;
+            get
+            {
+                return _pattern;
+            }
             set
             {
                 if (_pattern == value) return;
