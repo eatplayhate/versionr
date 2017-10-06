@@ -30,6 +30,21 @@ namespace Versionr
 
         Count
     }
+    public class RecordStructure
+    {
+        public class RecordNode
+        {
+            public Record Entry { get; set; }
+            public List<RecordNode> Children { get; set; }
+        }
+
+        public RecordNode Root { get; set; }
+
+        public RecordStructure(List<Record> records)
+        {
+
+        }
+    }
     public class Status
     {
         public class StatusEntry : ICheckoutOrderable
@@ -177,7 +192,443 @@ namespace Versionr
             public FileStatus Snapshot { get; set; }
             public System.Threading.ManualResetEvent EndEvent { get; set; }
         }
+#if false
+        internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null, bool updateFileTimes = true, bool findCopies = true)
+        {
+            if (!string.IsNullOrEmpty(restrictedPath) && !restrictedPath.EndsWith("/"))
+                restrictedPath += "/";
 
+            RestrictedPath = restrictedPath;
+            Workspace = workspace;
+            CurrentVersion = db.Version;
+            Branch = db.Branch;
+            Elements = new List<StatusEntry>();
+
+            Dictionary<string, FileTreeEntry> snapshotData = new Dictionary<string, FileTreeEntry>();
+            snapshotData[string.Empty] = currentSnapshot.Root;
+            foreach (var x in currentSnapshot.Root.Contents)
+                MapFileTrees(snapshotData, x);
+
+            var records = db.GetCachedRecords(CurrentVersion, !findCopies);
+
+            System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
+            StatusPercentage pct = new StatusPercentage()
+            {
+                Snapshot = currentSnapshot,
+                EndEvent = new System.Threading.ManualResetEvent(false)
+            };
+            var progressLog = Task.Run(() =>
+            {
+                Printer.InteractivePrinter ip = null;
+                while (true)
+                {
+                    if (pct.EndEvent.WaitOne(500))
+                    {
+                        if (ip != null)
+                            ip.End(0);
+                        return;
+                    }
+                    if (sw.ElapsedMilliseconds > 2000)
+                    {
+                        if (ip == null)
+                            ip = Printer.CreateSpinnerPrinter(string.Format("Computing status for {0} objects", pct.Snapshot.Entries.Count), (obj) => { return string.Empty; });
+                        ip.Update(0);
+                    }
+                }
+            });
+            var tasks = new List<Task<StatusEntry>>();
+            Dictionary<string, Entry> snapshotData = new Dictionary<string, Entry>();
+            foreach (var x in currentSnapshot.Entries)
+                snapshotData[x.CanonicalName] = x;
+            System.Collections.Concurrent.ConcurrentBag<Entry> pendingEntries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
+            HashSet<Entry> foundEntries = new HashSet<Entry>();
+            var records = db.GetCachedRecords(CurrentVersion, !findCopies);
+            var stage = ldb.StageOperations;
+            Stage = stage;
+            VersionControlRecords = records;
+            Dictionary<string, string> caseInsensitiveNames = new Dictionary<string, string>();
+            foreach (var x in records)
+                caseInsensitiveNames[x.CanonicalName.ToLowerInvariant()] = x.CanonicalName;
+            MergeInputs = new List<Objects.Version>();
+            Dictionary<string, StageFlags> stageInformation = new Dictionary<string, StageFlags>();
+            Dictionary<Record, StatusEntry> statusMap = new Dictionary<Record, StatusEntry>();
+            Dictionary<string, bool> parentIgnoredList = new Dictionary<string, bool>();
+            foreach (var x in stage)
+            {
+                if (x.Type == LocalState.StageOperationType.Merge)
+                    MergeInputs.Add(Workspace.GetVersion(new Guid(x.Operand1)));
+                if (!x.IsFileOperation)
+                    continue;
+                StageFlags ops;
+                if (!stageInformation.TryGetValue(x.Operand1, out ops))
+                    stageInformation[x.Operand1] = ops;
+                if (x.Type == LocalState.StageOperationType.Add)
+                    ops |= StageFlags.Recorded;
+                if (x.Type == LocalState.StageOperationType.Conflict)
+                    ops |= StageFlags.Conflicted;
+                if (x.Type == LocalState.StageOperationType.Remove)
+                    ops |= StageFlags.Removed;
+                if (x.Type == LocalState.StageOperationType.Rename)
+                    ops |= StageFlags.Renamed;
+                if (x.Type == LocalState.StageOperationType.MergeRecord)
+                {
+                    if (x.Operand2 == "remote")
+                        ops |= StageFlags.CleanMergeInfo;
+                    else
+                        ops |= StageFlags.MergeInfo;
+                }
+                stageInformation[x.Operand1] = ops;
+            }
+            try
+            {
+                foreach (var x in records)
+                {
+                    tasks.Add(Workspace.GetTaskFactory().StartNew<StatusEntry>(() =>
+                    {
+                        StageFlags objectFlags;
+                        stageInformation.TryGetValue(x.CanonicalName, out objectFlags);
+                        Entry snapshotRecord = null;
+                        if (RestrictedPath != null)
+                        {
+                            if (!x.CanonicalName.StartsWith(RestrictedPath, StringComparison.Ordinal) && x.CanonicalName != RestrictedPath)
+                            {
+                                if (x.CanonicalName == ".vrmeta" && !string.IsNullOrEmpty(Workspace.PartialPath))
+                                {
+                                    if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord))
+                                    {
+                                        pendingEntries.Add(snapshotRecord);
+                                    }
+                                }
+                                else
+                                    return new StatusEntry() { Code = StatusCode.Excluded, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+                            }
+                        }
+
+                        if (snapshotData.TryGetValue(x.CanonicalName, out snapshotRecord) && snapshotRecord.Ignored == false)
+                        {
+                            pendingEntries.Add(snapshotRecord);
+
+                            if ((objectFlags & StageFlags.Removed) != 0)
+                                Printer.PrintWarning("Removed object `{0}` still in filesystem!", x.CanonicalName);
+
+                            if ((objectFlags & StageFlags.Renamed) != 0)
+                                Printer.PrintWarning("Renamed object `{0}` still in filesystem!", x.CanonicalName);
+
+                            if ((objectFlags & StageFlags.Conflicted) != 0)
+                                return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+
+                            bool changed = false;
+                            if (snapshotRecord.Length != x.Size)
+                                changed = true;
+                            if (!changed && snapshotRecord.IsSymlink && snapshotRecord.SymlinkTarget != x.Fingerprint)
+                                changed = true;
+                            bool obstructed = false;
+                            if (!changed && !snapshotRecord.IsDirectory && !snapshotRecord.IsSymlink)
+                            {
+                                LocalState.FileTimestamp fst = Workspace.GetReferenceTime(x.CanonicalName);
+                                if (snapshotRecord.ModificationTime == x.ModificationTime || (fst.DataIdentifier == x.DataIdentifier && snapshotRecord.ModificationTime == fst.LastSeenTime))
+                                    changed = false;
+                                else
+                                {
+                                    if (snapshotRecord.ModificationTime != x.ModificationTime)
+                                        Printer.PrintDiagnostics("T0: {0} - T1: {1}", snapshotRecord.ModificationTime, x.ModificationTime);
+                                    Printer.PrintDiagnostics("Computing hash for: " + x.CanonicalName);
+                                    try
+                                    {
+                                        if (snapshotRecord.Hash != x.Fingerprint)
+                                            changed = true;
+                                        else
+                                        {
+                                            System.Threading.Interlocked.Increment(ref this.UpdatedFileTimeCount);
+                                            Workspace.UpdateFileTimeCache(x.CanonicalName, x, snapshotRecord.ModificationTime, false);
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        changed = true;
+                                        obstructed = true;
+                                        Printer.PrintWarning("Couldn't compute hash for #b#" + x.CanonicalName + "#w#, file in use!");
+                                    }
+                                }
+                            }
+                            if (changed == true)
+                            {
+                                if (obstructed)
+                                    return new StatusEntry() { Code = StatusCode.Obstructed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+                                return new StatusEntry() { Code = StatusCode.Modified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+                            }
+                            else
+                            {
+                                if ((objectFlags & StageFlags.Removed) != 0)
+                                    return new StatusEntry() { Code = StatusCode.Removed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = true };
+                                if (((objectFlags & StageFlags.Recorded) != 0))
+                                    Printer.PrintWarning("Unchanged object `{0}` still marked as recorded in commit!", x.CanonicalName);
+                                return new StatusEntry() { Code = StatusCode.Unchanged, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Recorded) != 0) };
+                            }
+                        }
+                        else
+                        {
+                            if ((objectFlags & StageFlags.Removed) != 0)
+                                return new StatusEntry() { Code = StatusCode.Deleted, FilesystemEntry = null, VersionControlRecord = x, Staged = true };
+
+                            string parentName = x.CanonicalName;
+                            bool resolved = false;
+                            while (true)
+                            {
+                                if (!parentName.Contains('/'))
+                                    break;
+                                if (parentName[parentName.Length - 1] == '/')
+                                    parentName = parentName.Substring(0, parentName.Length - 1);
+                                parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
+                                bool ignoredInParentList = false;
+                                lock (parentIgnoredList)
+                                {
+                                    if (parentIgnoredList.TryGetValue(parentName, out ignoredInParentList))
+                                    {
+                                        if (ignoredInParentList)
+                                            resolved = true;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        Entry parentObjectEntry = null;
+                                        snapshotData.TryGetValue(parentName, out parentObjectEntry);
+                                        if (parentObjectEntry != null && parentObjectEntry.Ignored == true)
+                                        {
+                                            parentIgnoredList[parentName] = true;
+                                            resolved = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (resolved || (snapshotRecord != null && snapshotRecord.Ignored))
+                            {
+                                if ((objectFlags & StageFlags.Removed) != 0)
+                                    return new StatusEntry() { Code = StatusCode.Removed, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) };
+                                else if ((objectFlags & StageFlags.Recorded) != 0 && (objectFlags & StageFlags.CleanMergeInfo) == StageFlags.MergeInfo)
+                                    return new StatusEntry() { Code = StatusCode.IgnoredModified, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = true };
+                                else
+                                    return new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = snapshotRecord, VersionControlRecord = x, Staged = ((objectFlags & StageFlags.Conflicted) != 0) || ((objectFlags & StageFlags.MergeInfo) != 0) };
+                            }
+                            else
+                                return new StatusEntry() { Code = StatusCode.Missing, FilesystemEntry = null, VersionControlRecord = x, Staged = false };
+                        }
+                    }));
+                }
+                Task.WaitAll(tasks.ToArray());
+                Printer.PrintDiagnostics("Status record checking: {0}", sw.ElapsedTicks);
+                sw.Restart();
+            }
+            finally
+            {
+                if (UpdatedFileTimeCount > 0 && updateFileTimes)
+                    Workspace.ReplaceFileTimes();
+            }
+            foreach (var x in pendingEntries.ToArray())
+                foundEntries.Add(x);
+            Printer.PrintDiagnostics("Status update file times: {0}", sw.ElapsedTicks);
+            sw.Restart();
+
+            Map = new Dictionary<string, StatusEntry>();
+            foreach (var x in tasks)
+            {
+                if (x == null)
+                    continue;
+
+                Elements.Add(x.Result);
+                if (x.Result.VersionControlRecord != null)
+                    statusMap[x.Result.VersionControlRecord] = x.Result;
+                Map[x.Result.CanonicalName] = x.Result;
+            }
+            tasks.Clear();
+            Dictionary<long, Dictionary<string, Record>> recordSizeMap = new Dictionary<long, Dictionary<string, Record>>();
+            if (findCopies)
+            {
+                foreach (var x in records)
+                {
+                    if (x.Size == 0 || !x.IsFile)
+                        continue;
+                    Dictionary<string, Record> hashes = null;
+                    if (!recordSizeMap.TryGetValue(x.Size, out hashes))
+                    {
+                        hashes = new Dictionary<string, Record>();
+                        recordSizeMap[x.Size] = hashes;
+                    }
+                    hashes[x.Fingerprint] = x;
+                }
+                Printer.PrintDiagnostics("Status create size map: {0}", sw.ElapsedTicks);
+                sw.Restart();
+            }
+            List<StatusEntry> pendingRenames = new List<StatusEntry>();
+            foreach (var x in snapshotData)
+            {
+                if (x.Value.IsDirectory)
+                    Directories++;
+                else
+                    Files++;
+                if (x.Value.Ignored)
+                {
+                    if (x.Value.IsDirectory)
+                    {
+                        if (!Map.ContainsKey(x.Value.CanonicalName))
+                        {
+                            var entry = new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+
+                            Elements.Add(entry);
+                            Map[entry.CanonicalName] = entry;
+                        }
+                    }
+                    else
+                    {
+                        StatusEntry se;
+                        if (Map.TryGetValue(x.Value.CanonicalName, out se))
+                        {
+                            se.Code = se.Code == StatusCode.IgnoredModified ? StatusCode.IgnoredModified : (se.Code == StatusCode.Deleted ? StatusCode.Removed : StatusCode.Ignored);
+                            se.FilesystemEntry = x.Value;
+                        }
+                        else
+                        {
+                            StageFlags flags;
+                            if (stageInformation.TryGetValue(x.Value.CanonicalName, out flags))
+                            {
+                                if ((flags & StageFlags.MergeInfo) != 0)
+                                {
+                                    var remoteRecord = workspace.GetRecord(stage.Where(y => y.Type == LocalState.StageOperationType.MergeRecord && y.Operand1 == x.Value.CanonicalName).First().ReferenceObject);
+                                    var entry = new StatusEntry() { Code = StatusCode.IgnoredAdded, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = remoteRecord };
+
+                                    Elements.Add(entry);
+                                    Map[entry.CanonicalName] = entry;
+                                }
+                            }
+                        }
+                    }
+                    IgnoredObjects++;
+                    continue;
+                }
+                if (x.Key == RestrictedPath && x.Key == workspace.PartialPath)
+                    continue;
+
+                StageFlags objectFlags;
+                stageInformation.TryGetValue(x.Value.CanonicalName, out objectFlags);
+                if (!foundEntries.Contains(x.Value))
+                {
+                    tasks.Add(Workspace.GetTaskFactory().StartNew<StatusEntry>(() =>
+                    {
+                        Record possibleRename = null;
+                        Dictionary<string, Record> hashes = null;
+                        if (findCopies)
+                        {
+                            lock (recordSizeMap)
+                                recordSizeMap.TryGetValue(x.Value.Length, out hashes);
+                        }
+                        string possibleCaseRename = null;
+                        if (caseInsensitiveNames.TryGetValue(x.Key.ToLowerInvariant(), out possibleCaseRename))
+                        {
+                            StatusEntry otherEntry = null;
+                            if (Map.TryGetValue(possibleCaseRename, out otherEntry))
+                            {
+                                if (otherEntry.Code == StatusCode.Missing || otherEntry.Code == StatusCode.Deleted)
+                                {
+                                    otherEntry.Code = StatusCode.Excluded;
+                                    return new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = otherEntry.VersionControlRecord };
+                                }
+                            }
+                        }
+                        if (hashes != null)
+                        {
+                            try
+                            {
+                                Printer.PrintDiagnostics("Hashing unversioned file: {0}", x.Key);
+                                hashes.TryGetValue(x.Value.Hash, out possibleRename);
+                            }
+                            catch
+                            {
+                                return new StatusEntry() { Code = StatusCode.Obstructed, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = possibleRename };
+                            }
+                        }
+                        if (possibleRename != null)
+                        {
+                            StageFlags otherFlags;
+                            stageInformation.TryGetValue(possibleRename.CanonicalName, out otherFlags);
+                            if ((otherFlags & StageFlags.Removed) != 0)
+                            {
+                                lock (pendingRenames)
+                                    pendingRenames.Add(new StatusEntry() { Code = StatusCode.Renamed, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = possibleRename });
+                                return null;
+                            }
+                            else
+                            {
+                                if (((objectFlags & StageFlags.Recorded) != 0))
+                                {
+                                    return new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = possibleRename };
+                                }
+                                else
+                                {
+                                    return new StatusEntry() { Code = StatusCode.Copied, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = possibleRename };
+                                }
+                            }
+                        }
+                        if (((objectFlags & StageFlags.Recorded) != 0))
+                        {
+                            return new StatusEntry() { Code = StatusCode.Added, FilesystemEntry = x.Value, Staged = true, VersionControlRecord = null };
+                        }
+                        if ((objectFlags & StageFlags.Conflicted) != 0)
+                        {
+                            return new StatusEntry() { Code = StatusCode.Conflict, FilesystemEntry = x.Value, Staged = ((objectFlags & StageFlags.Recorded) != 0), VersionControlRecord = null };
+                        }
+                        if (x.Value.IsVersionrRoot)
+                        {
+                            return new StatusEntry() { Code = StatusCode.RogueRepository, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+                        }
+                        return new StatusEntry() { Code = StatusCode.Unversioned, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+                    }));
+                }
+            }
+            Task.WaitAll(tasks.ToArray());
+            foreach (var x in tasks)
+            {
+                if (x.Result != null)
+                {
+                    Elements.Add(x.Result);
+                    Map[x.Result.CanonicalName] = x.Result;
+                }
+            }
+            Dictionary<Record, bool> allowedRenames = new Dictionary<Record, bool>();
+            foreach (var x in pendingRenames)
+            {
+                if (allowedRenames.ContainsKey(x.VersionControlRecord))
+                    allowedRenames[x.VersionControlRecord] = false;
+                else
+                    allowedRenames[x.VersionControlRecord] = true;
+            }
+            foreach (var x in pendingRenames)
+            {
+                if (allowedRenames[x.VersionControlRecord])
+                {
+                    Elements.Add(x);
+                    statusMap[x.VersionControlRecord].Code = StatusCode.Excluded;
+                }
+                else
+                {
+                    x.Code = StatusCode.Copied;
+                    Elements.Add(x);
+                }
+                Map[x.CanonicalName] = x;
+            }
+
+            pct.EndEvent.Set();
+            progressLog.Wait();
+        }
+
+        private void MapFileTrees(Dictionary<string, FileTreeEntry> snapshotData, FileTreeEntry fe)
+        {
+            snapshotData[fe.Object.CanonicalName] = fe;
+            foreach (var x in fe.Contents)
+                MapFileTrees(snapshotData, x);
+        }
+#endif
         internal Status(Area workspace, WorkspaceDB db, LocalDB ldb, FileStatus currentSnapshot, string restrictedPath = null, bool updateFileTimes = true, bool findCopies = true)
         {
             if (!string.IsNullOrEmpty(restrictedPath) && !restrictedPath.EndsWith("/"))
