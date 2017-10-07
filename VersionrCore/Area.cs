@@ -37,7 +37,19 @@ namespace Versionr
 
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
-        public Directives Directives { get; set; }
+
+        private Directives m_Directives;
+        public Directives Directives
+        {
+            get
+            {
+                if (m_Directives == null)
+                    m_Directives = LoadDirectives();
+                return m_Directives;
+            }
+            set { m_Directives = value; }
+        }
+        
         public DateTime ReferenceTime { get; set; }
 
         public Hooks.HookProcessor HookProcessor { get; set; } = new Hooks.HookProcessor(null);
@@ -4333,25 +4345,27 @@ namespace Versionr
             return Database.GetMergeInfo(iD);
         }
 
-        public void LoadDirectives()
+        public Directives LoadDirectives()
         {
             string error;
             
             // Load .vrmeta
             Directives directives = DirectivesUtils.LoadVRMeta(this, out error);
-            Directives = (directives != null) ? directives : new Directives();
+            Directives mergedDirectives = (directives != null) ? directives : new Directives();
             
             // Load global .vruser
             directives = DirectivesUtils.LoadGlobalVRUser(out error);
             if (directives != null)
-                Directives.Merge(directives);
+                mergedDirectives.Merge(directives);
             
             // Load .vruser
             directives = DirectivesUtils.LoadVRUser(this, out error);
             if (directives != null)
-                Directives.Merge(directives);
+                mergedDirectives.Merge(directives);
 
-            HookProcessor = new Hooks.HookProcessor(Directives.Hooks);
+            HookProcessor = new Hooks.HookProcessor(mergedDirectives.Hooks);
+
+            return mergedDirectives;
         }
 
         private bool Load(bool headless = false)
@@ -4378,9 +4392,9 @@ namespace Versionr
                 
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
-                if (!headless)
-                    LoadDirectives();
-                
+                // Reset directives - they will be reloaded when needed
+                Directives = null;
+
                 ObjectStore = new ObjectStore.StandardObjectStore();
                 if (!ObjectStore.Open(this))
                     return false;
@@ -5370,7 +5384,7 @@ namespace Versionr
                 }
 
                 if (x.IsDirective)
-                    LoadDirectives();
+                    Directives = null;
             }
 #if MERGE_DIAGNOSTICS
             Printer.PrintDiagnostics(" > Merge phase 2, checking parent data.");
@@ -6806,7 +6820,7 @@ namespace Versionr
                     {
                         System.Threading.Interlocked.Increment(ref count);
                         RestoreRecord(x, newRefTime, null, null, feedback);
-                        LoadDirectives();
+                        Directives = null;
                     }
                     else
                     {
