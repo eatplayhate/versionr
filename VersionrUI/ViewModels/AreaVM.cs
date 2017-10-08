@@ -47,7 +47,6 @@ namespace VersionrUI.ViewModels
             RefreshCommand = new DelegateCommand(() => Load(RefreshAll));
             SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
-
             _name = name;
         }
 
@@ -267,15 +266,24 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private static object refreshBranchesLock = new object();
+        private static readonly object refreshBranchesLock = new object();
         public void RefreshBranches()
         {
             if (_area != null)
             {
                 lock (refreshBranchesLock)
                 {
-                    _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent).ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
+                    _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent)
+                        .ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
 
+                    /*
+                     *  By default WPF compares SelectedItem to each item in the ItemsSource by reference, 
+                     *  meaning that unless the SelectedItem points to the same item in memory as the ItemsSource item, 
+                     *  it will decide that the item doesn’t exist in the ItemsSource and so no item gets selected.
+                     *  The next line is a workaround for that
+                     */
+                    SelectedBranch = _branches.FirstOrDefault(x => SelectedBranch?.Name == x.Name);
+                    
                     NotifyPropertyChanged("Branches");
 
                     // Make sure something is displayed
@@ -285,7 +293,7 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private static object refreshRemotesLock = new object();
+        private static readonly object refreshRemotesLock = new object();
         public void RefreshRemotes()
         {
             if (_area != null)
@@ -299,10 +307,10 @@ namespace VersionrUI.ViewModels
                     foreach (RemoteConfig remote in remotes)
                         _remotes.Add(remote);
 
-                    NotifyPropertyChanged("Remotes");
-
                     if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
                         SelectedRemote = _remotes.FirstOrDefault();
+
+                    NotifyPropertyChanged("Remotes");
                 }
             }
         }

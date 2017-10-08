@@ -1568,13 +1568,16 @@ namespace Versionr.Network
                     catch (Exception)
                     { }
                 }
-                Printer.PrintDiagnostics("Sending branch head pack...");
+                Printer.PrintDiagnostics("Sending branch head pack ({0} heads)...", heads.Count);
                 command.Heads = heads.ToArray();
-                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SendBranchHeads }, ProtoBuf.PrefixStyle.Fixed32);
-                Utilities.SendEncrypted(sharedInfo, command);
-                NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                if (response.Type != NetCommandType.Acknowledge)
-                    return false;
+                if (heads.Count > 0)
+                {
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.SendBranchHeads }, ProtoBuf.PrefixStyle.Fixed32);
+                    Utilities.SendEncrypted(sharedInfo, command);
+                    NetCommand response = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                    if (response.Type != NetCommandType.Acknowledge)
+                        return false;
+                }
                 return true;
             }
             catch

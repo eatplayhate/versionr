@@ -104,6 +104,13 @@ namespace Versionr.ObjectStore
         {
             get
             {
+                if (!string.IsNullOrEmpty(Owner.Directives.ObjectStorePath))
+                {
+                    var path = new DirectoryInfo(Owner.Directives.ObjectStorePath);
+                    if (path.Exists)
+                        return path;
+                    return new DirectoryInfo(Path.Combine(Owner.RootDirectory.FullName, Owner.Directives.ObjectStorePath));
+                }
                 return new DirectoryInfo(Path.Combine(Owner.AdministrationFolder.FullName, "objects"));
             }
         }

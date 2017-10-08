@@ -101,6 +101,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Label Grid.Column="0" Margin="4" Content="Limit:" />
@@ -113,6 +114,7 @@
                 <TextBox Grid.Column="3" Margin="4" Text="{Binding Author, UpdateSourceTrigger=PropertyChanged, Delay=500}" Width="150" />
                 <Label Grid.Column="4" Margin="4" Content="Path Filter:" />
                 <TextBox Grid.Column="5" Margin="4" Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged, Delay=500}" HorizontalAlignment="Stretch" />
+                <CheckBox Grid.Column="6" Margin="4" Content="Apply to Results" IsChecked="{Binding ApplyFilterToResults}"/>
             </Grid>
             <ListView Grid.Row="1"
                       Name="listView"

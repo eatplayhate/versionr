@@ -210,8 +210,13 @@ namespace Versionr
     {
         [DllImport("VersionrCore.Posix")]
         public static unsafe extern int getfullpath(string rootdir, byte* data, int dataLength);
-        
+
+        [DllImport("shlwapi.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool PathIsNetworkPath(string pszPath);
+
         private static Func<string, string> GetPathCorrectCase = null;
+        private static bool? NetworkSafeMode = null;
 
         public static string GetFullPathNative(FileSystemInfo info)
         {
@@ -236,6 +241,10 @@ namespace Versionr
                     var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
                     GetPathCorrectCase = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithCorrectCase").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
                 }
+                if (!NetworkSafeMode.HasValue)
+                    NetworkSafeMode = PathIsNetworkPath(info.FullName);
+                if (NetworkSafeMode == true)
+                    return null;
                 return GetPathCorrectCase(info.FullName);
             }
             return null;
