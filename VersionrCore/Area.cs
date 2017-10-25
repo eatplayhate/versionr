@@ -34,7 +34,7 @@ namespace Versionr
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
         public DirectoryInfo RootDirectory { get; private set; }
-
+        public bool IsServer { get; private set; } = false;
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
 
@@ -49,7 +49,17 @@ namespace Versionr
             }
             set { m_Directives = value; }
         }
-        
+
+        public void InitializeServer(bool doInitialSetup)
+        {
+            if (doInitialSetup)
+            {
+                GetStashList();
+                Printer.PrintDiagnostics("Server module init: {0}, {1}", AdministrationFolder.FullName, Domain);
+            }
+            IsServer = true;
+        }
+
         public DateTime ReferenceTime { get; set; }
 
         public Hooks.HookProcessor HookProcessor { get; set; } = new Hooks.HookProcessor(null);
@@ -422,24 +432,49 @@ namespace Versionr
 
         public List<StashInfo> ListStashes()
         {
+            return ListStashes(null);
+        }
+
+        public List<StashInfo> ListStashes(List<string> filterNames)
+        {
+            List<StashInfo> stashes = GetStashList();
+            IEnumerable<StashInfo> infos = stashes;
+            if (filterNames != null && filterNames.Count > 0)
+            {
+                HashSet<StashInfo> resultSet = new HashSet<StashInfo>();
+                foreach (var x in filterNames)
+                {
+                    foreach (var item in FindStashByName(stashes, x))
+                        resultSet.Add(item);
+                }
+                infos = resultSet.ToList();
+            }
+            return stashes.OrderByDescending(x => x.Time).ToList();
+        }
+
+        private List<StashInfo> GetStashList()
+        {
             DirectoryInfo stashDir = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "Stashes"));
+            string stashFolderFullName = stashDir.FullName;
             stashDir.Create();
+
             List<StashInfo> stashes = new List<StashInfo>();
             HashSet<string> guids = new HashSet<string>();
+
             foreach (var x in LocalData.Table<LocalState.SavedStash>().ToList())
             {
                 string fname = x.GUID + ".stash";
                 StashInfo info = new StashInfo()
                 {
                     Author = x.Author,
-                    File = new FileInfo(Path.Combine(stashDir.FullName, fname)),
+                    File = new FileInfo(Path.Combine(stashFolderFullName, fname)),
                     Key = x.StashCode,
                     GUID = x.GUID,
                     Name = x.Name,
                     Time = x.Timestamp,
                     LocalDBIndex = x.Id
                 };
-                if (info.File.Exists)
+                if (IsServer || info.File.Exists)
                 {
                     guids.Add(fname);
                     stashes.Add(info);
@@ -447,28 +482,31 @@ namespace Versionr
                 else
                     LocalData.Delete(x);
             }
-            foreach (var x in stashDir.GetFiles())
+
+            if (!IsServer)
             {
-                if (x.Extension == ".stash")
+                foreach (var x in stashDir.GetFiles())
                 {
-                    if (!guids.Contains(x.Name))
+                    if (x.Extension == ".stash")
                     {
-                        StashInfo stashInfo = StashInfo.FromFile(x.FullName);
-                        if (stashInfo != null)
+                        if (!guids.Contains(x.Name))
                         {
-                            stashes.Add(stashInfo);
-                            LocalData.RecordStash(stashInfo);
+                            StashInfo stashInfo = StashInfo.FromFile(x.FullName);
+                            if (stashInfo != null)
+                            {
+                                stashes.Add(stashInfo);
+                                LocalData.RecordStash(stashInfo);
+                            }
                         }
                     }
                 }
             }
-            return stashes.OrderByDescending(x => x.Time).ToList();
+            return stashes;
         }
 
-        public List<StashInfo> FindStash(string name)
+        internal List<StashInfo> FindStashByName(List<StashInfo> stashes, string name)
         {
             List<StashInfo> results = new List<StashInfo>();
-            var stashes = ListStashes();
             foreach (var x in stashes)
             {
                 if (string.Compare(name, (x.Author + "-" + x.Key), true) == 0
@@ -500,6 +538,11 @@ namespace Versionr
                 }
             }
             return results;
+        }
+
+        public List<StashInfo> FindStash(string name)
+        {
+            return FindStashByName(ListStashes(), name);
         }
 
         internal string GenerateTempPath()

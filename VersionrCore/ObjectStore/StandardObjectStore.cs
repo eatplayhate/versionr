@@ -104,7 +104,7 @@ namespace Versionr.ObjectStore
         {
             get
             {
-                if (!string.IsNullOrEmpty(Owner.Directives.ObjectStorePath))
+                if (!string.IsNullOrEmpty(Owner?.Directives?.ObjectStorePath))
                 {
                     var path = new DirectoryInfo(Owner.Directives.ObjectStorePath);
                     if (path.Exists)

@@ -62,6 +62,8 @@ namespace Versionr.Network
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
             }
+            else
+                ws.InitializeServer(true);
             Config = new ServerConfig();
             if (!string.IsNullOrEmpty(configFile))
             {
@@ -247,6 +249,7 @@ namespace Versionr.Network
                             try
                             {
                                 dm = Area.Load(domInfo, true, true);
+                                dm.InitializeServer(true);
                             }
                             catch
                             {
@@ -266,6 +269,7 @@ namespace Versionr.Network
                     {
                         using (Area a = Area.Load(BaseDirectory))
                         {
+                            a.InitializeServer(true);
                             Domains[string.Empty] = new DomainInfo() { Bare = a == null, Directory = BaseDirectory, Domain = a.Domain };
                             Printer.PrintMessage("<root> {0} ({1})", BaseDirectory, a == null ? "bare" : a.Domain.ToString());
                         }
@@ -397,6 +401,8 @@ namespace Versionr.Network
 
                         clientInfo.SharedInfo = sharedInfo;
 
+                        ws.InitializeServer(false);
+
                         using (ws)
                         {
                             RunServerConnection(ws, domainInfo, clientInfo, info, hs.RequestedModule);
@@ -497,6 +503,8 @@ namespace Versionr.Network
                         domainInfo.Bare = false;
                         if (fresh)
                             Domains[requestedModuleName] = domainInfo;
+
+                        ws.InitializeServer(true);
                     }
                 }
                 else if (command.Type == NetCommandType.PushBranchJournal)
@@ -524,6 +532,17 @@ namespace Versionr.Network
                     {
                         ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Error, AdditionalPayload = "multiple branches with that name!" }, ProtoBuf.PrefixStyle.Fixed32);
                     }
+                }
+                else if (command.Type == NetCommandType.ListStashes)
+                {
+                    if (!clientInfo.Access.HasFlag(Rights.Read))
+                        throw new Exception("Access denied.");
+                    Printer.PrintDiagnostics("Client is requesting stash list...");
+                    ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(stream, new NetCommand() { Type = NetCommandType.Acknowledge }, ProtoBuf.PrefixStyle.Fixed32);
+
+                    Network.StashQuery query = Utilities.ReceiveEncrypted<StashQuery>(clientInfo.SharedInfo);
+                    var results = clientInfo.SharedInfo.Workspace.ListStashes(query.FilterNames);
+                    Utilities.SendEncrypted(clientInfo.SharedInfo, new StashQueryResults() { Results = results });
                 }
                 else if (command.Type == NetCommandType.ListBranches)
                 {
