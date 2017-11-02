@@ -949,13 +949,20 @@ namespace Versionr.Network
             }
         }
 
+        private static bool HasMergeVersion(List<VersionInfo> versions, Guid guid, out Network.VersionInfo dest)
+        {
+            dest = versions.Find(a => a.Version.ID == guid);
+            return dest != null;
+        }
+
         private static bool RaisePushHeadEvents(ClientStateInfo clientInfo, Area ws)
         {
             bool accept = true;
             foreach (var x in clientInfo.UpdatedHeads)
             {
                 Network.VersionInfo newHeadInfo;
-                if (clientInfo.ReceivedVersionMap.TryGetValue(x.Value.Version, out newHeadInfo))
+                //.Contains<Network.VersionInfo>(x.Value.Id, (a,b) => a == b)
+                if (clientInfo.ReceivedVersionMap.TryGetValue(x.Value.Version, out newHeadInfo) || HasMergeVersion(clientInfo.MergeVersions, x.Value.Version, out newHeadInfo))
                 {
                     var newHead = newHeadInfo.Version;
                     var oldHead = ws.GetBranchHeads(ws.GetBranch(x.Key)).FirstOrDefault();
