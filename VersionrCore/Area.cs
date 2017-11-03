@@ -903,7 +903,7 @@ namespace Versionr
                                 if (enableStaging)
                                 {
                                     FileInfo resultInfo = new FileInfo(rpath);
-                                    if (resultInfo.Length != ws.VersionControlRecord.Size || Entry.CheckHash(resultInfo) != ws.Hash)
+                                    if (ws.VersionControlRecord == null || resultInfo.Length != ws.VersionControlRecord.Size || Entry.CheckHash(resultInfo) != ws.Hash)
                                         LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                 }
                             }
