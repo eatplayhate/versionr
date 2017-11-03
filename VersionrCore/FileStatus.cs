@@ -129,10 +129,7 @@ namespace Versionr
 			}
 		}
 
-        public bool IsVersionrRoot
-        {
-            get { return IsDirectory && DirectoryInfo.GetDirectories().Where(x => x.Name == ".versionr").Count() > 0; }
-        }
+        public bool IsVersionrRoot { get; set; } = false;
 
         public bool Ignored { get; private set; }
 
@@ -669,6 +666,10 @@ namespace Versionr
 
         private static void ProcessListFast(FSScan scan, Area area, List<FlatFSEntry> results, string rootFolder, System.Threading.CountdownEvent ce, System.Collections.Concurrent.ConcurrentBag<Entry> e2, int start, int end, Entry parentEntry = null, bool ignoreFiles = false)
         {
+            int rflen = rootFolder.Length;
+            if (rootFolder[rflen - 2] == ':')
+                rflen--;
+            rflen++;
             for (int i = start; i < end; i++)
             {
                 var r = results[i];
@@ -677,12 +678,18 @@ namespace Versionr
                     bool ignoreDirectory = false;
                     bool ignoreContents = false;
                     bool hide = false;
-                    string slashedSubdirectory = r.FullName.Substring(rootFolder.Length + 1);
-                    if (parentEntry == null && slashedSubdirectory == ".versionr/")
+                    string slashedSubdirectory = r.FullName.Substring(rflen);
+
+                    if (slashedSubdirectory == ".versionr/")
                     {
-                        if (r.ChildCount != 0)
-                            throw new Exception();
-                        continue;
+                        if (parentEntry == null)
+                        {
+                            if (r.ChildCount != 0)
+                                throw new Exception();
+                            continue;
+                        }
+                        else
+                            parentEntry.IsVersionrRoot = true;
                     }
 
                     CheckDirectoryIgnores(area, slashedSubdirectory, ref ignoreDirectory, ref ignoreContents, ref hide);
@@ -704,7 +711,7 @@ namespace Versionr
                             if (results[x].Length != -1)
                             {
                                 var f = results[x];
-                                string fn = f.FullName.Substring(rootFolder.Length + 1);
+                                string fn = f.FullName.Substring(rflen);
 
                                 var ignoredFile = new Entry(area, parent, fn, f.FullName, f.FullName.Substring(parent.FullName.Length), f.FileTime, f.Length, true, (FileAttributes)f.Attributes);
                                 e2.Add(ignoredFile);
@@ -734,7 +741,7 @@ namespace Versionr
                 {
                     if (!ignoreFiles)
                     {
-                        string fn = r.FullName.Substring(rootFolder.Length + 1);
+                        string fn = r.FullName.Substring(rflen);
                         string fnI = fn.ToLowerInvariant();
                         bool ignored = CheckFileIgnores(area, fn, fnI, scan.FRIncludes, scan.FRIgnores, scan.ExtIncludes, scan.ExtIgnores);
                         e2.Add(new Entry(area, parentEntry, fn, r.FullName, parentEntry == null ? fn : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, r.Length, ignored, (FileAttributes)r.Attributes));
@@ -884,9 +891,12 @@ namespace Versionr
                     slashedSubdirectory += '/';
 
                 bool hide = false;
-                if (parentEntry == null && slashedSubdirectory == ".versionr/")
+                if (slashedSubdirectory == ".versionr/")
                 {
-                    return;
+                    if (parentEntry == null)
+                        return;
+                    else
+                        parentEntry.IsVersionrRoot = true;
                 }
 
                 CheckDirectoryIgnores(area, slashedSubdirectory, ref ignoreDirectory, ref ignoreContents, ref hide);
