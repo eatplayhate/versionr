@@ -152,6 +152,8 @@ namespace Versionr
                     Attributes = Attributes | Objects.Attributes.Symlink;
                     CanonicalName = CanonicalName.Substring(0, CanonicalName.Length - 1);
                 }
+                if (localName == ".versionr/" && parent != null)
+                    parent.IsVersionrRoot = true;
             }
             else if (Utilities.Symlink.ExistsForFile(FullName, CanonicalName))
             {
@@ -688,8 +690,6 @@ namespace Versionr
                                 throw new Exception();
                             continue;
                         }
-                        else
-                            parentEntry.IsVersionrRoot = true;
                     }
 
                     CheckDirectoryIgnores(area, slashedSubdirectory, ref ignoreDirectory, ref ignoreContents, ref hide);
