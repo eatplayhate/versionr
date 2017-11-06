@@ -3262,7 +3262,7 @@ namespace Versionr
                     LocalData.UpdateSafe(config);
                 }
 
-				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}", url);
+				Printer.PrintDiagnostics("Updating remote \"{0}\" to {1}", name, url);
                 LocalData.Commit();
 
                 return true;
