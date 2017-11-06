@@ -1559,7 +1559,7 @@ namespace Versionr.Network
                     return true;
                 Network.PushHeadIds command = new PushHeadIds();
                 List<PushHead> heads = new List<PushHead>();
-                foreach (var x in branchesToSend)
+                foreach (var x in branchesToSend.Where(b => !b.Terminus.HasValue))
                 {
                     try
                     {
