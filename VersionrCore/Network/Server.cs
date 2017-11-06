@@ -997,7 +997,7 @@ namespace Versionr.Network
                             }
                         }
                     }
-                    if (!Server.HookProcessor.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion,
+                    if (Server.HookProcessor != null && !Server.HookProcessor.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion,
                         associatedVersions)))
                     {
                         return false;
@@ -1147,7 +1147,7 @@ namespace Versionr.Network
                     {
                         if (head.Version != x.Version.ID)
                         {
-                            if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo))
+                            if (SharedNetwork.IsAncestor(head.Version, x.Version.ID, clientInfo.SharedInfo, headAncestry[head.Version]))
                             {
                                 headAncestry.Remove(head.Version);
                                 head.Version = x.Version.ID;

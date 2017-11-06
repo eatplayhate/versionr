@@ -2936,7 +2936,7 @@ namespace Versionr
                         // we only care about receiving exciting terminuses
                         if (sharedInfo != null)
                         {
-                            if (!SharedNetwork.IsAncestor(branch.Terminus.Value, targetID, sharedInfo))
+                            if (!SharedNetwork.IsAncestor(branch.Terminus.Value, targetID, sharedInfo, null))
                             {
                                 // we received an older ancestor, just return
                                 if (interactive)
@@ -2956,7 +2956,7 @@ namespace Versionr
                     {
                         if (sharedInfo != null)
                         {
-                            if (targetID != x.Version && SharedNetwork.IsAncestor(targetID, x.Version, sharedInfo))
+                            if (targetID != x.Version && SharedNetwork.IsAncestor(targetID, x.Version, sharedInfo, null))
                             {
                                 if (interactive)
                                 {

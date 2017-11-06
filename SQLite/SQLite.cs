@@ -1821,14 +1821,20 @@ namespace SQLite
 		}
 
 		~SQLiteConnection ()
-		{
-			Dispose (false);
+        {
+            lock (this)
+            {
+                Dispose(false);
+            }
 		}
 
 		public void Dispose ()
 		{
-			Dispose (true);
-			GC.SuppressFinalize (this);
+            lock (this)
+            {
+                Dispose(true);
+                GC.SuppressFinalize(this);
+            }
 		}
 
 		protected virtual void Dispose (bool disposing)
@@ -1847,6 +1853,7 @@ namespace SQLite
                     {
                         SQLite3.Finalize(x);
                     }
+                    _preparedStatementsTotal.Clear();
                     if (_mappings != null) {
 						foreach (var sqlInsertCommand in _mappings.Values) {
 							sqlInsertCommand.Dispose();
@@ -2263,10 +2270,17 @@ namespace SQLite
 		
 		protected internal void Dispose()
 		{
-			foreach (var pair in _insertCommandMap) {
-                ((PreparedSqlLiteInsertCommand)pair.Value).Dispose ();
-			}
-			_insertCommandMap = null;
+            lock (this)
+            {
+                if (_insertCommandMap != null)
+                {
+                    foreach (var pair in _insertCommandMap)
+                    {
+                        ((PreparedSqlLiteInsertCommand)pair.Value).Dispose();
+                    }
+                    _insertCommandMap = null;
+                }
+            }
 		}
 
 		public class Column
