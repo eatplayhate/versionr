@@ -948,7 +948,7 @@ namespace Versionr.Network
                             {
                                 for (int i = 0; i < heads.Count; i++)
                                 {
-                                    if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo, headAncestry[heads[i].Version]))
+                                    if (heads[i].Version == x.Version.ID || SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo, headAncestry[heads[i].Version]))
                                     {
                                         foundRelation = true;
                                         mergeResults[i] = x.Version.ID;
