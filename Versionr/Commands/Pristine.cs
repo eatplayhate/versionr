@@ -21,7 +21,7 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Removes all files which aren't part of the vault (skips directories which start with a '.')"
+                    "Removes all files which aren't part of the vault (skips directories which start with a '.' and \".vruser\" files)"
                 };
             }
         }
@@ -125,6 +125,10 @@ namespace Versionr.Commands
         {
             foreach (var x in rootDirectory.GetFiles())
             {
+                // Skip .vruser
+                if (x.Name == ".vruser")
+                    continue;
+
                 files.Add(x.FullName);
             }
             foreach (var x in rootDirectory.GetDirectories())
