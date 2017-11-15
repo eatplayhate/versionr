@@ -44,6 +44,8 @@ namespace Versionr.Commands
         public bool PullAll { get; set; }
         [Option('u', "update", DefaultValue = false, HelpText = "Update the local revision after pulling data.")]
         public bool Update { get; set; }
+        [Option('D', "accept-deletes", HelpText ="Accept all incoming branch-deletes without prompting, even if the branch has an updated terminus.")]
+        public bool AcceptDeletes { get; set; }
 
         public override BaseCommand GetCommand()
         {
@@ -116,7 +118,7 @@ namespace Versionr.Commands
                 return true;
             }
 
-            if (!client.Pull(localOptions.PullObjects.HasValue ? localOptions.PullObjects.Value : objects, localOptions.RemoteBranch, localOptions.PullAll))
+            if (!client.Pull(localOptions.PullObjects.HasValue ? localOptions.PullObjects.Value : objects, localOptions.RemoteBranch, localOptions.PullAll, localOptions.AcceptDeletes))
                 return false;
             if (localOptions.Update)
             {

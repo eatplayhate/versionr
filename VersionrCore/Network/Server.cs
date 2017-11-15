@@ -682,7 +682,7 @@ namespace Versionr.Network
                             try
                             {
                                 clientInfo.SharedInfo.Workspace.BeginDatabaseTransaction();
-                                if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false))
+                                if (!SharedNetwork.ImportBranchJournal(clientInfo.SharedInfo, false, false))
                                 {
                                     clientInfo.SharedInfo.Workspace.RollbackDatabaseTransaction();
                                     return false;
