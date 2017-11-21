@@ -28,6 +28,15 @@ namespace VersionrUI.Controls
         GridViewColumnHeader _lastHeaderClicked = null;
         ListSortDirection _lastDirection = ListSortDirection.Ascending;
 
+        private static Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
+        {
+            { 50, "50" },
+            { 100, "100" },
+            { 150, "150" },
+            { 200, "200" },
+            { -1, "All" },
+        };
+
         public VersionrPanel()
         {
             InitializeComponent();
@@ -86,6 +95,11 @@ namespace VersionrUI.Controls
 
                 return null;
             }
+        }
+
+        public Dictionary<int, string> RevisionLimitOptions
+        {
+            get { return _revisionLimitOptions; }
         }
 
         public void SetSelectedItem(object item)

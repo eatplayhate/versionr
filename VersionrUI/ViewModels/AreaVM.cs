@@ -37,6 +37,7 @@ namespace VersionrUI.ViewModels
         private List<BranchVM> _branches;
         private List<RemoteConfig> _remotes;
         private StatusVM _status;
+        private GraphVM _graph;
         public SettingsVM _settings;
         public NotifyPropertyChangedBase _selectedVM = null;
         public BranchVM _selectedBranch = null;
@@ -130,6 +131,7 @@ namespace VersionrUI.ViewModels
                     NotifyPropertyChanged("SelectedVM");
                     NotifyPropertyChanged("IsStatusSelected");
                     NotifyPropertyChanged("IsHistorySelected");
+                    NotifyPropertyChanged("IsGraphSelected");
                 }
             }
         }
@@ -182,6 +184,12 @@ namespace VersionrUI.ViewModels
             set { SelectedVM = SelectedBranch; }
         }
 
+        public bool IsGraphSelected
+        {
+            get { return SelectedVM == Graph; }
+            set { SelectedVM = Graph; }
+        }
+
         public List<RemoteConfig> Remotes
         {
             get
@@ -222,6 +230,16 @@ namespace VersionrUI.ViewModels
                 if (_status == null)
                     Load(RefreshStatus);
                 return _status;
+            }
+        }
+
+        public GraphVM Graph
+        {
+            get
+            {
+                if (_graph == null)
+                    Load(RefreshGraph);
+                return _graph;
             }
         }
 
@@ -283,12 +301,29 @@ namespace VersionrUI.ViewModels
                      *  The next line is a workaround for that
                      */
                     SelectedBranch = _branches.FirstOrDefault(x => SelectedBranch?.Name == x.Name);
-                    
+
                     NotifyPropertyChanged("Branches");
 
                     // Make sure something is displayed
                     if (SelectedBranch == null)
                         SelectedBranch = Branches.First();
+                }
+            }
+        }
+
+        private static readonly object refreshGraphLock = new object();
+        public void RefreshGraph()
+        {
+            if (_area != null)
+            {
+                lock (refreshGraphLock)
+                {
+                    _graph = new GraphVM(this);
+                    NotifyPropertyChanged(nameof(Graph));
+
+                    // Make sure something is displayed
+                    if (SelectedVM == null)
+                        SelectedVM = _graph;
                 }
             }
         }
