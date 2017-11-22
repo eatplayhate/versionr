@@ -147,7 +147,7 @@ namespace VersionrUI.ViewModels
 
                     if (IsHistorySelected)
                         SelectedVM = _selectedBranch;
-
+                    
                     NotifyPropertyChanged(nameof(SelectedBranch));
                 }
             }
@@ -358,6 +358,7 @@ namespace VersionrUI.ViewModels
             RefreshStatus();
             RefreshSettings();
             RefreshBranches();
+            RefreshGraph();
         }
 
         private void OpenInExplorer()
