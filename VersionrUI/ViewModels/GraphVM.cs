@@ -1,17 +1,11 @@
 ﻿using Graphviz4Net.Graphs;
 using Graphviz4Net.WPF;
-using Graphviz4Net.Dot;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Graphviz4Net.Dot.AntlrParser;
+using System.Diagnostics;
 using System.Windows.Media;
 using Versionr.Objects;
 using Version = Versionr.Objects.Version;
-using System.Windows;
-using System.Diagnostics;
 
 namespace VersionrUI.ViewModels
 {
@@ -71,7 +65,6 @@ namespace VersionrUI.ViewModels
             : base(link.FromVersion, link.ToVersion, new GraphArrow(link), new NullArrow(link))
         {
             Link = link;
-            // Label = link.BranchName;
         }
 
         public GraphLink Link { get; }
@@ -96,6 +89,22 @@ namespace VersionrUI.ViewModels
                 if (_graphLayout == null || _forceRefresh)
                     Load(Refresh);
                 return _graphLayout;
+            }
+        }
+
+        private bool _showMessages = true;
+        public bool ShowMessages
+        {
+            get { return _showMessages; }
+            set
+            {
+                if (_showMessages != value)
+                {
+                    _showMessages = value;
+                    _forceRefresh = true;
+                    NotifyPropertyChanged(nameof(ShowMessages));
+                    Load(Refresh);
+                }
             }
         }
 
@@ -128,7 +137,7 @@ namespace VersionrUI.ViewModels
                         UseContentPresenterForAllElements = true,
                         LogGraphvizOutput = true,
                         Engine = LayoutEngine.Dot,
-                        DotExecutablePath = @"C:\Program Files (x86)\Graphviz2.38\bin",
+                        //DotExecutablePath = @"C:\Program Files (x86)\Graphviz2.38\bin",
                         Focusable = false,
                         Graph = CreateDotGraph()
                     };
@@ -171,6 +180,8 @@ namespace VersionrUI.ViewModels
 
                 string nodeLabel = x.Object.ID.ToString().Substring(0, 8);
                 nodeLabel += string.Format("\n{0}", x.Object.Author);
+                if (ShowMessages)
+                    nodeLabel += string.Format("\n{0}", x.Object.Message);
                 var mappedHeads = _areaVM.Area.MapVersionToHeads(x.Object.ID);
                 if (mappedHeads.Count > 0)
                 {
