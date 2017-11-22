@@ -110,12 +110,12 @@ namespace VersionrUI.ViewModels
                         break;
                 }
                 RefreshAll();
-                NotifyPropertyChanged("Directory");
-                NotifyPropertyChanged("IsValid");
-                NotifyPropertyChanged("Remotes");
-                NotifyPropertyChanged("Status");
-                NotifyPropertyChanged("Settings");
-                NotifyPropertyChanged("Branches");
+                NotifyPropertyChanged(nameof(Directory));
+                NotifyPropertyChanged(nameof(IsValid));
+                NotifyPropertyChanged(nameof(Remotes));
+                NotifyPropertyChanged(nameof(Status));
+                NotifyPropertyChanged(nameof(Settings));
+                NotifyPropertyChanged(nameof(Branches));
                 MainWindow.Instance.Dispatcher.Invoke(afterInit, this, title, message);
             });
         }
@@ -128,10 +128,10 @@ namespace VersionrUI.ViewModels
                 if (_selectedVM != value)
                 {
                     _selectedVM = value;
-                    NotifyPropertyChanged("SelectedVM");
-                    NotifyPropertyChanged("IsStatusSelected");
-                    NotifyPropertyChanged("IsHistorySelected");
-                    NotifyPropertyChanged("IsGraphSelected");
+                    NotifyPropertyChanged(nameof(SelectedVM));
+                    NotifyPropertyChanged(nameof(IsStatusSelected));
+                    NotifyPropertyChanged(nameof(IsHistorySelected));
+                    NotifyPropertyChanged(nameof(IsGraphSelected));
                 }
             }
         }
@@ -148,7 +148,7 @@ namespace VersionrUI.ViewModels
                     if (IsHistorySelected)
                         SelectedVM = _selectedBranch;
 
-                    NotifyPropertyChanged("SelectedBranch");
+                    NotifyPropertyChanged(nameof(SelectedBranch));
                 }
             }
         }
@@ -167,7 +167,7 @@ namespace VersionrUI.ViewModels
                 if (_name != value)
                 {
                     _name = value;
-                    NotifyPropertyChanged("Name");
+                    NotifyPropertyChanged(nameof(Name));
                 }
             }
         }
@@ -208,7 +208,7 @@ namespace VersionrUI.ViewModels
                 if (_selectedRemote != value)
                 {
                     _selectedRemote = value;
-                    NotifyPropertyChanged("SelectedRemote");
+                    NotifyPropertyChanged(nameof(SelectedRemote));
                 }
             }
         }
@@ -263,7 +263,7 @@ namespace VersionrUI.ViewModels
                 else
                     _status.Refresh();
 
-                NotifyPropertyChanged("Status");
+                NotifyPropertyChanged(nameof(Status));
 
                 // Make sure something is displayed
                 if (SelectedVM == null)
@@ -279,7 +279,7 @@ namespace VersionrUI.ViewModels
                 lock (refreshSettingsLock)
                 {
                     _settings = new SettingsVM(_area);
-                    NotifyPropertyChanged("Settings");
+                    NotifyPropertyChanged(nameof(Settings));
                 }
             }
         }
@@ -302,7 +302,7 @@ namespace VersionrUI.ViewModels
                      */
                     SelectedBranch = _branches.FirstOrDefault(x => SelectedBranch?.Name == x.Name);
 
-                    NotifyPropertyChanged("Branches");
+                    NotifyPropertyChanged(nameof(Branches));
 
                     // Make sure something is displayed
                     if (SelectedBranch == null)
@@ -318,12 +318,14 @@ namespace VersionrUI.ViewModels
             {
                 lock (refreshGraphLock)
                 {
-                    _graph = new GraphVM(this);
-                    NotifyPropertyChanged(nameof(Graph));
+                    if(_graph == null)
+                        _graph = new GraphVM(this);
 
                     // Make sure something is displayed
                     if (SelectedVM == null)
                         SelectedVM = _graph;
+
+                    NotifyPropertyChanged(nameof(Graph));
                 }
             }
         }
@@ -345,7 +347,7 @@ namespace VersionrUI.ViewModels
                     if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
                         SelectedRemote = _remotes.FirstOrDefault();
 
-                    NotifyPropertyChanged("Remotes");
+                    NotifyPropertyChanged(nameof(Remotes));
                 }
             }
         }

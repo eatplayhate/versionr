@@ -48,12 +48,30 @@ namespace VersionrUI.ViewModels
         public bool IsMerge { get; }
     }
 
+    public class NullArrow : GraphArrow
+    {
+        public NullArrow(GraphLink link)
+         : base(link)
+        { }
+    }
+
+    public class GraphArrow
+    {
+        public GraphArrow(GraphLink link)
+        {
+            Link = link;
+        }
+
+        public GraphLink Link { get; }
+    }
+
     public class GraphEdge : Edge<GraphNode>
     {
         public GraphEdge(GraphLink link)
-            : base(link.FromVersion, link.ToVersion)
+            : base(link.FromVersion, link.ToVersion, new GraphArrow(link), new NullArrow(link))
         {
             Link = link;
+            // Label = link.BranchName;
         }
 
         public GraphLink Link { get; }
@@ -130,7 +148,6 @@ namespace VersionrUI.ViewModels
             
             int nextColourIndex = 0;
             Color[] colours = new Color[] { Colors.DarkOrange, Colors.Green, Colors.Blue, Colors.Cyan, Colors.Magenta, Colors.Red };
-            string[] linkColours = new string[] { "red2", "green3", "blue", "cyan4", "darkorange1", "magenta4" };
             Dictionary<Guid, Tuple<Color, Branch>> branchInfoMap = new Dictionary<Guid, Tuple<Color, Branch>>();
             
             foreach (var x in result.Objects)
@@ -152,17 +169,15 @@ namespace VersionrUI.ViewModels
 
                 Color nodeColor = branchInfo.Item1;
 
-                string name = x.Object.ID.ToString().Substring(0, 8);
-                name += string.Format("\n{0}", x.Object.Author);
+                string nodeLabel = x.Object.ID.ToString().Substring(0, 8);
+                nodeLabel += string.Format("\n{0}", x.Object.Author);
                 var mappedHeads = _areaVM.Area.MapVersionToHeads(x.Object.ID);
                 if (mappedHeads.Count > 0)
                 {
                     foreach (var y in mappedHeads)
-                        name += string.Format("\nHead of \"{0}\"", y.Name);
+                        nodeLabel += string.Format("\nHead of \"{0}\"", y.Name);
                 }
-
-                string nodeLabel = name;
-
+                
                 GraphNode node = new GraphNode(x.Object, nodeLabel, nodeColor);
                 definitions.Add(node);
                 if (x != null)
@@ -188,113 +203,16 @@ namespace VersionrUI.ViewModels
 
             links.ForEach(x =>
             {
-                //Dictionary<string, string> attribs = new Dictionary<string, string>();
-                //attribs["color"] = x.Color;
-                //attribs["fontcolor"] = x.Color;
-                //attribs["penwidth"] = "2";
-                //attribs["taillabel"] = $"\"{x.BranchName}\"";
-                //if (x.IsMerge)
-                //    attribs["style"] = "dotted";
-
                 GraphNode fromNode = definitions[x.FromVersionID];
                 x.FromVersion = fromNode;
                 Debug.Assert(fromNode != x.ToVersion);
                 Debug.Assert(fromNode != null);
                 Debug.Assert(x.ToVersion != null);
                 
-                GraphEdge edge = new GraphEdge(x); //, attributes: attribs);
+                GraphEdge edge = new GraphEdge(x);
                 graph.AddEdge(edge);
             });
             return graph;
-
-            // StringDotGraphBuilder gb = new StringDotGraphBuilder();
-            // definitions.ForEach(x => gb.AddVertex(x.Item1, x.Item2));
-            // links.ForEach(x => gb.AddEdge(x.Item1, x.Item2, x.Item3));
-            // return gb.DotGraph;
-        }
-
-        private IGraph CreateDotGraphBackup()
-        {
-            List<Tuple<string, Dictionary<string, string>>> definitions = new List<Tuple<string, Dictionary<string, string>>>();
-            List<Tuple<string, string, Dictionary<string, string>>> links = new List<Tuple<string, string, Dictionary<string, string>>>();
-
-            int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-            var result = _areaVM.Area.GetDAG(limit);
-
-            int index = 0;
-
-            int nextColourIndex = 0;
-            string[] colours = new string[] { "red2", "green3", "blue", "cyan4", "darkorange1", "magenta4" };
-            Dictionary<Guid, Tuple<string, string>> branchInfoMap = new Dictionary<Guid, Tuple<string, string>>();
-
-            foreach (var x in result.Objects)
-            {
-                string nodename = "node" + (index++).ToString();
-                Dictionary<string, string> nodeattribs = new Dictionary<string, string>();
-
-                Tuple<string, string> branchInfo;
-                if (!branchInfoMap.TryGetValue(x.Object.Branch, out branchInfo))
-                {
-                    string colour;
-                    if (x.Object.Parent == null)
-                        colour = "black";
-                    else
-                    {
-                        colour = colours[nextColourIndex];
-                        nextColourIndex = (nextColourIndex + 1) % colours.Length;
-                    }
-                    branchInfo = new Tuple<string, string>(colour, _areaVM.Area.GetBranch(x.Object.Branch).Name);
-                    branchInfoMap.Add(x.Object.Branch, branchInfo);
-                }
-                //nodeattribs += string.Format("color = {0};style = \"rounded,filled\";fontcolor = white;", branchInfo.Item1);
-                nodeattribs["color"] = branchInfo.Item1;
-                nodeattribs["style"] = "rounded";
-                nodeattribs["penwidth"] = "4";
-
-                string name = x.Object.ID.ToString().Substring(0, 8);
-                name += string.Format("\n{0}", x.Object.Author);
-                var mappedHeads = _areaVM.Area.MapVersionToHeads(x.Object.ID);
-                if (mappedHeads.Count > 0)
-                {
-                    foreach (var y in mappedHeads)
-                        name += string.Format("\nHead of \"{0}\"", y.Name);
-                }
-                else
-                    nodeattribs["shape"] = "box";
-
-                nodeattribs["label"] = $"\"{name}\"";
-
-                definitions.Add(new Tuple<string, Dictionary<string, string>>(nodename, nodeattribs));
-                if (x != null)
-                {
-                    foreach (var y in x.Links)
-                    {
-                        if (result.Lookup.ContainsKey(y.Source))
-                        {
-                            string sourceNode = "node" + result.Lookup[y.Source].Item2.ToString();
-                            Dictionary<string, string> attribs = new Dictionary<string, string>();
-                            attribs["color"] = branchInfo.Item1;
-                            attribs["fontcolor"] = branchInfo.Item1;
-                            attribs["penwidth"] = "2";
-                            attribs["taillabel"] = $"\"{branchInfo.Item2}\"";
-                            if (y.Merge)
-                                attribs["style"] = "dotted";
-
-                            links.Add(new Tuple<string, string, Dictionary<string, string>>(sourceNode, nodename, attribs));
-                        }
-                    }
-                }
-            }
-
-            Graph<string> graph = new Graph<string>();
-            definitions.ForEach(x => graph.AddVertex(x.Item1)); //, x.Item2));
-            links.ForEach(x => graph.AddEdge(new Edge<string>(x.Item1, x.Item2))); //, x.Item3));
-            return graph;
-
-            // StringDotGraphBuilder gb = new StringDotGraphBuilder();
-            // definitions.ForEach(x => gb.AddVertex(x.Item1, x.Item2));
-            // links.ForEach(x => gb.AddEdge(x.Item1, x.Item2, x.Item3));
-            // return gb.DotGraph;
         }
     }
 }

@@ -464,13 +464,8 @@
                                 </Border>
                             </DataTemplate>
 
-                            <!--<DataTemplate DataType="{x:Type vm:GraphEdge}">
-                                <Path Data="{Binding Data}" Stroke="White" StrokeThickness="1" ToolTip="{Binding Link.BranchName}"/>
-                            </DataTemplate>-->
-
                             <DataTemplate DataType="{x:Type gvvm:EdgeViewModel}">
-                                <Path Margin="5"
-                                      Data="{Binding Data}"
+                                <Path Data="{Binding Data}"
                                       Stroke="{Binding Edge.Link.Color, Converter={StaticResource colorToSolidBrushConverter}}"
                                       StrokeThickness="1"
                                       ToolTip="{Binding Edge.Link.BranchName}">
@@ -486,32 +481,19 @@
                                 </Path>
                             </DataTemplate>
 
-                            <DataTemplate DataType="{x:Type gvvm:EdgeLabelViewModel}">
-                                <TextBlock Margin="6"
-                                           Text="{Binding Label}"
-                                           TextAlignment="Center"
-                                           Foreground="Green" />
+                            <DataTemplate DataType="{x:Type vm:NullArrow}">
+                                <Line X1="0" Y1="0" X2="0" Y2="10"
+                                      Stroke="{Binding Link.Color, Converter={StaticResource colorToSolidBrushConverter}}"
+                                      StrokeThickness="1"
+                                      ToolTip="{Binding Link.BranchName}" />
                             </DataTemplate>
 
-                            <DataTemplate DataType="{x:Type gvvm:EdgeArrowLabelViewModel}">
-                                <TextBlock Margin="6"
-                                           Text="{Binding Label}"
-                                           TextAlignment="Center"
-                                           Foreground="Yellow" />
+                            <DataTemplate DataType="{x:Type vm:GraphArrow}">
+                                <Path Data="M 0,0 L 10,0 L 5,5 L 0,0"
+                                      Stroke="{Binding Link.Color, Converter={StaticResource colorToSolidBrushConverter}}"
+                                      StrokeThickness="1"
+                                      ToolTip="{Binding Link.BranchName}" />
                             </DataTemplate>
-
-                            <DataTemplate DataType="{x:Type gvvm:EdgeArrowViewModel}">
-                                <ContentPresenter Margin="6"
-                                           Content="{Binding Arrow}" />
-                            </DataTemplate>
-
-                            <DataTemplate DataType="{x:Type gvvm:BorderViewModel}">
-                                <TextBlock Margin="6"
-                                           Text="{Binding Label}"
-                                           TextAlignment="Center"
-                                           Foreground="Orange" />
-                            </DataTemplate>
-
                         </ContentPresenter.Resources>
                     </ContentPresenter>
                 </ScrollViewer>
