@@ -2882,6 +2882,108 @@ namespace Versionr
             }, true);
         }
 
+        public List<BranchMetadata> GetBranchMetadata(Branch branch)
+        {
+            return GetBranchMetadata(branch.ID);
+        }
+        public List<BranchMetadata> GetBranchMetadata(Guid branch)
+        {
+            List<BranchMetadata> result = new List<BranchMetadata>();
+            Objects.Branch b = GetBranch(branch);
+            while (b != null)
+            {
+                result.AddRange(GetSpecificBranchMetadata(b.ID));
+                if (b.Parent.HasValue)
+                    b = GetBranch(b.Parent.Value);
+                else
+                    break;
+            }
+            return result;
+        }
+        public List<BranchMetadata> GetSpecificBranchMetadata(Guid branch)
+        {
+            return Database.Table<BranchMetadata>().Where(x => x.Branch == branch).ToList();
+        }
+
+        public bool ChangeMetadataMergeRestriction(Branch branch, Branch other, bool allowmerges)
+        {
+            bool allowed = !IsMergeDisallowed(branch.ID, other.ID);
+            if (allowed && allowmerges)
+                return false;
+            if (!allowed && !allowmerges)
+                return false;
+            return UpdateBranchMetadata(branch, (allowmerges ? "allow-merge:" : "disallow-merge:") + other.ID.ToString());
+        }
+
+        public bool IsMergeDisallowed(Guid branch, Guid other)
+        {
+            long id;
+            return IsMergeDisallowed(branch, other, out id);
+        }
+
+        public List<Guid> GetDisallowedMergeInputs(Branch branch)
+        {
+            return GetBranchMetadata(branch).Where(x => x.Type == BranchMetaType.DisallowMerge).Select(x => new Guid(x.Operand1)).ToList();
+        }
+
+        private bool IsMergeDisallowed(Guid branch, Guid other, out long rid)
+        {
+            rid = -1;
+            var meta = GetBranchMetadata(branch).Where(x => x.Type == BranchMetaType.DisallowMerge && x.Operand1 == other.ToString()).FirstOrDefault();
+            if (meta != null)
+            {
+                rid = meta.Id;
+                return true;
+            }
+            return false;
+        }
+
+        public bool UpdateBranchMetadata(Branch branch, string operand)
+        {
+            return RunLocked(() =>
+            {
+                BranchJournal journal = GetBranchJournalTip();
+
+                BranchJournal change = new BranchJournal();
+                change.Branch = branch.ID;
+                change.ID = Guid.NewGuid();
+                change.Operand = operand;
+                change.Type = BranchAlterationType.ChangeMetadata;
+                var result = InsertBranchJournalChange(journal, change);
+                if (result)
+                    return ReplayBranchMetadataChange(change);
+                return result;
+            }, true);
+        }
+
+        public bool AllowMerge(Branch branch, Branch allowed)
+        {
+            return ChangeMetadataMergeRestriction(branch, allowed, true);
+        }
+
+        public bool DisallowMerge(Branch branch, Branch disallowed)
+        {
+            return ChangeMetadataMergeRestriction(branch, disallowed, false);
+        }
+
+        private bool ReplayBranchMetadataChange(BranchJournal change)
+        {
+            if (change.Operand.StartsWith("disallow-merge:"))
+            {
+                string otherBranchID = change.Operand.Substring("disallow-merge:".Length);
+                if (!IsMergeDisallowed(change.Branch, new Guid(otherBranchID)))
+                    Database.Insert(new BranchMetadata() { Branch = change.Branch, Operand1 = otherBranchID, Type = BranchMetaType.DisallowMerge });
+            }
+            if (change.Operand.StartsWith("allow-merge:"))
+            {
+                string otherBranchID = change.Operand.Substring("allow-merge:".Length);
+                long disallowMetaId;
+                if (IsMergeDisallowed(change.Branch, new Guid(otherBranchID), out disallowMetaId))
+                    Database.Delete<BranchMetadata>(disallowMetaId);
+            }
+            return true;
+        }
+
         internal bool ReplayBranchJournal(BranchJournal change, bool interactive, List<BranchJournal> conflicts, SharedNetwork.SharedNetworkInfo sharedInfo = null)
         {
             Objects.Branch branch = Database.Find<Objects.Branch>(change.Branch);
@@ -2895,6 +2997,10 @@ namespace Versionr
                 branch.Name = change.Operand;
                 Database.UpdateSafe(branch);
                 return true;
+            }
+            else if (change.Type == BranchAlterationType.ChangeMetadata)
+            {
+                return ReplayBranchMetadataChange(change);
             }
             else if (change.Type == BranchAlterationType.Terminate)
             {
@@ -4799,6 +4905,7 @@ namespace Versionr
             public bool Reintegrate { get; set; }
             public bool AllowRecursiveMerge { get; set; }
             public bool IgnoreAttribChanges { get; set; }
+            public bool OverrideDisallowedMerges { get; set; }
             public enum ResolutionSystem
             {
                 Normal,
@@ -4865,6 +4972,31 @@ namespace Versionr
                 var parents = GetCommonParents(null, mergeVersion, options.IgnoreMergeParents);
                 if (parents == null || parents.Count == 0)
                     throw new Exception("No common parent!");
+
+                if (!options.OverrideDisallowedMerges)
+                {
+                    var disallowed = GetDisallowedMergeInputs(CurrentBranch);
+                    var testParents = parents;
+                    if (options.IgnoreMergeParents)
+                        testParents = GetCommonParents(null, mergeVersion, false);
+                    if (disallowed.Count > 0)
+                    {
+                        HashSet<Guid> disallowedHashSet = new HashSet<Guid>();
+                        foreach (var x in disallowed)
+                            disallowedHashSet.Add(x);
+                        var incomingVersions = GetVersionsUpTo(mergeVersion, testParents);
+                        foreach (var x in incomingVersions)
+                        {
+                            if (disallowedHashSet.Contains(x.Branch))
+                            {
+                                Printer.PrintMessage("#e#Error:## Can't merge from version #b#{0}##", mergeVersion.ID);
+                                Printer.PrintMessage("Current branch #b#{0}## ({1}) has disallowed incoming merges from branch #b#{2}## ({3}).", CurrentBranch.Name, CurrentBranch.ShortID, GetBranch(x.Branch).Name, GetBranch(x.Branch).ShortID);
+                                Printer.PrintMessage("Incoming merge violates branch restrictions at version #b#{0}##.", x.ID);
+                                return;
+                            }
+                        }
+                    }
+                }
 
                 Objects.Version parent = null;
                 Printer.PrintMessage("Starting merge:");
@@ -5637,6 +5769,34 @@ namespace Versionr
             }
         }
 
+        private List<Objects.Version> GetVersionsUpTo(Objects.Version mergeVersion, List<KeyValuePair<Guid, int>> testParents)
+        {
+            HashSet<Guid> seenVersions = new HashSet<Guid>();
+            foreach (var x in testParents)
+                seenVersions.Add(x.Key);
+            seenVersions.Add(mergeVersion.ID);
+            List<Objects.Version> results = new List<Objects.Version>();
+            Stack<Objects.Version> openSet = new Stack<Objects.Version>();
+            openSet.Push(mergeVersion);
+            while (openSet.Count > 0)
+            {
+                var next = openSet.Pop();
+                results.Add(next);
+                if (!next.Parent.HasValue)
+                    continue;
+                Guid parent = next.Parent.Value;
+                if (!seenVersions.Add(parent))
+                    openSet.Push(GetVersion(parent));
+                var merges = GetMergeInfo(next.ID);
+                foreach (var x in merges)
+                {
+                    if (!seenVersions.Add(x.SourceVersion))
+                        openSet.Push(GetVersion(x.SourceVersion));
+                }
+            }
+            return results;
+        }
+
         private void RemoveFileTimeCache(string item2, bool updateDB = true)
         {
             FileTimeCache.Remove(item2);
@@ -5737,15 +5897,15 @@ namespace Versionr
                         }
                         else
                         {
-                            Printer.PrintMessage("Remote file #w#{0}## has been removed.", x.CanonicalName);
+                            Printer.PrintMessage("Remote file #w#{0}## has been modified and removed locally.", x.CanonicalName);
                             while (true)
                             {
-                                Printer.PrintMessage("This file has been modified on the other branch. Resolve by (k)eeping local or (d)eleting file?");
+                                Printer.PrintMessage("This file has been modified on the other branch. Resolve by (k)eeping modified or (d)eleting file?");
                                 Printer.PrintMessage("Specifiying (c) for conflict will abort the merge.");
                                 string resolution = System.Console.ReadLine();
                                 if (resolution.StartsWith("k"))
                                 {
-                                    var transientResult = new TransientMergeObject() { Record = localRecord, CanonicalName = localRecord.CanonicalName };
+                                    var transientResult = new TransientMergeObject() { Record = x, CanonicalName = x.CanonicalName };
                                     results.Add(transientResult);
                                     break;
                                 }
@@ -5756,7 +5916,7 @@ namespace Versionr
                                 }
                                 if (resolution.StartsWith("c"))
                                 {
-                                    Printer.PrintMessage("Tree conflicts cannot be recursively resolved.");
+                                    Printer.PrintMessage("Tree conflicts cannot be recursively resolved. Retry the merge in --simple mode.");
                                     throw new Exception();
                                 }
                             }
@@ -6360,7 +6520,7 @@ namespace Versionr
             }
 
             Objects.Version currentVer = Database.Version;
-            branch = Objects.Branch.Create(v, currentVer.ID, currentVer.Branch);
+            branch = Objects.Branch.Create(v, currentVer.ID, CurrentBranch.ID);
             Printer.PrintDiagnostics("Created new branch \"{0}\", ID: {1}.", v, branch.ID);
             var ws = LocalData.Workspace;
             ws.Branch = branch.ID;

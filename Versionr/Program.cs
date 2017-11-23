@@ -87,7 +87,9 @@ namespace Versionr
 		public Commands.UpdateVerbOptions UpdateVerb { get; set; }
 		[VerbOption("rename-branch", HelpText = "Rename a branch in the vault.")]
 		public Commands.RenameBranchVerbOptions RenameBranchVerb { get; set; }
-		[VerbOption("branch-list", HelpText = "Lists branches in the vault.")]
+        [VerbOption("branch-control", HelpText = "Modify branch control data.")]
+        public Commands.BranchControlVerbOptions BranchControlVerb { get; set; }
+        [VerbOption("branch-list", HelpText = "Lists branches in the vault.")]
 		public Commands.BranchListVerbOptions ListBranchVerb { get; set; }
 		[VerbOption("delete-branch", HelpText = "Deletes a branch in the vault.")]
 		public Commands.DeleteBranchVerbOptions DeleteBranchVerb { get; set; }
