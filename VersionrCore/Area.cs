@@ -4906,6 +4906,7 @@ namespace Versionr
             public bool AllowRecursiveMerge { get; set; }
             public bool IgnoreAttribChanges { get; set; }
             public bool OverrideDisallowedMerges { get; set; }
+            public Objects.Version ForceParentVersion { get; set; }
             public enum ResolutionSystem
             {
                 Normal,
@@ -4969,9 +4970,22 @@ namespace Versionr
                 if (possibleBranch == null && options.Reintegrate)
                     throw new Exception("Can't reintegrate when merging a version and not a branch.");
 
-                var parents = GetCommonParents(null, mergeVersion, options.IgnoreMergeParents);
-                if (parents == null || parents.Count == 0)
-                    throw new Exception("No common parent!");
+                List<KeyValuePair<Guid, int>> parents = null;
+                if (options.ForceParentVersion != null)
+                {
+                    if (!GetParentGraph(mergeVersion, false).ContainsKey(options.ForceParentVersion.ID))
+                        throw new Exception("Override parent is not a parent of remote version.");
+                    if (!GetParentGraph(Version, false).ContainsKey(options.ForceParentVersion.ID))
+                        throw new Exception("Override parent is not a parent of local version.");
+                    parents = new List<KeyValuePair<Guid, int>>();
+                    parents.Add(new KeyValuePair<Guid, int>(options.ForceParentVersion.ID, 0));
+                }
+                else
+                {
+                    parents = GetCommonParents(null, mergeVersion, options.IgnoreMergeParents);
+                    if (parents == null || parents.Count == 0)
+                        throw new Exception("No common parent!");
+                }
 
                 if (!options.OverrideDisallowedMerges)
                 {

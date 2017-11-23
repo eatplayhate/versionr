@@ -37,6 +37,13 @@ namespace Versionr.Commands
         [Option("ignore-attribs", HelpText = "Ignores attribute changes.")]
         public bool IgnoreAttribChanges { get; set; }
 
+        [Option("ignore-disallowed", HelpText = "Ignores disallow merge directives.")]
+        public bool IgnoreDisallowed { get; set; }
+
+        [Option("parent-version", HelpText = "Specifies a parent version to act as the base revision of the merge.")]
+        public string ParentVersion { get; set; }
+
+
         [ValueList(typeof(List<string>))]
         public IList<string> Target { get; set; }
         public override string Usage
@@ -73,13 +80,20 @@ namespace Versionr.Commands
             Area ws = Area.Load(workingDirectory);
             if (ws == null)
                 return false;
+            Objects.Version forceParent = null;
+            if (!string.IsNullOrEmpty(localOptions.ParentVersion))
+            {
+                forceParent = ws.GetPartialVersion(localOptions.ParentVersion);
+            }
             Area.MergeSpecialOptions opt = new Area.MergeSpecialOptions()
             {
                 AllowRecursiveMerge = !localOptions.Simple,
                 IgnoreMergeParents = localOptions.IgnoreMergeAncestry,
                 Reintegrate = localOptions.Reintegrate,
                 MetadataOnly = localOptions.Metadata,
+                OverrideDisallowedMerges = localOptions.IgnoreDisallowed,
                 IgnoreAttribChanges = localOptions.IgnoreAttribChanges,
+                ForceParentVersion = forceParent,
                 ResolutionStrategy = localOptions.Mine ? Area.MergeSpecialOptions.ResolutionSystem.Mine : (localOptions.Theirs ? Area.MergeSpecialOptions.ResolutionSystem.Theirs : Area.MergeSpecialOptions.ResolutionSystem.Normal)
             };
             if (localOptions.Target.Count == 0)
