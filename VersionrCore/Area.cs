@@ -5799,12 +5799,12 @@ namespace Versionr
                 if (!next.Parent.HasValue)
                     continue;
                 Guid parent = next.Parent.Value;
-                if (!seenVersions.Add(parent))
+                if (seenVersions.Add(parent))
                     openSet.Push(GetVersion(parent));
                 var merges = GetMergeInfo(next.ID);
                 foreach (var x in merges)
                 {
-                    if (!seenVersions.Add(x.SourceVersion))
+                    if (seenVersions.Add(x.SourceVersion))
                         openSet.Push(GetVersion(x.SourceVersion));
                 }
             }
