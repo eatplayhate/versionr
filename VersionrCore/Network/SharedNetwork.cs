@@ -806,9 +806,9 @@ namespace Versionr.Network
             }
         }
 
-        internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive)
+        internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive, bool acceptDeletes)
         {
-            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo, interactive);
+            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo, interactive, acceptDeletes);
         }
 
         internal static bool IsAncestor(Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo, HashSet<Guid> fastReject)

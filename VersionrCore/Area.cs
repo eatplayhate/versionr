@@ -2472,7 +2472,7 @@ namespace Versionr
             change.ID = Guid.NewGuid();
             change.Operand = GetBranchHead(branch).Version.ToString();
             change.Type = BranchAlterationType.Terminate;
-            InsertBranchJournalChangeNoTransaction(journal, change, true);
+            InsertBranchJournalChangeNoTransaction(journal, change, true, false);
         }
 
         public bool AddTag(Guid vid, string tag)
@@ -2777,7 +2777,7 @@ namespace Versionr
             try
             {
                 Database.BeginTransaction();
-                InsertBranchJournalChangeNoTransaction(journal, change, false);
+                InsertBranchJournalChangeNoTransaction(journal, change, false, false);
                 Database.Commit();
                 return true;
             }
@@ -2788,7 +2788,7 @@ namespace Versionr
             }
         }
 
-        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change, bool interactive)
+        private void InsertBranchJournalChangeNoTransaction(BranchJournal journal, BranchJournal change, bool interactive, bool acceptDeletes)
         {
             Database.InsertSafe(change);
             if (journal != null)
@@ -2801,7 +2801,7 @@ namespace Versionr
                 Database.InsertSafe(link);
             }
 
-            ReplayBranchJournal(change, false, null);
+            ReplayBranchJournal(change, false, null, null, acceptDeletes);
 
             Database.BranchJournalTip = change.ID;
         }
@@ -2984,7 +2984,7 @@ namespace Versionr
             return true;
         }
 
-        internal bool ReplayBranchJournal(BranchJournal change, bool interactive, List<BranchJournal> conflicts, SharedNetwork.SharedNetworkInfo sharedInfo = null)
+        internal bool ReplayBranchJournal(BranchJournal change, bool interactive, List<BranchJournal> conflicts, SharedNetwork.SharedNetworkInfo sharedInfo, bool acceptDeletes)
         {
             Objects.Branch branch = Database.Find<Objects.Branch>(change.Branch);
             if (branch == null)
@@ -3067,7 +3067,12 @@ namespace Versionr
                                 if (interactive)
                                 {
                                     Printer.PrintMessage("#w#Received a branch deletion to a version older than the current head.##\n  Branch: #c#{0}## \"#b#{1}##\"\n  Head: #b#{2}##\n  Incoming terminus: #b#{3}##.", branch.ID, branch.Name, x.Version, targetID);
-                                    bool resolved = false;
+                                    bool resolved = acceptDeletes;
+                                    if (resolved)
+                                    {
+                                        Printer.PrintMessage("  #G#Accepting deletion## (--accept-deletes)\n");
+                                    }
+
                                     while (!resolved)
                                     {
                                         Printer.PrintMessage("(U)ndelete branch, (m)ove terminus, or (a)ccept incoming delete? ");
@@ -3834,7 +3839,7 @@ namespace Versionr
             }
         }
 
-        internal bool ImportBranchJournal(SharedNetwork.SharedNetworkInfo info, bool interactive)
+        internal bool ImportBranchJournal(SharedNetwork.SharedNetworkInfo info, bool interactive, bool acceptDeletes)
         {
             List<BranchJournalPack> receivedBranchJournals = info.ReceivedBranchJournals;
             if (receivedBranchJournals.Count == 0)
@@ -3927,7 +3932,7 @@ namespace Versionr
                         count--;
                         missingList.Remove(x.Payload.ID);
                         processedList.Add(x.Payload.ID);
-                        if (!ReplayBranchJournal(x.Payload, interactive, conflicts, info))
+                        if (!ReplayBranchJournal(x.Payload, interactive, conflicts, info, acceptDeletes))
                             return false;
                         Database.Insert(x.Payload);
 
@@ -3959,7 +3964,7 @@ namespace Versionr
                     BranchJournal merge = x;
                     merge.ID = Guid.NewGuid();
 
-                    ReplayBranchJournal(merge, false, null, info);
+                    ReplayBranchJournal(merge, false, null, info, acceptDeletes);
 
                     Database.InsertSafe(merge);
 
@@ -8026,7 +8031,7 @@ namespace Versionr
                                 change.Operand = null;
                                 change.Timestamp = DateTime.UtcNow;
                                 change.Type = BranchAlterationType.Terminate;
-                                InsertBranchJournalChangeNoTransaction(journal, change, false);
+                                InsertBranchJournalChangeNoTransaction(journal, change, false, false);
 
                                 head = Database.Find<Objects.Head>(x => x.Version == branch.Terminus.Value && x.Branch == branch.ID);
                                 head.Version = vs.ID;

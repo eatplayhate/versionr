@@ -22,7 +22,7 @@ namespace Versionr.Network
         bool Clone(bool full);
 		bool Push(string branchName = null);
 		bool PushRecords();
-		bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false);
+		bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false, bool acceptDeletes = false);
 		bool SyncAllRecords();
 		bool SyncCurrentRecords();
 		Tuple<List<Objects.Branch>, List<KeyValuePair<Guid, Guid>>, Dictionary<Guid, Objects.Version>> ListBranches();

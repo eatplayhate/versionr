@@ -89,7 +89,7 @@ namespace Vsr2Git.Network
 			throw new NotSupportedException();
 		}
 
-		public bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false)
+		public bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false, bool acceptDeletes = false)
 		{
 			throw new NotSupportedException();
 		}
