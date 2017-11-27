@@ -40,4 +40,23 @@ namespace Versionr.Objects
             }
         }
     }
+
+    public enum BranchMetaType
+    {
+        DisallowMerge,
+    }
+
+    public class BranchMetadata
+    {
+        [SQLite.PrimaryKey, SQLite.AutoIncrement]
+        public long Id { get; set; }
+
+        [SQLite.Indexed]
+        public Guid Branch { get; set; }
+
+        public BranchMetaType Type { get; set; }
+        public string Operand1 { get; set; }
+        public string Operand2 { get; set; }
+        public long Option { get; set; }
+    }
 }
