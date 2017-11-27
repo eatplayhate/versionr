@@ -806,18 +806,18 @@ namespace Versionr.Network
             }
         }
 
-        internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive)
+        internal static bool ImportBranchJournal(SharedNetworkInfo sharedInfo, bool interactive, bool acceptDeletes)
         {
-            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo, interactive);
+            return sharedInfo.Workspace.ImportBranchJournal(sharedInfo, interactive, acceptDeletes);
         }
 
-        internal static bool IsAncestor(Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
+        internal static bool IsAncestor(Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo, HashSet<Guid> fastReject)
         {
             HashSet<Guid> checkedVersions = new HashSet<Guid>();
-            return IsAncestorInternal(checkedVersions, ancestor, possibleChild, clientInfo);
+            return IsAncestorInternal(checkedVersions, ancestor, possibleChild, clientInfo, fastReject);
         }
 
-        internal static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo)
+        internal static bool IsAncestorInternal(HashSet<Guid> checkedVersions, Guid ancestor, Guid possibleChild, SharedNetwork.SharedNetworkInfo clientInfo, HashSet<Guid> fastReject)
         {
             Guid nextVersionToCheck = possibleChild;
             if (ancestor == possibleChild)
@@ -833,9 +833,11 @@ namespace Versionr.Network
                     return false;
                 else if (v.Parent.Value == ancestor)
                     return true;
+                if (fastReject != null && fastReject.Contains(nextVersionToCheck))
+                    return false;
                 foreach (var x in mergeInfo)
                 {
-                    if (IsAncestorInternal(checkedVersions, ancestor, x.SourceVersion, clientInfo))
+                    if (IsAncestorInternal(checkedVersions, ancestor, x.SourceVersion, clientInfo, fastReject))
                         return true;
                 }
                 nextVersionToCheck = v.Parent.Value;

@@ -672,7 +672,7 @@ namespace Versionr.Network
             }
         }
 
-        public bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false)
+        public bool Pull(bool pullRemoteObjects, string branchName, bool allBranches = false, bool acceptDeletes = false)
         {
             ReceivedData = false;
             if (Workspace == null)
@@ -825,7 +825,7 @@ namespace Versionr.Network
                                 SharedNetwork.RequestRecordData(SharedInfo);
                             }
                             bool gotData = false;
-                            bool result = PullVersions(SharedInfo, out gotData);
+                            bool result = PullVersions(SharedInfo, out gotData, acceptDeletes);
                             ReceivedData = gotData;
                             ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(Connection.GetStream(), new NetCommand() { Type = NetCommandType.Synchronized }, ProtoBuf.PrefixStyle.Fixed32);
                             if (result == false)
@@ -861,7 +861,7 @@ namespace Versionr.Network
             return true;
         }
 
-        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo, out bool receivedData)
+        private bool PullVersions(SharedNetwork.SharedNetworkInfo sharedInfo, out bool receivedData, bool acceptDeletes)
         {
             bool importResult = sharedInfo.Workspace.RunLocked(() =>
             {
@@ -880,7 +880,7 @@ namespace Versionr.Network
                     try
                     {
                         sharedInfo.Workspace.BeginDatabaseTransaction();
-                        if (!SharedNetwork.ImportBranchJournal(sharedInfo, true))
+                        if (!SharedNetwork.ImportBranchJournal(sharedInfo, true, acceptDeletes))
                             return false;
                         SharedNetwork.ImportBranches(sharedInfo);
                         Dictionary<Guid, List<Head>> temporaryHeads = new Dictionary<Guid, List<Head>>();
@@ -948,7 +948,7 @@ namespace Versionr.Network
                             {
                                 for (int i = 0; i < heads.Count; i++)
                                 {
-                                    if (SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo))
+                                    if (heads[i].Version == x.Version.ID || SharedNetwork.IsAncestor(heads[i].Version, x.Version.ID, sharedInfo, headAncestry[heads[i].Version]))
                                     {
                                         foundRelation = true;
                                         mergeResults[i] = x.Version.ID;

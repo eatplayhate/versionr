@@ -11,6 +11,7 @@ namespace Versionr.Objects
         Rename,
         Terminate,
         Merge,
+        ChangeMetadata,
     }
 
     [ProtoBuf.ProtoContract]
