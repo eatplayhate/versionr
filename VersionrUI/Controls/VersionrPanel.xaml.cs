@@ -1,5 +1,7 @@
-﻿using System;
+﻿using MahApps.Metro.Controls.Dialogs;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -7,14 +9,11 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Media;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
 using VersionrUI.ViewModels;
-
-using System.Windows.Media;
-using MahApps.Metro.Controls.Dialogs;
-using System.Collections.Generic;
-using System.Windows.Input;
 
 namespace VersionrUI.Controls
 {
@@ -34,6 +33,9 @@ namespace VersionrUI.Controls
             { 100, "100" },
             { 150, "150" },
             { 200, "200" },
+            { 500, "500" },
+            { 1000, "1000" },
+            { 2000, "2000" },
             { -1, "All" },
         };
 
