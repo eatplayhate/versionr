@@ -225,5 +225,39 @@ namespace VersionrUI.ViewModels
             });
             return graph;
         }
+
+        private static string s_outString;
+        public static bool IsGraphVizInstalled()
+        {
+            Process process = new Process
+            {
+                StartInfo =
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c \"dot -V\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
+            
+            // Setup output and error (asynchronous) handlers
+            process.OutputDataReceived += OutputHandler;
+            process.ErrorDataReceived += OutputHandler;
+            
+            // Start process and handlers
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            process.WaitForExit();
+
+            return s_outString.Contains("dot - graphviz version");
+        }
+        
+        private static void OutputHandler(object sender, DataReceivedEventArgs e)
+        {
+            s_outString += e.Data;
+        }
     }
 }
