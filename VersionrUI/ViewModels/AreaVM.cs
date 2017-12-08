@@ -187,7 +187,20 @@ namespace VersionrUI.ViewModels
         public bool IsGraphSelected
         {
             get { return SelectedVM == Graph; }
-            set { SelectedVM = Graph; }
+            set
+            {
+                if (!GraphVM.IsGraphVizInstalled())
+                {
+                    MainWindow.Instance.Dispatcher.Invoke(() =>
+                    {
+                        MainWindow.ShowMessage("GraphViz Version 2.38 Missing",
+                            @"Please install GraphViz from https://graphviz.gitlab.io/ to use this feature. Please ensure that is added to PATH",
+                            MessageDialogStyle.Affirmative);
+                    });
+                    return;
+                }
+                SelectedVM = Graph;
+            }
         }
 
         public List<RemoteConfig> Remotes
