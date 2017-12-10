@@ -44,9 +44,30 @@
     <ApplicationIcon>Resources\favicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Antlr3.Runtime, Version=3.5.0.2, Culture=neutral, PublicKeyToken=eb42632606e9261f, processorArchitecture=MSIL">
+      <HintPath>..\packages\Antlr.3.5.0.2\lib\Antlr3.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Graphviz4Net, Version=2.0.33.0, Culture=neutral, PublicKeyToken=4b46ae066952113a, processorArchitecture=MSIL">
+      <HintPath>..\packages\GraphViz4Net.2.0.33\lib\net45\Graphviz4Net.dll</HintPath>
+    </Reference>
+    <Reference Include="Graphviz4Net.WPF, Version=2.0.33.0, Culture=neutral, PublicKeyToken=4b46ae066952113a, processorArchitecture=MSIL">
+      <HintPath>..\packages\GraphViz4Net.WPF2.2.0.33\lib\net45\Graphviz4Net.WPF.dll</HintPath>
+    </Reference>
     <Reference Include="MahApps.Metro, Version=1.2.4.0, Culture=neutral, PublicKeyToken=f4fb5a3c4d1e5b4f, processorArchitecture=MSIL">
       <HintPath>..\packages\MahApps.Metro.1.2.4.0\lib\net45\MahApps.Metro.dll</HintPath>
       <Private>True</Private>
+    </Reference>
+    <Reference Include="QuickGraph, Version=3.6.61114.0, Culture=neutral, PublicKeyToken=f3fb40175eec2af3, processorArchitecture=MSIL">
+      <HintPath>..\packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Data, Version=3.6.61114.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Graphviz, Version=3.6.61114.0, Culture=neutral, PublicKeyToken=f3fb40175eec2af3, processorArchitecture=MSIL">
+      <HintPath>..\packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Graphviz.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Serialization, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.Serialization.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -67,6 +88,9 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
+    <Reference Include="WPFExtensions, Version=1.0.3437.34043, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\WPFExtensions.1.0.0\lib\WPFExtensions.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -88,11 +112,13 @@
     <Compile Include="Dialogs\OperationStatusDialog.xaml.cs">
       <DependentUpon>OperationStatusDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Utilities\ColorToSolidBrushConverter.cs" />
     <Compile Include="Utilities\MultilineStringConverter.cs" />
     <Compile Include="Utilities\Utilities.cs" />
     <Compile Include="ViewModels\AreaVM.cs" />
     <Compile Include="ViewModels\BranchVM.cs" />
     <Compile Include="ViewModels\CustomTagVM.cs" />
+    <Compile Include="ViewModels\GraphVM.cs" />
     <Compile Include="ViewModels\IgnoresVM.cs" />
     <Compile Include="ViewModels\NamedCollection.cs" />
     <Compile Include="ViewModels\NotifyPropertyChangedBase.cs" />

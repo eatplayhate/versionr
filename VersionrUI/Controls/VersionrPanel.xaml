@@ -7,14 +7,17 @@
              xmlns:vm="clr-namespace:VersionrUI.ViewModels"
              xmlns:controls="clr-namespace:VersionrUI.Controls"
              xmlns:commands="clr-namespace:VersionrUI.Commands"
-             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:mahapps="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:gvvm="clr-namespace:Graphviz4Net.WPF.ViewModels;assembly=Graphviz4Net.WPF"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d" 
-             d:DesignHeight="300" d:DesignWidth="300">
+             d:DesignHeight="300" d:DesignWidth="300"
+             Name="self">
 
     <UserControl.Resources>
 
         <local:MultilineStringConverter x:Key="MultilineStringConverter" />
+        <local:ColorToSolidBrushConverter x:Key="colorToSolidBrushConverter" />
 
         <DataTemplate DataType="{x:Type vm:AreaVM}">
             <Grid>
@@ -90,13 +93,17 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Center">
                             <RadioButton Margin="8,0"
-                                         GroupName="radioGroup1"
+                                         GroupName="radioGroup2"
                                          IsChecked="{Binding IsStatusSelected}"
                                          Content="Status" />
                             <RadioButton Margin="8,0"
-                                         GroupName="radioGroup1"
+                                         GroupName="radioGroup2"
                                          IsChecked="{Binding IsHistorySelected}"
                                          Content="History" />
+                            <RadioButton Margin="8,0"
+                                         GroupName="radioGroup2"
+                                         IsChecked="{Binding IsGraphSelected}"
+                                         Content="Graph" />
                         </StackPanel>
                         <Button Grid.Column="4"
                                 Margin="8"
@@ -147,7 +154,7 @@
                         <ComboBox Grid.Column="3"
                                   SelectedValuePath="Key"
                                   DisplayMemberPath="Value"
-                                  ItemsSource="{Binding RevisionLimitOptions}"
+                                  ItemsSource="{Binding RevisionLimitOptions, ElementName=self}"
                                   SelectedValue="{Binding RevisionLimit}" />
                     </Grid>
                     <ListView Grid.Row="1"
@@ -160,54 +167,6 @@
                               Style="{StaticResource VirtualisedMetroListView}">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="Graph">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate DataType="{x:Type vm:NodeDescrption}">
-                                            <Canvas>
-                                                <ItemsControl ItemsSource="{Binding GraphNode.Links}">
-                                                    <ItemsControl.Resources>
-                                                        <DataTemplate DataType="{x:Type vm:Link}">
-                                                            <Canvas>
-                                                                <Line X1="{Binding XPos}" Y1="6"
-                                                                      X2="{Binding SourceXOffset}" Y2="{Binding SourceYOffset}"
-                                                                      Stroke="{Binding Brush}"
-                                                                      Canvas.Top="-6">
-                                                                    <Line.Style>
-                                                                        <Style TargetType="{x:Type Line}">
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Path=Merge}" Value="True">
-                                                                                    <Setter Property="StrokeDashArray" Value="2 2" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Line.Style>
-                                                                </Line>
-                                                            </Canvas>
-                                                        </DataTemplate>
-                                                    </ItemsControl.Resources>
-                                                </ItemsControl>
-                                                <ItemsControl ItemsSource="{Binding GraphNode.ExternalVersions}">
-                                                    <ItemsControl.Resources>
-                                                        <DataTemplate DataType="{x:Type vm:VersionVM}">
-                                                            <Canvas>
-                                                                <Ellipse Width="12" Height="12"
-                                                                         Fill="{Binding GraphNode.Brush}"
-                                                                         ToolTip="{Binding GraphNode.Name}"
-                                                                         Canvas.Left="{Binding GraphNode.XPos}"
-                                                                         Canvas.Top="-6" />
-                                                            </Canvas>
-                                                        </DataTemplate>
-                                                    </ItemsControl.Resources>
-                                                </ItemsControl>
-                                                <Ellipse Width="12" Height="12"
-                                                         Fill="{Binding GraphNode.Brush}"
-                                                         ToolTip="{Binding GraphNode.Name}"
-                                                         Canvas.Left="{Binding GraphNode.XPos}"
-                                                         Canvas.Top="-6" />
-                                            </Canvas>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
                                 <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}" />
                                 <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                                 <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
@@ -461,6 +420,101 @@
                                                   BorderBrush="DarkSlateGray" />
                 </Grid>
                 <mahapps:ProgressRing IsActive="{Binding IsLoading}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:GraphVM}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0"
+                      Margin="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal">
+                        <CheckBox IsChecked="{Binding ShowMessages}" />
+                        <TextBlock Margin="4">Show messages</TextBlock>
+                        <Separator />
+                        <TextBlock Margin="4">Limit:</TextBlock>
+                        <ComboBox SelectedValuePath="Key"
+                                  DisplayMemberPath="Value"
+                                  ItemsSource="{Binding RevisionLimitOptions, ElementName=self}"
+                                  SelectedValue="{Binding RevisionLimit}" />
+                    </StackPanel>
+                </Grid>
+                <ScrollViewer Grid.Row="1"
+                              HorizontalScrollBarVisibility="Visible"
+                              VerticalScrollBarVisibility="Visible">
+                    <ScrollViewer.Style>
+                        <Style TargetType="{x:Type ScrollViewer}" BasedOn="{StaticResource {x:Type ScrollViewer}}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding GraphLayout}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+                    <ContentPresenter Content="{Binding GraphLayout}">
+                        <ContentPresenter.Resources>
+                            <DataTemplate DataType="{x:Type vm:GraphNode}">
+                                <Border BorderBrush="{Binding Color, Converter={StaticResource colorToSolidBrushConverter}}" BorderThickness="1" Padding="0" CornerRadius="5">
+                                    <TextBlock Margin="6"
+                                               Text="{Binding Label}"
+                                               TextAlignment="Center"
+                                               ToolTip="{Binding Version.Message}" />
+                                </Border>
+                            </DataTemplate>
+
+                            <DataTemplate DataType="{x:Type gvvm:EdgeViewModel}">
+                                <Path Data="{Binding Data}"
+                                      Stroke="{Binding Edge.Link.Color, Converter={StaticResource colorToSolidBrushConverter}}"
+                                      StrokeThickness="1"
+                                      ToolTip="{Binding Edge.Link.BranchName}"
+                                      Fill="Transparent">
+                                    <Path.Style>
+                                        <Style TargetType="{x:Type Path}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Edge.Link.IsMerge}" Value="true">
+                                                    <Setter Property="StrokeDashArray" Value="2,2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                            </DataTemplate>
+
+                            <DataTemplate DataType="{x:Type vm:NullArrow}">
+                                <Line X1="0" Y1="0" X2="0" Y2="10"
+                                      Stroke="{Binding Link.Color, Converter={StaticResource colorToSolidBrushConverter}}"
+                                      StrokeThickness="1"
+                                      ToolTip="{Binding Link.BranchName}">
+                                    <Line.Style>
+                                        <Style TargetType="{x:Type Line}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Link.IsMerge}" Value="true">
+                                                    <Setter Property="StrokeDashArray" Value="2,2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Line.Style>
+                                </Line>
+                            </DataTemplate>
+
+                            <DataTemplate DataType="{x:Type vm:GraphArrow}">
+                                <Path Data="M 0,0 L 10,0 L 5,5 L 0,0"
+                                      Stroke="{Binding Link.Color, Converter={StaticResource colorToSolidBrushConverter}}"
+                                      StrokeThickness="1"
+                                      ToolTip="{Binding Link.BranchName}"
+                                      Fill="Transparent" />
+                            </DataTemplate>
+                        </ContentPresenter.Resources>
+                    </ContentPresenter>
+                </ScrollViewer>
             </Grid>
         </DataTemplate>
 
