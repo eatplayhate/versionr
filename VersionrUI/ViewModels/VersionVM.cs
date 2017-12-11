@@ -9,70 +9,70 @@ namespace VersionrUI.ViewModels
 {
     public class VersionVM : NotifyPropertyChangedBase
     {
-        private Version _version;
-        private Area _area;
-        private List<AlterationVM> _alterations;
-        private string _searchText;
+        private readonly Version m_Version;
+        private readonly Area m_Area;
+        private List<AlterationVM> m_Alterations;
+        private string m_SearchText;
         
         public VersionVM(Version version, Area area)
         {
-            _version = version;
-            _area = area;
+            m_Version = version;
+            m_Area = area;
         }
 
         public Guid ID
         {
-            get { return _version.ID; }
+            get { return m_Version.ID; }
         }
 
         public string ShortName
         {
-            get { return _version.ShortName; }
+            get { return m_Version.ShortName; }
         }
 
         public string Author
         {
-            get { return _version.Author; }
+            get { return m_Version.Author; }
         }
 
         public string Message
         {
-            get { return _version.Message; }
+            get { return m_Version.Message; }
         }
 
         public DateTime Timestamp
         {
-            get { return _version.Timestamp.ToLocalTime(); }
+            get { return m_Version.Timestamp.ToLocalTime(); }
         }
 
         public bool IsCurrent
         {
-            get { return _version.ID == _area.Version.ID; }
+            get { return m_Version.ID == m_Area.Version.ID; }
         }
 
         public uint Revision
         {
-            get { return _version.Revision; }
+            get { return m_Version.Revision; }
         }
 
         public Guid? Parent
         {
-            get { return _version.Parent; }
+            get { return m_Version.Parent; }
         }
 
         public Guid Branch
         {
-            get { return _version.Branch; }
+            get { return m_Version.Branch; }
         }
 
         public string SearchText
         {
-            get { return _searchText; }
+            get { return m_SearchText; }
             set
             {
-                _searchText = value;
-                NotifyPropertyChanged("SearchText");
-                NotifyPropertyChanged("Alterations");
+                m_SearchText = value;
+                NotifyPropertyChanged(nameof(SearchText));
+                NotifyPropertyChanged(nameof(Alterations));
             }
         }
 
@@ -80,24 +80,16 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_alterations == null)
+                if (m_Alterations == null)
                     Refresh();
-                if (!string.IsNullOrEmpty(_searchText))
-                    return FilterAlterations(_searchText, _alterations);
-                return _alterations;
+                return !string.IsNullOrEmpty(m_SearchText) ? FilterAlterations(m_SearchText, m_Alterations) : m_Alterations;
             }
         }
 
         public List<AlterationVM> FilterAlterations(string searchtext, List<AlterationVM> alterations)
         {
             searchtext = searchtext.ToLower();
-            List<AlterationVM> results = new List<AlterationVM>();
-            foreach (AlterationVM alteration in alterations)
-            {
-                if (alteration.Name.ToLower().Contains(searchtext))
-                    results.Add(alteration);
-            }
-            return results;
+            return alterations.Where(alteration => alteration.Name.ToLower().Contains(searchtext)).ToList();
         }
         
         private static readonly object refreshLock = new object();
@@ -105,17 +97,16 @@ namespace VersionrUI.ViewModels
         {
             lock (refreshLock)
             {
-                List<Alteration> alterations = _area.GetAlterations(_version);
-                _alterations = new List<AlterationVM>();
+                List<Alteration> alterations = m_Area.GetAlterations(m_Version);
+                m_Alterations = new List<AlterationVM>();
                 
                 List<AlterationVM> unordered = new List<AlterationVM>(alterations.Count);
-                foreach (Alteration alteration in alterations)
-                    unordered.Add(new AlterationVM(alteration, _area, _version));
+                unordered.AddRange(alterations.Select(alteration => new AlterationVM(alteration, m_Area, m_Version)));
 
                 foreach (AlterationVM vm in unordered.OrderBy(x => x.Name))
-                    _alterations.Add(vm);
+                    m_Alterations.Add(vm);
 
-                NotifyPropertyChanged("Alterations");
+                NotifyPropertyChanged(nameof(Alterations));
             }
         }
     }

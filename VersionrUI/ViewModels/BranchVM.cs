@@ -1,8 +1,6 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Media;
 using Versionr.Objects;
 using VersionrUI.Commands;
 using VersionrUI.Dialogs;
@@ -17,29 +15,29 @@ namespace VersionrUI.ViewModels
         public DelegateCommand CheckoutCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
 
-        private AreaVM _areaVM;
-        private Branch _branch;
-        private List<VersionVM> _history = null;
-        private string _searchText;
-        private VersionVM _selectedVersion;
-        private int _revisionLimit = 50;
-        private bool _forceRefresh = false;
+        private readonly AreaVM m_AreaVM;
+        private readonly Branch m_Branch;
+        private List<VersionVM> m_History = null;
+        private string m_SearchText;
+        private VersionVM m_SelectedVersion;
+        private int m_RevisionLimit = 50;
+        private bool m_ForceRefresh = false;
 
         public string SearchText
         {
-            get { return _searchText; }
-            private set
+            get { return m_SearchText; }
+            set
             {
-                _searchText = value;
-                NotifyPropertyChanged("SearchText");
-                NotifyPropertyChanged("History");
+                m_SearchText = value;
+                NotifyPropertyChanged(nameof(SearchText));
+                NotifyPropertyChanged(nameof(History));
             }
         }
 
         public BranchVM(AreaVM areaVM, Branch branch)
         {
-            _areaVM = areaVM;
-            _branch = branch;
+            m_AreaVM = areaVM;
+            m_Branch = branch;
 
             PullCommand = new DelegateCommand(() => Load(Pull));
             PushCommand = new DelegateCommand(() => Load(Push));
@@ -49,56 +47,56 @@ namespace VersionrUI.ViewModels
 
         public Branch Branch
         {
-            get { return _branch; }
+            get { return m_Branch; }
         }
 
         public string Name
         {
-            get { return _branch.Name; }
+            get { return m_Branch.Name; }
         }
 
         public bool IsDeleted
         {
-            get { return _branch.Terminus.HasValue; }
+            get { return m_Branch.Terminus.HasValue; }
         }
 
         public bool IsCurrent
         {
-            get { return _areaVM.Area.CurrentBranch.ID == _branch.ID; }
+            get { return m_AreaVM.Area.CurrentBranch.ID == m_Branch.ID; }
         }
 
         public List<VersionVM> History
         {
             get
             {
-                if (_history == null || _forceRefresh)
+                if (m_History == null || m_ForceRefresh)
                     Load(Refresh);
                 if (!string.IsNullOrEmpty(SearchText))
-                    return FilterHistory(_history, SearchText);
-                return _history;
+                    return FilterHistory(m_History, SearchText);
+                return m_History;
             }
         }
 
         public VersionVM SelectedVersion
         {
-            get { return _selectedVersion; }
-            private set
+            get { return m_SelectedVersion; }
+            set
             {
-                _selectedVersion = value;
-                NotifyPropertyChanged("SelectedVersion");
+                m_SelectedVersion = value;
+                NotifyPropertyChanged(nameof(SelectedVersion));
             }
         }
 
         public int RevisionLimit
         {
-            get { return _revisionLimit; }
+            get { return m_RevisionLimit; }
             set
             {
-                if (_revisionLimit != value)
+                if (m_RevisionLimit != value)
                 {
-                    _revisionLimit = value;
-                    _forceRefresh = true;
-                    NotifyPropertyChanged("RevisionLimit");
+                    m_RevisionLimit = value;
+                    m_ForceRefresh = true;
+                    NotifyPropertyChanged(nameof(RevisionLimit));
                     Load(Refresh);
                 }
             }
@@ -107,36 +105,28 @@ namespace VersionrUI.ViewModels
         private List<VersionVM> FilterHistory(List<VersionVM> history, string searchtext)
         {
             searchtext = searchtext.ToLower();
-            List<VersionVM> results = new List<VersionVM>();
-            foreach (VersionVM version in history)
-            {
-                if (version.Message.ToLower().Contains(searchtext) ||
-                    version.ID.ToString().ToLower().Contains(searchtext) ||
-                    version.Author.ToLower().Contains(searchtext) ||
-                    version.Timestamp.ToString().ToLower().Contains(searchtext) ||
-					version.Alterations.Any(x => x.Name.ToLower().Contains(searchtext))
-				)
-                {
-                    results.Add(version);
-                }
-            }
-            return results;
+            return history.Where(version => (!string.IsNullOrEmpty(version.Message) && version.Message.ToLower().Contains(searchtext)) ||
+                                            version.ID.ToString().ToLower().Contains(searchtext) ||
+                                            version.Author.ToLower().Contains(searchtext) ||
+                                            version.Timestamp.ToString().ToLower().Contains(searchtext) ||
+                                            version.Alterations.Any(x => x.Name.ToLower().Contains(searchtext)))
+                .ToList();
         }
 
-        private static object refreshLock = new object();
+        private static readonly object refreshLock = new object();
         private void Refresh()
         {
             lock (refreshLock)
             {
-                _forceRefresh = false;
+                m_ForceRefresh = false;
 
-                var headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
+                var headVersion = m_AreaVM.Area.GetBranchHeadVersion(m_Branch);
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                List<Version> versions = _areaVM.Area.GetLogicalHistory(headVersion, false, false, false, limit);
-                _history = new List<VersionVM>();
+                List<Version> versions = m_AreaVM.Area.GetLogicalHistory(headVersion, false, false, false, limit);
+                m_History = new List<VersionVM>();
 
                 foreach (Version version in versions)
-                    _history.Add(new VersionVM(version, _areaVM.Area));
+                    m_History.Add(new VersionVM(version, m_AreaVM.Area));
                 
                 NotifyPropertyChanged(nameof(History));
             }
@@ -145,22 +135,22 @@ namespace VersionrUI.ViewModels
         private void Pull()
         {
             OperationStatusDialog.Start("Pull");
-            _areaVM.ExecuteClientCommand((c) => c.Pull(true, Name), "pull");
+            m_AreaVM.ExecuteClientCommand((c) => c.Pull(true, Name), "pull");
             if(IsCurrent)
-                _areaVM.Area.Update(new Versionr.Area.MergeSpecialOptions());
+                m_AreaVM.Area.Update(new Versionr.Area.MergeSpecialOptions());
             OperationStatusDialog.Finish();
         }
 
         private void Push()
         {
             OperationStatusDialog.Start("Push");
-            _areaVM.ExecuteClientCommand((c) => c.Push(Name), "push", true);
+            m_AreaVM.ExecuteClientCommand((c) => c.Push(Name), "push", true);
             OperationStatusDialog.Finish();
         }
 
         private void Checkout()
         {
-            if (_areaVM.Area.Status.HasModifications(false))
+            if (m_AreaVM.Area.Status.HasModifications(false))
             {
                 MessageDialogResult result = MessageDialogResult.FirstAuxiliary;
                 MainWindow.Instance.Dispatcher.Invoke(async () =>
@@ -172,7 +162,9 @@ namespace VersionrUI.ViewModels
                         FirstAuxiliaryButtonText = "Cancel",
                         ColorScheme = MainWindow.DialogColorScheme
                     };
-                    result = await MainWindow.ShowMessage("Checkout", "Vault contains uncommitted changes. Do you want to force the checkout operation?", MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
+                    result = await MainWindow.ShowMessage("Checkout",
+                        "Vault contains uncommitted changes. Do you want to force the checkout operation?",
+                        MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary, settings);
                 }).Wait();
 
                 switch (result)
@@ -197,15 +189,15 @@ namespace VersionrUI.ViewModels
         private void DoCheckout(bool purge)
         {
             OperationStatusDialog.Start("Checkout");
-            _areaVM.Area.Checkout(Name, purge, false, false);
-            _areaVM.RefreshBranches();
+            m_AreaVM.Area.Checkout(Name, purge, false, false);
+            m_AreaVM.RefreshBranches();
             OperationStatusDialog.Finish();
         }
 
         private void Log()
         {
-            Version headVersion = _areaVM.Area.GetBranchHeadVersion(_branch);
-            LogDialog.Show(headVersion, _areaVM.Area);
+            Version headVersion = m_AreaVM.Area.GetBranchHeadVersion(m_Branch);
+            LogDialog.Show(headVersion, m_AreaVM.Area);
         }
     }
 }
