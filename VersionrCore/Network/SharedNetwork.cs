@@ -407,6 +407,16 @@ namespace Versionr.Network
 
         public static bool PullJournalData(SharedNetworkInfo info)
         {
+            return SyncJournalData(info, false);
+        }
+
+        public static bool PushJournalData(SharedNetworkInfo info)
+        {
+            return SyncJournalData(info, true);
+        }
+
+        public static bool SyncJournalData(SharedNetworkInfo info, bool pushLargeAnnotations)
+        {
             try
             {
                 if (info.CommunicationProtocol < Protocol.Versionr34)
@@ -470,9 +480,11 @@ namespace Versionr.Network
         static public bool ProcessJournalQuery(SharedNetworkInfo info)
         {
             JournalTips remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
+            bool useIntersection = false;
             
             if (remoteTips.Tips != null && remoteTips.Tips.Count != 0 && info.CommunicationProtocol >= Protocol.Versionr36)
             {
+                useIntersection = true;
                 Utilities.SendEncrypted(info, new JournalTips() { Tips = info.Workspace.FindJournalIntersection(remoteTips.Tips), LocalJournal = info.Workspace.LocalJournalID, Finalized = false });
                 remoteTips = Utilities.ReceiveEncrypted<JournalTips>(info);
             }
@@ -497,7 +509,7 @@ namespace Versionr.Network
 
             foreach (var localTip in info.Workspace.GetJournalTips())
             {
-                if (info.CommunicationProtocol >= Protocol.Versionr36)
+                if (useIntersection && info.CommunicationProtocol >= Protocol.Versionr36)
                 {
                     if (!tipInfo.ContainsKey(localTip.JournalID))
                         continue;

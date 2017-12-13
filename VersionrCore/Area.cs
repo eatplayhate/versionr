@@ -994,7 +994,7 @@ namespace Versionr
                 }
                 else
                 {
-                    if (!Database.InsertSafe(payload))
+                    if (Database.InsertSafe(payload))
                     {
                         UpdateJournalMap(x.JournalID, x.SequenceID, null);
                         long size;
