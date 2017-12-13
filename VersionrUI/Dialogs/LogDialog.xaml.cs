@@ -307,7 +307,9 @@ namespace VersionrUI.Dialogs
             if (values.Length != 2)
                 return false;
 
-            if (!(values[0] is LogDialog dialog) || !(values[1] is AlterationVM alteration))
+            var dialog = values[0] as LogDialog;
+            var alteration = values[1] as AlterationVM;
+            if (dialog == null || alteration == null)
                 return false;
             if (String.IsNullOrEmpty(dialog.Pattern) || dialog.Pattern.Equals(".*"))
                 return false;
