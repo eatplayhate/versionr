@@ -207,7 +207,8 @@ namespace VersionrUI.Dialogs
             if (!(sender is ListView))
                 return;
 
-            if (!(e.OriginalSource is GridViewColumnHeader headerClicked))
+            var headerClicked = e.OriginalSource as GridViewColumnHeader;
+            if (headerClicked == null)
                 return;
             if (headerClicked.Role == GridViewColumnHeaderRole.Padding)
                 return;

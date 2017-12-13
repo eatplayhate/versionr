@@ -984,8 +984,8 @@ namespace Versionr
                 if (x.Delete)
                 {
                     // we are deleting an annotation
-                    Annotation insertedAnnotation = Database.Get<Objects.Annotation>(x.Value);
-                    if (insertedAnnotation.Active)
+                    Annotation insertedAnnotation = Database.Find<Objects.Annotation>(x.Value);
+                    if (insertedAnnotation != null && insertedAnnotation.Active)
                     {
                         insertedAnnotation.Active = false;
                         UpdateJournalMap(x.JournalID, x.SequenceID, null);
