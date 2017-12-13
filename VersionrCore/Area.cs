@@ -977,7 +977,7 @@ namespace Versionr
         {
             HashSet<string> dataUniqueRequests = new HashSet<string>();
             missingAnnotationData = new List<string>();
-            foreach (var x in annotations)
+            foreach (var x in annotations.ToArray().Reverse())
             {
                 Annotation payload = annotationData[x.Value];
 
