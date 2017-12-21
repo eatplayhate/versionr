@@ -112,6 +112,7 @@
     <Compile Include="Dialogs\OperationStatusDialog.xaml.cs">
       <DependentUpon>OperationStatusDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Utilities\BindingProxy.cs" />
     <Compile Include="Utilities\ColorToSolidBrushConverter.cs" />
     <Compile Include="Utilities\MultilineStringConverter.cs" />
     <Compile Include="Utilities\Utilities.cs" />

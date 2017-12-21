@@ -679,6 +679,9 @@
                     Style="{StaticResource LinkButtonStyle}" />
             <ListBox ItemsSource="{Binding OpenAreas}"
                         SelectedItem="{Binding SelectedArea}">
+                <ListBox.Resources>
+                    <local:BindingProxy x:Key="ListBoxDataContext" Data="{Binding OpenAreas}"/>
+                </ListBox.Resources>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4">
@@ -688,6 +691,8 @@
                             <StackPanel.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                    <MenuItem Header="Remove" Command="{Binding RemoveRepoFromListCommand}" 
+                                              CommandParameter="{Binding Data, Source={StaticResource ListBoxDataContext}}"/>
                                 </ContextMenu>
                             </StackPanel.ContextMenu>
                         </StackPanel>

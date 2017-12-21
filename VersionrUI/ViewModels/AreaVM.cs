@@ -1,6 +1,7 @@
 ﻿using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -31,24 +32,25 @@ namespace VersionrUI.ViewModels
         public DelegateCommand RefreshCommand { get; private set; }
         public DelegateCommand<NotifyPropertyChangedBase> SelectViewCommand { get; private set; }
         public DelegateCommand OpenInExplorerCommand { get; private set; }
+        public DelegateCommand<ObservableCollection<AreaVM>> RemoveRepoFromListCommand { get; private set; }
 
-        private Area _area;
-        private string _name;
-        private List<BranchVM> _branches;
-        private List<RemoteConfig> _remotes;
-        private StatusVM _status;
-        private GraphVM _graph;
-        public SettingsVM _settings;
-        public NotifyPropertyChangedBase _selectedVM = null;
-        public BranchVM _selectedBranch = null;
-        public RemoteConfig _selectedRemote = null;
+        private string m_Name;
+        private List<BranchVM> m_Branches;
+        private List<RemoteConfig> m_Remotes;
+        private StatusVM m_Status;
+        private GraphVM m_Graph;
+        public SettingsVM m_Settings;
+        public NotifyPropertyChangedBase m_SelectedVM = null;
+        public BranchVM m_SelectedBranch = null;
+        public RemoteConfig m_SelectedRemote = null;
 
         private AreaVM(string name)
         {
             RefreshCommand = new DelegateCommand(() => Load(RefreshAll));
             SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
-            _name = name;
+            RemoveRepoFromListCommand = new DelegateCommand<ObservableCollection<AreaVM>>(RemoveRepoFromList);
+            m_Name = name;
         }
 
         public void Init(string path, AreaInitMode areaInitMode, string host, int port, Action<AreaVM, string, string> afterInit)
@@ -73,14 +75,14 @@ namespace VersionrUI.ViewModels
                                 string remoteName = "default";
                             	client.Workspace.SetRemote(Client.ToVersionrURL(client.Host, client.Port, client.Module), remoteName);
                                 client.Pull(false, client.Workspace.CurrentBranch.ID.ToString());
-                                _area = Area.Load(client.Workspace.Root);
-                                _area.Checkout(null, false, false);
+                                Area = Area.Load(client.Workspace.Root);
+                                Area.Checkout(null, false, false);
                             }
                         }
                         else
                         {
                             title = "Clone Failed";
-                            message = String.Format("Couldn't connect to {0}:{1}", host, port);
+                            message = $"Couldn't connect to {host}:{port}";
                         }
                         client.Close();
                         OperationStatusDialog.Finish();
@@ -94,18 +96,18 @@ namespace VersionrUI.ViewModels
                         catch
                         {
                             title = "Init Failed";
-                            message = String.Format("Couldn't create subdirectory \"{0}\"", dir.FullName);
+                            message = $"Couldn't create subdirectory \"{dir.FullName}\"";
                             break;
                         }
-                        _area = Area.Init(dir, _name);
+                        Area = Area.Init(dir, m_Name);
                         break;
                     case AreaInitMode.UseExisting:
                         // Add it to settings and refresh UI, get status etc.
-                        _area = Area.Load(dir);
-                        if(_area == null)
+                        Area = Area.Load(dir);
+                        if(Area == null)
                         {
                             title = "Missing workspace";
-                            message = String.Format("Failed to load \"{0}\". The location {1} may be have been removed.", _name, path);
+                            message = $"Failed to load \"{m_Name}\". The location {path} may be have been removed.";
                         }
                         break;
                 }
@@ -122,71 +124,68 @@ namespace VersionrUI.ViewModels
 
         public NotifyPropertyChangedBase SelectedVM
         {
-            get { return _selectedVM; }
+            get => m_SelectedVM;
             set
             {
-                if (_selectedVM != value)
-                {
-                    _selectedVM = value;
-                    NotifyPropertyChanged(nameof(SelectedVM));
-                    NotifyPropertyChanged(nameof(IsStatusSelected));
-                    NotifyPropertyChanged(nameof(IsHistorySelected));
-                    NotifyPropertyChanged(nameof(IsGraphSelected));
-                }
+                if (m_SelectedVM == value)
+                    return;
+                m_SelectedVM = value;
+                NotifyPropertyChanged(nameof(SelectedVM));
+                NotifyPropertyChanged(nameof(IsStatusSelected));
+                NotifyPropertyChanged(nameof(IsHistorySelected));
+                NotifyPropertyChanged(nameof(IsGraphSelected));
             }
         }
 
         public BranchVM SelectedBranch
         {
-            get { return _selectedBranch; }
+            get => m_SelectedBranch;
             set
             {
-                if (_selectedBranch != value)
-                {
-                    _selectedBranch = value;
+                if (m_SelectedBranch == value)
+                    return;
+                m_SelectedBranch = value;
 
-                    if (IsHistorySelected)
-                        SelectedVM = _selectedBranch;
+                if (IsHistorySelected)
+                    SelectedVM = m_SelectedBranch;
                     
-                    NotifyPropertyChanged(nameof(SelectedBranch));
-                }
+                NotifyPropertyChanged(nameof(SelectedBranch));
             }
         }
 
-        public Area Area { get { return _area; } }
+        public Area Area { get; private set; }
 
-        public bool IsValid { get { return _area != null; } }
+        public bool IsValid => Area != null;
 
-        public DirectoryInfo Directory { get { return _area?.Root; } }
+        public DirectoryInfo Directory => Area?.Root;
 
         public string Name
         {
-            get { return _name; }
+            get => m_Name;
             set
             {
-                if (_name != value)
-                {
-                    _name = value;
-                    NotifyPropertyChanged(nameof(Name));
-                }
+                if (m_Name == value)
+                    return;
+                m_Name = value;
+                NotifyPropertyChanged(nameof(Name));
             }
         }
 
         public bool IsStatusSelected
         {
-            get { return SelectedVM == Status; }
-            set { SelectedVM = Status; }
+            get => SelectedVM == Status;
+            set => SelectedVM = Status;
         }
 
         public bool IsHistorySelected
         {
-            get { return SelectedVM is BranchVM; }
-            set { SelectedVM = SelectedBranch; }
+            get => SelectedVM is BranchVM;
+            set => SelectedVM = SelectedBranch;
         }
 
         public bool IsGraphSelected
         {
-            get { return SelectedVM == Graph; }
+            get => SelectedVM == Graph;
             set
             {
                 if (!GraphVM.IsGraphVizInstalled())
@@ -207,22 +206,21 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_remotes == null)
+                if (m_Remotes == null)
                     Load(RefreshRemotes);
-                return _remotes;
+                return m_Remotes;
             }
         }
 
         public RemoteConfig SelectedRemote
         {
-            get { return _selectedRemote; }
+            get => m_SelectedRemote;
             set
             {
-                if (_selectedRemote != value)
-                {
-                    _selectedRemote = value;
-                    NotifyPropertyChanged(nameof(SelectedRemote));
-                }
+                if (m_SelectedRemote == value)
+                    return;
+                m_SelectedRemote = value;
+                NotifyPropertyChanged(nameof(SelectedRemote));
             }
         }
 
@@ -230,9 +228,9 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_branches == null)
+                if (m_Branches == null)
                     Load(RefreshBranches);
-                return _branches;
+                return m_Branches;
             }
         }
 
@@ -240,9 +238,9 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_status == null)
+                if (m_Status == null)
                     Load(RefreshStatus);
-                return _status;
+                return m_Status;
             }
         }
 
@@ -250,9 +248,9 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_graph == null)
+                if (m_Graph == null)
                     Load(RefreshGraph);
-                return _graph;
+                return m_Graph;
             }
         }
 
@@ -260,108 +258,104 @@ namespace VersionrUI.ViewModels
         {
             get
             {
-                if (_settings == null)
+                if (m_Settings == null)
                     Load(RefreshSettings);
-                return _settings;
+                return m_Settings;
             }
         }
 
-        private static object refreshStatusLock = new object();
+        private static readonly object refreshStatusLock = new object();
         public void RefreshStatus()
         {
             lock (refreshStatusLock)
             {
-                if (_status == null)
-                    _status = new StatusVM(this);
+                if (m_Status == null)
+                    m_Status = new StatusVM(this);
                 else
-                    _status.Refresh();
+                    m_Status.Refresh();
 
                 NotifyPropertyChanged(nameof(Status));
 
                 // Make sure something is displayed
                 if (SelectedVM == null)
-                    SelectedVM = _status;
+                    SelectedVM = m_Status;
             }
         }
 
-        private static object refreshSettingsLock = new object();
+        private static readonly object refreshSettingsLock = new object();
         public void RefreshSettings()
         {
-            if (_area != null)
+            if (Area == null)
+                return;
+            lock (refreshSettingsLock)
             {
-                lock (refreshSettingsLock)
-                {
-                    _settings = new SettingsVM(_area);
-                    NotifyPropertyChanged(nameof(Settings));
-                }
+                m_Settings = new SettingsVM(Area);
+                NotifyPropertyChanged(nameof(Settings));
             }
         }
 
         private static readonly object refreshBranchesLock = new object();
         public void RefreshBranches()
         {
-            if (_area != null)
+            if (Area == null)
+                return;
+            lock (refreshBranchesLock)
             {
-                lock (refreshBranchesLock)
-                {
-                    _branches = _area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent)
-                        .ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
+                m_Branches = Area.Branches.Select(x => new BranchVM(this, x)).OrderBy(x => !x.IsCurrent)
+                    .ThenBy(x => x.IsDeleted).ThenBy(x => x.Name).ToList();
 
-                    /*
+                /*
                      *  By default WPF compares SelectedItem to each item in the ItemsSource by reference, 
                      *  meaning that unless the SelectedItem points to the same item in memory as the ItemsSource item, 
                      *  it will decide that the item doesn’t exist in the ItemsSource and so no item gets selected.
                      *  The next line is a workaround for that
                      */
-                    SelectedBranch = _branches.FirstOrDefault(x => SelectedBranch?.Name == x.Name);
+                SelectedBranch = m_Branches.FirstOrDefault(x => SelectedBranch?.Name == x.Name);
 
-                    NotifyPropertyChanged(nameof(Branches));
+                NotifyPropertyChanged(nameof(Branches));
 
-                    // Make sure something is displayed
-                    if (SelectedBranch == null)
-                        SelectedBranch = Branches.First();
-                }
+                // Make sure something is displayed
+                if (SelectedBranch == null)
+                    SelectedBranch = Branches.First();
             }
         }
 
         private static readonly object refreshGraphLock = new object();
         public void RefreshGraph()
         {
-            if (_area != null)
+            if (Area == null)
+                return;
+            lock (refreshGraphLock)
             {
-                lock (refreshGraphLock)
-                {
-                    if(_graph == null)
-                        _graph = new GraphVM(this);
+                if(m_Graph == null)
+                    m_Graph = new GraphVM(this);
 
-                    // Make sure something is displayed
-                    if (SelectedVM == null)
-                        SelectedVM = _graph;
+                // Make sure something is displayed
+                if (SelectedVM == null)
+                    SelectedVM = m_Graph;
 
-                    NotifyPropertyChanged(nameof(Graph));
-                }
+                NotifyPropertyChanged(nameof(Graph));
             }
         }
 
         private static readonly object refreshRemotesLock = new object();
         public void RefreshRemotes()
         {
-            if (_area != null)
+            if (Area == null)
+                return;
+            lock (refreshRemotesLock)
             {
-                lock (refreshRemotesLock)
-                {
-                    // Refresh remotes
-                    List<RemoteConfig> remotes = _area.GetRemotes();
-                    _remotes = new List<RemoteConfig>();
+                // Refresh remotes
+                List<RemoteConfig> remotes = Area.GetRemotes();
+                m_Remotes = new List<RemoteConfig>();
 
-                    foreach (RemoteConfig remote in remotes)
-                        _remotes.Add(remote);
+                foreach (RemoteConfig remote in remotes)
+                    m_Remotes.Add(remote);
 
-                    if (SelectedRemote == null || !_remotes.Contains(SelectedRemote))
-                        SelectedRemote = _remotes.FirstOrDefault();
+                if (SelectedRemote == null || !m_Remotes.Contains(SelectedRemote))
+                    SelectedRemote = m_Remotes.FirstOrDefault();
 
-                    NotifyPropertyChanged(nameof(Remotes));
-                }
+                NotifyPropertyChanged(nameof(Remotes));
             }
         }
 
@@ -381,17 +375,25 @@ namespace VersionrUI.ViewModels
             Process.Start(si);
         }
 
+        private void RemoveRepoFromList(ObservableCollection<AreaVM> areas)
+        {
+            AreaVM areaToRemove = areas?.FirstOrDefault(area => area.Directory.FullName == Directory.FullName);
+            if (areaToRemove != null)
+                areas.Remove(areaToRemove);
+        }
+
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
         {
-            if (_area != null && SelectedRemote != null)
+            if (Area != null && SelectedRemote != null)
             {
-                Client client = new Client(_area);
+                Client client = new Client(Area);
                 try
                 {
                     if (client.Connect(Client.ToVersionrURL(SelectedRemote.Host, SelectedRemote.Port, SelectedRemote.Module), requiresWriteAccess))
                         action.Invoke(client);
                     else
-                        OperationStatusDialog.Write(String.Format("Couldn't connect to remote {0}:{1} while processing {2} command!", SelectedRemote.Host, SelectedRemote.Port, command));
+                        OperationStatusDialog.Write(
+                            $"Couldn't connect to remote {SelectedRemote.Host}:{SelectedRemote.Port} while processing {command} command!");
                 }
                 catch { }
                 finally
@@ -407,38 +409,36 @@ namespace VersionrUI.ViewModels
 
         internal void SetStaged(List<StatusEntryVM> entries, bool staged)
         {
-            if(_status != null)
-                _status.SetStaged(entries, staged);
+            m_Status?.SetStaged(entries, staged);
         }
         
         internal async void CreateBranch()
         {
-            if (_area != null)
+            if (Area == null)
+                return;
+            MetroDialogSettings dialogSettings = new MetroDialogSettings() { ColorScheme = MainWindow.DialogColorScheme };
+
+            string branchName = await MainWindow.Instance.ShowInputAsync("Branching from " + Area.CurrentBranch.Name, "Enter a name for the new branch", dialogSettings);
+
+            if (branchName == null) // User pressed cancel
+                return;
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(branchName, "^\\w+$"))
             {
-                MetroDialogSettings dialogSettings = new MetroDialogSettings() { ColorScheme = MainWindow.DialogColorScheme };
-
-                string branchName = await MainWindow.Instance.ShowInputAsync("Branching from " + _area.CurrentBranch.Name, "Enter a name for the new branch", dialogSettings);
-
-                if (branchName == null) // User pressed cancel
-                    return;
-
-                if (!System.Text.RegularExpressions.Regex.IsMatch(branchName, "^\\w+$"))
-                {
-                    await MainWindow.ShowMessage("Couldn't create branch", "Branch name is invalid");
-                    return;
-                }
-
-                // Branching is quick, so we probably don't need status messages. Commented for now...
-
-                //Load(() =>
-                //{
-                //    OperationStatusDialog.Start("Creating Branch");
-                _area.Branch(branchName);
-                RefreshAll();
-                SelectedBranch = Branches.First();
-                //    OperationStatusDialog.Finish();
-                //});
+                await MainWindow.ShowMessage("Couldn't create branch", "Branch name is invalid");
+                return;
             }
+
+            // Branching is quick, so we probably don't need status messages. Commented for now...
+
+            //Load(() =>
+            //{
+            //    OperationStatusDialog.Start("Creating Branch");
+            Area.Branch(branchName);
+            RefreshAll();
+            SelectedBranch = Branches.First();
+            //    OperationStatusDialog.Finish();
+            //});
         }
     }
 }
