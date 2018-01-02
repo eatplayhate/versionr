@@ -622,8 +622,6 @@ namespace Versionr.Commands
             if (nullableLimit.Value <= 0)
                 nullableLimit = null;
 
-            var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, localOptions.ShowAutoMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
-
             if (localOptions.Xml)
             {
                 Printer.PrintMessage("<?xml version='1.0'?>");
@@ -635,11 +633,31 @@ namespace Versionr.Commands
                 Printer.PrintMessage("  </branch>");
             }
 
+            bool boostedLimit = false;
+            retrynotenough:
+            var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, localOptions.ShowAutoMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
+
             m_Tip = Workspace.Version;
             Objects.Version last = null;
             m_Branches = new Dictionary<Guid, Objects.Branch>();
+            var filtered = ApplyHistoryFilter(history, localOptions);
+
+            if (nullableLimit.HasValue && filtered.Count() < localOptions.Limit)
+            {
+                nullableLimit = nullableLimit.Value * 10;
+                boostedLimit = true;
+                if (nullableLimit.Value > 100000)
+                    nullableLimit = null;
+                goto retrynotenough;
+            }
+
+            if (boostedLimit)
+            {
+                Printer.PrintDiagnostics($"Limit for {localOptions.Limit} filtered results was {nullableLimit ?? 0}");
+            }
+
             bool anything = false;
-            foreach (var x in ApplyHistoryFilter(history, localOptions))
+            foreach (var x in filtered)
             {
                 last = x.Item1.Item1;
                 FormatLog(x.Item1, x.Item2, localOptions);
