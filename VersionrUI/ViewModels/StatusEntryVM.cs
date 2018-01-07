@@ -22,15 +22,14 @@ namespace VersionrUI.ViewModels
         public DelegateCommand RevertCommand { get; private set; }
         public DelegateCommand OpenInExplorerCommand { get; private set; }
 
-        private Status.StatusEntry _statusEntry;
-        private StatusVM _statusVM;
-        private Area _area;
+        private readonly StatusVM m_StatusVM;
+        private readonly Area m_Area;
 
         public StatusEntryVM(Status.StatusEntry statusEntry, StatusVM statusVM, Area area)
         {
-            _statusEntry = statusEntry;
-            _statusVM = statusVM;
-            _area = area;
+            StatusEntry = statusEntry;
+            m_StatusVM = statusVM;
+            m_Area = area;
 
             DiffCommand = new DelegateCommand(Diff);
             LogCommand = new DelegateCommand(Log);
@@ -38,48 +37,32 @@ namespace VersionrUI.ViewModels
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
         }
 
-        public Versionr.StatusCode Code
-        {
-            get { return _statusEntry.Code; }
-        }
+        public Versionr.StatusCode Code => StatusEntry.Code;
 
         public bool IsStaged
         {
-            get { return _statusEntry.Staged; }
+            get => StatusEntry.Staged;
             set
             {
-                if (_statusEntry.Staged != value)
-                {
-                    if (value)
-                        _area.RecordChanges(_statusVM.Status, new List<Status.StatusEntry>() { _statusEntry }, true, false, (se, code, b) => { _statusEntry.Code = code; _statusEntry.Staged = true; });
-                    else
-                        _area.Revert(new List<Status.StatusEntry>() { _statusEntry }, false, false, false, (se, code) => { _statusEntry.Code = code; _statusEntry.Staged = false; });
-                    NotifyPropertyChanged("IsStaged");
-                    NotifyPropertyChanged("Code");
-                    // TODO: Changing the status of a file or folder may change the staged status for parent folders.
-                }
+                if (StatusEntry.Staged == value)
+                    return;
+                if (value)
+                    m_Area.RecordChanges(m_StatusVM.Status, new List<Status.StatusEntry>() { StatusEntry }, true, false, (se, code, b) => { StatusEntry.Code = code; StatusEntry.Staged = true; });
+                else
+                    m_Area.Revert(new List<Status.StatusEntry>() { StatusEntry }, false, false, false, (se, code) => { StatusEntry.Code = code; StatusEntry.Staged = false; });
+                NotifyPropertyChanged("IsStaged");
+                NotifyPropertyChanged("Code");
+                // TODO: Changing the status of a file or folder may change the staged status for parent folders.
             }
         }
 
-        public Status.StatusEntry StatusEntry
-        {
-            get { return _statusEntry; }
-        }
+        public Status.StatusEntry StatusEntry { get; }
 
-        public string Name
-        {
-            get { return _statusEntry.Name; }
-        }
+        public string Name => StatusEntry.Name;
 
-        public string CanonicalName
-        {
-            get { return _statusEntry.CanonicalName; }
-        }
+        public string CanonicalName => StatusEntry.CanonicalName;
 
-        public bool IsDirectory
-        {
-            get { return _statusEntry.IsDirectory; }
-        }
+        public bool IsDirectory => StatusEntry.IsDirectory;
 
         public FlowDocument DiffPreview
         {
@@ -89,13 +72,13 @@ namespace VersionrUI.ViewModels
                 FlowDocument diffPreviewDocument = new FlowDocument();
                 diffPreviewDocument.PageWidth = 10000;
 
-                if (_statusEntry.VersionControlRecord != null && !_statusEntry.IsDirectory && _statusEntry.FilesystemEntry != null && _statusEntry.Code == Versionr.StatusCode.Modified)
+                if (StatusEntry.VersionControlRecord != null && !StatusEntry.IsDirectory && StatusEntry.FilesystemEntry != null && StatusEntry.Code == Versionr.StatusCode.Modified)
                 {
-                    if (FileClassifier.Classify(_statusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
+                    if (FileClassifier.Classify(StatusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
                     {
                         Paragraph text = new Paragraph();
                         text.Inlines.Add(new Run("File: "));
-                        text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                        text.Inlines.Add(new Run(StatusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
                         text.Inlines.Add(new Run(" is binary "));
                         text.Inlines.Add(new Run("different") { Foreground = Brushes.Yellow });
                         text.Inlines.Add(new Run("."));
@@ -104,15 +87,15 @@ namespace VersionrUI.ViewModels
                     {
                         // Displaying local modifications
                         string tmp = DiffTool.GetTempFilename();
-                        if (_area.ExportRecord(_statusEntry.CanonicalName, _area.Version, tmp))
+                        if (m_Area.ExportRecord(StatusEntry.CanonicalName, m_Area.Version, tmp))
                         {
                             Paragraph text = new Paragraph();
                             text.Inlines.Add(new Run("Displaying changes for file: "));
-                            text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                            text.Inlines.Add(new Run(StatusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
                             diffPreviewDocument.Blocks.Add(text);
                             try
                             {
-                                RunInternalDiff(diffPreviewDocument, tmp, System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName));
+                                RunInternalDiff(diffPreviewDocument, tmp, System.IO.Path.Combine(m_Area.Root.FullName, StatusEntry.CanonicalName));
                             }
                             finally
                             {
@@ -121,27 +104,27 @@ namespace VersionrUI.ViewModels
                         }
                     }
                 }
-                else if (_statusEntry.Code == Versionr.StatusCode.Unchanged && !_statusEntry.IsDirectory)
+                else if (StatusEntry.Code == Versionr.StatusCode.Unchanged && !StatusEntry.IsDirectory)
                 {
                     Paragraph text = new Paragraph();
                     text.Inlines.Add(new Run("Object: "));
-                    text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                    text.Inlines.Add(new Run(StatusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
                     text.Inlines.Add(new Run(" is "));
                     text.Inlines.Add(new Run("different") { Foreground = Brushes.Green, Background = new SolidColorBrush(Color.FromRgb(0, 35, 0)) });
                     text.Inlines.Add(new Run("."));
                     diffPreviewDocument.Blocks.Add(text);
                 }
-                else if (_statusEntry.VersionControlRecord == null)
+                else if (StatusEntry.VersionControlRecord == null)
                 {
                     Paragraph text = new Paragraph();
                     text.Inlines.Add(new Run("Object: "));
-                    text.Inlines.Add(new Run(_statusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
+                    text.Inlines.Add(new Run(StatusEntry.CanonicalName) { FontWeight = FontWeights.Bold });
                     text.Inlines.Add(new Run(" is "));
                     text.Inlines.Add(new Run("unversioned") { Foreground = Brushes.DarkCyan });
                     text.Inlines.Add(new Run("."));
                     diffPreviewDocument.Blocks.Add(text);
 
-                    string fileName = System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName);
+                    string fileName = System.IO.Path.Combine(m_Area.Root.FullName, StatusEntry.CanonicalName);
                     if (File.Exists(fileName))
                     {
                         using (var fs = new FileInfo(fileName).OpenText())
@@ -165,37 +148,45 @@ namespace VersionrUI.ViewModels
 
         public void Diff()
         {
-            if (_statusEntry.VersionControlRecord != null && !_statusEntry.IsDirectory && _statusEntry.FilesystemEntry != null && _statusEntry.Code == Versionr.StatusCode.Modified)
+            if (StatusEntry.VersionControlRecord == null || StatusEntry.IsDirectory ||
+                StatusEntry.FilesystemEntry == null || StatusEntry.Code != Versionr.StatusCode.Modified)
+                return;
+            if (FileClassifier.Classify(StatusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
             {
-                if (FileClassifier.Classify(_statusEntry.FilesystemEntry.Info) == FileEncoding.Binary)
+                MainWindow.ShowMessage("Binary differences",
+                    $"File: {StatusEntry.CanonicalName} has binary differences, but you don't really want to see them.");
+            }
+            else
+            {
+                List<StatusEntryVM> selectedItems = new List<StatusEntryVM>(VersionrPanel.SelectedItems.OfType<StatusEntryVM>());
+
+                // Displaying local modifications
+                foreach (var statusEntry in selectedItems)
                 {
-                    MainWindow.ShowMessage("Binary differences", String.Format("File: {0} has binary differences, but you don't really want to see them.", _statusEntry.CanonicalName));
-                }
-                else
-                {
-                    // Displaying local modifications
                     string tmp = DiffTool.GetTempFilename();
-                    if (_area.ExportRecord(_statusEntry.CanonicalName, _area.Version, tmp))
+                    if (m_Area.ExportRecord(statusEntry.CanonicalName, m_Area.Version, tmp))
                     {
-                        _area.GetTaskFactory().StartNew(() =>
+                        m_Area.GetTaskFactory().StartNew(() =>
                         {
                             try
                             {
-                                DiffTool.Diff(tmp, _statusEntry.Name + "-base", System.IO.Path.Combine(_area.Root.FullName, _statusEntry.CanonicalName), _statusEntry.Name, _area.Directives.ExternalDiff, false);
+                                DiffTool.Diff(tmp, statusEntry.Name + "-base",
+                                    System.IO.Path.Combine(m_Area.Root.FullName, statusEntry.CanonicalName),
+                                    statusEntry.Name, m_Area.Directives.ExternalDiff, false);
                             }
                             finally
                             {
                                 System.IO.File.Delete(tmp);
                             }
                         });
-                    }
+                    } 
                 }
             }
         }
 
         private void Log()
         {
-            LogDialog.Show(_area.Version, _area, _statusEntry.CanonicalName);
+            LogDialog.Show(m_Area.Version, m_Area, StatusEntry.CanonicalName);
         }
 
         public void RevertSelected()
@@ -206,21 +197,24 @@ namespace VersionrUI.ViewModels
             MainWindow.Instance.Dispatcher.Invoke(async () =>
             {
                 selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
-                
-                string message = String.Empty;
+
                 string plural = (selectedItems.Count > 1) ? "s" : "";
-                if (selectedItems.All(x => x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned || x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed))
-                    message = String.Format("The selected item{0} will be permanently deleted. ", plural);
-                else
-                    message = String.Format("All changes to the selected item{0} will be lost. ", plural);
-                
-                result = await MainWindow.ShowMessage(String.Format("Reverting {0} item{1}", selectedItems.Count, plural), message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative);
+                var message = string.Format(
+                    selectedItems.All(x =>
+                        x.Code == StatusCode.Added || x.Code == StatusCode.Unversioned || x.Code == StatusCode.Copied ||
+                        x.Code == StatusCode.Renamed)
+                        ? "The selected item{0} will be permanently deleted. "
+                        : "All changes to the selected item{0} will be lost. ", plural);
+
+                result = await MainWindow.ShowMessage($"Reverting {selectedItems.Count} item{plural}",
+                    message + "Do you want to continue?", MessageDialogStyle.AffirmativeAndNegative);
+
             }).Wait();
 
             if (result == MessageDialogResult.Affirmative)
             {
-                _area.Revert(selectedItems.Select(x => x._statusEntry).ToList(), true, false, true);
-                _statusVM.Refresh();
+                m_Area.Revert(selectedItems.Select(x => x.StatusEntry).ToList(), true, false, true);
+                m_StatusVM.Refresh();
             }
         }
 
@@ -478,7 +472,7 @@ namespace VersionrUI.ViewModels
         private void OpenInExplorer()
         {
             ProcessStartInfo si = new ProcessStartInfo("explorer");
-            si.Arguments = "/select,\"" + Path.Combine(_area.Root.FullName, CanonicalName).Replace('/', '\\') + "\"";
+            si.Arguments = "/select,\"" + Path.Combine(m_Area.Root.FullName, CanonicalName).Replace('/', '\\') + "\"";
             Process.Start(si);
         }
     }
