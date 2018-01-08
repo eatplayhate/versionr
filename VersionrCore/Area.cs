@@ -8553,6 +8553,48 @@ namespace Versionr
             return PartialPath + local;
         }
 
+        public bool ParseAndApplyPatch(string patchFile)
+        {
+            ApplyPatch("core/src/im/StringRange.h", "b.patch", "out.txt", "errors.txt", 0);
+            var patchContents = System.IO.File.ReadAllLines(patchFile);
+            for (int line = 0; line < patchContents.Length;)
+            {
+                string start = patchContents[line];
+                if (start.StartsWith("Index: ")) // SVN style patch (WE HOPE!!!)
+                {
+                    int startHunk = line;
+                    string indexFile = start.Substring(7);
+
+                    // find the diff target lines
+                    string oldfn = null;
+                    string newfn = null;
+                    while (newfn == null || oldfn == null)
+                    {
+                        if (++line == patchContents.Length)
+                        {
+                            Printer.PrintMessage("#e#Failed to find target directives (hunk start at line {0})##", startHunk);
+                            return false;
+                        }
+                        if (patchContents[line].StartsWith("---"))
+                            oldfn = patchContents[line].Substring(4);
+                        if (patchContents[line].StartsWith("+++"))
+                            newfn = patchContents[line].Substring(4);
+                    }
+
+                    List<string> partialXDiffPatch = new List<string>();
+                    partialXDiffPatch.Add(oldfn);
+                    partialXDiffPatch.Add(newfn);
+
+                }
+                else
+                {
+                    Printer.PrintMessage("#e#Can't parse patch format (line {0})##", line);
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public class PruneOptions
         {
             public TimeSpan? CandidateTimespan { get; set; } = TimeSpan.FromDays(30);
