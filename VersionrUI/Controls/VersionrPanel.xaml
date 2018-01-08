@@ -234,7 +234,9 @@
                       SelectionMode="Single"
                       GridViewColumnHeader.Click="listViewHeader_Click"
                       ScrollViewer.IsDeferredScrollingEnabled="False"
-                      Style="{StaticResource VirtualisedMetroListView}">
+                      Style="{StaticResource VirtualisedMetroListView}"
+                      PreviewMouseDown="listView_PreviewMouseDown"
+                      MouseMove="listView_MouseMove">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name, Mode=OneWay}" />
@@ -367,7 +369,9 @@
                               GridViewColumnHeader.Click="listViewHeader_Click"
                               ScrollViewer.IsDeferredScrollingEnabled="False"
                               Style="{StaticResource VirtualisedMetroListView}"
-                              BorderThickness="0">
+                              BorderThickness="0"
+                              PreviewMouseDown="listView_PreviewMouseDown"
+                              MouseMove="listView_MouseMove">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Staged">
