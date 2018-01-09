@@ -65,7 +65,7 @@ namespace VersionrUI.Controls
                                 // MainWindow.ShowMessage(title, message);
                                 OpenAreas.Remove(x);
                             }
-                            SaveOpenAreas();
+                            SaveOpenAreas(OpenAreas);
                         },
                         AreaInitMode.UseExisting);
                     OpenAreas.Add(areaVM);
@@ -106,6 +106,17 @@ namespace VersionrUI.Controls
                 lv.SelectedItem = item;
         }
 
+        public static void SaveOpenAreas(ObservableCollection<AreaVM> openAreas)
+        {
+            Properties.Settings.Default.OpenAreas = new StringCollection();
+            foreach (AreaVM area in openAreas.Where(x => x.IsValid))
+            {
+                string areaString = $"{area.Directory.FullName};{area.Name}";
+                Properties.Settings.Default.OpenAreas.Add(areaString);
+            }
+            Properties.Settings.Default.Save();
+        }
+
         #region Commands
         public DelegateCommand NewAreaCommand { get; private set; }
 
@@ -114,38 +125,25 @@ namespace VersionrUI.Controls
             CloneNewDialog cloneNewDlg = new CloneNewDialog();
             await MainWindow.Instance.ShowMetroDialogAsync(cloneNewDlg);
             await cloneNewDlg.WaitUntilUnloadedAsync();
-            if (cloneNewDlg.DialogResult == true)
-            {
-                int port = 0;
-                int.TryParse(cloneNewDlg.Port, out port);
-                AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
-                    (x, title, message) =>
+            if (cloneNewDlg.DialogResult != true)
+                return;
+            int.TryParse(cloneNewDlg.Port, out var port);
+            AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
+                (x, title, message) =>
+                {
+                    if (!x.IsValid)
                     {
-                        if (!x.IsValid)
-                        {
-                            MainWindow.ShowMessage(title, message);
-                            OpenAreas.Remove(x);
-                        }
-                        SaveOpenAreas();
-                    },
-                    cloneNewDlg.Result, cloneNewDlg.Host, port);
-                OpenAreas.Add(areaVM);
-                SelectedArea = OpenAreas.LastOrDefault();
-            }
+                        MainWindow.ShowMessage(title, message);
+                        OpenAreas.Remove(x);
+                    }
+                    SaveOpenAreas(OpenAreas);
+                },
+                cloneNewDlg.Result, cloneNewDlg.Host, port);
+            OpenAreas.Add(areaVM);
+            SelectedArea = OpenAreas.LastOrDefault();
         }
         #endregion
 
-        private void SaveOpenAreas()
-        {
-            Properties.Settings.Default.OpenAreas = new StringCollection();
-            foreach (AreaVM area in OpenAreas.Where(x => x.IsValid))
-            {
-                string areaString = $"{area.Directory.FullName};{area.Name}";
-                Properties.Settings.Default.OpenAreas.Add(areaString);
-            }
-            Properties.Settings.Default.Save();
-        }
-        
         private void listViewHeader_Click(object sender, RoutedEventArgs e)
         {
             if (!(sender is ListView))
