@@ -131,6 +131,17 @@
                         <GridViewColumn Header="Message" DisplayMemberBinding="{Binding Message, Mode=OneWay}"/>
                     </GridView>
                 </ListView.View>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="{x:Type ListViewItem}" BasedOn="{StaticResource {x:Type ListViewItem}}">
+                        <Setter Property="ContextMenu">
+                            <Setter.Value>
+                                <ContextMenu>
+                                    <MenuItem Header="Copy Info To Clipboard" Command="{Binding CopyInfoCommand}"/>
+                                </ContextMenu>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListView.ItemContainerStyle>
             </ListView>
             <GridSplitter Grid.Row="2"
                           HorizontalAlignment="Stretch"

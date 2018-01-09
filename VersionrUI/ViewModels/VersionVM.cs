@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Versionr;
 using Versionr.Objects;
+using VersionrUI.Commands;
 using Version = Versionr.Objects.Version;
 
 namespace VersionrUI.ViewModels
@@ -13,11 +14,14 @@ namespace VersionrUI.ViewModels
         private readonly Area m_Area;
         private List<AlterationVM> m_Alterations;
         private string m_SearchText;
-        
+        public DelegateCommand CopyInfoCommand { get; private set; }
+
+
         public VersionVM(Version version, Area area)
         {
             m_Version = version;
             m_Area = area;
+            CopyInfoCommand = new DelegateCommand(CopyInfo);
         }
 
         public Guid ID
@@ -108,6 +112,14 @@ namespace VersionrUI.ViewModels
 
                 NotifyPropertyChanged(nameof(Alterations));
             }
+        }
+
+        private void CopyInfo()
+        {
+            var versionInfo =
+                $"ID: {ID}\nAuthor: {Author}\nMessage: {Message}\nDate/Time: {Timestamp.ToString()}\n\nFile(s) changed: \n\n";
+            versionInfo = Alterations.Aggregate(versionInfo, (current, alteration) => current + $"{alteration.Name}\t{alteration.AlterationType}\n");
+            System.Windows.Clipboard.SetText(versionInfo);
         }
     }
 }
