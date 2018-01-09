@@ -64,6 +64,7 @@
                                             </MultiBinding>
                                         </DataTrigger.Binding>
                                         <Setter Property="TextBlock.FontWeight" Value="Bold"/>
+                                        <Setter Property="TextBlock.Foreground" Value="Red"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
