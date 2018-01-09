@@ -9,6 +9,7 @@ using Versionr;
 using Versionr.LocalState;
 using Versionr.Network;
 using VersionrUI.Commands;
+using VersionrUI.Controls;
 using VersionrUI.Dialogs;
 
 namespace VersionrUI.ViewModels
@@ -380,6 +381,8 @@ namespace VersionrUI.ViewModels
             AreaVM areaToRemove = areas?.FirstOrDefault(area => area.Directory.FullName == Directory.FullName);
             if (areaToRemove != null)
                 areas.Remove(areaToRemove);
+            // Update on disk
+            VersionrPanel.SaveOpenAreas(areas);
         }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
