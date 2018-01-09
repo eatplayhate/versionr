@@ -92,6 +92,7 @@ namespace VersionrUI.Dialogs
                 if (e.Key == Key.Escape)
                     Close();
             };
+            Owner = MainWindow.Instance;
         }
 
         public Version Version { get; private set; }
@@ -282,7 +283,7 @@ namespace VersionrUI.Dialogs
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
         #endregion
-
+        
     }
     class ResolvedAlteration
     {
