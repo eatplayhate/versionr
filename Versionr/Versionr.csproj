@@ -68,6 +68,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Commands\Apply.cs" />
     <Compile Include="Commands\BranchControl.cs" />
     <Compile Include="Commands\DeleteAnnotation.cs" />
     <Compile Include="Commands\DiffVersions.cs" />
