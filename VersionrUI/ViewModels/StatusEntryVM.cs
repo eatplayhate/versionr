@@ -41,7 +41,7 @@ namespace VersionrUI.ViewModels
 
         public bool IsStaged
         {
-            get => StatusEntry.Staged;
+            get { return StatusEntry.Staged; }
             set
             {
                 if (StatusEntry.Staged == value)

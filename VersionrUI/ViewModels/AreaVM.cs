@@ -125,7 +125,7 @@ namespace VersionrUI.ViewModels
 
         public NotifyPropertyChangedBase SelectedVM
         {
-            get => m_SelectedVM;
+            get { return m_SelectedVM; }
             set
             {
                 if (m_SelectedVM == value)
@@ -140,7 +140,7 @@ namespace VersionrUI.ViewModels
 
         public BranchVM SelectedBranch
         {
-            get => m_SelectedBranch;
+            get { return m_SelectedBranch; }
             set
             {
                 if (m_SelectedBranch == value)
@@ -162,7 +162,7 @@ namespace VersionrUI.ViewModels
 
         public string Name
         {
-            get => m_Name;
+            get { return m_Name; }
             set
             {
                 if (m_Name == value)
@@ -174,19 +174,19 @@ namespace VersionrUI.ViewModels
 
         public bool IsStatusSelected
         {
-            get => SelectedVM == Status;
-            set => SelectedVM = Status;
+            get { return SelectedVM == Status; }
+            set { SelectedVM = Status; }
         }
 
         public bool IsHistorySelected
         {
-            get => SelectedVM is BranchVM;
-            set => SelectedVM = SelectedBranch;
+            get { return SelectedVM is BranchVM; }
+            set { SelectedVM = SelectedBranch; }
         }
 
         public bool IsGraphSelected
         {
-            get => SelectedVM == Graph;
+            get { return SelectedVM == Graph; }
             set
             {
                 if (!GraphVM.IsGraphVizInstalled())
@@ -215,7 +215,7 @@ namespace VersionrUI.ViewModels
 
         public RemoteConfig SelectedRemote
         {
-            get => m_SelectedRemote;
+            get { return m_SelectedRemote; }
             set
             {
                 if (m_SelectedRemote == value)

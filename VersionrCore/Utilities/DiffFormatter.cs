@@ -215,8 +215,6 @@ namespace Versionr.Utilities
                         else
                             openRegion = new Region() { Start1 = s1, Start2 = s2 };
                     }
-                    openRegion.End1 = System.Math.Min(line0 + 4, lines1.Count + 1);
-                    openRegion.End2 = System.Math.Min(line1 + 4, lines2.Count + 1);
                     if (j <= cf0)
                     {
                         line0++;
@@ -225,6 +223,8 @@ namespace Versionr.Utilities
                     {
                         line1++;
                     }
+                    openRegion.End1 = System.Math.Min(line0 + 4, lines1.Count);
+                    openRegion.End2 = System.Math.Min(line1 + 4, lines2.Count);
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
