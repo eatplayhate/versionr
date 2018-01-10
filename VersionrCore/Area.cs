@@ -6337,15 +6337,16 @@ namespace Versionr
         }
 
         int m_TempFileIndex = 0;
-        private FileInfo GetTemporaryFile(Record rec, string name = "")
+        private FileInfo GetTemporaryFile(Record rec = null, string name = "")
         {
             DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "temp"));
             info.Create();
+            string nameprefix = rec?.Name ?? string.Empty;
             lock (this)
             {
                 while (true)
                 {
-                    string fn = rec.Name + name + m_TempFileIndex++.ToString() + ".tmp";
+                    string fn = nameprefix + name + m_TempFileIndex++.ToString() + ".tmp";
                     var x = new FileInfo(Path.Combine(info.FullName, fn));
                     if (!x.Exists)
                     {
@@ -8553,9 +8554,8 @@ namespace Versionr
             return PartialPath + local;
         }
 
-        public bool ParseAndApplyPatch(string patchFile)
+        public bool ParseAndApplyPatch(string patchFile, bool interactive)
         {
-            ApplyPatch("core/src/im/StringRange.h", "b.patch", "out.txt", "errors.txt", 0);
             var patchContents = System.IO.File.ReadAllLines(patchFile);
             for (int line = 0; line < patchContents.Length;)
             {
@@ -8564,6 +8564,9 @@ namespace Versionr
                 {
                     int startHunk = line;
                     string indexFile = start.Substring(7);
+
+                    bool mayBeAdding = false;
+                    bool mayBeDeleting = false;
 
                     // find the diff target lines
                     string oldfn = null;
@@ -8581,10 +8584,180 @@ namespace Versionr
                             newfn = patchContents[line].Substring(4);
                     }
 
-                    List<string> partialXDiffPatch = new List<string>();
-                    partialXDiffPatch.Add(oldfn);
-                    partialXDiffPatch.Add(newfn);
+                    line++;
 
+                    List<string> partialXDiffPatch = new List<string>();
+                    partialXDiffPatch.Add("--- " + oldfn);
+                    partialXDiffPatch.Add("+++ " + newfn);
+
+                    string firstHunk = patchContents[line++];
+                    if (!firstHunk.StartsWith("@@"))
+                    {
+                        Printer.PrintMessage("#e#Failed to find first hunk (hunk start at line {0})##", startHunk);
+                        return false;
+                    }
+
+                    if (firstHunk.StartsWith("@@ -0,0"))
+                        mayBeAdding = true;
+                    if (firstHunk.EndsWith("+0,0 @@"))
+                        mayBeDeleting = true;
+
+                    partialXDiffPatch.Add(firstHunk);
+
+                    int scanstart = line;
+                    while (patchContents.Length != line)
+                    {
+                        string next = patchContents[line++];
+                        if (next.Length > 0 && next[0] == '\\' && !(next.Length > 1 && next[1] == '\\'))
+                        {
+                            break;
+                        }
+
+                        partialXDiffPatch.Add(next);
+
+                        if (patchContents.Length >= line + 4)
+                        {
+                            if (patchContents[line + 2].StartsWith("---") && patchContents[line + 3].StartsWith("+++") && patchContents[line + 4].StartsWith("@@"))
+                                break;
+                        }
+                    }
+
+                    FileInfo originalFile = new FileInfo(Path.Combine(RootDirectory.FullName, indexFile));
+                    if (originalFile.Exists)
+                    {
+                        if (mayBeDeleting)
+                        {
+                            Printer.PrintMessage("Removing file: #b#{0}##", indexFile);
+                            if (!interactive || Printer.Prompt("Patch deletes file - continue"))
+                            {
+                                originalFile.Delete();
+                                Printer.PrintMessage(" #s#[success]##");
+                            }
+                            continue;
+                        }
+                        Printer.PrintMessage("Patching file: #b#{0}##", indexFile);
+                        var file = GetTemporaryFile(null, string.Format("{0}-{1}.patch", System.IO.Path.GetFileNameWithoutExtension(patchFile), System.IO.Path.GetFileName(indexFile)));
+                        using (var sw = file.CreateText())
+                        {
+                            foreach (var elem in partialXDiffPatch)
+                                sw.WriteLine(elem);
+                        }
+
+                        var outputFile = GetTemporaryFile(null, System.IO.Path.GetFileName(indexFile));
+                        var rejectionFile = GetTemporaryFile(null, "patch-errors.txt");
+                        if (mayBeAdding)
+                        {
+                            var empty = GetTemporaryFile(null, "patch-empty.txt");
+                            using (var sw = empty.CreateText()) { }
+                            var test = GetTemporaryFile(null, "patch-test.txt");
+                            using (var sw = test.CreateText()) { }
+                            if (ApplyPatch(empty.FullName, file.FullName, test.FullName, rejectionFile.FullName, 0) == 0)
+                            {
+                                string newFile = System.IO.File.ReadAllText(test.FullName);
+                                string oldFile = System.IO.File.ReadAllText(originalFile.FullName);
+                                if (oldFile.StartsWith(newFile))
+                                {
+                                    Printer.PrintMessage(" #s#[skipped - multiple add]##");
+                                }
+                                empty.Delete();
+                                rejectionFile.Delete();
+                                file.Delete();
+                                test.Delete();
+                                continue;
+                            }
+                            empty.Delete();
+                            rejectionFile.Delete();
+                            test.Delete();
+                        }
+
+                        int result = ApplyPatch(originalFile.FullName, file.FullName, outputFile.FullName, rejectionFile.FullName, 0);
+                        
+                        bool hasRejectedHunks = false;
+                        using (FileStream fs = File.Open(rejectionFile.FullName, FileMode.Open))
+                        using (TextReader tr = new StreamReader(fs))
+                        {
+                            if (fs.Length != 0)
+                            {
+                                hasRejectedHunks = true;
+                                string[] errorLines = tr.ReadToEnd().Split('\n');
+                                Printer.PrintError("#e#Error:#b# Couldn't apply all patch hunks!##");
+                                foreach (var x in errorLines)
+                                {
+                                    if (x.StartsWith("@@"))
+                                        Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
+                                    else if (x.StartsWith("-"))
+                                        Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
+                                    else if (x.StartsWith("+"))
+                                        Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
+                                    else
+                                        Printer.PrintMessage(Printer.Escape(x));
+                                }
+                            }
+                        }
+
+                        if (result != 0 && hasRejectedHunks == false)
+                        {
+                            Printer.PrintError("#e#Error:#b# Patch failed to apply!##");
+                            rejectionFile.Delete();
+                            file.Delete();
+                            continue;
+                        }
+
+                        bool editManually = false;
+                        bool success = !hasRejectedHunks;
+                        if (hasRejectedHunks)
+                        {
+                            Printer.PrintMessage(" #w#[failed - rejected hunks]##");
+                            if (Printer.Prompt("Keep output and edit manually"))
+                            {
+                                editManually = true;
+                            }
+                            else
+                            {
+                                outputFile.Delete();
+                            }
+                        }
+                        else
+                        {
+                            Printer.PrintMessage(" #s#[success]##");
+                            editManually = interactive;
+                        }
+
+                        if (editManually)
+                        {
+                            var oldFile = GetTemporaryFile(null, "OLD-" + System.IO.Path.GetFileName(indexFile));
+                            outputFile.Replace(originalFile.FullName, oldFile.FullName);
+
+                            Utilities.DiffTool.Diff(oldFile.FullName, oldFile.Name + " (OLD)", originalFile.FullName, originalFile.Name, Directives.ExternalDiff, false);
+                        }
+                        else if (success)
+                        {
+                            originalFile.Delete();
+                            outputFile.MoveTo(originalFile.FullName);
+                        }
+
+                        rejectionFile.Delete();
+                        file.Delete();
+                    }
+                    else if (mayBeAdding)
+                    {
+                        var file = GetTemporaryFile(null, string.Format("{0}-{1}.patch", System.IO.Path.GetFileNameWithoutExtension(patchFile), System.IO.Path.GetFileName(indexFile)));
+                        using (var sw = file.CreateText())
+                        {
+                            foreach (var elem in partialXDiffPatch)
+                                sw.WriteLine(elem);
+                        }
+                        Printer.PrintMessage("Adding file: #b#{0}##", indexFile);
+                        var empty = GetTemporaryFile(null, "patch-empty.txt");
+                        using (var sw = empty.CreateText()) { }
+                        using (var sw = originalFile.CreateText()) { }
+                        var rejectionFile = GetTemporaryFile(null, "patch-errors.txt");
+                        ApplyPatch(empty.FullName, file.FullName, originalFile.FullName, rejectionFile.FullName, 0);
+                        Printer.PrintMessage(" #s#[success]##");
+                        empty.Delete();
+                        rejectionFile.Delete();
+                        file.Delete();
+                    }
                 }
                 else
                 {

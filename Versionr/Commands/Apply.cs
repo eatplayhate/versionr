@@ -52,7 +52,7 @@ namespace Versionr.Commands
             ApplyVerbOptions localOptions = options as ApplyVerbOptions;
             if (System.IO.File.Exists(localOptions.PatchFile))
             {
-                return Workspace.ParseAndApplyPatch(localOptions.PatchFile);
+                return Workspace.ParseAndApplyPatch(localOptions.PatchFile, true);
             }
             Printer.PrintError("#e#Can't find patch file to load: {0}##", localOptions.PatchFile);
             return false;
