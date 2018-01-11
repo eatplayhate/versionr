@@ -8554,16 +8554,17 @@ namespace Versionr
             return PartialPath + local;
         }
 
-        public bool ParseAndApplyPatch(string patchFile, bool interactive)
+        public bool ParseAndApplyPatch(string patchFile, bool interactive, bool record, bool reverse)
         {
             var patchContents = System.IO.File.ReadAllLines(patchFile);
+            List<string> fullpaths = new List<string>();
             for (int line = 0; line < patchContents.Length;)
             {
                 string start = patchContents[line];
-                if (start.StartsWith("Index: ")) // SVN style patch (WE HOPE!!!)
+                if (start.StartsWith("Index: ") || start.StartsWith("Displaying changes for file: ")) // SVN/vsr style patch (WE HOPE!!!)
                 {
                     int startHunk = line;
-                    string indexFile = start.Substring(7);
+                    string indexFile = start.Substring(start.IndexOf(':') + 2);
 
                     bool mayBeAdding = false;
                     bool mayBeDeleting = false;
@@ -8586,6 +8587,17 @@ namespace Versionr
 
                     line++;
 
+                    if (mayBeAdding && reverse)
+                    {
+                        mayBeAdding = false;
+                        mayBeDeleting = true;
+                    }
+                    else if (mayBeDeleting && reverse)
+                    {
+                        mayBeDeleting = false;
+                        mayBeAdding = true;
+                    }
+
                     List<string> partialXDiffPatch = new List<string>();
                     partialXDiffPatch.Add("--- " + oldfn);
                     partialXDiffPatch.Add("+++ " + newfn);
@@ -8607,19 +8619,14 @@ namespace Versionr
                     int scanstart = line;
                     while (patchContents.Length != line)
                     {
-                        string next = patchContents[line++];
-                        if (next.Length > 0 && next[0] == '\\' && !(next.Length > 1 && next[1] == '\\'))
+                        string next = patchContents[line];
+                        if (next.Length > 0 && (next[0] == '\\' || next[0] == ' ' || next[0] == '+' || next[0] == '-' || next.StartsWith("@@")))
                         {
+                            line++;
+                            partialXDiffPatch.Add(next);
+                        }
+                        else
                             break;
-                        }
-
-                        partialXDiffPatch.Add(next);
-
-                        if (patchContents.Length >= line + 4)
-                        {
-                            if (patchContents[line + 2].StartsWith("---") && patchContents[line + 3].StartsWith("+++") && patchContents[line + 4].StartsWith("@@"))
-                                break;
-                        }
                     }
 
                     FileInfo originalFile = new FileInfo(Path.Combine(RootDirectory.FullName, indexFile));
@@ -8651,7 +8658,7 @@ namespace Versionr
                             using (var sw = empty.CreateText()) { }
                             var test = GetTemporaryFile(null, "patch-test.txt");
                             using (var sw = test.CreateText()) { }
-                            if (ApplyPatch(empty.FullName, file.FullName, test.FullName, rejectionFile.FullName, 0) == 0)
+                            if (ApplyPatch(empty.FullName, file.FullName, test.FullName, rejectionFile.FullName, reverse ? 1 : 0) == 0)
                             {
                                 string newFile = System.IO.File.ReadAllText(test.FullName);
                                 string oldFile = System.IO.File.ReadAllText(originalFile.FullName);
@@ -8670,7 +8677,7 @@ namespace Versionr
                             test.Delete();
                         }
 
-                        int result = ApplyPatch(originalFile.FullName, file.FullName, outputFile.FullName, rejectionFile.FullName, 0);
+                        int result = ApplyPatch(originalFile.FullName, file.FullName, outputFile.FullName, rejectionFile.FullName, reverse ? 1 : 0);
                         
                         bool hasRejectedHunks = false;
                         using (FileStream fs = File.Open(rejectionFile.FullName, FileMode.Open))
@@ -8752,18 +8759,41 @@ namespace Versionr
                         using (var sw = empty.CreateText()) { }
                         using (var sw = originalFile.CreateText()) { }
                         var rejectionFile = GetTemporaryFile(null, "patch-errors.txt");
-                        ApplyPatch(empty.FullName, file.FullName, originalFile.FullName, rejectionFile.FullName, 0);
+                        ApplyPatch(empty.FullName, file.FullName, originalFile.FullName, rejectionFile.FullName, reverse ? 1 : 0);
                         Printer.PrintMessage(" #s#[success]##");
                         empty.Delete();
                         rejectionFile.Delete();
                         file.Delete();
                     }
+                    else
+                    {
+                        Printer.PrintMessage("#e#Failed to patch file (can't find file?): {0}##", originalFile.FullName);
+                        return false;
+                    }
+                    fullpaths.Add(originalFile.FullName);
                 }
                 else
                 {
                     Printer.PrintMessage("#e#Can't parse patch format (line {0})##", line);
                     return false;
                 }
+            }
+
+            if (record)
+            {
+                Status s = Status;
+
+                List<Status.StatusEntry> entries = new List<Status.StatusEntry>();
+                foreach (var item in fullpaths)
+                {
+                    Status.StatusEntry entry;
+                    if (s.Map.TryGetValue(GetLocalPath(item), out entry))
+                        entries.Add(entry);
+                    else
+                        Printer.PrintWarning("#w#Couldn't find status for file {0}", item);
+                }
+                if (entries.Count > 0)
+                    RecordChanges(s, entries, true, false);
             }
             return true;
         }

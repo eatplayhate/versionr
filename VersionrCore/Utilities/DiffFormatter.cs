@@ -196,11 +196,8 @@ namespace Versionr.Utilities
                     last = regions[regions.Count - 1];
                 if (diff[i].common != null)
                 {
-                    foreach (var x in diff[i].common)
-                    {
-                        line0++;
-                        line1++;
-                    }
+                    line0 += diff[i].common.Count;
+                    line1 += diff[i].common.Count;
                 }
                 int cf0 = diff[i].file1 == null ? 0 : diff[i].file1.Count;
                 int cf1 = diff[i].file2 == null ? 0 : diff[i].file2.Count;
@@ -215,8 +212,6 @@ namespace Versionr.Utilities
                         else
                             openRegion = new Region() { Start1 = s1, Start2 = s2 };
                     }
-                    openRegion.End1 = System.Math.Min(line0 + 4, lines1.Count + 1);
-                    openRegion.End2 = System.Math.Min(line1 + 4, lines2.Count + 1);
                     if (j <= cf0)
                     {
                         line0++;
@@ -225,6 +220,8 @@ namespace Versionr.Utilities
                     {
                         line1++;
                     }
+                    openRegion.End1 = System.Math.Min(line0 + 3, lines1.Count + 1);
+                    openRegion.End2 = System.Math.Min(line1 + 3, lines2.Count + 1);
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {

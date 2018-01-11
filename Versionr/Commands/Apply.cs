@@ -41,6 +41,15 @@ namespace Versionr.Commands
             }
         }
 
+        [Option('i', "interactive", DefaultValue = false, HelpText = "Bring up external diff/merge tool after each file.")]
+        public bool Interactive { get; set; }
+
+        [Option('r', "record", DefaultValue = false, HelpText = "Record changes as files are modified.")]
+        public bool Record { get; set; }
+
+        [Option("reverse", DefaultValue = false, HelpText = "Apply patch in reverse.")]
+        public bool Reverse { get; set; }
+
         [ValueOption(0)]
         public string PatchFile { get; set; }
     }
@@ -52,7 +61,7 @@ namespace Versionr.Commands
             ApplyVerbOptions localOptions = options as ApplyVerbOptions;
             if (System.IO.File.Exists(localOptions.PatchFile))
             {
-                return Workspace.ParseAndApplyPatch(localOptions.PatchFile, true);
+                return Workspace.ParseAndApplyPatch(localOptions.PatchFile, localOptions.Interactive, localOptions.Record, localOptions.Reverse);
             }
             Printer.PrintError("#e#Can't find patch file to load: {0}##", localOptions.PatchFile);
             return false;
