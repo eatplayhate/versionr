@@ -78,7 +78,7 @@ namespace VersionrUI.Controls
 
         public AreaVM SelectedArea
         {
-            get => m_SelectedArea;
+            get { return m_SelectedArea; }
             set
             {
                 if (m_SelectedArea == value)
@@ -127,7 +127,8 @@ namespace VersionrUI.Controls
             await cloneNewDlg.WaitUntilUnloadedAsync();
             if (cloneNewDlg.DialogResult != true)
                 return;
-            int.TryParse(cloneNewDlg.Port, out var port);
+            int port;
+            int.TryParse(cloneNewDlg.Port, out port);
             AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
                 (x, title, message) =>
                 {
@@ -149,7 +150,8 @@ namespace VersionrUI.Controls
             if (!(sender is ListView))
                 return;
 
-            if (!(e.OriginalSource is GridViewColumnHeader headerClicked))
+            var headerClicked = e.OriginalSource as GridViewColumnHeader;
+            if (headerClicked == null)
                 return;
             if (headerClicked.Role == GridViewColumnHeaderRole.Padding)
                 return;
@@ -277,7 +279,8 @@ namespace VersionrUI.Controls
 
         private void CheckBox_Clicked(object sender, RoutedEventArgs e)
         {
-            if (!(sender is CheckBox checkbox))
+            var checkbox = sender as CheckBox;
+            if (checkbox == null)
                 return;
             // The checked item may not be one of the already selected items, so update the selections
             if (checkbox.DataContext is StatusEntryVM && !SelectedItems.Contains((StatusEntryVM)checkbox.DataContext))
@@ -293,7 +296,8 @@ namespace VersionrUI.Controls
 
         private void newTagText_KeyUp(object sender, KeyEventArgs e)
         {
-            if (sender is TextBox textbox && (e.Key == Key.Return || e.Key == Key.Enter))
+            TextBox textbox = sender as TextBox;
+            if (textbox != null && (e.Key == Key.Return || e.Key == Key.Enter))
             {
                 SelectedArea?.Status.AddTagCommand.Execute(textbox);
             }
@@ -314,9 +318,10 @@ namespace VersionrUI.Controls
                 if (!item.StatusEntry.IsFile) continue;
                 m_SelectedFilesForDragDropCopy.Add(item.StatusEntry.FilesystemEntry.FullName);
             }
-            
+
             // Drag drop copy a single change from a changelist
-            if ((!(((ListView) sender).SelectedItem is AlterationVM alteration)))
+            AlterationVM alteration = ((ListView)sender).SelectedItem as AlterationVM;
+            if (alteration == null)
                 return;
             m_SelectedFilesForDragDropCopy.Add(Path.Combine(SelectedArea.Area.Root.FullName, alteration.Name));
         }
