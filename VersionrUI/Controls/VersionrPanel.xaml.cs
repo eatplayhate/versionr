@@ -311,7 +311,7 @@ namespace VersionrUI.Controls
             // Drag drop copy from the status view
             foreach (var item in SelectedItems.OfType<StatusEntryVM>())
             {
-                if (!item.StatusEntry.IsFile) continue;
+                if (!item.StatusEntry.IsFile || item.StatusEntry.FilesystemEntry == null) continue;
                 m_SelectedFilesForDragDropCopy.Add(item.StatusEntry.FilesystemEntry.FullName);
             }
             
