@@ -22,6 +22,22 @@ extern "C"
 		return true;
 	}
 
+	WRAPPER_API lzham_z_stream* ResetCompressionStream(lzham_z_stream* stream)
+	{
+		if (deflateReset(stream) != Z_OK)
+		{
+			deflateEnd(stream);
+			delete stream;
+			return NULL;
+		}
+		stream->next_in = NULL;
+		stream->avail_in = 0;
+		stream->next_out = NULL;
+		stream->avail_out = 0;
+
+		return stream;
+	}
+
 	unsigned int WRAPPER_API StreamGetAdler32(z_stream* str)
 	{
 		return str->adler;
@@ -80,7 +96,9 @@ extern "C"
 	{
 		if (inflateReset(stream) != Z_OK)
 		{
-			DestroyDecompressionStream(stream);
+			if (inflateEnd(stream) != Z_OK)
+				return false;
+			delete stream;
 			return NULL;
 		}
 		stream->next_in = NULL;

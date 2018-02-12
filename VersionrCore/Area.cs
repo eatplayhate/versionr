@@ -415,6 +415,7 @@ namespace Versionr
                     ? platformThreads
                     : Math.Max(requestedThreads, platformThreads);
                 Printer.PrintDiagnostics("Initialized threading pool with {0} concurrent threads.", threads);
+                m_TaskFactoryThreads = threads;
                 taskFactory = new TaskFactory(new Utilities.LimitedConcurrencyScheduler(threads));
             }
 
@@ -422,6 +423,7 @@ namespace Versionr
         }
 
         private TaskFactory taskFactory;
+        private int m_TaskFactoryThreads = 1;
 
         public bool FindStashExact(string guidString)
         {
@@ -7765,6 +7767,11 @@ namespace Versionr
                             List<KeyValuePair<AlterationType, string>> alterationToCNames = new List<KeyValuePair<AlterationType, string>>();
 
                             transaction = ObjectStore.BeginStorageTransaction();
+                            System.Threading.AutoResetEvent semaphore = new System.Threading.AutoResetEvent(false);
+                            System.Threading.ReaderWriterLockSlim srwLock = new System.Threading.ReaderWriterLockSlim();
+                            long bytesInFlight = 0;
+                            int tasksInFlight = 0;
+                            long bytesSinceLastCommit = 0;
                             foreach (var x in st.Elements)
                             {
                                 List<StageOperation> stagedOps;
@@ -7917,11 +7924,40 @@ namespace Versionr
                                                     List<string> ignored;
                                                     if (!ObjectStore.HasData(record, out ignored))
                                                     {
-                                                        ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                        if (bytesSinceLastCommit > 256 * 1024 * 1024)
+                                                        {
+                                                            srwLock.EnterWriteLock();
+                                                            Printer.PrintMessage(" #q#(committing {0} bytes to object store)", bytesSinceLastCommit);
+                                                            ObjectStore.FlushStorageTransaction(transaction);
+                                                            bytesSinceLastCommit = 0;
+                                                            System.Threading.Interlocked.MemoryBarrier();
+                                                            srwLock.ExitWriteLock();
+                                                        }
+                                                        while (tasksInFlight > 0 && (bytesInFlight + x.FilesystemEntry.Length > 16 * 1024 * 1024 || tasksInFlight > m_TaskFactoryThreads))
+                                                        {
+                                                            semaphore.WaitOne();
+                                                        }
+
+                                                        System.Threading.Interlocked.Add(ref bytesInFlight, x.FilesystemEntry.Length);
+                                                        System.Threading.Interlocked.Increment(ref tasksInFlight);
+
+                                                        taskFactory.StartNew(() =>
+                                                        {
+                                                            srwLock.EnterReadLock();
+                                                            ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+
+                                                            if (stream != null)
+                                                                stream.Close();
+
+                                                            System.Threading.Interlocked.Add(ref bytesSinceLastCommit, x.FilesystemEntry.Length);
+                                                            System.Threading.Interlocked.Add(ref bytesInFlight, -x.FilesystemEntry.Length);
+                                                            System.Threading.Interlocked.Decrement(ref tasksInFlight);
+                                                            srwLock.ExitReadLock();
+                                                            semaphore.Set();
+                                                        });
                                                         pendingRecordDataList.Add(new Tuple<Record, Record, Entry>(record, x.VersionControlRecord, x.FilesystemEntry));
                                                     }
-
-                                                    if (stream != null)
+                                                    else if (stream != null)
                                                         stream.Close();
                                                 }
                                                 catch (Exception e)
@@ -8006,7 +8042,9 @@ namespace Versionr
                                 Printer.PrintMessage("Commit aborted by hook.");
                                 throw new Exception("Aborted");
                             }
-                            
+
+                            while (tasksInFlight > 0)
+                                semaphore.WaitOne();
                             ObjectStore.EndStorageTransaction(transaction);
 
                             transaction = null;
