@@ -129,8 +129,11 @@ namespace Versionr.Utilities
             }
             for (int i = 0; i < diff.Count - 1; i++)
             {
+                // We only process "different" blocks
                 if (diff[i].common != null)
                     continue;
+
+                // This logic combines adjacent "different" blocks
                 if (diff[i + 1].common == null)
                 {
                     var next = diff[i + 1];
@@ -146,25 +149,47 @@ namespace Versionr.Utilities
                     i--;
                     continue;
                 }
+
                 if (diff[i + 1].common == null || diff[i + 1].common.Count == 0)
                     continue;
+
                 bool isWhitespace = true;
                 bool isShort = false;
                 bool isBrace = false;
-                if (diff[i + 1].common.Count * 2 <= diff[i].file1.Count &&
+
+                // This logic eats combines short common spans with larger diff blocks
+                if (diff[i + 1].common.Count < 5 && diff[i + 1].common.Count * 2 <= diff[i].file1.Count &&
                     diff[i + 1].common.Count * 2 <= diff[i].file2.Count)
                     isShort = true;
-                foreach (var x in diff[i + 1].common)
+
+                // This logic eats short chunks of whitespace
+                if (diff[i + 1].common.Count < 5)
                 {
-                    if (x.Trim().Length != 0)
+                    foreach (var x in diff[i + 1].common)
                     {
-                        isWhitespace = false;
-                        break;
+                        if (x.Trim().Length != 0)
+                        {
+                            isWhitespace = false;
+                            break;
+                        }
                     }
                 }
+                // This logic exists to eat braces between different things
+                // e.g.,
+
+                // for (x)           -> for (y)
+                // {                    {                   <-- would otherwise be formatted as two diffs (although this would get coalesced with context in MOST CASES)
+                //      something();            else();
+                // ....
                 if (diff[i + 1].common.Count == 1 || (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}")))
                 {
                     if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
+                        isBrace = true;
+                }
+                else if (diff[i + 1].common.Count > 1)
+                {
+                    // This logic exists to grab closing braces on the next line
+                    if (diff[i + 1].common[0].Trim() == "}")
                         isBrace = true;
                 }
                 if ((isWhitespace && isShort) || isShort || isBrace)
