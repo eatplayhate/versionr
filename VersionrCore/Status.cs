@@ -922,6 +922,7 @@ namespace Versionr
                         else
                         {
                             StageFlags flags;
+                            bool addEntry = true;
                             if (stageInformation.TryGetValue(x.Value.CanonicalName, out flags))
                             {
                                 if ((flags & StageFlags.MergeInfo) != 0)
@@ -931,7 +932,15 @@ namespace Versionr
 
                                     Elements.Add(entry);
                                     Map[entry.CanonicalName] = entry;
+                                    addEntry = false;
                                 }
+                            }
+                            if (addEntry)
+                            {
+                                var entry = new StatusEntry() { Code = StatusCode.Ignored, FilesystemEntry = x.Value, Staged = false, VersionControlRecord = null };
+
+                                Elements.Add(entry);
+                                Map[entry.CanonicalName] = entry;
                             }
                         }
                     }
