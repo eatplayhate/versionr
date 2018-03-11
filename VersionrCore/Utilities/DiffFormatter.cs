@@ -93,6 +93,7 @@ namespace Versionr.Utilities
             Region last = null;
             // cleanup step
             bool doCleanup = true;
+            List<Diff.commonOrDifferentThing> cleaned = new List<Diff.commonOrDifferentThing>();
             if (!doCleanup)
                 goto Display;
             for (int i = 1; i < diff.Count - 1; i++)
@@ -127,17 +128,27 @@ namespace Versionr.Utilities
                     }
                 }
             }
-            for (int i = 0; i < diff.Count - 1; i++)
+            int cursor = -1;
+            int expandcount = 0;
+            for (int i = 0; i < diff.Count - 1 && cursor < diff.Count - 1; i++)
             {
                 // We only process "different" blocks
+                if (diff[i] == null)
+                    continue;
                 if (diff[i].common != null)
+                {
+                    expandcount = 0;
                     continue;
 
+                }
                 // This logic combines adjacent "different" blocks
-                if (diff[i + 1].common == null)
+                if (cursor < i)
+                    cursor = i;
+                if (diff[cursor + 1].common == null)
                 {
-                    var next = diff[i + 1];
-                    diff.RemoveAt(i + 1);
+                    var next = diff[cursor + 1];
+                    diff[cursor + 1] = null;
+                    cursor = cursor + 1;
                     foreach (var x in next.file1)
                     {
                         diff[i].file1.Add(x);
@@ -149,8 +160,7 @@ namespace Versionr.Utilities
                     i--;
                     continue;
                 }
-
-                if (diff[i + 1].common == null || diff[i + 1].common.Count == 0)
+                if (diff[cursor + 1].common == null || diff[cursor + 1].common.Count == 0)
                     continue;
 
                 bool isWhitespace = true;
@@ -158,14 +168,18 @@ namespace Versionr.Utilities
                 bool isBrace = false;
 
                 // This logic eats combines short common spans with larger diff blocks
-                if (diff[i + 1].common.Count < 5 && diff[i + 1].common.Count * 2 <= diff[i].file1.Count &&
-                    diff[i + 1].common.Count * 2 <= diff[i].file2.Count)
+                if (diff[cursor + 1].common.Count * 2 <= diff[i].file1.Count &&
+                    diff[cursor + 1].common.Count * 2 <= diff[i].file2.Count &&
+                    diff[cursor + 1].common.Count < 3 &&
+                    expandcount < 5)
+                {
                     isShort = true;
+                }
 
                 // This logic eats short chunks of whitespace
-                if (diff[i + 1].common.Count < 5)
+                if (diff[cursor + 1].common.Count < 5)
                 {
-                    foreach (var x in diff[i + 1].common)
+                    foreach (var x in diff[cursor + 1].common)
                     {
                         if (x.Trim().Length != 0)
                         {
@@ -181,20 +195,22 @@ namespace Versionr.Utilities
                 // {                    {                   <-- would otherwise be formatted as two diffs (although this would get coalesced with context in MOST CASES)
                 //      something();            else();
                 // ....
-                if (diff[i + 1].common.Count == 1 || (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}")))
+                if (diff[cursor + 1].common.Count == 1 || (diff[cursor + 1].common.Count == 1 && (diff[cursor + 1].common[0].Trim() == "{" || diff[cursor + 1].common[0].Trim() == "}")))
                 {
-                    if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
+                    if (cursor < diff.Count - 2 && (diff[cursor + 2].common == null || diff[cursor + 2].common.Count == 0))
                         isBrace = true;
                 }
-                else if (diff[i + 1].common.Count > 1)
+                else if (diff[cursor + 1].common.Count > 1)
                 {
                     // This logic exists to grab closing braces on the next line
-                    if (diff[i + 1].common[0].Trim() == "}")
+                    if (diff[cursor + 1].common[0].Trim() == "}")
                         isBrace = true;
                 }
                 if ((isWhitespace && isShort) || isShort || isBrace)
                 {
-                    var next = diff[i + 1];
+                    if (isShort && !isBrace && !isWhitespace)
+                        expandcount++;
+                    var next = diff[cursor + 1];
                     if (isBrace && next.common.Count > 1)
                     {
                         // currently disabled
@@ -204,7 +220,8 @@ namespace Versionr.Utilities
                     }
                     else
                     {
-                        diff.RemoveAt(i + 1);
+                        cursor++;
+                        diff[cursor] = null;
                         foreach (var x in next.common)
                         {
                             diff[i].file1.Add(x);
@@ -217,6 +234,9 @@ namespace Versionr.Utilities
             Display:
             for (int i = 0; i < diff.Count; i++)
             {
+                if (diff[i] == null)
+                    continue;
+                cleaned.Add(diff[i]);
                 if (regions.Count > 0)
                     last = regions[regions.Count - 1];
                 if (diff[i].common != null)
@@ -255,6 +275,7 @@ namespace Versionr.Utilities
                     openRegion = null;
                 }
             }
+            diff = cleaned;
             if (openRegion != null && openRegion != last)
             {
                 if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)

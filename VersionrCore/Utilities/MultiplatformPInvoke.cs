@@ -144,5 +144,12 @@ namespace Versionr.Utilities
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll")]
         public static extern IntPtr LoadLibrary(string dllToLoad);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        public static extern bool GetDiskFreeSpace(string lpRootPathName,
+           out uint lpSectorsPerCluster,
+           out uint lpBytesPerSector,
+           out uint lpNumberOfFreeClusters,
+           out uint lpTotalNumberOfClusters);
     }
 }

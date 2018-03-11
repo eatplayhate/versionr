@@ -33,6 +33,7 @@ namespace Versionr.ObjectStore
 
         internal long m_PendingBytes;
         internal int m_PendingCount;
+
         public override long PendingRecordBytes
         {
             get
@@ -100,6 +101,9 @@ namespace Versionr.ObjectStore
         Area Owner { get; set; }
         SQLite.SQLiteConnection ObjectDatabase { get; set; }
         SQLite.SQLiteConnection BlobDatabase { get; set; }
+
+        long MinimumLooseFileSize = 16 * 1024;
+
         System.IO.DirectoryInfo DataFolder
         {
             get
@@ -156,7 +160,7 @@ namespace Versionr.ObjectStore
             InitializeDBTypes();
 
             var meta = new StandardObjectStoreMetadata();
-            meta.Version = 4;
+            meta.Version = 5;
             ObjectDatabase.InsertSafe(meta);
         }
 
@@ -245,6 +249,78 @@ namespace Versionr.ObjectStore
                 meta.Version = 4;
                 ObjectDatabase.InsertSafe(meta);
                 ObjectDatabase.Commit();
+            }
+            if (Utilities.MultiArchPInvoke.RunningPlatform == Platform.Windows)
+            {
+                uint sectorsPerCluster;
+                uint bytesPerSector;
+                uint freeClusters;
+                uint totalClusters;
+                if (Utilities.MultiArchPInvoke.GetDiskFreeSpace(System.IO.Path.GetPathRoot(DataFile.FullName), out sectorsPerCluster, out bytesPerSector, out freeClusters, out totalClusters))
+                {
+                    long clusterSizeInBytes = sectorsPerCluster * bytesPerSector;
+                    if (clusterSizeInBytes > MinimumLooseFileSize)
+                    {
+                        MinimumLooseFileSize = clusterSizeInBytes;
+                    }
+                }
+            }
+            if (version.Version < 5)
+            {
+                List<FileInfo> filesToDelete = new List<FileInfo>();
+                ObjectDatabase.BeginExclusive();
+                if (MinimumLooseFileSize > 16 * 1024) // old default
+                {
+                    Printer.PrintMessage("Importing loose files under {0}...", Utilities.Misc.FormatSizeFriendly(MinimumLooseFileSize));
+                    long items = 0;
+                    long originalSize = 0;
+                    long packedSize = 0;
+                    BlobDatabase.BeginTransaction();
+                    foreach (var x in ObjectDatabase.Table<FileObjectStoreData>().ToList())
+                    {
+                        if (!x.BlobID.HasValue)
+                        {
+                            var fileInfo = GetFileForDataID(x.Lookup);
+                            if (fileInfo.Length < MinimumLooseFileSize)
+                            {
+                                filesToDelete.Add(fileInfo);
+
+                                MemoryStream ms = new MemoryStream();
+                                using (var fsi = fileInfo.OpenRead())
+                                {
+                                    fsi.CopyTo(ms);
+                                }
+                                Blobject obj = new Blobject() { Data = ms.ToArray() };
+                                if (!BlobDatabase.InsertSafe(obj))
+                                    throw new Exception();
+                                x.BlobID = obj.Id;
+                                Blobsize bs = new Blobsize() { BlobID = obj.Id, Length = obj.Data.Length };
+                                if (!BlobDatabase.InsertSafe(bs))
+                                    throw new Exception();
+                                ObjectDatabase.Update(x);
+
+                                items++;
+                                originalSize += x.FileSize;
+                                packedSize += ms.Length;
+                            }
+                        }
+                    }
+                    BlobDatabase.Commit();
+                    if (items > 0)
+                        Printer.PrintMessage("Imported {0} objects ({1}, unpacked size: {2})", items, Utilities.Misc.FormatSizeFriendly(packedSize), Utilities.Misc.FormatSizeFriendly(originalSize));
+                }
+                ObjectDatabase.DropTable<StandardObjectStoreMetadata>();
+                ObjectDatabase.CreateTable<StandardObjectStoreMetadata>();
+                var meta = new StandardObjectStoreMetadata();
+                meta.Version = 5;
+                ObjectDatabase.InsertSafe(meta);
+                ObjectDatabase.Commit();
+                if (filesToDelete.Count > 0)
+                {
+                    Printer.PrintMessage("Deleting old files...");
+                    foreach (var x in filesToDelete)
+                        x.Delete();
+                }
             }
             return true;
         }
@@ -881,7 +957,7 @@ namespace Versionr.ObjectStore
                                     {
                                         string fn = Path.Combine(TempFolder.FullName, x.Filename);
                                         var info = new FileInfo(fn);
-                                        if (info.Length < 16 * 1024)
+                                        if (info.Length < MinimumLooseFileSize)
                                         {
                                             MemoryStream ms = new MemoryStream();
                                             using (var fsi = info.OpenRead())
@@ -914,7 +990,7 @@ namespace Versionr.ObjectStore
                                     }
                                     else
                                     {
-                                        if (x.Payload.Length < 16 * 1024)
+                                        if (x.Payload.Length < MinimumLooseFileSize)
                                         {
                                             Blobject obj = new Blobject() { Data = x.Payload };
                                             if (!BlobDatabase.InsertSafe(obj))

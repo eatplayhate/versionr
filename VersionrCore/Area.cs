@@ -7681,7 +7681,7 @@ namespace Versionr
                     Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
                     if (st.HasModifications(true) || mergeIDs.Count > 0)
                     {
-                        Printer.PrintMessage("Committing changes..");
+                        Printer.PrintMessage("Committing changes...");
                         Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                         try
                         {
@@ -7773,7 +7773,7 @@ namespace Versionr
                             long bytesInFlight = 0;
                             int tasksInFlight = 0;
                             long bytesSinceLastCommit = 0;
-                            foreach (var x in st.Elements)
+                            foreach (var x in st.Elements.OrderBy(x => x.Code).ThenBy(x => x.CanonicalName))
                             {
                                 List<StageOperation> stagedOps;
                                 fullStageInfo.TryGetValue(x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName, out stagedOps);
@@ -7895,29 +7895,30 @@ namespace Versionr
                                                         record = possibleRecord;
 
                                                     alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
+                                                    string eventMessage = null;
                                                     if (x.Code == StatusCode.Added)
                                                     {
-                                                        Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
                                                         alteration.Type = AlterationType.Add;
                                                     }
                                                     else if (x.Code == StatusCode.Modified || x.Code == StatusCode.IgnoredModified)
                                                     {
-                                                        Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Update;
                                                     }
                                                     else if (x.Code == StatusCode.Copied)
                                                     {
-                                                        Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Copy;
                                                     }
                                                     else if (x.Code == StatusCode.Renamed)
                                                     {
-                                                        Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Move;
@@ -7939,6 +7940,8 @@ namespace Versionr
                                                             semaphore.WaitOne();
                                                         }
 
+                                                        Printer.PrintMessage(eventMessage + " #q#(store)##");
+
                                                         System.Threading.Interlocked.Add(ref bytesInFlight, x.FilesystemEntry.Length);
                                                         System.Threading.Interlocked.Increment(ref tasksInFlight);
 
@@ -7958,8 +7961,13 @@ namespace Versionr
                                                         });
                                                         pendingRecordDataList.Add(new Tuple<Record, Record, Entry>(record, x.VersionControlRecord, x.FilesystemEntry));
                                                     }
-                                                    else if (stream != null)
-                                                        stream.Close();
+                                                    else
+                                                    {
+                                                        if (eventMessage != null)
+                                                            Printer.PrintMessage(eventMessage);
+                                                        if (stream != null)
+                                                            stream.Close();
+                                                    }
                                                 }
                                                 catch (Exception e)
                                                 {
