@@ -50,6 +50,9 @@ namespace Versionr.Commands
         [Option("reverse", DefaultValue = false, HelpText = "Apply patch in reverse.")]
         public bool Reverse { get; set; }
 
+        [Option("ignore-whitespace", DefaultValue = false, HelpText = "Ignore whitespace changes when matching hunk positions.")]
+        public bool IgnoreWS { get; set; }
+
         [ValueOption(0)]
         public string PatchFile { get; set; }
     }
@@ -61,7 +64,7 @@ namespace Versionr.Commands
             ApplyVerbOptions localOptions = options as ApplyVerbOptions;
             if (System.IO.File.Exists(localOptions.PatchFile))
             {
-                return Workspace.ParseAndApplyPatch(localOptions.PatchFile, localOptions.Interactive, localOptions.Record, localOptions.Reverse);
+                return Workspace.ParseAndApplyPatch(localOptions.PatchFile, localOptions.Interactive, localOptions.Record, localOptions.Reverse, localOptions.IgnoreWS);
             }
             Printer.PrintError("#e#Can't find patch file to load: {0}##", localOptions.PatchFile);
             return false;

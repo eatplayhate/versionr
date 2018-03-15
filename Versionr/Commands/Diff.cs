@@ -49,6 +49,9 @@ namespace Versionr.Commands
 
         [Option('y', "externalnb", HelpText = "Use external diffing tool, non blocking")]
         public bool ExternalNonBlocking { get; set; }
+
+        [Option("keep-tabs", DefaultValue = false, HelpText = "Keep tabs rather than converting them to spaces")]
+        public bool KeepTabs { get; set; }
     }
 
 	class Diff : FileCommand
@@ -238,7 +241,7 @@ namespace Versionr.Commands
                                     {
                                         try
                                         {
-                                            RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), true, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
+                                            RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), !localOptions.KeepTabs, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
                                         }
                                         finally
                                         {
@@ -297,7 +300,7 @@ namespace Versionr.Commands
                             {
                                 try
                                 {
-                                    RunInternalDiff(tmpParent, tmpVersion, true, rec.CanonicalName);
+                                    RunInternalDiff(tmpParent, tmpVersion, !localOptions.KeepTabs, rec.CanonicalName);
                                 }
                                 finally
                                 {

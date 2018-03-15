@@ -200,10 +200,10 @@ namespace Versionr.Utilities
                     if (cursor < diff.Count - 2 && (diff[cursor + 2].common == null || diff[cursor + 2].common.Count == 0))
                         isBrace = true;
                 }
-                else if (diff[cursor + 1].common.Count > 1)
+                else
                 {
-                    // This logic exists to grab closing braces on the next line
-                    if (diff[cursor + 1].common[0].Trim() == "}")
+                    // This logic exists to grab closing braces on the next line - PROVIDED THAT THE LAST COMMON SPAN DOESN'T HAVE AN OPEN BRACE
+                    if (i > 2 && diff[cursor + 1].common[0].Trim() == "}" && diff[i - 2].common != null && diff[i - 2].common[diff[i - 2].common.Count - 1].Trim() != "{")
                         isBrace = true;
                 }
                 if ((isWhitespace && isShort) || isShort || isBrace)

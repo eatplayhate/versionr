@@ -259,8 +259,15 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
 
+        [Flags]
+        public enum XDiffFlags
+        {
+            None = 0,
+            IgnoreWhitespace = 0x100
+        }
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed);
+        public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed, XDiffFlags flags = XDiffFlags.None);
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyBinaryPatch(string file1, string file2, string output);
@@ -8600,10 +8607,11 @@ namespace Versionr
             return PartialPath + local;
         }
 
-        public bool ParseAndApplyPatch(string patchFile, bool interactive, bool record, bool reverse)
+        public bool ParseAndApplyPatch(string patchFile, bool interactive, bool record, bool reverse, bool ignoreWS)
         {
             var patchContents = System.IO.File.ReadAllLines(patchFile);
             List<string> fullpaths = new List<string>();
+            XDiffFlags xflags = ignoreWS ? XDiffFlags.IgnoreWhitespace : XDiffFlags.None;
             for (int line = 0; line < patchContents.Length;)
             {
                 string start = patchContents[line];
@@ -8704,7 +8712,7 @@ namespace Versionr
                             using (var sw = empty.CreateText()) { }
                             var test = GetTemporaryFile(null, "patch-test.txt");
                             using (var sw = test.CreateText()) { }
-                            if (ApplyPatch(empty.FullName, file.FullName, test.FullName, rejectionFile.FullName, reverse ? 1 : 0) == 0)
+                            if (ApplyPatch(empty.FullName, file.FullName, test.FullName, rejectionFile.FullName, reverse ? 1 : 0, xflags) == 0)
                             {
                                 string newFile = System.IO.File.ReadAllText(test.FullName);
                                 string oldFile = System.IO.File.ReadAllText(originalFile.FullName);
@@ -8723,7 +8731,7 @@ namespace Versionr
                             test.Delete();
                         }
 
-                        int result = ApplyPatch(originalFile.FullName, file.FullName, outputFile.FullName, rejectionFile.FullName, reverse ? 1 : 0);
+                        int result = ApplyPatch(originalFile.FullName, file.FullName, outputFile.FullName, rejectionFile.FullName, reverse ? 1 : 0, xflags);
                         
                         bool hasRejectedHunks = false;
                         using (FileStream fs = File.Open(rejectionFile.FullName, FileMode.Open))
@@ -8805,7 +8813,7 @@ namespace Versionr
                         using (var sw = empty.CreateText()) { }
                         using (var sw = originalFile.CreateText()) { }
                         var rejectionFile = GetTemporaryFile(null, "patch-errors.txt");
-                        ApplyPatch(empty.FullName, file.FullName, originalFile.FullName, rejectionFile.FullName, reverse ? 1 : 0);
+                        ApplyPatch(empty.FullName, file.FullName, originalFile.FullName, rejectionFile.FullName, reverse ? 1 : 0, xflags);
                         Printer.PrintMessage(" #s#[success]##");
                         empty.Delete();
                         rejectionFile.Delete();

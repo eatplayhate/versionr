@@ -182,7 +182,7 @@ int XDIFF_EXPORT GeneratePatch(const char* f1, const char* f2, const char* out)
 	return 0;
 }
 
-int XDIFF_EXPORT ApplyPatch(const char* f1, const char* f2, const char* out, const char* errors, int reverse)
+int XDIFF_EXPORT ApplyPatch(const char* f1, const char* f2, const char* out, const char* errors, int reverse, int flags)
 {
 	mmfile_t mf1, mf2;
 	xpparam_t xpp;
@@ -192,9 +192,9 @@ int XDIFF_EXPORT ApplyPatch(const char* f1, const char* f2, const char* out, con
 	int mode;
 
 	if (reverse == 1)
-		mode = XDL_PATCH_REVERSE;
+		mode = XDL_PATCH_REVERSE | flags;
 	else
-		mode = XDL_PATCH_NORMAL;
+		mode = XDL_PATCH_NORMAL | flags;
 
 	Init();
 
