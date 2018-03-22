@@ -3618,7 +3618,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.2.6";
+                return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
             }
         }
 

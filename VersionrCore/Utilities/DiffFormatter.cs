@@ -139,7 +139,6 @@ namespace Versionr.Utilities
                 {
                     expandcount = 0;
                     continue;
-
                 }
                 // This logic combines adjacent "different" blocks
                 if (cursor < i)
@@ -202,8 +201,8 @@ namespace Versionr.Utilities
                 }
                 else
                 {
-                    // This logic exists to grab closing braces on the next line - PROVIDED THAT THE LAST COMMON SPAN DOESN'T HAVE AN OPEN BRACE
-                    if (i > 2 && diff[cursor + 1].common[0].Trim() == "}" && diff[i - 2].common != null && diff[i - 2].common[diff[i - 2].common.Count - 1].Trim() != "{")
+                    // This logic exists to grab closing braces on the next line - PROVIDED THAT OUR NEW SPAN STARTS WITH ONE
+                    if (diff[cursor + 1].common[0].Trim() == "}" && diff[i].file1 != null && diff[i].file2 != null && diff[i].file1[0].Trim() == "{" && diff[i].file2[0].Trim() == "{")
                         isBrace = true;
                 }
                 if ((isWhitespace && isShort) || isShort || isBrace)
