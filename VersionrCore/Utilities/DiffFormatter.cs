@@ -202,7 +202,7 @@ namespace Versionr.Utilities
                 else
                 {
                     // This logic exists to grab closing braces on the next line - PROVIDED THAT OUR NEW SPAN STARTS WITH ONE
-                    if (diff[cursor + 1].common[0].Trim() == "}" && diff[i].file1 != null && diff[i].file2 != null && diff[i].file1[0].Trim() == "{" && diff[i].file2[0].Trim() == "{")
+                    if (diff[cursor + 1].common[0].Trim() == "}" && diff[i].file1 != null && diff[i].file2 != null && diff[i].file1.Count > 0 && diff[i].file2.Count > 0 && diff[i].file1[0].Trim() == "{" && diff[i].file2[0].Trim() == "{")
                         isBrace = true;
                 }
                 if ((isWhitespace && isShort) || isShort || isBrace)
