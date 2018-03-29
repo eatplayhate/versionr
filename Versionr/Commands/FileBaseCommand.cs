@@ -28,6 +28,9 @@ namespace Versionr.Commands
         [Option('e', "skipempty", HelpText = "Remove all empty directories.")]
         public bool SkipEmpty { get; set; }
 
+        [Option('c', "recorded", HelpText = "Matches only files that are recorded")]
+        public bool Recorded { get; set; }
+
         public override string Usage
         {
             get
@@ -120,20 +123,24 @@ namespace Versionr.Commands
 
         protected virtual bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
         {
-            return (localOptions.Objects != null && localOptions.Objects.Count > 0) || OnNoTargetsAssumeAll;
+            return (localOptions.Objects != null && localOptions.Objects.Count > 0) || OnNoTargetsAssumeAll || localOptions.Recorded || localOptions.Tracked;
         }
 
         protected virtual void ApplyFilters(Versionr.Status status, FileBaseCommandVerbOptions localOptions, ref List<Versionr.Status.StatusEntry> targets)
         {
+            IEnumerable<Versionr.Status.StatusEntry> entries = targets;
             if (!localOptions.Ignored)
-                targets = targets.Where(x => x.Staged == true || !(x.Code == StatusCode.Ignored && x.VersionControlRecord == null)).ToList();
+                entries = entries.Where(x => x.Staged == true || !(x.Code == StatusCode.Ignored && x.VersionControlRecord == null));
             if (localOptions.Tracked)
-                targets = targets.Where(x => x.Staged == true || (x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed)).ToList();
+                entries = entries.Where(x => x.Staged == true || (x.VersionControlRecord != null && x.Code != StatusCode.Copied && x.Code != StatusCode.Renamed));
+            if (localOptions.Recorded)
+                entries = entries.Where(x => x.Staged == true);
             if (localOptions.SkipEmpty)
             {
                 Dictionary<Versionr.Status.StatusEntry, bool> allow = new Dictionary<Versionr.Status.StatusEntry, bool>();
                 Dictionary<string, Versionr.Status.StatusEntry> mapper = new Dictionary<string, Versionr.Status.StatusEntry>();
-                foreach (var x in targets)
+                entries = entries.ToList();
+                foreach (var x in entries)
                 {
                     if (x.IsDirectory)
                     {
@@ -141,7 +148,7 @@ namespace Versionr.Commands
                         mapper[x.CanonicalName] = x;
                     }
                 }
-                foreach (var x in targets)
+                foreach (var x in entries)
                 {
                     if (x.IsDirectory)
                         continue;
@@ -153,8 +160,10 @@ namespace Versionr.Commands
                         allow[mapper[dir]] = true;
                     }
                 }
-                targets = targets.Where(x => !x.IsDirectory || allow[x]).ToList();
+                entries = entries.Where(x => !x.IsDirectory || allow[x]).ToList();
             }
+            if (!ReferenceEquals(targets, entries))
+                targets = entries.ToList();
         }
 
         protected virtual bool OnNoTargetsAssumeAll

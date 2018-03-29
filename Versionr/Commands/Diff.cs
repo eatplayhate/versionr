@@ -44,9 +44,6 @@ namespace Versionr.Commands
         [Option('l', "local", HelpText = "Compare with working copy")]
         public bool Local { get; set; }
 
-        [Option('c', "recorded", HelpText = "Matches only files that are recorded")]
-        public bool Recorded { get; set; }
-
         [Option('y', "externalnb", HelpText = "Use external diffing tool, non blocking")]
         public bool ExternalNonBlocking { get; set; }
 

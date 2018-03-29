@@ -493,6 +493,7 @@ namespace Versionr.Utilities
                         lastMatch.Length += subsequence[0].Length;
                         subsequence.RemoveAt(0);
                     }
+                    lcr[lcr.Count - 1] = lastMatch;
                 }
                 lcr.AddRange(subsequence);
             }

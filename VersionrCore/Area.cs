@@ -679,9 +679,6 @@ namespace Versionr
                     var x = xp.Key;
                     Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", index, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
 
-                    if (options.Interactive && !Printer.Prompt("Apply?"))
-                        continue;
-
                     Status.StatusEntry ws = null;
                     st.Map.TryGetValue(x.CanonicalName, out ws);
                     if (ws == null && File.Exists(GetRecordPath(x.CanonicalName)))
@@ -701,6 +698,8 @@ namespace Versionr
                             {
                                 try
                                 {
+                                    if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                        continue;
                                     System.IO.Directory.Delete(rpath);
                                     Printer.PrintMessage("  - Deleted.");
                                 }
@@ -711,6 +710,8 @@ namespace Versionr
                             }
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                    continue;
                                 bool deletionResolution = false;
                                 if (ws.Hash != x.NewHash || ws.Length != x.NewSize)
                                     deletionResolution = GetStashResolutionDeletion(ref resolveDeleted);
@@ -733,6 +734,8 @@ namespace Versionr
                     {
                         if (ws != null && ws.Removed)
                         {
+                            if (options.Interactive && !Printer.Prompt("(Undelete) Apply?"))
+                                continue;
                             RestoreRecord(ws.VersionControlRecord, DateTime.Now);
                             Printer.PrintMessage("  - Undeleted.");
                         }
@@ -761,12 +764,16 @@ namespace Versionr
                                     Printer.PrintError("#e# - Can't un-apply binary patch - result file does not match!##");
                                 else
                                 {
+                                    if (options.Interactive && !Printer.Prompt("(Revert) Apply?"))
+                                        continue;
                                     RestoreRecord(GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString()), DateTime.Now, rpath);
                                     Printer.PrintMessage("  - Reverted (binary).");
                                 }
                             }
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Update) Apply?"))
+                                    continue;
                                 ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), xp.Value, br.BaseStream, options, x);
                             }
                         }
@@ -776,23 +783,38 @@ namespace Versionr
                         if (x.Flags.HasFlag(StashFlags.Directory))
                         {
                             if (ws == null)
+                            {
+                                if (options.Interactive && !Printer.Prompt("(Create) Apply?"))
+                                    continue;
                                 System.IO.Directory.CreateDirectory(rpath);
+                            }
                             else
                                 Printer.PrintMessage("  - Skipped, directory already added.");
                         }
                         else
                         {
-                            ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                            if (ws != null && ws.Hash == x.NewHash && ws.Length == x.NewSize)
                             {
-                                br.BaseStream.Position = xp.Value;
-                                var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(x.NewSize, br.BaseStream);
-                                using (FileStream fout = File.Open(path, FileMode.Create))
-                                    reader.CopyTo(fout);
-                            });
+                                Printer.PrintMessage("  - Skipped, object already added.");
+                            }
+                            else
+                            {
+                                if (options.Interactive && !Printer.Prompt("(Add) Apply?"))
+                                    continue;
+                                ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                                {
+                                    br.BaseStream.Position = xp.Value;
+                                    var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(x.NewSize, br.BaseStream);
+                                    using (FileStream fout = File.Open(path, FileMode.Create))
+                                        reader.CopyTo(fout);
+                                });
+                            }
                         }
                     }
                     else if (x.Alteration == AlterationType.Copy || (x.Alteration == AlterationType.Move && moveAsCopies))
                     {
+                        if (options.Interactive && !Printer.Prompt(string.Format("({0}) Apply?", x.Alteration == AlterationType.Move ? "Move" : "Copy")))
+                            continue;
                         ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
                         {
                             if (x.Alteration == AlterationType.Copy || (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize))
@@ -847,6 +869,8 @@ namespace Versionr
                                 Printer.PrintMessage("  - Skipped, object removed.");
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Move) Apply?"))
+                                    continue;
                                 if (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize)
                                 {
                                     FileInfo tfi = new FileInfo(oldPath);
@@ -908,6 +932,8 @@ namespace Versionr
                             }
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Update) Apply?"))
+                                    continue;
                                 ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), xp.Value, br.BaseStream, options, x);
                                 if (enableStaging)
                                 {
@@ -931,6 +957,8 @@ namespace Versionr
                             DirectoryInfo di = new DirectoryInfo(rpath);
                             try
                             {
+                                if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                    continue;
                                 di.Delete();
                                 Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
 
@@ -946,6 +974,8 @@ namespace Versionr
                         }
                         else if (ws.Hash == x.OriginalHash && ws.Length == x.OriginalSize)
                         {
+                            if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                continue;
                             FileInfo tfi = new FileInfo(rpath);
                             tfi.IsReadOnly = false;
                             tfi.Delete();
@@ -963,6 +993,8 @@ namespace Versionr
                                 Printer.PrintMessage("  - Skipped, conflict.");
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                    continue;
                                 FileInfo tfi = new FileInfo(rpath);
                                 tfi.IsReadOnly = false;
                                 tfi.Delete();
@@ -1166,6 +1198,20 @@ namespace Versionr
 
             if (extract)
             {
+                Action makedir = () =>
+                {
+                    if (!System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(rpath)))
+                    {
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(rpath));
+
+                        if (stage && enableStaging)
+                            LocalData.AddStageOperation(new StageOperation() { Operand1 = GetLocalCanonicalName(System.IO.Path.GetDirectoryName(rpath)), Type = StageOperationType.Add });
+                    }
+                };
+                if (xpath == rpath)
+                {
+                    makedir();
+                }
                 extractor(xpath);
 
                 if (rtype == ResolveType.Merge)
@@ -1195,6 +1241,7 @@ namespace Versionr
                                 mf.IsReadOnly = false;
                             mf.Delete();
                         }
+                        makedir();
                         result.MoveTo(ml.FullName);
                     }
                 }
@@ -1272,9 +1319,16 @@ namespace Versionr
             else
             {
                 FileInfo fi = new FileInfo(Path.GetFullPath(resultPath));
-                fi.IsReadOnly = false;
-                fi.Delete();
-                File.Move(tempFile, fi.FullName);
+                if (Entry.CheckHash(fi) == Entry.CheckHash(new FileInfo(tempFile)))
+                {
+                    Printer.PrintMessage("  - No changes.");
+                }
+                else
+                {
+                    fi.IsReadOnly = false;
+                    fi.Delete();
+                    File.Move(tempFile, fi.FullName);
+                }
             }
 
             File.Delete(patchFile);
