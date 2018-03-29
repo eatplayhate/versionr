@@ -5329,6 +5329,8 @@ namespace Versionr
                                     if (parentName.EndsWith("/"))
                                         parentName = parentName.Substring(0, parentName.Length - 1);
                                     parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
+                                    if (string.IsNullOrEmpty(parentName))
+                                        break;
                                     bool ignoredInParentList = false;
                                     if (parentIgnoredList.TryGetValue(parentName, out ignoredInParentList))
                                     {

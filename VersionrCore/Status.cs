@@ -381,6 +381,8 @@ namespace Versionr
                                 if (parentName[parentName.Length - 1] == '/')
                                     parentName = parentName.Substring(0, parentName.Length - 1);
                                 parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
+                                if (string.IsNullOrEmpty(parentName))
+                                        break;
                                 bool ignoredInParentList = false;
                                 lock (parentIgnoredList)
                                 {
@@ -812,6 +814,8 @@ namespace Versionr
                                 if (parentName[parentName.Length - 1] == '/')
                                     parentName = parentName.Substring(0, parentName.Length - 1);
                                 parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
+                                if (string.IsNullOrEmpty(parentName))
+                                    break;
                                 bool ignoredInParentList = false;
                                 lock (parentIgnoredList)
                                 {
