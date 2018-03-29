@@ -15,7 +15,7 @@ namespace Versionr.Commands
         public bool Regex { get; set; }
         [Option('n', "filename", HelpText = "Matches filenames regardless of full path.", MutuallyExclusiveSet = "filtertype")]
         public bool Filename { get; set; }
-        [Option('r', "recursive", DefaultValue = true, HelpText = "Recursively consider objects in directories.")]
+        [Option("recursive", DefaultValue = true, HelpText = "Recursively consider objects in directories.")]
         public bool Recursive { get; set; }
         [Option('u', "insensitive", DefaultValue = true, HelpText = "Use case-insensitive matching for objects")]
         public bool Insensitive { get; set; }
@@ -28,7 +28,7 @@ namespace Versionr.Commands
         [Option('e', "skipempty", HelpText = "Remove all empty directories.")]
         public bool SkipEmpty { get; set; }
 
-        [Option('c', "recorded", HelpText = "Matches only files that are recorded")]
+        [Option('r', "recorded", HelpText = "Matches only files that are recorded")]
         public bool Recorded { get; set; }
 
         public override string Usage
