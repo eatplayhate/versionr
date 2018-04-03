@@ -1205,7 +1205,7 @@ namespace Versionr
                         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(rpath));
 
                         if (stage && enableStaging)
-                            LocalData.AddStageOperation(new StageOperation() { Operand1 = GetLocalCanonicalName(System.IO.Path.GetDirectoryName(rpath)), Type = StageOperationType.Add });
+                            LocalData.AddStageOperation(new StageOperation() { Operand1 = GetLocalPath(System.IO.Path.GetDirectoryName(rpath)), Type = StageOperationType.Add });
                     }
                 };
                 if (xpath == rpath)
@@ -1648,10 +1648,14 @@ namespace Versionr
             Dictionary<string, long> mergeRecords = new Dictionary<string, long>();
             foreach (var x in LocalData.StageOperations)
             {
-                if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
-                    stashTargets.Add(st.Map[x.Operand1]);
-                else if (x.Type == StageOperationType.MergeRecord)
-                    mergeRecords[x.Operand1] = x.ReferenceObject;
+                Status.StatusEntry entry = null;
+                if (st.Map.TryGetValue(x.Operand1, out entry))
+                {
+                    if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
+                        stashTargets.Add(entry);
+                    else if (x.Type == StageOperationType.MergeRecord)
+                        mergeRecords[x.Operand1] = x.ReferenceObject;
+                }
             }
 
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
