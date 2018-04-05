@@ -882,8 +882,8 @@ namespace Versionr
 
                                     if (enableStaging)
                                     {
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                        LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
+                                        LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                     }
                                 }
                                 else
@@ -904,8 +904,8 @@ namespace Versionr
 
                                         if (enableStaging)
                                         {
-                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
-                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                            LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
+                                            LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                         }
 
                                         ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
@@ -939,7 +939,7 @@ namespace Versionr
                                 {
                                     FileInfo resultInfo = new FileInfo(rpath);
                                     if (ws.VersionControlRecord == null || resultInfo.Length != ws.VersionControlRecord.Size || Entry.CheckHash(resultInfo) != ws.Hash)
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                        LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                 }
                             }
                         }
@@ -964,7 +964,7 @@ namespace Versionr
 
                                 if (enableStaging)
                                 {
-                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                    LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
                                 }
                             }
                             catch
@@ -983,7 +983,7 @@ namespace Versionr
 
                             if (enableStaging)
                             {
-                                LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
                             }
                         }
                         else
@@ -1002,7 +1002,7 @@ namespace Versionr
 
                                 if (enableStaging)
                                 {
-                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                    LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
                                 }
                             }
                         }
@@ -1644,6 +1644,7 @@ namespace Versionr
         public void Stash(string name, bool revert, Action<Status.StatusEntry, StatusCode> revertFeedback = null)
         {
             Status st = new Status(this, Database, LocalData, FileSnapshot, null, true);
+            HashSet<Status.StatusEntry> stashTargetsSet = new HashSet<Status.StatusEntry>();
             List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
             Dictionary<string, long> mergeRecords = new Dictionary<string, long>();
             foreach (var x in LocalData.StageOperations)
@@ -1652,11 +1653,13 @@ namespace Versionr
                 if (st.Map.TryGetValue(x.Operand1, out entry))
                 {
                     if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
-                        stashTargets.Add(entry);
+                        stashTargetsSet.Add(entry);
                     else if (x.Type == StageOperationType.MergeRecord)
                         mergeRecords[x.Operand1] = x.ReferenceObject;
                 }
             }
+
+            stashTargets = stashTargetsSet.ToList();
 
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
 
