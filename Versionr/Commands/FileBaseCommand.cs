@@ -140,6 +140,7 @@ namespace Versionr.Commands
                 Dictionary<Versionr.Status.StatusEntry, bool> allow = new Dictionary<Versionr.Status.StatusEntry, bool>();
                 Dictionary<string, Versionr.Status.StatusEntry> mapper = new Dictionary<string, Versionr.Status.StatusEntry>();
                 entries = entries.ToList();
+                
                 foreach (var x in entries)
                 {
                     if (x.IsDirectory)
@@ -157,7 +158,9 @@ namespace Versionr.Commands
                     if (index != -1)
                     {
                         string dir = s.Substring(0, index + 1);
-                        allow[mapper[dir]] = true;
+                        // Sometimes files in ignored directories show up here, so check to make sure the directory exists first
+                        if (mapper.TryGetValue(dir, out var value))
+                            allow[value] = true;
                     }
                 }
                 entries = entries.Where(x => !x.IsDirectory || allow[x]).ToList();
