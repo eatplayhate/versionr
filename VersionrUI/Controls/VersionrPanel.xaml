@@ -409,6 +409,7 @@
                                             <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                             <MenuItem Header="Revert" Command="{Binding RevertCommand}" />
                                             <MenuItem Header="Open location in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                            <MenuItem Header="Generate Patch File" Command="{Binding GeneratePatchFileCommand}"/>
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Media;
+using Microsoft.Win32;
 using Versionr;
 using Versionr.Utilities;
 using VersionrUI.Commands;
@@ -21,6 +22,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand LogCommand { get; private set; }
         public DelegateCommand RevertCommand { get; private set; }
         public DelegateCommand OpenInExplorerCommand { get; private set; }
+        public DelegateCommand GeneratePatchFileCommand { get; private set; }
 
         private readonly StatusVM m_StatusVM;
         private readonly Area m_Area;
@@ -35,6 +37,7 @@ namespace VersionrUI.ViewModels
             LogCommand = new DelegateCommand(Log);
             RevertCommand = new DelegateCommand(() => Load(RevertSelected));
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
+            GeneratePatchFileCommand = new DelegateCommand(GeneratePatchFile);
         }
 
         public Versionr.StatusCode Code => StatusEntry.Code;
@@ -474,6 +477,73 @@ namespace VersionrUI.ViewModels
             ProcessStartInfo si = new ProcessStartInfo("explorer");
             si.Arguments = "/select,\"" + Path.Combine(m_Area.Root.FullName, CanonicalName).Replace('/', '\\') + "\"";
             Process.Start(si);
+        }
+
+        private void GeneratePatchFile()
+        {
+            List<StatusEntryVM> selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
+            if (!selectedItems.Any())
+                return;
+            var allFiles = new List<string>();
+            foreach (var entry in selectedItems)
+            {
+                if (!entry.StatusEntry.IsFile)
+                    continue;
+                allFiles.Add(entry.StatusEntry.CanonicalName);
+            }
+            if (!allFiles.Any())
+                return;
+
+            SaveFileDialog dialog = new SaveFileDialog
+            {
+                Title = "Save Patch File",
+                Filter = "Patch Files|*.patch;"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                File.WriteAllText(dialog.FileName, RunCommandLineDiff(allFiles, m_Area.Root.FullName));
+            }
+        }
+
+        private static string s_outString;
+        public static string RunCommandLineDiff(IEnumerable<string> fileNames, string workingDir)
+        {
+            string allFileNamesString = fileNames.Aggregate("", (current, file) => current + (file + " "));
+            string args = $"/c \"vsr diff {allFileNamesString}\"";
+
+            Process process = new Process
+            {
+                StartInfo =
+                {
+                    FileName = "cmd.exe",
+                    Arguments = args,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = workingDir
+                }
+            };
+
+            // Setup output and error (asynchronous) handlers
+            process.OutputDataReceived += GetProcessOutput;
+            process.ErrorDataReceived += GetProcessOutput;
+
+            // Start process and handlers
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            process.WaitForExit();
+
+            return s_outString;
+        }
+
+        private static void GetProcessOutput(object sender, DataReceivedEventArgs e)
+        {
+            // Beyond compare for some reason needs a space in front of this line to parse properly
+            if (e.Data != null && !e.Data.Contains("Displaying changes for file"))
+                s_outString += e.Data + Environment.NewLine;
         }
     }
 }
