@@ -45,9 +45,16 @@ namespace Versionr.ObjectStore
             base.Dispose(disposing);
             if (m_Compressor != IntPtr.Zero)
             {
-                IntPtr oldCompressor = ResetCompressionStream(m_Compressor);
-                if (oldCompressor != null)
-                    Compressors.Add(oldCompressor);
+                try
+                {
+                    IntPtr oldCompressor = ResetCompressionStream(m_Compressor);
+                    if (oldCompressor != null)
+                        Compressors.Add(oldCompressor);
+                }
+                catch
+                {
+                    DestroyCompressionStream(m_Compressor);
+                }
             }
             m_Compressor = IntPtr.Zero;
         }
