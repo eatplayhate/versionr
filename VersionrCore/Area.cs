@@ -1249,7 +1249,12 @@ namespace Versionr
                 ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
 
                 if (stage && enableStaging)
+                {
+                    Printer.PrintMessage("#s# - Success, Staged");
                     LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                }
+                else
+                    Printer.PrintMessage("#s# - Success");
             }
         }
 
@@ -1328,6 +1333,7 @@ namespace Versionr
                     fi.IsReadOnly = false;
                     fi.Delete();
                     File.Move(tempFile, fi.FullName);
+                    Printer.PrintMessage("#s# - Success");
                 }
             }
 
@@ -7843,6 +7849,8 @@ namespace Versionr
                             long bytesInFlight = 0;
                             int tasksInFlight = 0;
                             long bytesSinceLastCommit = 0;
+                            TaskCompletionSource<object> exceptionManager = new TaskCompletionSource<object>();
+                            Task<object> exceptionManagerTask = exceptionManager.Task;
                             foreach (var x in st.Elements.OrderBy(x => x.Code).ThenBy(x => x.CanonicalName))
                             {
                                 List<StageOperation> stagedOps;
@@ -8017,17 +8025,29 @@ namespace Versionr
 
                                                         taskFactory.StartNew(() =>
                                                         {
-                                                            srwLock.EnterReadLock();
-                                                            ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                            try
+                                                            {
+                                                                srwLock.EnterReadLock();
+                                                                try
+                                                                {
+                                                                    ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                                    if (stream != null)
+                                                                        stream.Close();
 
-                                                            if (stream != null)
-                                                                stream.Close();
-
-                                                            System.Threading.Interlocked.Add(ref bytesSinceLastCommit, x.FilesystemEntry.Length);
-                                                            System.Threading.Interlocked.Add(ref bytesInFlight, -x.FilesystemEntry.Length);
-                                                            System.Threading.Interlocked.Decrement(ref tasksInFlight);
-                                                            srwLock.ExitReadLock();
-                                                            semaphore.Set();
+                                                                    System.Threading.Interlocked.Add(ref bytesSinceLastCommit, x.FilesystemEntry.Length);
+                                                                    System.Threading.Interlocked.Add(ref bytesInFlight, -x.FilesystemEntry.Length);
+                                                                }
+                                                                catch (Exception e)
+                                                                {
+                                                                    exceptionManager.TrySetException(e);
+                                                                }
+                                                            }
+                                                            finally
+                                                            {
+                                                                srwLock.ExitReadLock();
+                                                                semaphore.Set();
+                                                                System.Threading.Interlocked.Decrement(ref tasksInFlight);
+                                                            }
                                                         });
                                                         pendingRecordDataList.Add(new Tuple<Record, Record, Entry>(record, x.VersionControlRecord, x.FilesystemEntry));
                                                     }
@@ -8124,6 +8144,8 @@ namespace Versionr
 
                             while (tasksInFlight > 0)
                                 semaphore.WaitOne();
+                            if (exceptionManagerTask.Exception != null)
+                                throw exceptionManagerTask.Exception;
                             ObjectStore.EndStorageTransaction(transaction);
 
                             transaction = null;
