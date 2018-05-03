@@ -3830,6 +3830,15 @@ namespace Versionr
 
             Objects.Version version = GetVersion(initialRevision);
             Objects.Branch branch = GetBranch(version.Branch);
+            Objects.Branch master = GetBranchByName("master").FirstOrDefault(x => x.Terminus == null);
+            Objects.Branch firstbranch = Branches.FirstOrDefault(x => x.Terminus == null);
+
+            if (master != null)
+                branch = master;
+            else if (branch.Terminus == null && firstbranch != null)
+                branch = firstbranch;
+
+            Printer.PrintDiagnostics("Selected initial branch: {0}", branch.Name);
 
             ws.Name = Username;
             ws.Branch = branch.ID;
