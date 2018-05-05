@@ -228,40 +228,13 @@ namespace VersionrUI.ViewModels
 
         #region GraphViz Installation Check
 
-        private static string s_outString;
         // Run the dot -V command. If it returns the version
         // information then GraphViz has been installed.
         public static bool IsGraphVizInstalled()
         {
-            Process process = new Process
-            {
-                StartInfo =
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/c \"dot -V\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                }
-            };
-            
-            // Setup output and error (asynchronous) handlers
-            process.OutputDataReceived += GetProcessOutput;
-            process.ErrorDataReceived += GetProcessOutput;
-            
-            // Start process and handlers
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            process.WaitForExit();
-
-            return s_outString.Contains("dot - graphviz version");
-        }
-        
-        private static void GetProcessOutput(object sender, DataReceivedEventArgs e)
-        {
-            s_outString += e.Data;
+            string vsrcommand = "/c \"dot -V\"";
+            string output = Utilities.RunOnCommandLine(vsrcommand);
+            return output.Contains("dot - graphviz version");
         }
 
         #endregion

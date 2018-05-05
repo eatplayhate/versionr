@@ -506,44 +506,11 @@ namespace VersionrUI.ViewModels
             }
         }
 
-        private static string s_outString;
-        public static string RunCommandLineDiff(IEnumerable<string> fileNames, string workingDir)
+        private string RunCommandLineDiff(IEnumerable<string> fileNames, string workingDir)
         {
             string allFileNamesString = fileNames.Aggregate("", (current, file) => current + (file + " "));
             string args = $"/c \"vsr diff {allFileNamesString}\"";
-
-            Process process = new Process
-            {
-                StartInfo =
-                {
-                    FileName = "cmd.exe",
-                    Arguments = args,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = workingDir
-                }
-            };
-
-            // Setup output and error (asynchronous) handlers
-            process.OutputDataReceived += GetProcessOutput;
-            process.ErrorDataReceived += GetProcessOutput;
-
-            // Start process and handlers
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            process.WaitForExit();
-
-            return s_outString;
-        }
-
-        private static void GetProcessOutput(object sender, DataReceivedEventArgs e)
-        {
-            // Beyond compare for some reason needs a space in front of this line to parse properly
-            if (e.Data != null && !e.Data.Contains("Displaying changes for file"))
-                s_outString += e.Data + Environment.NewLine;
+            return Utilities.RunOnCommandLine(args, workingDir);
         }
     }
 }
