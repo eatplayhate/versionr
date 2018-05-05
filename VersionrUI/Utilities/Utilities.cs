@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using Microsoft.Win32;
 
 namespace VersionrUI
 {
@@ -77,6 +79,35 @@ namespace VersionrUI
         private static void GetProcessOutput(object sender, DataReceivedEventArgs e)
         {
             s_outString += e.Data + Environment.NewLine;
+        }
+
+        public static void GeneratePatchFile(IEnumerable<string> files, string workingDir, string version = null)
+        {
+            try
+            {
+                SaveFileDialog dialog = new SaveFileDialog
+                {
+                    Title = "Save Patch File",
+                    Filter = "Patch Files|*.patch;"
+                };
+
+                if (dialog.ShowDialog() != true)
+                    return;
+
+                string allFileNamesString = files.Aggregate("", (current, file) => current + (file + " "));
+                string args = $"/c \"vsr diff {allFileNamesString}\"";
+                if (!string.IsNullOrEmpty(version))
+                    args += " -v " + version;
+                string patch = RunOnCommandLine(args, workingDir);
+                File.WriteAllText(dialog.FileName, patch);
+
+                if (File.Exists(dialog.FileName))
+                    MessageBox.Show("Patch file created successfully");
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(e.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }

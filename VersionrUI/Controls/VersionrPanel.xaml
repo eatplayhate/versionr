@@ -192,6 +192,7 @@
                                     <Setter.Value>
                                         <ContextMenu>
                                             <MenuItem Header="Copy Info To Clipboard" Command="{Binding CopyInfoCommand}"/>
+                                            <MenuItem Header="Generate Patch File" Command="{Binding GeneratePatchFileCommand}"></MenuItem>
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>

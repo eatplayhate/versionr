@@ -15,6 +15,8 @@ namespace VersionrUI.ViewModels
         private List<AlterationVM> m_Alterations;
         private string m_SearchText;
         public DelegateCommand CopyInfoCommand { get; private set; }
+        public DelegateCommand GeneratePatchFileCommand { get; private set; }
+        private AlterationVM m_SelectedAlteration;
 
 
         public VersionVM(Version version, Area area)
@@ -22,6 +24,7 @@ namespace VersionrUI.ViewModels
             m_Version = version;
             m_Area = area;
             CopyInfoCommand = new DelegateCommand(CopyInfo);
+            GeneratePatchFileCommand = new DelegateCommand(GeneratePatchFile);
         }
 
         public Guid ID
@@ -90,6 +93,16 @@ namespace VersionrUI.ViewModels
             }
         }
 
+        public AlterationVM SelectedAlteration
+        {
+            get { return m_SelectedAlteration; }
+            set
+            {
+                m_SelectedAlteration = value;
+                NotifyPropertyChanged(nameof(SelectedAlteration));
+            }
+        }
+
         public List<AlterationVM> FilterAlterations(string searchtext, List<AlterationVM> alterations)
         {
             searchtext = searchtext.ToLower();
@@ -120,6 +133,15 @@ namespace VersionrUI.ViewModels
                 $"ID: {ID}\nAuthor: {Author}\nMessage: {Message}\nDate/Time: {Timestamp.ToString()}\n\nFile(s) changed: \n\n";
             versionInfo = Alterations.Aggregate(versionInfo, (current, alteration) => current + $"{alteration.Name}\t{alteration.AlterationType}\n");
             System.Windows.Clipboard.SetText(versionInfo);
+        }
+
+        private void GeneratePatchFile()
+        {
+            if (!Alterations.Any())
+                return;
+            List<string> allfiles = Alterations.Select(x => x.Name).ToList();
+            // Diff with the previous version
+            Utilities.GeneratePatchFile(allfiles, m_Area.Root.FullName, m_Version.ID.ToString());
         }
     }
 }

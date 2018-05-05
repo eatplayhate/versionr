@@ -494,23 +494,7 @@ namespace VersionrUI.ViewModels
             if (!allFiles.Any())
                 return;
 
-            SaveFileDialog dialog = new SaveFileDialog
-            {
-                Title = "Save Patch File",
-                Filter = "Patch Files|*.patch;"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                File.WriteAllText(dialog.FileName, RunCommandLineDiff(allFiles, m_Area.Root.FullName));
-            }
-        }
-
-        private string RunCommandLineDiff(IEnumerable<string> fileNames, string workingDir)
-        {
-            string allFileNamesString = fileNames.Aggregate("", (current, file) => current + (file + " "));
-            string args = $"/c \"vsr diff {allFileNamesString}\"";
-            return Utilities.RunOnCommandLine(args, workingDir);
+            Utilities.GeneratePatchFile(allFiles, m_Area.Root.FullName);
         }
     }
 }
