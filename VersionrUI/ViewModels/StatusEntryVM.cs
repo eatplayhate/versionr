@@ -481,16 +481,9 @@ namespace VersionrUI.ViewModels
 
         private void GeneratePatchFile()
         {
-            List<StatusEntryVM> selectedItems = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().ToList();
-            if (!selectedItems.Any())
-                return;
-            var allFiles = new List<string>();
-            foreach (var entry in selectedItems)
-            {
-                if (!entry.StatusEntry.IsFile)
-                    continue;
-                allFiles.Add(entry.StatusEntry.CanonicalName);
-            }
+            var allFiles = VersionrPanel.SelectedItems.OfType<StatusEntryVM>().Where(x => x.StatusEntry.IsFile)
+                .Select(x => x.StatusEntry.CanonicalName);
+            
             if (!allFiles.Any())
                 return;
 
