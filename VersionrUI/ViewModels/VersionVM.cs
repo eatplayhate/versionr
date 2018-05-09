@@ -132,7 +132,7 @@ namespace VersionrUI.ViewModels
             var versionInfo =
                 $"ID: {ID}\nAuthor: {Author}\nMessage: {Message}\nDate/Time: {Timestamp.ToString()}\n\nFile(s) changed: \n\n";
             versionInfo = Alterations.Aggregate(versionInfo, (current, alteration) => current + $"{alteration.Name}\t{alteration.AlterationType}\n");
-            System.Windows.Clipboard.SetText(versionInfo);
+            System.Windows.Clipboard.SetDataObject(versionInfo);
         }
 
         private void GeneratePatchFile()
