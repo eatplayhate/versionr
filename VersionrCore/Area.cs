@@ -8709,10 +8709,13 @@ namespace Versionr
             for (int line = 0; line < patchContents.Length;)
             {
                 string start = patchContents[line];
+                int startHunk = line;
+                string indexFile = null;
+                string oldfn = null;
+                string newfn = null;
                 if (start.StartsWith("Index: ") || start.StartsWith("Displaying changes for file: ")) // SVN/vsr style patch (WE HOPE!!!)
                 {
-                    int startHunk = line;
-                    string indexFile = start.Substring(start.IndexOf(':') + 2);
+                    indexFile = start.Substring(start.IndexOf(':') + 2);
 
                     if (basePath.Length > 0)
                     {
@@ -8720,13 +8723,6 @@ namespace Versionr
                             basePath = basePath.Substring(0, basePath.Length - 1);
                         indexFile = basePath.Replace('\\', '/') + '/' + indexFile;
                     }
-
-                    bool mayBeAdding = false;
-                    bool mayBeDeleting = false;
-
-                    // find the diff target lines
-                    string oldfn = null;
-                    string newfn = null;
                     while (newfn == null || oldfn == null)
                     {
                         if (++line == patchContents.Length)
@@ -8738,9 +8734,61 @@ namespace Versionr
                             oldfn = patchContents[line].Substring(4);
                         if (patchContents[line].StartsWith("+++"))
                             newfn = patchContents[line].Substring(4);
-                    }
 
-                    line++;
+                        line++;
+                    }
+                }
+                else if (start.StartsWith("---")) // probably a p4 diff
+                {
+                    oldfn = start.Substring(4);
+                    oldfn = oldfn.Substring(0, oldfn.LastIndexOf('\t'));
+                    newfn = patchContents[++line].Substring(4);
+                    newfn = newfn.Substring(0, newfn.LastIndexOf('\t'));
+                    ++line;
+
+                    // now we have (probably) a P4 depot path and a normal path
+                    // split directories and recombine until we have a common path
+                    if (oldfn.StartsWith("//"))
+                        oldfn = oldfn.Substring(2);
+                    if (newfn.StartsWith("//"))
+                        newfn = oldfn.Substring(2);
+
+                    newfn = newfn.Replace('\\', '/');
+                    oldfn = oldfn.Replace('\\', '/');
+
+                    var commonPathOld = oldfn.Split('/').Reverse().ToArray();
+                    var commonPathNew = newfn.Split('/').Reverse().ToArray();
+
+                    indexFile = string.Empty;
+                    for (int i = 0; i < System.Math.Min(commonPathOld.Length, commonPathNew.Length); i++)
+                    {
+                        if (commonPathOld[i] != commonPathNew[i])
+                            break;
+                        if (indexFile == string.Empty)
+                            indexFile = commonPathOld[i];
+                        else
+                            indexFile = commonPathOld[i] + '/' + indexFile;
+                    }
+                    if (basePath.Length > 0)
+                    {
+                        if (basePath.Last() == '/' || basePath.Last() == '\\')
+                            basePath = basePath.Substring(0, basePath.Length - 1);
+                        indexFile = basePath.Replace('\\', '/') + '/' + indexFile;
+                    }
+                    oldfn = indexFile;
+                    newfn = indexFile;
+                }
+                else
+                {
+                    Printer.PrintMessage("#e#Can't parse patch format (line {0})##", line);
+                    return false;
+                }
+                if (!string.IsNullOrEmpty(indexFile))
+                {
+                    bool mayBeAdding = false;
+                    bool mayBeDeleting = false;
+
+                    // find the diff target lines
 
                     if (mayBeAdding && reverse)
                     {
@@ -8775,7 +8823,7 @@ namespace Versionr
                     while (patchContents.Length != line)
                     {
                         string next = patchContents[line];
-                        if (next.Length > 0 && (next[0] == '\\' || next[0] == ' ' || next[0] == '+' || next[0] == '-' || next.StartsWith("@@")))
+                        if (next.Length > 0 && (next[0] == '\\' || next[0] == ' ' || (next[0] == '+' && !next.StartsWith("+++")) || (next[0] == '-' && !next.StartsWith("---")) || next.StartsWith("@@")))
                         {
                             line++;
                             partialXDiffPatch.Add(next);
@@ -8926,11 +8974,6 @@ namespace Versionr
                         return false;
                     }
                     fullpaths.Add(originalFile.FullName);
-                }
-                else
-                {
-                    Printer.PrintMessage("#e#Can't parse patch format (line {0})##", line);
-                    return false;
                 }
             }
 
