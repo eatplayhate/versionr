@@ -422,9 +422,12 @@ namespace Versionr.Commands
 
                     if (localOptions.Diff)
                     {
-                        Workspace.GetMissingObjects(FilterObjects(altList).SelectMany(x => new[] {
-                            Workspace.GetRecord(x.Value.Alteration.PriorRecord.Value),
-                            Workspace.GetRecord(x.Value.Alteration.NewRecord.Value) }), null);
+                        var records = FilterObjects(altList)
+                            .SelectMany(x => new[] { x.Value.Alteration.PriorRecord, x.Value.Alteration.NewRecord })
+                            .Where(x => x.HasValue)
+                            .Select(x => Workspace.GetRecord(x.Value));
+
+                        Workspace.GetMissingObjects(records, null);
                     }
 
                     foreach (var y in FilterObjects(altList).Select(x => x.Value))
