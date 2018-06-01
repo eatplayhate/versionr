@@ -55,7 +55,11 @@ namespace Versionr.Commands
 
         [ValueOption(0)]
         public string PatchFile { get; set; }
+
+        [Option("in", DefaultValue = "", HelpText = "Specify subdirectory which will act as the root directory for the patch")]
+        public string BasePath { get; set; } = "";
     }
+
     class Apply : BaseWorkspaceCommand
     {
         public override bool Headless { get { return true; } }
@@ -64,7 +68,7 @@ namespace Versionr.Commands
             ApplyVerbOptions localOptions = options as ApplyVerbOptions;
             if (System.IO.File.Exists(localOptions.PatchFile))
             {
-                return Workspace.ParseAndApplyPatch(localOptions.PatchFile, localOptions.Interactive, localOptions.Record, localOptions.Reverse, localOptions.IgnoreWS);
+                return Workspace.ParseAndApplyPatch(localOptions.BasePath, localOptions.PatchFile, localOptions.Interactive, localOptions.Record, localOptions.Reverse, localOptions.IgnoreWS);
             }
             Printer.PrintError("#e#Can't find patch file to load: {0}##", localOptions.PatchFile);
             return false;

@@ -8701,7 +8701,7 @@ namespace Versionr
             return PartialPath + local;
         }
 
-        public bool ParseAndApplyPatch(string patchFile, bool interactive, bool record, bool reverse, bool ignoreWS)
+        public bool ParseAndApplyPatch(string basePath, string patchFile, bool interactive, bool record, bool reverse, bool ignoreWS)
         {
             var patchContents = System.IO.File.ReadAllLines(patchFile);
             List<string> fullpaths = new List<string>();
@@ -8713,6 +8713,13 @@ namespace Versionr
                 {
                     int startHunk = line;
                     string indexFile = start.Substring(start.IndexOf(':') + 2);
+
+                    if (basePath.Length > 0)
+                    {
+                        if (basePath.Last() == '/' || basePath.Last() == '\\')
+                            basePath = basePath.Substring(0, basePath.Length - 1);
+                        indexFile = basePath.Replace('\\', '/') + '/' + indexFile;
+                    }
 
                     bool mayBeAdding = false;
                     bool mayBeDeleting = false;
@@ -8777,7 +8784,7 @@ namespace Versionr
                             break;
                     }
 
-                    FileInfo originalFile = new FileInfo(Path.Combine(RootDirectory.FullName, indexFile));
+                    FileInfo originalFile = new FileInfo(Path.Combine(Directory.GetCurrentDirectory(), indexFile));
                     if (originalFile.Exists)
                     {
                         if (mayBeDeleting)
