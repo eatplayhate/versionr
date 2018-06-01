@@ -997,10 +997,18 @@ namespace Versionr.Network
                             }
                         }
                     }
-                    if (Server.HookProcessor != null && !Server.HookProcessor.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion,
-                        associatedVersions)))
+
+                    try
                     {
-                        return false;
+                        if (false == HookProcessor?.Raise(new PushHeadHook(clientInfo.SharedInfo.Workspace, newHead.Author, ws.GetBranch(x.Key), newHead, oldVersion, associatedVersions)))
+                        {
+                            return false;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Printer.PrintError("Error: {0}", e.ToString());
+                        Printer.PrintMessage("Error raising hook processor");
                     }
                 }
             }

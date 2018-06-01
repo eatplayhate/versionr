@@ -185,6 +185,9 @@ namespace Versionr.Network
         public static T ReceiveEncrypted<T>(SharedNetwork.SharedNetworkInfo info)
         {
             Packet packet = ProtoBuf.Serializer.DeserializeWithLengthPrefix<Packet>(info.Stream, ProtoBuf.PrefixStyle.Fixed32);
+            if (packet == null)
+                throw new Exception("Received packet was null!");
+
             Printer.PrintDiagnostics("Received {0} byte packet.", packet.Data.Length);
 
             byte[] decryptedData = packet.Data;
