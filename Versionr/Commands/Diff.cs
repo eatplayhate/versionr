@@ -201,9 +201,11 @@ namespace Versionr.Commands
                                 continue;
 
                             Objects.Record otherRecord = null;
-                            if (recordMap.TryGetValue(x.CanonicalName, out otherRecord))
+                            if (recordMap.TryGetValue(x.CanonicalName, out otherRecord) && !otherRecord.IsDirectory)
                             {
                                 if (x.VersionControlRecord != null && x.VersionControlRecord.DataIdentifier == otherRecord.DataIdentifier)
+                                    continue;
+                                if (x.FilesystemEntry != null && otherRecord.Fingerprint == x.FilesystemEntry.Hash && otherRecord.Size == x.FilesystemEntry.Length)
                                     continue;
                                 if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
                                 {
