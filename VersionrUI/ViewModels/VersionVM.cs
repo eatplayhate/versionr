@@ -16,6 +16,7 @@ namespace VersionrUI.ViewModels
         private string m_SearchText;
         public DelegateCommand CopyInfoCommand { get; private set; }
         public DelegateCommand GeneratePatchFileCommand { get; private set; }
+        public DelegateCommand CreateReviewCommand { get; private set; }
         private AlterationVM m_SelectedAlteration;
 
 
@@ -25,6 +26,7 @@ namespace VersionrUI.ViewModels
             m_Area = area;
             CopyInfoCommand = new DelegateCommand(CopyInfo);
             GeneratePatchFileCommand = new DelegateCommand(GeneratePatchFile);
+            CreateReviewCommand = new DelegateCommand(CreateReview);
         }
 
         public Guid ID
@@ -142,6 +144,12 @@ namespace VersionrUI.ViewModels
             List<string> allfiles = Alterations.Select(x => x.Name).ToList();
             // Diff with the previous version
             Utilities.GeneratePatchFile(allfiles, m_Area.Root.FullName, m_Version.ID.ToString());
+        }
+
+        private void CreateReview()
+        {
+            string url = $"https://bucktr.ea.com:44320/pullrequests/Create?repo={Utilities.RepoName}&version={ID}";
+            System.Diagnostics.Process.Start(url);
         }
     }
 }

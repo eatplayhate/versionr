@@ -11,6 +11,7 @@ namespace VersionrUI
 {
     internal class Utilities
     {
+        public static string RepoName => "osiris";
         public static bool IsVersionrPath(string path)
         {
             if (string.IsNullOrEmpty(path))

@@ -69,6 +69,7 @@
                                                     <MenuItem Header="Push" Command="{Binding PushCommand}" />
                                                     <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
                                                     <MenuItem Header="View log..." Command="{Binding LogCommand}" />
+                                                    <MenuItem Header="Create Pull Request" Command="{Binding CreatePullRequestCommand}" />
                                                 </ContextMenu>
                                             </TextBlock.ContextMenu>
                                             <TextBlock.Resources>
@@ -192,7 +193,8 @@
                                     <Setter.Value>
                                         <ContextMenu>
                                             <MenuItem Header="Copy Info To Clipboard" Command="{Binding CopyInfoCommand}"/>
-                                            <MenuItem Header="Generate Patch File" Command="{Binding GeneratePatchFileCommand}"></MenuItem>
+                                            <MenuItem Header="Generate Patch File" Command="{Binding GeneratePatchFileCommand}"/>
+                                            <MenuItem Header="Create Review" Command="{Binding CreateReviewCommand}"/>
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>

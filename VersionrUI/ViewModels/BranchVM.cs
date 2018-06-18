@@ -14,6 +14,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand PushCommand { get; private set; }
         public DelegateCommand CheckoutCommand { get; private set; }
         public DelegateCommand LogCommand { get; private set; }
+        public DelegateCommand CreatePullRequestCommand { get; private set; }
 
         private readonly AreaVM m_AreaVM;
         private readonly Branch m_Branch;
@@ -43,6 +44,7 @@ namespace VersionrUI.ViewModels
             PushCommand = new DelegateCommand(() => Load(Push));
             CheckoutCommand = new DelegateCommand(() => Load(Checkout), () => !IsCurrent);
             LogCommand = new DelegateCommand(Log);
+            CreatePullRequestCommand = new DelegateCommand(CreatePullRequest);
         }
 
         public Branch Branch
@@ -198,6 +200,12 @@ namespace VersionrUI.ViewModels
         {
             Version headVersion = m_AreaVM.Area.GetBranchHeadVersion(m_Branch);
             LogDialog.Show(headVersion, m_AreaVM.Area);
+        }
+
+        private void CreatePullRequest()
+        {
+            string url = $"https://bucktr.ea.com:44320/pullrequests/Create?repo={Utilities.RepoName}&origin={Name}";
+            System.Diagnostics.Process.Start(url);
         }
     }
 }
