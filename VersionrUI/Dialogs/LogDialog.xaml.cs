@@ -26,6 +26,7 @@ namespace VersionrUI.Dialogs
         private string m_Pattern;
         private List<VersionVM> m_History;
         private int m_RevisionLimit;
+        private static bool m_Find = false;
         private static readonly Dictionary<int, string> m_RevisionLimitOptions = new Dictionary<int, string>()
         {
             { 50, "50" },
@@ -58,6 +59,12 @@ namespace VersionrUI.Dialogs
             LogDialog logDialog = (LogDialog)o;
             logDialog.History.ForEach(x =>
                 x.SearchText = logDialog.ApplyFilterToResults ? logDialog.Pattern : string.Empty);
+        }
+
+        public static void Find(Version version, Area area)
+        {
+            m_Find = true;
+            Show(version, area);
         }
 
         public static void Show(Version version, Area area, string pattern = null)
@@ -166,13 +173,20 @@ namespace VersionrUI.Dialogs
         {
             lock (refreshLock)
             {
-                int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                IEnumerable<Version> versions =
-                    ApplyHistoryFilter(m_Area.GetLogicalHistory(Version, false, false, false, limit));
-                
                 m_History = new List<VersionVM>();
-                foreach (Version ver in versions)
-                    m_History.Add(new VersionVM(ver, m_Area));
+                if (!m_Find)
+                {
+                    int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?) null;
+                    IEnumerable<Version> versions =
+                        ApplyHistoryFilter(m_Area.GetLogicalHistory(Version, false, false, false, limit));
+                    
+                    foreach (Version ver in versions)
+                        m_History.Add(new VersionVM(ver, m_Area));
+                }
+                else
+                {
+                    m_History.Add(new VersionVM(Version, m_Area));
+                }
                 NotifyPropertyChanged(nameof(History));
             }
         }

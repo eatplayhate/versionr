@@ -34,6 +34,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand<NotifyPropertyChangedBase> SelectViewCommand { get; private set; }
         public DelegateCommand OpenInExplorerCommand { get; private set; }
         public DelegateCommand<ObservableCollection<AreaVM>> RemoveRepoFromListCommand { get; private set; }
+        public DelegateCommand FindVersionCommand { get; private set; }
 
         private string m_Name;
         private List<BranchVM> m_Branches;
@@ -51,7 +52,10 @@ namespace VersionrUI.ViewModels
             SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
             RemoveRepoFromListCommand = new DelegateCommand<ObservableCollection<AreaVM>>(RemoveRepoFromList);
+            FindVersionCommand = new DelegateCommand(FindVersion);
+
             m_Name = name;
+            //InputBindings.Add(new KeyBinding(FindVersionCommand, new KeyGesture(Key.G, ModifierKeys.Alt)));
         }
 
         public void Init(string path, AreaInitMode areaInitMode, string host, int port, Action<AreaVM, string, string> afterInit)
@@ -123,6 +127,33 @@ namespace VersionrUI.ViewModels
             });
         }
 
+        public string VersionGUID { get; set; }
+        private void FindVersion()
+        {
+            if (string.IsNullOrEmpty(VersionGUID) || m_Branches == null)
+                return;
+            //foreach (var branchVM in m_Branches)
+            //{
+                if (SelectedBranch.IsDeleted)
+                    return;
+            var versions =
+                Area.GetLogicalHistory(Area.GetBranchHeadVersion(SelectedBranch.Branch), false, false, false);
+            var foundVer = versions.SingleOrDefault(x =>
+                x != null && (x.ID.ToString() == VersionGUID || x.ID.ToString().StartsWith(VersionGUID)));
+            //}
+
+            if (foundVer == null)
+            {
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    MainWindow.ShowMessage(
+                        "Branch: " + SelectedBranch.Name, $"Could not find a version with ID: [{VersionGUID}] in this branch");
+                });
+                return;
+            }
+
+            LogDialog.Find(foundVer, Area);
+        }
         public NotifyPropertyChangedBase SelectedVM
         {
             get => m_SelectedVM;

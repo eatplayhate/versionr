@@ -105,7 +105,13 @@
                                          GroupName="radioGroup2"
                                          IsChecked="{Binding IsGraphSelected}"
                                          Content="Graph" />
+                            <TextBox x:Name="versionSearch"
+                                     mahapps:TextBoxHelper.Watermark="Enter version GUID"
+                                     Text="{Binding Path=VersionGUID, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
+                            <Button Command="{Binding FindVersionCommand}" Content="Find" Style="{StaticResource LinkButtonStyle}"/>
+
                         </StackPanel>
+                        
                         <Button Grid.Column="4"
                                 Margin="8"
                                 Content="Settings"
