@@ -259,8 +259,15 @@ namespace Versionr
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "GenerateBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int GenerateBinaryPatch(string file1, string file2, string output);
 
+        [Flags]
+        public enum XDiffFlags
+        {
+            None = 0,
+            IgnoreWhitespace = 0x100
+        }
+
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
-        public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed);
+        public static extern int ApplyPatch(string file1, string file2, string output, string errorOutput, int reversed, XDiffFlags flags = XDiffFlags.None);
 
         [System.Runtime.InteropServices.DllImport("XDiffEngine", EntryPoint = "ApplyBinaryPatch", CharSet = System.Runtime.InteropServices.CharSet.Ansi, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         public static extern int ApplyBinaryPatch(string file1, string file2, string output);
@@ -415,6 +422,7 @@ namespace Versionr
                     ? platformThreads
                     : Math.Max(requestedThreads, platformThreads);
                 Printer.PrintDiagnostics("Initialized threading pool with {0} concurrent threads.", threads);
+                m_TaskFactoryThreads = threads;
                 taskFactory = new TaskFactory(new Utilities.LimitedConcurrencyScheduler(threads));
             }
 
@@ -422,6 +430,7 @@ namespace Versionr
         }
 
         private TaskFactory taskFactory;
+        private int m_TaskFactoryThreads = 1;
 
         public bool FindStashExact(string guidString)
         {
@@ -670,9 +679,6 @@ namespace Versionr
                     var x = xp.Key;
                     Printer.PrintMessage(" [{0}]: #b#{3}{1}## - {2}", index, x.Alteration, x.CanonicalName, options.Reverse ? "Reverse " : "");
 
-                    if (options.Interactive && !Printer.Prompt("Apply?"))
-                        continue;
-
                     Status.StatusEntry ws = null;
                     st.Map.TryGetValue(x.CanonicalName, out ws);
                     if (ws == null && File.Exists(GetRecordPath(x.CanonicalName)))
@@ -692,6 +698,8 @@ namespace Versionr
                             {
                                 try
                                 {
+                                    if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                        continue;
                                     System.IO.Directory.Delete(rpath);
                                     Printer.PrintMessage("  - Deleted.");
                                 }
@@ -702,6 +710,8 @@ namespace Versionr
                             }
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                    continue;
                                 bool deletionResolution = false;
                                 if (ws.Hash != x.NewHash || ws.Length != x.NewSize)
                                     deletionResolution = GetStashResolutionDeletion(ref resolveDeleted);
@@ -724,6 +734,8 @@ namespace Versionr
                     {
                         if (ws != null && ws.Removed)
                         {
+                            if (options.Interactive && !Printer.Prompt("(Undelete) Apply?"))
+                                continue;
                             RestoreRecord(ws.VersionControlRecord, DateTime.Now);
                             Printer.PrintMessage("  - Undeleted.");
                         }
@@ -752,12 +764,16 @@ namespace Versionr
                                     Printer.PrintError("#e# - Can't un-apply binary patch - result file does not match!##");
                                 else
                                 {
+                                    if (options.Interactive && !Printer.Prompt("(Revert) Apply?"))
+                                        continue;
                                     RestoreRecord(GetRecordFromIdentifier(x.OriginalHash + "-" + x.OriginalSize.ToString()), DateTime.Now, rpath);
                                     Printer.PrintMessage("  - Reverted (binary).");
                                 }
                             }
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Update) Apply?"))
+                                    continue;
                                 ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), xp.Value, br.BaseStream, options, x);
                             }
                         }
@@ -767,23 +783,38 @@ namespace Versionr
                         if (x.Flags.HasFlag(StashFlags.Directory))
                         {
                             if (ws == null)
+                            {
+                                if (options.Interactive && !Printer.Prompt("(Create) Apply?"))
+                                    continue;
                                 System.IO.Directory.CreateDirectory(rpath);
+                            }
                             else
                                 Printer.PrintMessage("  - Skipped, directory already added.");
                         }
                         else
                         {
-                            ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                            if (ws != null && ws.Hash == x.NewHash && ws.Length == x.NewSize)
                             {
-                                br.BaseStream.Position = xp.Value;
-                                var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(x.NewSize, br.BaseStream);
-                                using (FileStream fout = File.Open(path, FileMode.Create))
-                                    reader.CopyTo(fout);
-                            });
+                                Printer.PrintMessage("  - Skipped, object already added.");
+                            }
+                            else
+                            {
+                                if (options.Interactive && !Printer.Prompt("(Add) Apply?"))
+                                    continue;
+                                ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
+                                {
+                                    br.BaseStream.Position = xp.Value;
+                                    var reader = Versionr.ObjectStore.LZHAMReaderStream.OpenStream(x.NewSize, br.BaseStream);
+                                    using (FileStream fout = File.Open(path, FileMode.Create))
+                                        reader.CopyTo(fout);
+                                });
+                            }
                         }
                     }
                     else if (x.Alteration == AlterationType.Copy || (x.Alteration == AlterationType.Move && moveAsCopies))
                     {
+                        if (options.Interactive && !Printer.Prompt(string.Format("({0}) Apply?", x.Alteration == AlterationType.Move ? "Move" : "Copy")))
+                            continue;
                         ApplyStashCreateFile(x, ws, rpath, enableStaging, ref resolveAllBinary, ref resolveAllText, ref mergeResolve, (string path) =>
                         {
                             if (x.Alteration == AlterationType.Copy || (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize))
@@ -838,6 +869,8 @@ namespace Versionr
                                 Printer.PrintMessage("  - Skipped, object removed.");
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Move) Apply?"))
+                                    continue;
                                 if (x.NewHash == x.OriginalHash && x.NewSize == x.OriginalSize)
                                 {
                                     FileInfo tfi = new FileInfo(oldPath);
@@ -849,8 +882,8 @@ namespace Versionr
 
                                     if (enableStaging)
                                     {
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                        LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
+                                        LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                     }
                                 }
                                 else
@@ -871,8 +904,8 @@ namespace Versionr
 
                                         if (enableStaging)
                                         {
-                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
-                                            LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                            LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = oldPath, Type = StageOperationType.Remove });
+                                            LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                         }
 
                                         ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
@@ -899,12 +932,14 @@ namespace Versionr
                             }
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Update) Apply?"))
+                                    continue;
                                 ApplyPatchEntry(rpath, ws.FilesystemEntry.Info.FullName, x.Flags.HasFlag(StashFlags.Binary), xp.Value, br.BaseStream, options, x);
                                 if (enableStaging)
                                 {
                                     FileInfo resultInfo = new FileInfo(rpath);
                                     if (ws.VersionControlRecord == null || resultInfo.Length != ws.VersionControlRecord.Size || Entry.CheckHash(resultInfo) != ws.Hash)
-                                        LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                                        LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
                                 }
                             }
                         }
@@ -922,12 +957,14 @@ namespace Versionr
                             DirectoryInfo di = new DirectoryInfo(rpath);
                             try
                             {
+                                if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                    continue;
                                 di.Delete();
                                 Printer.PrintMessage("  - Deleted {0}.", x.CanonicalName);
 
                                 if (enableStaging)
                                 {
-                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                    LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
                                 }
                             }
                             catch
@@ -937,6 +974,8 @@ namespace Versionr
                         }
                         else if (ws.Hash == x.OriginalHash && ws.Length == x.OriginalSize)
                         {
+                            if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                continue;
                             FileInfo tfi = new FileInfo(rpath);
                             tfi.IsReadOnly = false;
                             tfi.Delete();
@@ -944,7 +983,7 @@ namespace Versionr
 
                             if (enableStaging)
                             {
-                                LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
                             }
                         }
                         else
@@ -954,6 +993,8 @@ namespace Versionr
                                 Printer.PrintMessage("  - Skipped, conflict.");
                             else
                             {
+                                if (options.Interactive && !Printer.Prompt("(Delete) Apply?"))
+                                    continue;
                                 FileInfo tfi = new FileInfo(rpath);
                                 tfi.IsReadOnly = false;
                                 tfi.Delete();
@@ -961,7 +1002,7 @@ namespace Versionr
 
                                 if (enableStaging)
                                 {
-                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
+                                    LocalData.AddStageOperationUnique(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Remove });
                                 }
                             }
                         }
@@ -977,15 +1018,15 @@ namespace Versionr
         {
             HashSet<string> dataUniqueRequests = new HashSet<string>();
             missingAnnotationData = new List<string>();
-            foreach (var x in annotations)
+            foreach (var x in annotations.ToArray().Reverse())
             {
                 Annotation payload = annotationData[x.Value];
 
                 if (x.Delete)
                 {
                     // we are deleting an annotation
-                    Annotation insertedAnnotation = Database.Get<Objects.Annotation>(x.Value);
-                    if (insertedAnnotation.Active)
+                    Annotation insertedAnnotation = Database.Find<Objects.Annotation>(x.Value);
+                    if (insertedAnnotation != null && insertedAnnotation.Active)
                     {
                         insertedAnnotation.Active = false;
                         UpdateJournalMap(x.JournalID, x.SequenceID, null);
@@ -994,7 +1035,7 @@ namespace Versionr
                 }
                 else
                 {
-                    if (!Database.InsertSafe(payload))
+                    if (Database.InsertSafe(payload))
                     {
                         UpdateJournalMap(x.JournalID, x.SequenceID, null);
                         long size;
@@ -1157,6 +1198,20 @@ namespace Versionr
 
             if (extract)
             {
+                Action makedir = () =>
+                {
+                    if (!System.IO.Directory.Exists(System.IO.Path.GetDirectoryName(rpath)))
+                    {
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(rpath));
+
+                        if (stage && enableStaging)
+                            LocalData.AddStageOperation(new StageOperation() { Operand1 = GetLocalPath(System.IO.Path.GetDirectoryName(rpath)), Type = StageOperationType.Add });
+                    }
+                };
+                if (xpath == rpath)
+                {
+                    makedir();
+                }
                 extractor(xpath);
 
                 if (rtype == ResolveType.Merge)
@@ -1186,6 +1241,7 @@ namespace Versionr
                                 mf.IsReadOnly = false;
                             mf.Delete();
                         }
+                        makedir();
                         result.MoveTo(ml.FullName);
                     }
                 }
@@ -1193,7 +1249,12 @@ namespace Versionr
                 ApplyAttributes(new FileInfo(rpath), DateTime.Now, x.ObjectAttributes);
 
                 if (stage && enableStaging)
+                {
+                    Printer.PrintMessage("#s# - Success, Staged");
                     LocalData.AddStageOperation(new StageOperation() { Operand1 = x.CanonicalName, Type = StageOperationType.Add });
+                }
+                else
+                    Printer.PrintMessage("#s# - Success");
             }
         }
 
@@ -1263,9 +1324,17 @@ namespace Versionr
             else
             {
                 FileInfo fi = new FileInfo(Path.GetFullPath(resultPath));
-                fi.IsReadOnly = false;
-                fi.Delete();
-                File.Move(tempFile, fi.FullName);
+                if (Entry.CheckHash(fi) == Entry.CheckHash(new FileInfo(tempFile)))
+                {
+                    Printer.PrintMessage("  - No changes.");
+                }
+                else
+                {
+                    fi.IsReadOnly = false;
+                    fi.Delete();
+                    File.Move(tempFile, fi.FullName);
+                    Printer.PrintMessage("#s# - Success");
+                }
             }
 
             File.Delete(patchFile);
@@ -1581,15 +1650,22 @@ namespace Versionr
         public void Stash(string name, bool revert, Action<Status.StatusEntry, StatusCode> revertFeedback = null)
         {
             Status st = new Status(this, Database, LocalData, FileSnapshot, null, true);
+            HashSet<Status.StatusEntry> stashTargetsSet = new HashSet<Status.StatusEntry>();
             List<Status.StatusEntry> stashTargets = new List<Status.StatusEntry>();
             Dictionary<string, long> mergeRecords = new Dictionary<string, long>();
             foreach (var x in LocalData.StageOperations)
             {
-                if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
-                    stashTargets.Add(st.Map[x.Operand1]);
-                else if (x.Type == StageOperationType.MergeRecord)
-                    mergeRecords[x.Operand1] = x.ReferenceObject;
+                Status.StatusEntry entry = null;
+                if (st.Map.TryGetValue(x.Operand1, out entry))
+                {
+                    if (x.Type == StageOperationType.Add || x.Type == StageOperationType.Remove)
+                        stashTargetsSet.Add(entry);
+                    else if (x.Type == StageOperationType.MergeRecord)
+                        mergeRecords[x.Operand1] = x.ReferenceObject;
+                }
             }
+
+            stashTargets = stashTargetsSet.ToList();
 
             var tempFolder = AdministrationFolder.CreateSubdirectory("Temp");
 
@@ -3609,7 +3685,7 @@ namespace Versionr
         {
             get
             {
-                return "v1.2.6";
+                return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
             }
         }
 
@@ -3754,6 +3830,15 @@ namespace Versionr
 
             Objects.Version version = GetVersion(initialRevision);
             Objects.Branch branch = GetBranch(version.Branch);
+            Objects.Branch master = GetBranchByName("master").FirstOrDefault(x => x.Terminus == null);
+            Objects.Branch firstbranch = Branches.FirstOrDefault(x => x.Terminus == null);
+
+            if (master != null)
+                branch = master;
+            else if (branch.Terminus == null && firstbranch != null)
+                branch = firstbranch;
+
+            Printer.PrintDiagnostics("Selected initial branch: {0}", branch.Name);
 
             ws.Name = Username;
             ws.Branch = branch.ID;
@@ -5266,6 +5351,8 @@ namespace Versionr
                                     if (parentName.EndsWith("/"))
                                         parentName = parentName.Substring(0, parentName.Length - 1);
                                     parentName = parentName.Substring(0, parentName.LastIndexOf('/') + 1);
+                                    if (string.IsNullOrEmpty(parentName))
+                                        break;
                                     bool ignoredInParentList = false;
                                     if (parentIgnoredList.TryGetValue(parentName, out ignoredInParentList))
                                     {
@@ -6337,15 +6424,16 @@ namespace Versionr
         }
 
         int m_TempFileIndex = 0;
-        private FileInfo GetTemporaryFile(Record rec, string name = "")
+        private FileInfo GetTemporaryFile(Record rec = null, string name = "")
         {
             DirectoryInfo info = new DirectoryInfo(Path.Combine(AdministrationFolder.FullName, "temp"));
             info.Create();
+            string nameprefix = rec?.Name ?? string.Empty;
             lock (this)
             {
                 while (true)
                 {
-                    string fn = rec.Name + name + m_TempFileIndex++.ToString() + ".tmp";
+                    string fn = nameprefix + name + m_TempFileIndex++.ToString() + ".tmp";
                     var x = new FileInfo(Path.Combine(info.FullName, fn));
                     if (!x.Exists)
                     {
@@ -7678,7 +7766,7 @@ namespace Versionr
                     Status st = new Status(this, Database, LocalData, FileSnapshot, null, false);
                     if (st.HasModifications(true) || mergeIDs.Count > 0)
                     {
-                        Printer.PrintMessage("Committing changes..");
+                        Printer.PrintMessage("Committing changes...");
                         Versionr.ObjectStore.ObjectStoreTransaction transaction = null;
                         try
                         {
@@ -7765,7 +7853,14 @@ namespace Versionr
                             List<KeyValuePair<AlterationType, string>> alterationToCNames = new List<KeyValuePair<AlterationType, string>>();
 
                             transaction = ObjectStore.BeginStorageTransaction();
-                            foreach (var x in st.Elements)
+                            System.Threading.AutoResetEvent semaphore = new System.Threading.AutoResetEvent(false);
+                            System.Threading.ReaderWriterLockSlim srwLock = new System.Threading.ReaderWriterLockSlim();
+                            long bytesInFlight = 0;
+                            int tasksInFlight = 0;
+                            long bytesSinceLastCommit = 0;
+                            TaskCompletionSource<object> exceptionManager = new TaskCompletionSource<object>();
+                            Task<object> exceptionManagerTask = exceptionManager.Task;
+                            foreach (var x in st.Elements.OrderBy(x => x.Code).ThenBy(x => x.CanonicalName))
                             {
                                 List<StageOperation> stagedOps;
                                 fullStageInfo.TryGetValue(x.FilesystemEntry != null ? x.FilesystemEntry.CanonicalName : x.VersionControlRecord.CanonicalName, out stagedOps);
@@ -7887,29 +7982,30 @@ namespace Versionr
                                                         record = possibleRecord;
 
                                                     alterationLinkages.Add(new Tuple<Record, Alteration>(record, alteration));
+                                                    string eventMessage = null;
                                                     if (x.Code == StatusCode.Added)
                                                     {
-                                                        Printer.PrintMessage("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Added: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded addition: {0}", x.FilesystemEntry.CanonicalName);
                                                         alteration.Type = AlterationType.Add;
                                                     }
                                                     else if (x.Code == StatusCode.Modified || x.Code == StatusCode.IgnoredModified)
                                                     {
-                                                        Printer.PrintMessage("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Updated: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded update: {0}", x.FilesystemEntry.CanonicalName);
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Update;
                                                     }
                                                     else if (x.Code == StatusCode.Copied)
                                                     {
-                                                        Printer.PrintMessage("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Copied: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded copy: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Copy;
                                                     }
                                                     else if (x.Code == StatusCode.Renamed)
                                                     {
-                                                        Printer.PrintMessage("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
+                                                        eventMessage = string.Format("Renamed: #b#{0}##", x.FilesystemEntry.CanonicalName);
                                                         Printer.PrintDiagnostics("Recorded rename: {0}, from: {1}", x.FilesystemEntry.CanonicalName, x.VersionControlRecord.CanonicalName);
                                                         alteration.PriorRecord = x.VersionControlRecord.Id;
                                                         alteration.Type = AlterationType.Move;
@@ -7917,12 +8013,60 @@ namespace Versionr
                                                     List<string> ignored;
                                                     if (!ObjectStore.HasData(record, out ignored))
                                                     {
-                                                        ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                        if (bytesSinceLastCommit > 256 * 1024 * 1024)
+                                                        {
+                                                            srwLock.EnterWriteLock();
+                                                            Printer.PrintMessage(" #q#(committing {0} bytes to object store)", bytesSinceLastCommit);
+                                                            ObjectStore.FlushStorageTransaction(transaction);
+                                                            bytesSinceLastCommit = 0;
+                                                            System.Threading.Interlocked.MemoryBarrier();
+                                                            srwLock.ExitWriteLock();
+                                                        }
+                                                        while (tasksInFlight > 0 && (bytesInFlight + x.FilesystemEntry.Length > 16 * 1024 * 1024 || tasksInFlight > m_TaskFactoryThreads))
+                                                        {
+                                                            semaphore.WaitOne();
+                                                        }
+
+                                                        Printer.PrintMessage(eventMessage + " #q#(store)##");
+
+                                                        System.Threading.Interlocked.Add(ref bytesInFlight, x.FilesystemEntry.Length);
+                                                        System.Threading.Interlocked.Increment(ref tasksInFlight);
+
+                                                        taskFactory.StartNew(() =>
+                                                        {
+                                                            try
+                                                            {
+                                                                srwLock.EnterReadLock();
+                                                                try
+                                                                {
+                                                                    ObjectStore.RecordData(transaction, record, x.VersionControlRecord, x.FilesystemEntry);
+                                                                    if (stream != null)
+                                                                        stream.Close();
+
+                                                                    System.Threading.Interlocked.Add(ref bytesSinceLastCommit, x.FilesystemEntry.Length);
+                                                                    System.Threading.Interlocked.Add(ref bytesInFlight, -x.FilesystemEntry.Length);
+                                                                }
+                                                                catch (Exception e)
+                                                                {
+                                                                    exceptionManager.TrySetException(e);
+                                                                }
+                                                            }
+                                                            finally
+                                                            {
+                                                                srwLock.ExitReadLock();
+                                                                semaphore.Set();
+                                                                System.Threading.Interlocked.Decrement(ref tasksInFlight);
+                                                            }
+                                                        });
                                                         pendingRecordDataList.Add(new Tuple<Record, Record, Entry>(record, x.VersionControlRecord, x.FilesystemEntry));
                                                     }
-
-                                                    if (stream != null)
-                                                        stream.Close();
+                                                    else
+                                                    {
+                                                        if (eventMessage != null)
+                                                            Printer.PrintMessage(eventMessage);
+                                                        if (stream != null)
+                                                            stream.Close();
+                                                    }
                                                 }
                                                 catch (Exception e)
                                                 {
@@ -8006,7 +8150,11 @@ namespace Versionr
                                 Printer.PrintMessage("Commit aborted by hook.");
                                 throw new Exception("Aborted");
                             }
-                            
+
+                            while (tasksInFlight > 0)
+                                semaphore.WaitOne();
+                            if (exceptionManagerTask.Exception != null)
+                                throw exceptionManagerTask.Exception;
                             ObjectStore.EndStorageTransaction(transaction);
 
                             transaction = null;
@@ -8551,6 +8699,301 @@ namespace Versionr
             if (local.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
                 return local;
             return PartialPath + local;
+        }
+
+        public bool ParseAndApplyPatch(string basePath, string patchFile, bool interactive, bool record, bool reverse, bool ignoreWS)
+        {
+            var patchContents = System.IO.File.ReadAllLines(patchFile);
+            List<string> fullpaths = new List<string>();
+            XDiffFlags xflags = ignoreWS ? XDiffFlags.IgnoreWhitespace : XDiffFlags.None;
+            for (int line = 0; line < patchContents.Length;)
+            {
+                string start = patchContents[line];
+                int startHunk = line;
+                string indexFile = null;
+                string oldfn = null;
+                string newfn = null;
+                if (start.StartsWith("Index: ") || start.StartsWith("Displaying changes for file: ")) // SVN/vsr style patch (WE HOPE!!!)
+                {
+                    indexFile = start.Substring(start.IndexOf(':') + 2);
+
+                    if (basePath.Length > 0)
+                    {
+                        if (basePath.Last() == '/' || basePath.Last() == '\\')
+                            basePath = basePath.Substring(0, basePath.Length - 1);
+                        indexFile = basePath.Replace('\\', '/') + '/' + indexFile;
+                    }
+                    while (newfn == null || oldfn == null)
+                    {
+                        if (++line == patchContents.Length)
+                        {
+                            Printer.PrintMessage("#e#Failed to find target directives (hunk start at line {0})##", startHunk);
+                            return false;
+                        }
+                        if (patchContents[line].StartsWith("---"))
+                            oldfn = patchContents[line].Substring(4);
+                        if (patchContents[line].StartsWith("+++"))
+                            newfn = patchContents[line].Substring(4);
+
+                        line++;
+                    }
+                }
+                else if (start.StartsWith("---")) // probably a p4 diff
+                {
+                    oldfn = start.Substring(4);
+                    oldfn = oldfn.Substring(0, oldfn.LastIndexOf('\t'));
+                    newfn = patchContents[++line].Substring(4);
+                    newfn = newfn.Substring(0, newfn.LastIndexOf('\t'));
+                    ++line;
+
+                    // now we have (probably) a P4 depot path and a normal path
+                    // split directories and recombine until we have a common path
+                    if (oldfn.StartsWith("//"))
+                        oldfn = oldfn.Substring(2);
+                    if (newfn.StartsWith("//"))
+                        newfn = oldfn.Substring(2);
+
+                    newfn = newfn.Replace('\\', '/');
+                    oldfn = oldfn.Replace('\\', '/');
+
+                    var commonPathOld = oldfn.Split('/').Reverse().ToArray();
+                    var commonPathNew = newfn.Split('/').Reverse().ToArray();
+
+                    indexFile = string.Empty;
+                    for (int i = 0; i < System.Math.Min(commonPathOld.Length, commonPathNew.Length); i++)
+                    {
+                        if (commonPathOld[i] != commonPathNew[i])
+                            break;
+                        if (indexFile == string.Empty)
+                            indexFile = commonPathOld[i];
+                        else
+                            indexFile = commonPathOld[i] + '/' + indexFile;
+                    }
+                    if (basePath.Length > 0)
+                    {
+                        if (basePath.Last() == '/' || basePath.Last() == '\\')
+                            basePath = basePath.Substring(0, basePath.Length - 1);
+                        indexFile = basePath.Replace('\\', '/') + '/' + indexFile;
+                    }
+                    oldfn = indexFile;
+                    newfn = indexFile;
+                }
+                else
+                {
+                    Printer.PrintMessage("#e#Can't parse patch format (line {0})##", line);
+                    return false;
+                }
+                if (!string.IsNullOrEmpty(indexFile))
+                {
+                    bool mayBeAdding = false;
+                    bool mayBeDeleting = false;
+
+                    // find the diff target lines
+
+                    if (mayBeAdding && reverse)
+                    {
+                        mayBeAdding = false;
+                        mayBeDeleting = true;
+                    }
+                    else if (mayBeDeleting && reverse)
+                    {
+                        mayBeDeleting = false;
+                        mayBeAdding = true;
+                    }
+
+                    List<string> partialXDiffPatch = new List<string>();
+                    partialXDiffPatch.Add("--- " + oldfn);
+                    partialXDiffPatch.Add("+++ " + newfn);
+
+                    string firstHunk = patchContents[line++];
+                    if (!firstHunk.StartsWith("@@"))
+                    {
+                        Printer.PrintMessage("#e#Failed to find first hunk (hunk start at line {0})##", startHunk);
+                        return false;
+                    }
+
+                    if (firstHunk.StartsWith("@@ -0,0"))
+                        mayBeAdding = true;
+                    if (firstHunk.EndsWith("+0,0 @@"))
+                        mayBeDeleting = true;
+
+                    partialXDiffPatch.Add(firstHunk);
+
+                    int scanstart = line;
+                    while (patchContents.Length != line)
+                    {
+                        string next = patchContents[line];
+                        if (next.Length > 0 && (next[0] == '\\' || next[0] == ' ' || (next[0] == '+' && !next.StartsWith("+++")) || (next[0] == '-' && !next.StartsWith("---")) || next.StartsWith("@@")))
+                        {
+                            line++;
+                            partialXDiffPatch.Add(next);
+                        }
+                        else
+                            break;
+                    }
+
+                    FileInfo originalFile = new FileInfo(Path.Combine(Directory.GetCurrentDirectory(), indexFile));
+                    if (originalFile.Exists)
+                    {
+                        if (mayBeDeleting)
+                        {
+                            Printer.PrintMessage("Removing file: #b#{0}##", indexFile);
+                            if (!interactive || Printer.Prompt("Patch deletes file - continue"))
+                            {
+                                originalFile.Delete();
+                                Printer.PrintMessage(" #s#[success]##");
+                            }
+                            continue;
+                        }
+                        Printer.PrintMessage("Patching file: #b#{0}##", indexFile);
+                        var file = GetTemporaryFile(null, string.Format("{0}-{1}.patch", System.IO.Path.GetFileNameWithoutExtension(patchFile), System.IO.Path.GetFileName(indexFile)));
+                        using (var sw = file.CreateText())
+                        {
+                            foreach (var elem in partialXDiffPatch)
+                                sw.WriteLine(elem);
+                        }
+
+                        var outputFile = GetTemporaryFile(null, System.IO.Path.GetFileName(indexFile));
+                        var rejectionFile = GetTemporaryFile(null, "patch-errors.txt");
+                        if (mayBeAdding)
+                        {
+                            var empty = GetTemporaryFile(null, "patch-empty.txt");
+                            using (var sw = empty.CreateText()) { }
+                            var test = GetTemporaryFile(null, "patch-test.txt");
+                            using (var sw = test.CreateText()) { }
+                            if (ApplyPatch(empty.FullName, file.FullName, test.FullName, rejectionFile.FullName, reverse ? 1 : 0, xflags) == 0)
+                            {
+                                string newFile = System.IO.File.ReadAllText(test.FullName);
+                                string oldFile = System.IO.File.ReadAllText(originalFile.FullName);
+                                if (oldFile.StartsWith(newFile))
+                                {
+                                    Printer.PrintMessage(" #s#[skipped - multiple add]##");
+                                }
+                                empty.Delete();
+                                rejectionFile.Delete();
+                                file.Delete();
+                                test.Delete();
+                                continue;
+                            }
+                            empty.Delete();
+                            rejectionFile.Delete();
+                            test.Delete();
+                        }
+
+                        int result = ApplyPatch(originalFile.FullName, file.FullName, outputFile.FullName, rejectionFile.FullName, reverse ? 1 : 0, xflags);
+                        
+                        bool hasRejectedHunks = false;
+                        using (FileStream fs = File.Open(rejectionFile.FullName, FileMode.Open))
+                        using (TextReader tr = new StreamReader(fs))
+                        {
+                            if (fs.Length != 0)
+                            {
+                                hasRejectedHunks = true;
+                                string[] errorLines = tr.ReadToEnd().Split('\n');
+                                Printer.PrintError("#e#Error:#b# Couldn't apply all patch hunks!##");
+                                foreach (var x in errorLines)
+                                {
+                                    if (x.StartsWith("@@"))
+                                        Printer.PrintMessage("#c#{0}##", Printer.Escape(x));
+                                    else if (x.StartsWith("-"))
+                                        Printer.PrintMessage("#e#{0}##", Printer.Escape(x));
+                                    else if (x.StartsWith("+"))
+                                        Printer.PrintMessage("#s#{0}##", Printer.Escape(x));
+                                    else
+                                        Printer.PrintMessage(Printer.Escape(x));
+                                }
+                            }
+                        }
+
+                        if (result != 0 && hasRejectedHunks == false)
+                        {
+                            Printer.PrintError("#e#Error:#b# Patch failed to apply!##");
+                            rejectionFile.Delete();
+                            file.Delete();
+                            continue;
+                        }
+
+                        bool editManually = false;
+                        bool success = !hasRejectedHunks;
+                        if (hasRejectedHunks)
+                        {
+                            Printer.PrintMessage(" #w#[failed - rejected hunks]##");
+                            if (Printer.Prompt("Keep output and edit manually"))
+                            {
+                                editManually = true;
+                            }
+                            else
+                            {
+                                outputFile.Delete();
+                            }
+                        }
+                        else
+                        {
+                            Printer.PrintMessage(" #s#[success]##");
+                            editManually = interactive;
+                        }
+
+                        if (editManually)
+                        {
+                            var oldFile = GetTemporaryFile(null, "OLD-" + System.IO.Path.GetFileName(indexFile));
+                            outputFile.Replace(originalFile.FullName, oldFile.FullName);
+
+                            Utilities.DiffTool.Diff(oldFile.FullName, oldFile.Name + " (OLD)", originalFile.FullName, originalFile.Name, Directives.ExternalDiff, false);
+                        }
+                        else if (success)
+                        {
+                            originalFile.Delete();
+                            outputFile.MoveTo(originalFile.FullName);
+                        }
+
+                        rejectionFile.Delete();
+                        file.Delete();
+                    }
+                    else if (mayBeAdding)
+                    {
+                        var file = GetTemporaryFile(null, string.Format("{0}-{1}.patch", System.IO.Path.GetFileNameWithoutExtension(patchFile), System.IO.Path.GetFileName(indexFile)));
+                        using (var sw = file.CreateText())
+                        {
+                            foreach (var elem in partialXDiffPatch)
+                                sw.WriteLine(elem);
+                        }
+                        Printer.PrintMessage("Adding file: #b#{0}##", indexFile);
+                        var empty = GetTemporaryFile(null, "patch-empty.txt");
+                        using (var sw = empty.CreateText()) { }
+                        using (var sw = originalFile.CreateText()) { }
+                        var rejectionFile = GetTemporaryFile(null, "patch-errors.txt");
+                        ApplyPatch(empty.FullName, file.FullName, originalFile.FullName, rejectionFile.FullName, reverse ? 1 : 0, xflags);
+                        Printer.PrintMessage(" #s#[success]##");
+                        empty.Delete();
+                        rejectionFile.Delete();
+                        file.Delete();
+                    }
+                    else
+                    {
+                        Printer.PrintMessage("#e#Failed to patch file (can't find file?): {0}##", originalFile.FullName);
+                        return false;
+                    }
+                    fullpaths.Add(originalFile.FullName);
+                }
+            }
+
+            if (record)
+            {
+                Status s = Status;
+
+                List<Status.StatusEntry> entries = new List<Status.StatusEntry>();
+                foreach (var item in fullpaths)
+                {
+                    Status.StatusEntry entry;
+                    if (s.Map.TryGetValue(GetLocalPath(item), out entry))
+                        entries.Add(entry);
+                    else
+                        Printer.PrintWarning("#w#Couldn't find status for file {0}", item);
+                }
+                if (entries.Count > 0)
+                    RecordChanges(s, entries, true, false);
+            }
+            return true;
         }
 
         public class PruneOptions

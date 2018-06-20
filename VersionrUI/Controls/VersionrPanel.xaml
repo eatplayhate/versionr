@@ -69,6 +69,7 @@
                                                     <MenuItem Header="Push" Command="{Binding PushCommand}" />
                                                     <MenuItem Header="Checkout" Command="{Binding CheckoutCommand}" />
                                                     <MenuItem Header="View log..." Command="{Binding LogCommand}" />
+                                                    <MenuItem Header="Create Pull Request" Command="{Binding CreatePullRequestCommand}" />
                                                 </ContextMenu>
                                             </TextBlock.ContextMenu>
                                             <TextBlock.Resources>
@@ -149,7 +150,7 @@
                         <TextBox Grid.Column="1"
                                  x:Name="logSearch"
                                  mahapps:TextBoxHelper.Watermark="Search"
-                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}" />
+                                 Text="{Binding Path=SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
                         <Label Grid.Column="2">Limit:</Label>
                         <ComboBox Grid.Column="3"
                                   SelectedValuePath="Key"
@@ -160,7 +161,7 @@
                     <ListView Grid.Row="1"
                               x:Name="listView"
                               ItemsSource="{Binding History}"
-                              SelectedItem="{Binding SelectedVersion, Mode=OneWay}"
+                              SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
                               SelectionMode="Single"
                               GridViewColumnHeader.Click="listViewHeader_Click"
                               ScrollViewer.IsDeferredScrollingEnabled="False"
@@ -188,6 +189,15 @@
                                         <Setter Property="FontWeight" Value="Bold" />
                                     </DataTrigger>
                                 </Style.Triggers>
+                                <Setter Property="ContextMenu">
+                                    <Setter.Value>
+                                        <ContextMenu>
+                                            <MenuItem Header="Copy Info To Clipboard" Command="{Binding CopyInfoCommand}"/>
+                                            <MenuItem Header="Generate Patch File" Command="{Binding GeneratePatchFileCommand}"/>
+                                            <MenuItem Header="Create Review" Command="{Binding CreateReviewCommand}"/>
+                                        </ContextMenu>
+                                    </Setter.Value>
+                                </Setter>
                             </Style>
                         </ListView.ItemContainerStyle>
                     </ListView>
@@ -220,7 +230,7 @@
                         <TextBox Grid.Column="1"
                                  x:Name="alterationSearch"
                                  mahapps:TextBoxHelper.Watermark="Search"
-                                 Text="{Binding SelectedVersion.SearchText, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}" />
+                                 Text="{Binding SelectedVersion.SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" />
                     </Grid>
                     <ContentPresenter Grid.Row="6" Content="{Binding SelectedItem, ElementName=listView}" />
                 </Grid>
@@ -234,7 +244,9 @@
                       SelectionMode="Single"
                       GridViewColumnHeader.Click="listViewHeader_Click"
                       ScrollViewer.IsDeferredScrollingEnabled="False"
-                      Style="{StaticResource VirtualisedMetroListView}">
+                      Style="{StaticResource VirtualisedMetroListView}"
+                      PreviewMouseDown="listView_PreviewMouseDown"
+                      MouseMove="listView_MouseMove">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" DisplayMemberBinding="{Binding Name, Mode=OneWay}" />
@@ -367,7 +379,9 @@
                               GridViewColumnHeader.Click="listViewHeader_Click"
                               ScrollViewer.IsDeferredScrollingEnabled="False"
                               Style="{StaticResource VirtualisedMetroListView}"
-                              BorderThickness="0">
+                              BorderThickness="0"
+                              PreviewMouseDown="listView_PreviewMouseDown"
+                              MouseMove="listView_MouseMove">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="Staged">
@@ -398,6 +412,7 @@
                                             <MenuItem Header="View log..." Command="{Binding LogCommand}" />
                                             <MenuItem Header="Revert" Command="{Binding RevertCommand}" />
                                             <MenuItem Header="Open location in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                            <MenuItem Header="Generate Patch File" Command="{Binding GeneratePatchFileCommand}"/>
                                         </ContextMenu>
                                     </Setter.Value>
                                 </Setter>
@@ -679,6 +694,9 @@
                     Style="{StaticResource LinkButtonStyle}" />
             <ListBox ItemsSource="{Binding OpenAreas}"
                         SelectedItem="{Binding SelectedArea}">
+                <ListBox.Resources>
+                    <local:BindingProxy x:Key="ListBoxDataContext" Data="{Binding OpenAreas}"/>
+                </ListBox.Resources>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4">
@@ -688,6 +706,8 @@
                             <StackPanel.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
+                                    <MenuItem Header="Remove" Command="{Binding RemoveRepoFromListCommand}" 
+                                              CommandParameter="{Binding Data, Source={StaticResource ListBoxDataContext}}"/>
                                 </ContextMenu>
                             </StackPanel.ContextMenu>
                         </StackPanel>

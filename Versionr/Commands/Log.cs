@@ -419,6 +419,17 @@ namespace Versionr.Commands
                         string recName = y.Record.CanonicalName;
                         altList.Add(new KeyValuePair<string, ResolvedAlteration>(recName, y));
                     }
+
+                    if (localOptions.Diff)
+                    {
+                        var records = FilterObjects(altList)
+                            .SelectMany(x => new[] { x.Value.Alteration.PriorRecord, x.Value.Alteration.NewRecord })
+                            .Where(x => x.HasValue)
+                            .Select(x => Workspace.GetRecord(x.Value));
+
+                        Workspace.GetMissingObjects(records, null);
+                    }
+
                     foreach (var y in FilterObjects(altList).Select(x => x.Value))
                     {
                         if (y.Alteration.Type == Objects.AlterationType.Move || y.Alteration.Type == Objects.AlterationType.Copy)
@@ -622,8 +633,6 @@ namespace Versionr.Commands
             if (nullableLimit.Value <= 0)
                 nullableLimit = null;
 
-            var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, localOptions.ShowAutoMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
-
             if (localOptions.Xml)
             {
                 Printer.PrintMessage("<?xml version='1.0'?>");
@@ -634,6 +643,8 @@ namespace Versionr.Commands
                     Printer.PrintMessage($"    <head version='{head.Version}' />");
                 Printer.PrintMessage("  </branch>");
             }
+
+            var history = (localOptions.Logical ? ws.GetLogicalHistorySequenced(version, localOptions.FollowBranches, localOptions.ShowMerges, localOptions.ShowAutoMerges, nullableLimit) : ws.GetHistory(version, nullableLimit).Select(x => new Tuple<Objects.Version, int>(x, 0))).AsEnumerable();
 
             m_Tip = Workspace.Version;
             Objects.Version last = null;

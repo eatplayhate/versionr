@@ -333,9 +333,13 @@ static int xdl_line_match(patch_t *pch, const char *s, long ns, char const *m, l
 	return ns == nm && memcmp(s, m, ns) == 0;
 }
 
+static int xdl_whitespace_only(const char *s, long ns) {
+	for (; ns > 0 && (s[ns - 1] == '\r' || s[ns - 1] == '\n'); ns--);
+	return ns == 0;
+}
 
 static int xdl_hunk_match(recfile_t *rf, long irec, patch_t *pch, int mode, int fuzz) {
-	long i, j, z, fsize, psize, ptop, pfuzz, sfuzz, misses;
+	long i, j, z, fsize, psize, ptop, pfuzz, sfuzz, misses, fuzzextra;
 	char const *fline, *pline;
 
 	/*
@@ -343,6 +347,7 @@ static int xdl_hunk_match(recfile_t *rf, long irec, patch_t *pch, int mode, int 
 	 */
 	pfuzz = fuzz < pch->hi.pctx ? fuzz: pch->hi.pctx;
 	sfuzz = fuzz < pch->hi.sctx ? fuzz: pch->hi.sctx;
+	fuzzextra = 0;
 
 	/*
 	 * First loop through the prefix fuzz area. In this loop we simply
@@ -354,11 +359,13 @@ static int xdl_hunk_match(recfile_t *rf, long irec, patch_t *pch, int mode, int 
 	     z > 0 && i < rf->nrec && j < ptop; i++, j++, z--) {
 		if (!(pline = xdl_recfile_get(&pch->rf, j, &psize)))
 			return 0;
+
+		fuzzextra += xdl_whitespace_only(pline + 1, psize - 1);
 		if (!(fline = xdl_recfile_get(rf, i, &fsize)) ||
 		    !xdl_line_match(pch, fline, fsize, pline + 1, psize - 1))
 			misses++;
 	}
-	if (misses > fuzz)
+	if (misses > fuzz - fuzzextra)
 		return 0;
 
 	/*
@@ -382,6 +389,8 @@ static int xdl_hunk_match(recfile_t *rf, long irec, patch_t *pch, int mode, int 
 		    *pline == ' ' || *pline == mode)
 			return 0;
 
+	fuzzextra = 0;
+
 	/*
 	 * Finally loop through the suffix fuzz area. In this loop we simply
 	 * note mismatching lines. We allow missing lines here, that is,
@@ -390,12 +399,14 @@ static int xdl_hunk_match(recfile_t *rf, long irec, patch_t *pch, int mode, int 
 	for (z = sfuzz; z > 0 && i < rf->nrec; i++, j++, z--) {
 		if (!(pline = xdl_recfile_get(&pch->rf, j, &psize)))
 			return 0;
+
+		fuzzextra += xdl_whitespace_only(pline + 1, psize - 1);
 		if (!(fline = xdl_recfile_get(rf, i, &fsize)) ||
 		    !xdl_line_match(pch, fline, fsize, pline + 1, psize - 1))
 			misses++;
 	}
 
-	return misses <= fuzz;
+	return misses <= fuzz - fuzzextra;
 }
 
 

@@ -279,8 +279,22 @@ namespace Versionr.Commands
             Printer.WriteLineMessage("{1}##{0}{2}", name, GetStatus(x, flat), ro);
 			if (x.Code == StatusCode.Renamed || x.Code == StatusCode.Copied)
 				Printer.WriteLineMessage("                  #q#<== {0}", x.VersionControlRecord.CanonicalName);
-            if (LocalOptions.RecordInfo)
-                Printer.WriteLineMessage(" Record ID: #c#{0}", x.VersionControlRecord.DataIdentifier);
+            if (LocalOptions.RecordInfo && !x.IsDirectory)
+            {
+                if (x.VersionControlRecord != null)
+                {
+                    if (x.Code == StatusCode.Unchanged)
+                        Printer.WriteLineMessage(" Record ID: #c#{0}", x.VersionControlRecord.DataIdentifier);
+                    else if (x.Code == StatusCode.Copied || x.Code == StatusCode.Renamed)
+                        Printer.WriteLineMessage(" Record ID: #c#{0} (duplicated)", x.VersionControlRecord.DataIdentifier);
+                    else
+                        Printer.WriteLineMessage(" Record ID: #w#{0} (stale)", x.VersionControlRecord.DataIdentifier);
+                }
+                else
+                {
+                    Printer.WriteLineMessage(" Record ID: #w#(new - computed: {0}-{1})##", x.FilesystemEntry.Hash, x.FilesystemEntry.Length);
+                }
+            }
         }
 
 		private string GetPatterns(IList<string> objects)

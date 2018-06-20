@@ -152,6 +152,8 @@ namespace Versionr
                     Attributes = Attributes | Objects.Attributes.Symlink;
                     CanonicalName = CanonicalName.Substring(0, CanonicalName.Length - 1);
                 }
+                if (localName == ".versionr/" && parent != null)
+                    parent.IsVersionrRoot = true;
             }
             else if (Utilities.Symlink.ExistsForFile(FullName, CanonicalName))
             {
@@ -186,7 +188,12 @@ namespace Versionr
                 return LocalName;
             }
         }
-        
+
+        private static readonly char[] s_Base16NibbleTable = new[]
+        {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+        };
+
         internal static string CheckHash(FileInfo info)
         {
 #if SHOW_HASHES
@@ -196,10 +203,15 @@ namespace Versionr
             using (var fs = info.OpenRead())
             {
                 byte[] hashBytes = hasher.ComputeHash(fs);
-                string hashValue = string.Empty;
-                foreach (var h in hashBytes)
-                    hashValue += string.Format("{0:X2}", h);
-                return hashValue;
+
+                char[] chararray = new char[hashBytes.Length * 2];
+                for (int i = 0; i < hashBytes.Length; i++)
+                {
+                    chararray[i * 2] = s_Base16NibbleTable[hashBytes[i] >> 4];
+                    chararray[i * 2 + 1] = s_Base16NibbleTable[hashBytes[i] & 0xF];
+                }
+
+                return new string(chararray);
             }
         }
     }
@@ -622,25 +634,38 @@ namespace Versionr
                     nativeGenerator = PosixFS.GetFlatEntries;
                 }
 
+                List<FlatFSEntry> flatEntries = null;
+                if (!Utilities.MultiArchPInvoke.IsRunningOnMono)
+                {
+                }
+
                 if (nativeGenerator != null)
+                {
+                    string fn = root.FullName.Replace('\\', '/');
+                    if (fn[fn.Length - 1] != '/')
+                        fn += '/';
+                    System.Net.Sockets.Socket socket = new System.Net.Sockets.Socket(System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
+                    if (flatEntries == null)
+                    {
+                        Printer.PrintDiagnostics("#q#Using native file scanner...##");
+                        sw.Restart();
+                        flatEntries = nativeGenerator(fn);
+                        if (area.GetLocalPath(fn) != "")
+                            flatEntries.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = flatEntries.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
+                        sw.Restart();
+                    }
+                }
+                if (flatEntries != null)
                 {
                     FSScan scan = new FSScan();
                     scan.FRIgnores = area?.Directives?.Ignore?.RegexFilePatterns;
                     scan.FRIncludes = area?.Directives?.Include?.RegexFilePatterns;
                     scan.ExtIgnores = area?.Directives?.Ignore?.Extensions;
                     scan.ExtIncludes = area?.Directives?.Include?.Extensions;
-                    string fn = root.FullName.Replace('\\', '/');
-                    if (fn[fn.Length - 1] != '/')
-                        fn += '/';
-                    sw.Restart();
-                    var x = nativeGenerator(fn);
-                    if (area.GetLocalPath(fn) != "")
-                        x.Insert(0, new FlatFSEntry() { Attributes = (int)root.Attributes, ChildCount = x.Count, Length = -1, FileTime = root.LastWriteTimeUtc.Ticks, FullName = fn });
-                    sw.Restart();
-                    List<Entry> e2 = new List<Entry>(x.Count);
+                    List<Entry> e2 = new List<Entry>(flatEntries.Count);
                     System.Collections.Concurrent.ConcurrentBag<Entry> entries2 = new System.Collections.Concurrent.ConcurrentBag<Entry>();
                     System.Threading.CountdownEvent ce2 = new System.Threading.CountdownEvent(1);
-                    ProcessListFast(scan, area, x, area.RootDirectory.FullName, ce2, entries2, 0, x.Count, null);
+                    ProcessListFast(scan, area, flatEntries, area.RootDirectory.FullName, ce2, entries2, 0, flatEntries.Count, null);
                     ce2.Signal();
                     ce2.Wait();
                     var ea = entries2.ToArray();
@@ -649,10 +674,12 @@ namespace Versionr
                     return e2;
                 }
             }
-            catch
+            catch (System.Exception e)
             {
                 // try again with the slow mode
+                Printer.PrintDiagnostics("#q#Couldn't use fast scanners {0}##", e);
             }
+            Printer.PrintDiagnostics("#q#Using fallback file scanner...##");
             sw.Restart();
             System.Collections.Concurrent.ConcurrentBag<Entry> entries = new System.Collections.Concurrent.ConcurrentBag<Entry>();
             System.Threading.CountdownEvent ce = new System.Threading.CountdownEvent(1);
@@ -688,8 +715,6 @@ namespace Versionr
                                 throw new Exception();
                             continue;
                         }
-                        else
-                            parentEntry.IsVersionrRoot = true;
                     }
 
                     CheckDirectoryIgnores(area, slashedSubdirectory, ref ignoreDirectory, ref ignoreContents, ref hide);

@@ -388,6 +388,16 @@ namespace Versionr
             }
         }
 
+        internal void AddStageOperationUnique(LocalState.StageOperation ss)
+        {
+            foreach (var x in StageOperations)
+            {
+                if (x.Type == ss.Type && x.Operand1 == ss.Operand1 && x.Operand2 == ss.Operand2 && x.ReferenceObject == ss.ReferenceObject)
+                    return;
+            }
+            AddStageOperation(ss);
+        }
+
         internal void AddStageOperation(LocalState.StageOperation ss)
         {
             lock (this)

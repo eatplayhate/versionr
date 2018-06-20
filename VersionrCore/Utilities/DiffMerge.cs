@@ -54,7 +54,7 @@ namespace Versionr.Utilities
             public CandidateThing chain;
         }
 
-        public class CommonRun
+        public struct CommonRun
         {
             public int File1 { get; set; }
             public int File2 { get; set; }
@@ -174,14 +174,14 @@ namespace Versionr.Utilities
 
         #region Methods
 
-        public static void PrintDiff(int[,] c, string[] x, string[] y, int i, int j, int bias, List<CommonRun> crList)
+        public static void PrintDiff(int[,] c, ArraySegment<string> x, ArraySegment<string> y, int i, int j, int bias, List<CommonRun> crList)
         {
-            CommonRun last = crList.Count > 0 ? crList[crList.Count - 1] : null;
+            CommonRun last = crList.Count > 0 ? crList[crList.Count - 1] : new CommonRun() { Length = -1 };
             while (true)
             {
-                if (i > 0 && j > 0 && x[i + bias - 1] == y[j + bias - 1])
+                if (i > 0 && j > 0 && x.Array[x.Offset + i + bias - 1] == y.Array[y.Offset + j + bias - 1])
                 {
-                    if (last != null && last.File1 == i && last.File2 == j)
+                    if (last.Length > 0 && last.File1 == i && last.File2 == j)
                     {
                         last.File1--;
                         last.File2--;
@@ -210,40 +210,64 @@ namespace Versionr.Utilities
 
         public static List<CommonRun> longest_common_subsequence2(string[] file1, string[] file2)
         {
+            return longest_common_subsequence2seq(new ArraySegment<string>(file1), new ArraySegment<string>(file2));
+        }
+
+        public static List<CommonRun> longest_common_subsequence2seq(ArraySegment<string> file1, ArraySegment<string> file2, ArraySegment<int>? file1Hash = null, ArraySegment<int>? file2Hash = null, List<CommonRun> storage = null)
+        {
             int startTrim = 0;
             int endTrim = 0;
-            for (int i = 0; i < file1.Length && i < file2.Length; i++)
+            for (int i = 0; i < file1.Count && i < file2.Count; i++)
             {
-                if (file1[i] == file2[i])
+                if (file1.Array[file1.Offset + i] == file2.Array[file2.Offset + i])
                     startTrim++;
                 else
                     break;
             }
-            for (int i = file1.Length - 1, j = file2.Length - 1; j > startTrim && i > startTrim; i--, j--)
+            for (int i = file1.Count - 1, j = file2.Count - 1; j > startTrim && i > startTrim; i--, j--)
             {
-                if (file1[i] == file2[j])
+                if (file1.Array[file1.Offset + i] == file2.Array[file2.Offset + j])
                     endTrim++;
                 else
                     break;
             }
 
-            int[,] matchArray = new int[file1.Length - startTrim - endTrim + 1, file2.Length - startTrim - endTrim + 1];
-            for (int i = 1; i < matchArray.GetLength(0); i++)
+            int[,] matchArray = new int[file1.Count - startTrim - endTrim + 1, file2.Count - startTrim - endTrim + 1];
+            if (file1Hash.HasValue && file2Hash.HasValue)
             {
-                for (int j = 1; j < matchArray.GetLength(1); j++)
+                var f1h = file1Hash.Value;
+                var f2h = file2Hash.Value;
+                for (int i = 1; i < matchArray.GetLength(0); i++)
                 {
-                    if (file1[i + startTrim - 1] == file2[j + startTrim - 1])
-                        matchArray[i, j] = matchArray[i - 1, j - 1] + 1;
-                    else
-                        matchArray[i, j] = System.Math.Max(matchArray[i, j - 1], matchArray[i - 1, j]);
+                    for (int j = 1; j < matchArray.GetLength(1); j++)
+                    {
+                        if (f1h.Array[f1h.Offset + i + startTrim - 1] == f2h.Array[f2h.Offset + j + startTrim - 1])
+                            matchArray[i, j] = matchArray[i - 1, j - 1] + 1;
+                        else
+                            matchArray[i, j] = System.Math.Max(matchArray[i, j - 1], matchArray[i - 1, j]);
+                    }
                 }
             }
-            List<CommonRun> lcr = new List<CommonRun>();
-            PrintDiff(matchArray, file1, file2, matchArray.GetLength(0) - 1, matchArray.GetLength(1) - 1, startTrim, lcr);
-            foreach (var x in lcr)
+            else
             {
-                x.File1 += startTrim;
-                x.File2 += startTrim;
+                for (int i = 1; i < matchArray.GetLength(0); i++)
+                {
+                    for (int j = 1; j < matchArray.GetLength(1); j++)
+                    {
+                        if (file1.Array[file1.Offset + i + startTrim - 1] == file2.Array[file2.Offset + j + startTrim - 1])
+                            matchArray[i, j] = matchArray[i - 1, j - 1] + 1;
+                        else
+                            matchArray[i, j] = System.Math.Max(matchArray[i, j - 1], matchArray[i - 1, j]);
+                    }
+                }
+            }
+            List<CommonRun> lcr = storage;
+            if (lcr == null)
+                lcr = new List<CommonRun>();
+            PrintDiff(matchArray, file1, file2, matchArray.GetLength(0) - 1, matchArray.GetLength(1) - 1, startTrim, lcr);
+            for (int i = 0; i < lcr.Count; i++)
+            {
+                lcr[i] = new CommonRun { File1 = lcr[i].File1 + startTrim, File2 = lcr[i].File2 + startTrim, Length = lcr[i].Length };
             }
             if (startTrim > 0)
             {
@@ -252,16 +276,22 @@ namespace Versionr.Utilities
             lcr.Reverse();
             if (endTrim > 0)
             {
-                lcr.Add(new CommonRun() { File1 = file1.Length - endTrim, File2 = file2.Length - endTrim, Length = endTrim });
+                lcr.Add(new CommonRun() { File1 = file1.Count - endTrim, File2 = file2.Count - endTrim, Length = endTrim });
             }
             int longestSequence = matchArray[matchArray.GetLength(0) - 1, matchArray.GetLength(1) - 1];
 
             return lcr;
         }
 
-        class Card
+        struct CardReference
         {
-            public Tuple<List<Card>, int> Backreference;
+            public List<Card> Pile;
+            public int Index;
+        }
+
+        struct Card
+        {
+            public CardReference Backreference;
             public int Index;
         }
 
@@ -305,56 +335,129 @@ namespace Versionr.Utilities
 
             var seq = matchingSequences.OrderBy(x => x.Value).ToList();
             List<List<Card>> cardStack = new List<List<Card>>();
+            List<KeyValuePair<int, int>> indexer = new List<KeyValuePair<int, int>>();
+            int highest = -1;
 
             foreach (var x in seq)
             {
-                Tuple<List<Card>, int> backref = null;
-                bool success = false;
-                for (int i = 0; i < cardStack.Count; i++)
+                int successIndex = -1;
+                if (highest > x.Key)
                 {
-                    List<Card> top = cardStack[i];
-                    if (top[top.Count - 1].Index > x.Key)
+                    for (int i = indexer.Count - 1; i >= 0; i--)
                     {
-                        success = true;
-                        top.Add(new Card() { Backreference = backref, Index = x.Key });
-                        break;
+                        if (indexer[i].Key > x.Key)
+                        {
+                            successIndex = i;
+                            while (indexer[i].Value > x.Key && i > 0)
+                            {
+                                i--;
+                                if (indexer[i].Key > x.Key)
+                                    successIndex = i;
+                            }
+                            break;
+                        }
+                        else if (indexer[i].Value < x.Key)
+                        {
+                            highest = x.Key;
+                            break;
+                        }
                     }
-                    backref = new Tuple<List<Card>, int>(top, top.Count - 1);
                 }
-                if (!success)
+                else
+                    highest = x.Key;
+                if (successIndex != -1)
                 {
+                    List<Card> top = cardStack[successIndex];
+                    CardReference cref = new CardReference { Pile = null, Index = -1 };
+                    if (successIndex > 0)
+                        cref = new CardReference { Pile = cardStack[successIndex - 1], Index = cardStack[successIndex - 1].Count - 1 };
+                    top.Add(new Card() { Backreference = cref, Index = x.Key });
+                    int minbound = -1;
+                    if (successIndex > 0)
+                    {
+                        if (indexer[successIndex - 1].Key > minbound)
+                            minbound = indexer[successIndex - 1].Key;
+                        if (indexer[successIndex - 1].Value > minbound)
+                            minbound = indexer[successIndex - 1].Value;
+                    }
+                    indexer[successIndex] = new KeyValuePair<int, int>(x.Key, minbound);
+                    if (minbound < x.Key)
+                        minbound = x.Key;
+                    for (int i = successIndex + 1; i < indexer.Count; i++)
+                    {
+                        if (indexer[i].Key < minbound)
+                            indexer[i] = new KeyValuePair<int, int>(indexer[i].Key, minbound);
+                        else
+                            break;
+                    }
+                }
+                else
+                {
+                    CardReference cref = new CardReference { Pile = null, Index = -1 };
+                    int prior = -1;
                     if (cardStack.Count > 0)
-                        backref = new Tuple<List<Card>, int>(cardStack[cardStack.Count - 1], cardStack[cardStack.Count - 1].Count - 1);
-                    cardStack.Add(new List<Card>(new Card[] { new Card() { Backreference = backref, Index = x.Key } }));
+                    {
+                        prior = indexer[indexer.Count - 1].Value;
+                        if (indexer[indexer.Count - 1].Key > prior)
+                            prior = indexer[indexer.Count - 1].Key;
+                        cref = new CardReference { Pile = cardStack[cardStack.Count - 1], Index = cardStack[cardStack.Count - 1].Count - 1 };
+                    }
+                    cardStack.Add(new List<Card>(new Card[] { new Card() { Backreference = cref, Index = x.Key } }));
+                    indexer.Add(new KeyValuePair<int, int>(x.Key, prior));
                 }
             }
             List<int> longestSequence = new List<int>();
-            Tuple<List<Card>, int> last = null;
+            CardReference last = new CardReference { Pile = null, Index = -1 };
             if (cardStack.Count > 0)
             {
                 List<Card> lastPile = cardStack[cardStack.Count - 1];
-                last = new Tuple<List<Card>, int>(lastPile, lastPile.Count - 1);
+                last = new CardReference { Pile = lastPile, Index = lastPile.Count - 1 };
             }
-            while (last != null)
+            while (last.Pile != null)
             {
-                longestSequence.Add(last.Item1[last.Item2].Index);
-                last = last.Item1[last.Item2].Backreference;
+                longestSequence.Add(last.Pile[last.Index].Index);
+                last = last.Pile[last.Index].Backreference;
             }
 
             longestSequence.Reverse();
             List<CommonRun> lcr = new List<CommonRun>();
             int head0 = 0;
             int head1 = 0;
+            Dictionary<string, int> uniqueStringTable = new Dictionary<string, int>();
+            int[] f1hash = new int[file1.Length];
+            int[] f2hash = new int[file2.Length];
+            for (int i = 0; i < file1.Length; i++)
+            {
+                int val;
+                if (uniqueStringTable.TryGetValue(file1[i], out val))
+                    f1hash[i] = val;
+                else
+                {
+                    f1hash[i] = uniqueStringTable.Count;
+                    uniqueStringTable[file1[i]] = uniqueStringTable.Count;
+                }
+            }
+            for (int i = 0; i < file2.Length; i++)
+            {
+                int val;
+                if (uniqueStringTable.TryGetValue(file2[i], out val))
+                    f2hash[i] = val;
+                else
+                {
+                    f2hash[i] = uniqueStringTable.Count;
+                    uniqueStringTable[file2[i]] = uniqueStringTable.Count;
+                }
+            }
+            List<CommonRun> subsequence = new List<CommonRun>();
             foreach (var x in longestSequence)
             {
                 int f2Index = matchingSequences[x];
                 int c1 = x - head0 + 1;
                 int c2 = f2Index - head1 + 1;
-                List<CommonRun> subsequence = longest_common_subsequence2(file1.Skip(head0).Take(c1).ToArray(), file2.Skip(head1).Take(c2).ToArray());
-                foreach (var y in subsequence)
+                subsequence = longest_common_subsequence2seq(new ArraySegment<string>(file1, head0, c1), new ArraySegment<string>(file2, head1, c2), new ArraySegment<int>(f1hash, head0, c1), new ArraySegment<int>(f2hash, head1, c2), subsequence);
+                for (int i = 0; i < subsequence.Count; i++)
                 {
-                    y.File1 += head0;
-                    y.File2 += head1;
+                    subsequence[i] = new CommonRun { File1 = subsequence[i].File1 + head0, File2 = subsequence[i].File2 + head1, Length = subsequence[i].Length };
                 }
                 if (lcr.Count > 0 && subsequence.Count > 0)
                 {
@@ -366,18 +469,19 @@ namespace Versionr.Utilities
                         lastMatch.Length += subsequence[0].Length;
                         subsequence.RemoveAt(0);
                     }
+                    lcr[lcr.Count - 1] = lastMatch;
                 }
                 lcr.AddRange(subsequence);
                 head0 += c1;
                 head1 += c2;
+                subsequence.Clear();
             }
             if (head0 != file1.Length || head1 != file2.Length)
             {
-                List<CommonRun> subsequence = longest_common_subsequence2(file1.Skip(head0).ToArray(), file2.Skip(head1).ToArray());
-                foreach (var y in subsequence)
+                subsequence = longest_common_subsequence2(file1.Skip(head0).ToArray(), file2.Skip(head1).ToArray());
+                for (int i = 0; i < subsequence.Count; i++)
                 {
-                    y.File1 += head0;
-                    y.File2 += head1;
+                    subsequence[i] = new CommonRun { File1 = subsequence[i].File1 + head0, File2 = subsequence[i].File2 + head1, Length = subsequence[i].Length };
                 }
                 if (lcr.Count > 0 && subsequence.Count > 0)
                 {
@@ -389,6 +493,7 @@ namespace Versionr.Utilities
                         lastMatch.Length += subsequence[0].Length;
                         subsequence.RemoveAt(0);
                     }
+                    lcr[lcr.Count - 1] = lastMatch;
                 }
                 lcr.AddRange(subsequence);
             }
@@ -476,7 +581,7 @@ namespace Versionr.Utilities
             // At this point, we know the LCS: it's in the reverse of the
             // linked-list through .chain of
             // candidates[candidates.length - 1].
-            cr = null;
+            cr = new CommonRun { Length = -1 };
             return candidates[candidates.Count - 1];
         }
 

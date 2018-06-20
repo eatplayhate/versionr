@@ -23,28 +23,30 @@ namespace Versionr
 					s_Plugins = new List<Plugin>();
 					string baseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 					string pluginDirectory = Path.Combine(baseDirectory, "Plugins");
-                    foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
-					{
-						Assembly assembly = null;
-						VersionrPluginAttribute pluginAttribute = null;
-						try
+                    if (Directory.Exists(pluginDirectory))
+                    {
+                        foreach (string filename in Directory.GetFiles(pluginDirectory, "*.dll"))
                         {
-                            assembly = Assembly.LoadFrom(Path.Combine(pluginDirectory, filename));
-                            pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
+                            Assembly assembly = null;
+                            VersionrPluginAttribute pluginAttribute = null;
+                            try
+                            {
+                                assembly = Assembly.LoadFrom(Path.Combine(pluginDirectory, filename));
+                                pluginAttribute = assembly.GetCustomAttribute<VersionrPluginAttribute>();
+                            }
+                            catch { }
+
+                            if (pluginAttribute != null)
+                            {
+                                Printer.PrintDiagnostics("Loaded plugin {0} at {1}", pluginAttribute.Name, assembly.FullName);
+                                s_Plugins.Add(new Plugin()
+                                {
+                                    Assembly = assembly,
+                                    Attributes = pluginAttribute
+                                });
+                            }
                         }
-						catch { }
-
-						if (pluginAttribute != null)
-						{
-							Printer.PrintDiagnostics("Loaded plugin {0} at {1}", pluginAttribute.Name, assembly.FullName);
-							s_Plugins.Add(new Plugin()
-							{
-								Assembly = assembly,
-								Attributes = pluginAttribute
-							});
-						}
                     }
-
                     s_Plugins.Add(new Plugin() { Assembly = Assembly.GetExecutingAssembly(), Attributes = Assembly.GetExecutingAssembly().GetCustomAttribute<VersionrPluginAttribute>() });
                 }
 

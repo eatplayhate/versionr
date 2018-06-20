@@ -16,12 +16,22 @@ namespace Versionr.ObjectStore
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "DestroyCompressionStream", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern bool DestroyCompressionStream(IntPtr stream);
 
+        [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "ResetCompressionStream", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern IntPtr ResetCompressionStream(IntPtr stream);
+
         [System.Runtime.InteropServices.DllImport("lzhamwrapper", EntryPoint = "CompressData", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern int CompressData(IntPtr stream, byte[] input, int inLength, byte[] output, int outLength, bool flush, bool end);
 
+        static System.Collections.Concurrent.ConcurrentBag<IntPtr> Compressors = new System.Collections.Concurrent.ConcurrentBag<IntPtr>();
+
         protected LZHAMWriter() : base()
         {
-            m_Compressor = CreateCompressionStream(9, 23);
+            IntPtr compressor;
+            if (!Compressors.TryTake(out compressor))
+            {
+                compressor = CreateCompressionStream(9, 23);
+            }
+            m_Compressor = compressor;
         }
         protected override void CompressData(byte[] inputData, byte[] outputData, int available, out uint blockSize, bool end)
         {
@@ -34,7 +44,18 @@ namespace Versionr.ObjectStore
         {
             base.Dispose(disposing);
             if (m_Compressor != IntPtr.Zero)
-                DestroyCompressionStream(m_Compressor);
+            {
+                try
+                {
+                    IntPtr oldCompressor = ResetCompressionStream(m_Compressor);
+                    if (oldCompressor != null)
+                        Compressors.Add(oldCompressor);
+                }
+                catch
+                {
+                    DestroyCompressionStream(m_Compressor);
+                }
+            }
             m_Compressor = IntPtr.Zero;
         }
         public static void CompressToStream(long fileLength, int chunkSize, out long resultSize, System.IO.Stream inputData, System.IO.Stream outputData, Action<long, long, long> feedback = null)

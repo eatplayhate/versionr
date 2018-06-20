@@ -21,12 +21,12 @@ namespace VersionrUI.Dialogs
     /// </summary>
     public partial class LogDialog : INotifyPropertyChanged
     {
-        private readonly Area _area;
-        private string _author;
-        private string _pattern;
-        private List<VersionVM> _history;
-        private int _revisionLimit;
-        private static readonly Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
+        private readonly Area m_Area;
+        private string m_Author;
+        private string m_Pattern;
+        private List<VersionVM> m_History;
+        private int m_RevisionLimit;
+        private static readonly Dictionary<int, string> m_RevisionLimitOptions = new Dictionary<int, string>()
         {
             { 50, "50" },
             { 100, "100" },
@@ -47,14 +47,8 @@ namespace VersionrUI.Dialogs
 
         public bool ApplyFilterToResults
         {
-            get
-            {
-                return (bool)GetValue(ApplyFilterToResultsProperty);
-            }
-            set
-            {
-                SetValue(ApplyFilterToResultsProperty, value);
-            }
+            get { return (bool)GetValue(ApplyFilterToResultsProperty); }
+            set { SetValue(ApplyFilterToResultsProperty, value); }
         }
 
         private static void ApplyFilterToResultChanged(DependencyObject o, DependencyPropertyChangedEventArgs e)
@@ -85,52 +79,47 @@ namespace VersionrUI.Dialogs
         private LogDialog(Version version, Area area, string pattern = null)
         {
             Version = version;
-            _area = area;
-            _pattern = pattern;
+            m_Area = area;
+            m_Pattern = pattern;
 
-            _revisionLimit = RevisionLimitOptions.First().Key;
+            m_RevisionLimit = RevisionLimitOptions.First().Key;
             
             InitializeComponent();
             mainGrid.DataContext = this;
 
-            this.PreviewKeyDown += new KeyEventHandler((s, e) =>
+            PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Escape)
                     Close();
-            });
+            };
+            Owner = MainWindow.Instance;
         }
 
         public Version Version { get; private set; }
-        public Area Area => _area;
+        public Area Area => m_Area;
 
         public string Author
         {
-            get
-            {
-                return _author;
-            }
+            get { return m_Author; }
             set
             {
-                if (_author == value) return;
-                _author = value;
-                NotifyPropertyChanged("Author");
+                if (m_Author == value) return;
+                m_Author = value;
+                NotifyPropertyChanged(nameof(Author));
                 Load(RefreshHistory);
             }
         }
 
-        public Dictionary<int, string> RevisionLimitOptions => _revisionLimitOptions;
+        public Dictionary<int, string> RevisionLimitOptions => m_RevisionLimitOptions;
 
         public int RevisionLimit
         {
-            get
-            {
-                return _revisionLimit;
-            }
+            get { return m_RevisionLimit; }
             set
             {
-                if (_revisionLimit == value) return;
-                _revisionLimit = value;
-                NotifyPropertyChanged("RevisionLimit");
+                if (m_RevisionLimit == value) return;
+                m_RevisionLimit = value;
+                NotifyPropertyChanged(nameof(RevisionLimit));
                 Load(RefreshHistory);
             }
         }
@@ -150,16 +139,14 @@ namespace VersionrUI.Dialogs
 
         public string Pattern
         {
-            get
-            {
-                return _pattern;
-            }
+            get { return m_Pattern; }
             set
             {
-                if (_pattern == value) return;
-                _pattern = value;
-                NotifyPropertyChanged("Pattern");
-                NotifyPropertyChanged("Regex");
+                if (m_Pattern == value) return;
+                m_Pattern = value;
+                NotifyPropertyChanged(nameof(Pattern));
+                NotifyPropertyChanged(nameof(Regex));
+                NotifyPropertyChanged(nameof(ApplyFilterToResults));
                 Load(RefreshHistory);
             }
         }
@@ -168,9 +155,9 @@ namespace VersionrUI.Dialogs
         {
             get
             {
-                if (_history == null)
+                if (m_History == null)
                     Load(RefreshHistory);
-                return _history;
+                return m_History;
             }
         }
 
@@ -180,18 +167,19 @@ namespace VersionrUI.Dialogs
             lock (refreshLock)
             {
                 int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                IEnumerable<Version> versions = ApplyHistoryFilter(_area.GetLogicalHistory(Version, false, false, false, limit));
+                IEnumerable<Version> versions =
+                    ApplyHistoryFilter(m_Area.GetLogicalHistory(Version, false, false, false, limit));
                 
-                _history = new List<VersionVM>();
+                m_History = new List<VersionVM>();
                 foreach (Version ver in versions)
-                    _history.Add(new VersionVM(ver, _area));
-                NotifyPropertyChanged("History");
+                    m_History.Add(new VersionVM(ver, m_Area));
+                NotifyPropertyChanged(nameof(History));
             }
         }
 
         IEnumerable<ResolvedAlteration> GetAlterations(Version v)
         {
-            return _area.GetAlterations(v).Select(x => new ResolvedAlteration(x, _area));
+            return m_Area.GetAlterations(v).Select(x => new ResolvedAlteration(x, m_Area));
         }
 
         private IEnumerable<Version> ApplyHistoryFilter(IEnumerable<Version> history)
@@ -201,7 +189,7 @@ namespace VersionrUI.Dialogs
             if (!string.IsNullOrEmpty(Author))
                 enumeration = enumeration.Where(x => x.Author.IndexOf(Author, StringComparison.OrdinalIgnoreCase) >= 0);
 
-            enumeration = enumeration.Where(x => HasAlterationMatchingFilter(x));
+            enumeration = enumeration.Where(HasAlterationMatchingFilter);
 
             if (RevisionLimit != -1)
                 enumeration = enumeration.Take(RevisionLimit);
@@ -220,40 +208,38 @@ namespace VersionrUI.Dialogs
             if (!(sender is ListView))
                 return;
 
-            GridViewColumnHeader headerClicked = e.OriginalSource as GridViewColumnHeader;
+            var headerClicked = e.OriginalSource as GridViewColumnHeader;
+            if (headerClicked == null)
+                return;
+            if (headerClicked.Role == GridViewColumnHeaderRole.Padding)
+                return;
             ListSortDirection direction;
-            if (headerClicked != null)
+            if (headerClicked != _lastHeaderClicked)
             {
-                if (headerClicked.Role != GridViewColumnHeaderRole.Padding)
-                {
-                    if (headerClicked != _lastHeaderClicked)
-                    {
-                        direction = ListSortDirection.Ascending;
-                    }
-                    else
-                    {
-                        if (_lastDirection == ListSortDirection.Ascending)
-                            direction = ListSortDirection.Descending;
-                        else
-                            direction = ListSortDirection.Ascending;
-                    }
-
-                    string header = headerClicked.Column.Header as string;
-                    VersionrPanel.Sort(CollectionViewSource.GetDefaultView(((ListView)sender).ItemsSource), header, direction);
-
-                    if (direction == ListSortDirection.Ascending)
-                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowUp"] as DataTemplate;
-                    else
-                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
-
-                    // Remove arrow from previously sorted header
-                    if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
-                        _lastHeaderClicked.Column.HeaderTemplate = null;
-
-                    _lastHeaderClicked = headerClicked;
-                    _lastDirection = direction;
-                }
+                direction = ListSortDirection.Ascending;
             }
+            else
+            {
+                if (_lastDirection == ListSortDirection.Ascending)
+                    direction = ListSortDirection.Descending;
+                else
+                    direction = ListSortDirection.Ascending;
+            }
+
+            string header = headerClicked.Column.Header as string;
+            VersionrPanel.Sort(CollectionViewSource.GetDefaultView(((ListView)sender).ItemsSource), header, direction);
+
+            if (direction == ListSortDirection.Ascending)
+                headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowUp"] as DataTemplate;
+            else
+                headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
+
+            // Remove arrow from previously sorted header
+            if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
+                _lastHeaderClicked.Column.HeaderTemplate = null;
+
+            _lastHeaderClicked = headerClicked;
+            _lastDirection = direction;
         }
 
         #region Loading
@@ -263,12 +249,11 @@ namespace VersionrUI.Dialogs
             get { return _isLoading; }
             set
             {
-                if (_isLoading != value)
-                {
-                    _isLoading = value;
-                    NotifyPropertyChanged("IsLoading");
-                    NotifyPropertyChanged("LogOpacity");
-                }
+                if (_isLoading == value)
+                    return;
+                _isLoading = value;
+                NotifyPropertyChanged(nameof(IsLoading));
+                NotifyPropertyChanged(nameof(LogOpacity));
             }
         }
 
@@ -295,11 +280,10 @@ namespace VersionrUI.Dialogs
         public event PropertyChangedEventHandler PropertyChanged;
         public void NotifyPropertyChanged(string info)
         {
-            if (PropertyChanged != null)
-                PropertyChanged(this, new PropertyChangedEventArgs(info));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
         }
         #endregion
-
+        
     }
     class ResolvedAlteration
     {
@@ -324,18 +308,15 @@ namespace VersionrUI.Dialogs
             if (values.Length != 2)
                 return false;
 
-            LogDialog dialog = values[0] as LogDialog;
-            AlterationVM alteration = values[1] as AlterationVM;
+            var dialog = values[0] as LogDialog;
+            var alteration = values[1] as AlterationVM;
+            if (dialog == null || alteration == null)
+                return false;
+            if (String.IsNullOrEmpty(dialog.Pattern) || dialog.Pattern.Equals(".*"))
+                return false;
 
-            if (dialog != null && alteration != null)
-            {
-                if (String.IsNullOrEmpty(dialog.Pattern) || dialog.Pattern.Equals(".*"))
-                    return false;
-
-                ResolvedAlteration resolved = new ResolvedAlteration(alteration.Alteration, dialog.Area);
-                return dialog.Regex.IsMatch(resolved.Record.CanonicalName);
-            }
-            return false;
+            ResolvedAlteration resolved = new ResolvedAlteration(alteration.Alteration, dialog.Area);
+            return dialog.Regex.IsMatch(resolved.Record.CanonicalName);
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)

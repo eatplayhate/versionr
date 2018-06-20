@@ -150,6 +150,9 @@ namespace Versionr.Commands
                             Workspace.BeginDatabaseTransaction();
                         else
                             Workspace.BeginLocalDBTransaction();
+                        int runcount = 0;
+                        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+                        sw.Start();
                         foreach (var x in statements)
                         {
                             if (echo)
@@ -172,6 +175,12 @@ namespace Versionr.Commands
                                 Printer.PrintMessage("Error in SQL statement: {0}", e.ToString());
                                 if (Printer.Prompt("Abort?"))
                                     throw;
+                            }
+                            runcount++;
+                            if (sw.ElapsedMilliseconds > 5000)
+                            {
+                                sw.Restart();
+                                Printer.PrintMessage("Executed {0} of {1} statements...", runcount, statements.Count);
                             }
                         }
                         Printer.PrintMessage("SQL statements have modified {0} rows in the target database.", totalCount);

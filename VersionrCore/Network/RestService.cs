@@ -318,11 +318,11 @@ namespace Versionr.Network
                 if (annotation != null)
                     SendResponse(context, ws.GetAnnotationAsString(annotation));
                 else
-                    SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);
+                    SendResponse(context, Grapevine.Shared.HttpStatusCode.NoContent);   // 204 - everything is fine, you get nothing
             }
             else
             {
-                SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);
+                SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);    // 404 - everything is terrible, you are a monster
             }
 
             return context;

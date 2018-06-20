@@ -44,11 +44,11 @@ namespace Versionr.Commands
         [Option('l', "local", HelpText = "Compare with working copy")]
         public bool Local { get; set; }
 
-        [Option('c', "recorded", HelpText = "Matches only files that are recorded")]
-        public bool Recorded { get; set; }
-
         [Option('y', "externalnb", HelpText = "Use external diffing tool, non blocking")]
         public bool ExternalNonBlocking { get; set; }
+
+        [Option("keep-tabs", DefaultValue = false, HelpText = "Keep tabs rather than converting them to spaces")]
+        public bool KeepTabs { get; set; }
     }
 
 	class Diff : FileCommand
@@ -201,9 +201,11 @@ namespace Versionr.Commands
                                 continue;
 
                             Objects.Record otherRecord = null;
-                            if (recordMap.TryGetValue(x.CanonicalName, out otherRecord))
+                            if (recordMap.TryGetValue(x.CanonicalName, out otherRecord) && !otherRecord.IsDirectory)
                             {
                                 if (x.VersionControlRecord != null && x.VersionControlRecord.DataIdentifier == otherRecord.DataIdentifier)
+                                    continue;
+                                if (x.FilesystemEntry != null && otherRecord.Fingerprint == x.FilesystemEntry.Hash && otherRecord.Size == x.FilesystemEntry.Length)
                                     continue;
                                 if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
                                 {
@@ -238,7 +240,7 @@ namespace Versionr.Commands
                                     {
                                         try
                                         {
-                                            RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), true, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
+                                            RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), !localOptions.KeepTabs, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
                                         }
                                         finally
                                         {
@@ -297,7 +299,7 @@ namespace Versionr.Commands
                             {
                                 try
                                 {
-                                    RunInternalDiff(tmpParent, tmpVersion, true, rec.CanonicalName);
+                                    RunInternalDiff(tmpParent, tmpVersion, !localOptions.KeepTabs, rec.CanonicalName);
                                 }
                                 finally
                                 {

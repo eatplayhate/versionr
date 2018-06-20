@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,12 +23,10 @@ namespace VersionrUI.Controls
     /// </summary>
     public partial class VersionrPanel : UserControl, INotifyPropertyChanged
     {
-        private AreaVM _selectedArea = null;
-
-        GridViewColumnHeader _lastHeaderClicked = null;
-        ListSortDirection _lastDirection = ListSortDirection.Ascending;
-
-        private static Dictionary<int, string> _revisionLimitOptions = new Dictionary<int, string>()
+        private AreaVM m_SelectedArea = null;
+        private GridViewColumnHeader m_LastHeaderClicked = null;
+        private ListSortDirection m_LastDirection = ListSortDirection.Ascending;
+        private static readonly Dictionary<int, string> m_RevisionLimitOptions = new Dictionary<int, string>()
         {
             { 50, "50" },
             { 100, "100" },
@@ -38,6 +37,9 @@ namespace VersionrUI.Controls
             { 2000, "2000" },
             { -1, "All" },
         };
+
+        private Point m_mouseDownStartPos;
+        private readonly List<string> m_SelectedFilesForDragDropCopy = new List<string>();
 
         public VersionrPanel()
         {
@@ -63,7 +65,7 @@ namespace VersionrUI.Controls
                                 // MainWindow.ShowMessage(title, message);
                                 OpenAreas.Remove(x);
                             }
-                            SaveOpenAreas();
+                            SaveOpenAreas(OpenAreas);
                         },
                         AreaInitMode.UseExisting);
                     OpenAreas.Add(areaVM);
@@ -76,14 +78,13 @@ namespace VersionrUI.Controls
 
         public AreaVM SelectedArea
         {
-            get { return _selectedArea; }
+            get => m_SelectedArea;
             set
             {
-                if (_selectedArea != value)
-                {
-                    _selectedArea = value;
-                    NotifyPropertyChanged("SelectedArea");
-                }
+                if (m_SelectedArea == value)
+                    return;
+                m_SelectedArea = value;
+                NotifyPropertyChanged("SelectedArea");
             }
         }
 
@@ -92,23 +93,28 @@ namespace VersionrUI.Controls
             get
             {
                 ListView lv = FindChild<ListView>(Application.Current.MainWindow, "listView");
-                if (lv != null)
-                    return lv.SelectedItems;
-
-                return null;
+                return lv?.SelectedItems;
             }
         }
 
-        public Dictionary<int, string> RevisionLimitOptions
-        {
-            get { return _revisionLimitOptions; }
-        }
+        public Dictionary<int, string> RevisionLimitOptions => m_RevisionLimitOptions;
 
         public void SetSelectedItem(object item)
         {
             ListView lv = FindChild<ListView>(Application.Current.MainWindow, "listView");
             if (lv != null)
                 lv.SelectedItem = item;
+        }
+
+        public static void SaveOpenAreas(ObservableCollection<AreaVM> openAreas)
+        {
+            Properties.Settings.Default.OpenAreas = new StringCollection();
+            foreach (AreaVM area in openAreas.Where(x => x.IsValid))
+            {
+                string areaString = $"{area.Directory.FullName};{area.Name}";
+                Properties.Settings.Default.OpenAreas.Add(areaString);
+            }
+            Properties.Settings.Default.Save();
         }
 
         #region Commands
@@ -119,77 +125,58 @@ namespace VersionrUI.Controls
             CloneNewDialog cloneNewDlg = new CloneNewDialog();
             await MainWindow.Instance.ShowMetroDialogAsync(cloneNewDlg);
             await cloneNewDlg.WaitUntilUnloadedAsync();
-            if (cloneNewDlg.DialogResult == true)
-            {
-                int port = 0;
-                int.TryParse(cloneNewDlg.Port, out port);
-                AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
-                    (x, title, message) =>
+            if (cloneNewDlg.DialogResult != true)
+                return;
+            int.TryParse(cloneNewDlg.Port, out var port);
+            AreaVM areaVM = AreaVM.Create(cloneNewDlg.NameString, cloneNewDlg.PathString,
+                (x, title, message) =>
+                {
+                    if (!x.IsValid)
                     {
-                        if (!x.IsValid)
-                        {
-                            MainWindow.ShowMessage(title, message);
-                            OpenAreas.Remove(x);
-                        }
-                        SaveOpenAreas();
-                    },
-                    cloneNewDlg.Result, cloneNewDlg.Host, port);
-                OpenAreas.Add(areaVM);
-                SelectedArea = OpenAreas.LastOrDefault();
-            }
+                        MainWindow.ShowMessage(title, message);
+                        OpenAreas.Remove(x);
+                    }
+                    SaveOpenAreas(OpenAreas);
+                },
+                cloneNewDlg.Result, cloneNewDlg.Host, port);
+            OpenAreas.Add(areaVM);
+            SelectedArea = OpenAreas.LastOrDefault();
         }
         #endregion
 
-        private void SaveOpenAreas()
-        {
-            Properties.Settings.Default.OpenAreas = new StringCollection();
-            foreach (AreaVM area in OpenAreas.Where(x => x.IsValid))
-            {
-                string areaString = String.Format("{0};{1}", area.Directory.FullName, area.Name);
-                Properties.Settings.Default.OpenAreas.Add(areaString);
-            }
-            Properties.Settings.Default.Save();
-        }
-        
         private void listViewHeader_Click(object sender, RoutedEventArgs e)
         {
             if (!(sender is ListView))
                 return;
 
-            GridViewColumnHeader headerClicked = e.OriginalSource as GridViewColumnHeader;
+            if (!(e.OriginalSource is GridViewColumnHeader headerClicked))
+                return;
+            if (headerClicked.Role == GridViewColumnHeaderRole.Padding)
+                return;
             ListSortDirection direction;
-            if (headerClicked != null)
+            if (headerClicked != m_LastHeaderClicked)
             {
-                if (headerClicked.Role != GridViewColumnHeaderRole.Padding)
-                {
-                    if (headerClicked != _lastHeaderClicked)
-                    {
-                        direction = ListSortDirection.Ascending;
-                    }
-                    else
-                    {
-                        if (_lastDirection == ListSortDirection.Ascending)
-                            direction = ListSortDirection.Descending;
-                        else
-                            direction = ListSortDirection.Ascending;
-                    }
-
-                    string header = headerClicked.Column.Header as string;
-                    Sort(CollectionViewSource.GetDefaultView(((ListView)sender).ItemsSource), header, direction);
-
-                    if (direction == ListSortDirection.Ascending)
-                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowUp"] as DataTemplate;
-                    else
-                        headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
-
-                    // Remove arrow from previously sorted header
-                    if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
-                        _lastHeaderClicked.Column.HeaderTemplate = null;
-
-                    _lastHeaderClicked = headerClicked;
-                    _lastDirection = direction;
-                }
+                direction = ListSortDirection.Ascending;
             }
+            else
+            {
+                direction = m_LastDirection == ListSortDirection.Ascending ? ListSortDirection.Descending : ListSortDirection.Ascending;
+            }
+
+            string header = headerClicked.Column.Header as string;
+            Sort(CollectionViewSource.GetDefaultView(((ListView)sender).ItemsSource), header, direction);
+
+            if (direction == ListSortDirection.Ascending)
+                headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowUp"] as DataTemplate;
+            else
+                headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
+
+            // Remove arrow from previously sorted header
+            if (m_LastHeaderClicked != null && m_LastHeaderClicked != headerClicked)
+                m_LastHeaderClicked.Column.HeaderTemplate = null;
+
+            m_LastHeaderClicked = headerClicked;
+            m_LastDirection = direction;
         }
 
         internal static void Sort(ICollectionView dataView, string sortBy, ListSortDirection direction)
@@ -290,16 +277,13 @@ namespace VersionrUI.Controls
 
         private void CheckBox_Clicked(object sender, RoutedEventArgs e)
         {
-            if (sender is CheckBox)
-            {
-                CheckBox checkbox = (CheckBox)sender;
-
-                // The checked item may not be one of the already selected items, so update the selections
-                if (checkbox.DataContext is StatusEntryVM && !SelectedItems.Contains((StatusEntryVM)checkbox.DataContext))
-                     SetSelectedItem(checkbox.DataContext);
+            if (!(sender is CheckBox checkbox))
+                return;
+            // The checked item may not be one of the already selected items, so update the selections
+            if (checkbox.DataContext is StatusEntryVM && !SelectedItems.Contains((StatusEntryVM)checkbox.DataContext))
+                SetSelectedItem(checkbox.DataContext);
                 
-                _selectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), checkbox.IsChecked == true);
-            }
+            m_SelectedArea.SetStaged(SelectedItems.OfType<StatusEntryVM>().ToList(), checkbox.IsChecked == true);
         }
 
         private void newTagText_TextChanged(object sender, TextChangedEventArgs e)
@@ -309,11 +293,57 @@ namespace VersionrUI.Controls
 
         private void newTagText_KeyUp(object sender, KeyEventArgs e)
         {
-            TextBox textbox = sender as TextBox;
-            if (textbox != null && (e.Key == Key.Return || e.Key == Key.Enter))
+            if (sender is TextBox textbox && (e.Key == Key.Return || e.Key == Key.Enter))
             {
                 SelectedArea?.Status.AddTagCommand.Execute(textbox);
             }
         }
+
+        #region Drag Drop File Copy
+
+        private void listView_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!(sender is ListView) || SelectedArea == null)
+                return;
+            m_mouseDownStartPos = e.GetPosition(null);
+            m_SelectedFilesForDragDropCopy.Clear();
+
+            // Drag drop copy from the status view
+            foreach (var item in SelectedItems.OfType<StatusEntryVM>())
+            {
+                if (!item.StatusEntry.IsFile || item.StatusEntry.FilesystemEntry == null) continue;
+                m_SelectedFilesForDragDropCopy.Add(item.StatusEntry.FilesystemEntry.FullName);
+            }
+            
+            // Drag drop copy a single change from a changelist
+            if ((!(((ListView) sender).SelectedItem is AlterationVM alteration)))
+                return;
+            m_SelectedFilesForDragDropCopy.Add(Path.Combine(SelectedArea.Area.Root.FullName, alteration.Name));
+        }
+
+        private void listView_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!(sender is ListView))
+                return;
+            Point mpos = e.GetPosition(null);
+            Vector diff = m_mouseDownStartPos - mpos;
+
+            if (e.LeftButton != MouseButtonState.Pressed ||
+                !(Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance) ||
+                !(Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance))
+            {
+                return;
+            }
+
+            if (m_SelectedFilesForDragDropCopy.Count == 0)
+            {
+                return;
+            }
+
+            DataObject dataObject = new DataObject(DataFormats.FileDrop, m_SelectedFilesForDragDropCopy.ToArray());
+            DragDrop.DoDragDrop(this, dataObject, DragDropEffects.Copy);
+        }
+
+        #endregion
     }
 }

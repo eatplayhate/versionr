@@ -554,7 +554,7 @@ namespace Versionr.Network
                 Printer.PrintMessage("Determining data to send...");
                 if (!SharedNetwork.SendBranchJournal(SharedInfo))
                     return false;
-                if (!SharedNetwork.PullJournalData(SharedInfo))
+                if (!SharedNetwork.PushJournalData(SharedInfo))
                     return false;
                 Objects.Version version = Workspace.Version;
                 var branch = Workspace.CurrentBranch;

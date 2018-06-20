@@ -173,6 +173,9 @@ namespace Versionr
         [VerbOption("admin", HelpText = "Runs a special administration command (advanced users only).")]
         public Commands.AdminVerbOptions AdminVerb { get; set; }
 
+        [VerbOption("apply", HelpText = "Applies a patch file.")]
+        public Commands.ApplyVerbOptions ApplyVerb { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {

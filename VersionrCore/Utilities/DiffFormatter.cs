@@ -93,6 +93,7 @@ namespace Versionr.Utilities
             Region last = null;
             // cleanup step
             bool doCleanup = true;
+            List<Diff.commonOrDifferentThing> cleaned = new List<Diff.commonOrDifferentThing>();
             if (!doCleanup)
                 goto Display;
             for (int i = 1; i < diff.Count - 1; i++)
@@ -127,14 +128,26 @@ namespace Versionr.Utilities
                     }
                 }
             }
-            for (int i = 0; i < diff.Count - 1; i++)
+            int cursor = -1;
+            int expandcount = 0;
+            for (int i = 0; i < diff.Count - 1 && cursor < diff.Count - 1; i++)
             {
-                if (diff[i].common != null)
+                // We only process "different" blocks
+                if (diff[i] == null)
                     continue;
-                if (diff[i + 1].common == null)
+                if (diff[i].common != null)
                 {
-                    var next = diff[i + 1];
-                    diff.RemoveAt(i + 1);
+                    expandcount = 0;
+                    continue;
+                }
+                // This logic combines adjacent "different" blocks
+                if (cursor < i)
+                    cursor = i;
+                if (diff[cursor + 1].common == null)
+                {
+                    var next = diff[cursor + 1];
+                    diff[cursor + 1] = null;
+                    cursor = cursor + 1;
                     foreach (var x in next.file1)
                     {
                         diff[i].file1.Add(x);
@@ -146,30 +159,57 @@ namespace Versionr.Utilities
                     i--;
                     continue;
                 }
-                if (diff[i + 1].common == null || diff[i + 1].common.Count == 0)
+                if (diff[cursor + 1].common == null || diff[cursor + 1].common.Count == 0)
                     continue;
+
                 bool isWhitespace = true;
                 bool isShort = false;
                 bool isBrace = false;
-                if (diff[i + 1].common.Count * 2 <= diff[i].file1.Count &&
-                    diff[i + 1].common.Count * 2 <= diff[i].file2.Count)
-                    isShort = true;
-                foreach (var x in diff[i + 1].common)
+
+                // This logic eats combines short common spans with larger diff blocks
+                if (diff[cursor + 1].common.Count * 2 <= diff[i].file1.Count &&
+                    diff[cursor + 1].common.Count * 2 <= diff[i].file2.Count &&
+                    diff[cursor + 1].common.Count < 3 &&
+                    expandcount < 5)
                 {
-                    if (x.Trim().Length != 0)
+                    isShort = true;
+                }
+
+                // This logic eats short chunks of whitespace
+                if (diff[cursor + 1].common.Count < 5)
+                {
+                    foreach (var x in diff[cursor + 1].common)
                     {
-                        isWhitespace = false;
-                        break;
+                        if (x.Trim().Length != 0)
+                        {
+                            isWhitespace = false;
+                            break;
+                        }
                     }
                 }
-                if (diff[i + 1].common.Count == 1 || (diff[i + 1].common.Count == 1 && (diff[i + 1].common[0].Trim() == "{" || diff[i + 1].common[0].Trim() == "}")))
+                // This logic exists to eat braces between different things
+                // e.g.,
+
+                // for (x)           -> for (y)
+                // {                    {                   <-- would otherwise be formatted as two diffs (although this would get coalesced with context in MOST CASES)
+                //      something();            else();
+                // ....
+                if (diff[cursor + 1].common.Count == 1 || (diff[cursor + 1].common.Count == 1 && (diff[cursor + 1].common[0].Trim() == "{" || diff[cursor + 1].common[0].Trim() == "}")))
                 {
-                    if (i < diff.Count - 2 && (diff[i + 2].common == null || diff[i + 2].common.Count == 0))
+                    if (cursor < diff.Count - 2 && (diff[cursor + 2].common == null || diff[cursor + 2].common.Count == 0))
+                        isBrace = true;
+                }
+                else
+                {
+                    // This logic exists to grab closing braces on the next line - PROVIDED THAT OUR NEW SPAN STARTS WITH ONE
+                    if (diff[cursor + 1].common[0].Trim() == "}" && diff[i].file1 != null && diff[i].file2 != null && diff[i].file1.Count > 0 && diff[i].file2.Count > 0 && diff[i].file1[0].Trim() == "{" && diff[i].file2[0].Trim() == "{")
                         isBrace = true;
                 }
                 if ((isWhitespace && isShort) || isShort || isBrace)
                 {
-                    var next = diff[i + 1];
+                    if (isShort && !isBrace && !isWhitespace)
+                        expandcount++;
+                    var next = diff[cursor + 1];
                     if (isBrace && next.common.Count > 1)
                     {
                         // currently disabled
@@ -179,7 +219,8 @@ namespace Versionr.Utilities
                     }
                     else
                     {
-                        diff.RemoveAt(i + 1);
+                        cursor++;
+                        diff[cursor] = null;
                         foreach (var x in next.common)
                         {
                             diff[i].file1.Add(x);
@@ -192,15 +233,15 @@ namespace Versionr.Utilities
             Display:
             for (int i = 0; i < diff.Count; i++)
             {
+                if (diff[i] == null)
+                    continue;
+                cleaned.Add(diff[i]);
                 if (regions.Count > 0)
                     last = regions[regions.Count - 1];
                 if (diff[i].common != null)
                 {
-                    foreach (var x in diff[i].common)
-                    {
-                        line0++;
-                        line1++;
-                    }
+                    line0 += diff[i].common.Count;
+                    line1 += diff[i].common.Count;
                 }
                 int cf0 = diff[i].file1 == null ? 0 : diff[i].file1.Count;
                 int cf1 = diff[i].file2 == null ? 0 : diff[i].file2.Count;
@@ -215,8 +256,6 @@ namespace Versionr.Utilities
                         else
                             openRegion = new Region() { Start1 = s1, Start2 = s2 };
                     }
-                    openRegion.End1 = System.Math.Min(line0 + 4, lines1.Count + 1);
-                    openRegion.End2 = System.Math.Min(line1 + 4, lines2.Count + 1);
                     if (j <= cf0)
                     {
                         line0++;
@@ -225,6 +264,8 @@ namespace Versionr.Utilities
                     {
                         line1++;
                     }
+                    openRegion.End1 = System.Math.Min(line0 + 3, lines1.Count + 1);
+                    openRegion.End2 = System.Math.Min(line1 + 3, lines2.Count + 1);
                 }
                 if (openRegion != null && (openRegion.End1 < line0 && openRegion.End2 < line1))
                 {
@@ -233,6 +274,7 @@ namespace Versionr.Utilities
                     openRegion = null;
                 }
             }
+            diff = cleaned;
             if (openRegion != null && openRegion != last)
             {
                 if (regions.Count == 0 || regions[regions.Count - 1] != openRegion)

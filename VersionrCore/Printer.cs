@@ -154,9 +154,9 @@ namespace Versionr
             while (true)
             {
                 string s = System.Console.ReadLine();
-                if (s.StartsWith("y", StringComparison.OrdinalIgnoreCase))
+                if (s.Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase))
                     return true;
-                else if (s.StartsWith("n", StringComparison.OrdinalIgnoreCase))
+                else if (s.Trim().StartsWith("n", StringComparison.OrdinalIgnoreCase))
                     return false;
             }
         }
