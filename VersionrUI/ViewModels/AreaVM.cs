@@ -130,29 +130,42 @@ namespace VersionrUI.ViewModels
         public string VersionGUID { get; set; }
         private void FindVersion()
         {
-            if (string.IsNullOrEmpty(VersionGUID) || m_Branches == null)
+            if (string.IsNullOrEmpty(VersionGUID) || SelectedBranch == null)
                 return;
             //foreach (var branchVM in m_Branches)
             //{
+            try
+            {
                 if (SelectedBranch.IsDeleted)
                     return;
-            var versions =
-                Area.GetLogicalHistory(Area.GetBranchHeadVersion(SelectedBranch.Branch), false, false, false);
-            var foundVer = versions.SingleOrDefault(x =>
-                x != null && (x.ID.ToString() == VersionGUID || x.ID.ToString().StartsWith(VersionGUID)));
-            //}
+                var versions =
+                    Area.GetLogicalHistory(Area.GetBranchHeadVersion(SelectedBranch.Branch), false, false, false);
+                var foundVer = versions.SingleOrDefault(x =>
+                    x != null && (x.ID.ToString() == VersionGUID || x.ID.ToString().StartsWith(VersionGUID)));
+                //}
 
-            if (foundVer == null)
+                if (foundVer == null)
+                {
+                    MainWindow.Instance.Dispatcher.Invoke(() =>
+                    {
+                        MainWindow.ShowMessage(
+                            "Branch: " + SelectedBranch.Name,
+                            $"Could not find a version with ID: [{VersionGUID}] in this branch");
+                    });
+                    return;
+                }
+
+                LogDialog.Find(foundVer, Area);
+            }
+            catch (System.Exception ex)
             {
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
                     MainWindow.ShowMessage(
-                        "Branch: " + SelectedBranch.Name, $"Could not find a version with ID: [{VersionGUID}] in this branch");
+                        "Something went wrong !!!",
+                        $"And you thought it was going to crash... how do you like this graceful exit");
                 });
-                return;
             }
-
-            LogDialog.Find(foundVer, Area);
         }
         public NotifyPropertyChangedBase SelectedVM
         {
