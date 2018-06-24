@@ -21,7 +21,6 @@ namespace VersionrUI.Dialogs
     /// </summary>
     public partial class LogDialog : INotifyPropertyChanged
     {
-        private readonly Area m_Area;
         private string m_Author;
         private string m_Pattern;
         private List<VersionVM> m_History;
@@ -38,8 +37,8 @@ namespace VersionrUI.Dialogs
             { -1, "All" },
         };
 
-        private GridViewColumnHeader _lastHeaderClicked = null;
-        private ListSortDirection _lastDirection = ListSortDirection.Ascending;
+        private GridViewColumnHeader m_LastHeaderClicked = null;
+        private ListSortDirection m_LastDirection = ListSortDirection.Ascending;
 
         public static DependencyProperty ApplyFilterToResultsProperty =
             DependencyProperty.Register("ApplyFilterToResults", typeof(bool), typeof(LogDialog),
@@ -47,8 +46,8 @@ namespace VersionrUI.Dialogs
 
         public bool ApplyFilterToResults
         {
-            get { return (bool)GetValue(ApplyFilterToResultsProperty); }
-            set { SetValue(ApplyFilterToResultsProperty, value); }
+            get => (bool)GetValue(ApplyFilterToResultsProperty);
+            set => SetValue(ApplyFilterToResultsProperty, value);
         }
 
         private static void ApplyFilterToResultChanged(DependencyObject o, DependencyPropertyChangedEventArgs e)
@@ -60,10 +59,18 @@ namespace VersionrUI.Dialogs
                 x.SearchText = logDialog.ApplyFilterToResults ? logDialog.Pattern : string.Empty);
         }
 
+        // Reusing this dialog to display the results of a search
+        public static void FindResultDialog(Version version, Area area)
+        {
+            IsUsedAsALogDialog = false;
+            new LogDialog(version, area).ShowDialog();
+        }
+
         public static void Show(Version version, Area area, string pattern = null)
         {
             // Showing modal for now because sqlite dies a horrible death if multiple windows access the db.
             // If that ever gets fixed, uncomment the code below so we can have multiple log windows.
+            IsUsedAsALogDialog = true;
             new LogDialog(version, area, pattern).ShowDialog();
             
             //Thread newWindowThread = new Thread(() =>
@@ -79,7 +86,7 @@ namespace VersionrUI.Dialogs
         private LogDialog(Version version, Area area, string pattern = null)
         {
             Version = version;
-            m_Area = area;
+            Area = area;
             m_Pattern = pattern;
 
             m_RevisionLimit = RevisionLimitOptions.First().Key;
@@ -93,14 +100,17 @@ namespace VersionrUI.Dialogs
                     Close();
             };
             Owner = MainWindow.Instance;
+            if (!IsUsedAsALogDialog)
+                Title = "Find Version using GUID";
         }
 
+        public static bool IsUsedAsALogDialog { get; private set; } = true;
         public Version Version { get; private set; }
-        public Area Area => m_Area;
+        public Area Area { get; }
 
         public string Author
         {
-            get { return m_Author; }
+            get => m_Author;
             set
             {
                 if (m_Author == value) return;
@@ -114,7 +124,7 @@ namespace VersionrUI.Dialogs
 
         public int RevisionLimit
         {
-            get { return m_RevisionLimit; }
+            get => m_RevisionLimit;
             set
             {
                 if (m_RevisionLimit == value) return;
@@ -139,7 +149,7 @@ namespace VersionrUI.Dialogs
 
         public string Pattern
         {
-            get { return m_Pattern; }
+            get => m_Pattern;
             set
             {
                 if (m_Pattern == value) return;
@@ -166,20 +176,27 @@ namespace VersionrUI.Dialogs
         {
             lock (refreshLock)
             {
-                int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?)null;
-                IEnumerable<Version> versions =
-                    ApplyHistoryFilter(m_Area.GetLogicalHistory(Version, false, false, false, limit));
-                
                 m_History = new List<VersionVM>();
-                foreach (Version ver in versions)
-                    m_History.Add(new VersionVM(ver, m_Area));
+                if (IsUsedAsALogDialog)
+                {
+                    int? limit = (RevisionLimit != -1) ? RevisionLimit : (int?) null;
+                    IEnumerable<Version> versions =
+                        ApplyHistoryFilter(Area.GetLogicalHistory(Version, false, false, false, limit));
+                    
+                    foreach (Version ver in versions)
+                        m_History.Add(new VersionVM(ver, Area));
+                }
+                else
+                {
+                    m_History.Add(new VersionVM(Version, Area));
+                }
                 NotifyPropertyChanged(nameof(History));
             }
         }
 
         IEnumerable<ResolvedAlteration> GetAlterations(Version v)
         {
-            return m_Area.GetAlterations(v).Select(x => new ResolvedAlteration(x, m_Area));
+            return Area.GetAlterations(v).Select(x => new ResolvedAlteration(x, Area));
         }
 
         private IEnumerable<Version> ApplyHistoryFilter(IEnumerable<Version> history)
@@ -208,19 +225,18 @@ namespace VersionrUI.Dialogs
             if (!(sender is ListView))
                 return;
 
-            var headerClicked = e.OriginalSource as GridViewColumnHeader;
-            if (headerClicked == null)
+            if (!(e.OriginalSource is GridViewColumnHeader headerClicked))
                 return;
             if (headerClicked.Role == GridViewColumnHeaderRole.Padding)
                 return;
             ListSortDirection direction;
-            if (headerClicked != _lastHeaderClicked)
+            if (headerClicked != m_LastHeaderClicked)
             {
                 direction = ListSortDirection.Ascending;
             }
             else
             {
-                if (_lastDirection == ListSortDirection.Ascending)
+                if (m_LastDirection == ListSortDirection.Ascending)
                     direction = ListSortDirection.Descending;
                 else
                     direction = ListSortDirection.Ascending;
@@ -235,32 +251,29 @@ namespace VersionrUI.Dialogs
                 headerClicked.Column.HeaderTemplate = Resources["HeaderTemplateArrowDown"] as DataTemplate;
 
             // Remove arrow from previously sorted header
-            if (_lastHeaderClicked != null && _lastHeaderClicked != headerClicked)
-                _lastHeaderClicked.Column.HeaderTemplate = null;
+            if (m_LastHeaderClicked != null && m_LastHeaderClicked != headerClicked)
+                m_LastHeaderClicked.Column.HeaderTemplate = null;
 
-            _lastHeaderClicked = headerClicked;
-            _lastDirection = direction;
+            m_LastHeaderClicked = headerClicked;
+            m_LastDirection = direction;
         }
 
         #region Loading
-        private bool _isLoading = false;
+        private bool m_IsLoading = false;
         public bool IsLoading
         {
-            get { return _isLoading; }
+            get => m_IsLoading;
             set
             {
-                if (_isLoading == value)
+                if (m_IsLoading == value)
                     return;
-                _isLoading = value;
+                m_IsLoading = value;
                 NotifyPropertyChanged(nameof(IsLoading));
                 NotifyPropertyChanged(nameof(LogOpacity));
             }
         }
 
-        public float LogOpacity
-        {
-            get { return IsLoading ? 0.3f : 1.0f; }
-        }
+        public float LogOpacity => IsLoading ? 0.3f : 1.0f;
 
         protected void Load(Action action)
         {
@@ -308,9 +321,7 @@ namespace VersionrUI.Dialogs
             if (values.Length != 2)
                 return false;
 
-            var dialog = values[0] as LogDialog;
-            var alteration = values[1] as AlterationVM;
-            if (dialog == null || alteration == null)
+            if (!(values[0] is LogDialog dialog) || !(values[1] is AlterationVM alteration))
                 return false;
             if (String.IsNullOrEmpty(dialog.Pattern) || dialog.Pattern.Equals(".*"))
                 return false;

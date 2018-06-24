@@ -34,6 +34,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand<NotifyPropertyChangedBase> SelectViewCommand { get; private set; }
         public DelegateCommand OpenInExplorerCommand { get; private set; }
         public DelegateCommand<ObservableCollection<AreaVM>> RemoveRepoFromListCommand { get; private set; }
+        public DelegateCommand FindVersionCommand { get; private set; }
 
         private string m_Name;
         private List<BranchVM> m_Branches;
@@ -51,6 +52,8 @@ namespace VersionrUI.ViewModels
             SelectViewCommand = new DelegateCommand<NotifyPropertyChangedBase>((x) => SelectedVM = x);
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
             RemoveRepoFromListCommand = new DelegateCommand<ObservableCollection<AreaVM>>(RemoveRepoFromList);
+            FindVersionCommand = new DelegateCommand(FindVersion);
+
             m_Name = name;
         }
 
@@ -122,6 +125,8 @@ namespace VersionrUI.ViewModels
                 MainWindow.Instance.Dispatcher.Invoke(afterInit, this, title, message);
             });
         }
+
+        public string VersionGUID { get; set; }
 
         public NotifyPropertyChangedBase SelectedVM
         {
@@ -383,6 +388,15 @@ namespace VersionrUI.ViewModels
                 areas.Remove(areaToRemove);
             // Update on disk
             VersionrPanel.SaveOpenAreas(areas);
+        }
+
+        private void FindVersion()
+        {
+            var foundVersion = Utilities.FindVersionWithID(this, SelectedBranch, VersionGUID);
+            if (foundVersion != null)
+            {
+                LogDialog.FindResultDialog(foundVersion, Area);
+            }
         }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)

@@ -18,7 +18,7 @@
     <Window.Resources>
 
         <dialogs:MatchRegexConverter x:Key="matchRegexConverter" />
-        
+        <BooleanToVisibilityConverter x:Key="booleanToVisConverter"/>
         <DataTemplate DataType="{x:Type vm:VersionVM}">
             <Grid>
                 <Grid Opacity="{Binding Opacity}">
@@ -95,7 +95,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Grid.Row="0">
+            <Grid Grid.Row="0" Visibility="{Binding IsUsedAsALogDialog, Converter={StaticResource booleanToVisConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />

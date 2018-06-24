@@ -105,7 +105,17 @@
                                          GroupName="radioGroup2"
                                          IsChecked="{Binding IsGraphSelected}"
                                          Content="Graph" />
+                            <TextBox x:Name="versionSearch" Margin="8,0"
+                                     mahapps:TextBoxHelper.Watermark="Find version using GUID"
+                                     Text="{Binding Path=VersionGUID, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Width="300" MaxHeight="20">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Command="{Binding FindVersionCommand}" Key="Enter"></KeyBinding>
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <Button Command="{Binding FindVersionCommand}" Content="Find" Style="{StaticResource LinkButtonStyle}"/>
+
                         </StackPanel>
+                        
                         <Button Grid.Column="4"
                                 Margin="8"
                                 Content="Settings"
