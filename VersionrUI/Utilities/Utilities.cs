@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using Microsoft.Win32;
+using VersionrUI.ViewModels;
 
 namespace VersionrUI
 {
@@ -108,6 +109,43 @@ namespace VersionrUI
             catch (Exception e)
             {
                 MessageBox.Show(e.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        public static Versionr.Objects.Version FindVersionWithID(AreaVM area, BranchVM branch, string versionID)
+        {
+            try
+            {
+                if (area == null || branch == null || string.IsNullOrEmpty(versionID) || branch.IsDeleted)
+                    return null;
+                var versions =
+                    area.Area.GetLogicalHistory(
+                        area.Area.GetBranchHeadVersion(branch.Branch), false,
+                        false, false);
+                var found = versions.SingleOrDefault(x =>
+                    x != null && (x.ID.ToString() == versionID || x.ID.ToString().StartsWith(versionID)));
+
+                if (found != null)
+                    return found;
+
+                // If not found...
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    MainWindow.ShowMessage(
+                        "Branch: " + branch.Name,
+                        $"Could not find a version with ID: [{versionID}] in this branch");
+                });
+                return null;
+            }
+            catch (Exception e)
+            {
+                MainWindow.Instance.Dispatcher.Invoke(() =>
+                {
+                    MainWindow.ShowMessage(
+                        "Something went wrong !!!",
+                        $"And you thought it was going to crash... how do you like this graceful exit");
+                });
+                return null;
             }
         }
     }

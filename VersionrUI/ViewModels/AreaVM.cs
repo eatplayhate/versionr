@@ -55,7 +55,6 @@ namespace VersionrUI.ViewModels
             FindVersionCommand = new DelegateCommand(FindVersion);
 
             m_Name = name;
-            //InputBindings.Add(new KeyBinding(FindVersionCommand, new KeyGesture(Key.G, ModifierKeys.Alt)));
         }
 
         public void Init(string path, AreaInitMode areaInitMode, string host, int port, Action<AreaVM, string, string> afterInit)
@@ -128,45 +127,7 @@ namespace VersionrUI.ViewModels
         }
 
         public string VersionGUID { get; set; }
-        private void FindVersion()
-        {
-            if (string.IsNullOrEmpty(VersionGUID) || SelectedBranch == null)
-                return;
-            //foreach (var branchVM in m_Branches)
-            //{
-            try
-            {
-                if (SelectedBranch.IsDeleted)
-                    return;
-                var versions =
-                    Area.GetLogicalHistory(Area.GetBranchHeadVersion(SelectedBranch.Branch), false, false, false);
-                var foundVer = versions.SingleOrDefault(x =>
-                    x != null && (x.ID.ToString() == VersionGUID || x.ID.ToString().StartsWith(VersionGUID)));
-                //}
 
-                if (foundVer == null)
-                {
-                    MainWindow.Instance.Dispatcher.Invoke(() =>
-                    {
-                        MainWindow.ShowMessage(
-                            "Branch: " + SelectedBranch.Name,
-                            $"Could not find a version with ID: [{VersionGUID}] in this branch");
-                    });
-                    return;
-                }
-
-                LogDialog.Find(foundVer, Area);
-            }
-            catch (System.Exception ex)
-            {
-                MainWindow.Instance.Dispatcher.Invoke(() =>
-                {
-                    MainWindow.ShowMessage(
-                        "Something went wrong !!!",
-                        $"And you thought it was going to crash... how do you like this graceful exit");
-                });
-            }
-        }
         public NotifyPropertyChangedBase SelectedVM
         {
             get => m_SelectedVM;
@@ -427,6 +388,15 @@ namespace VersionrUI.ViewModels
                 areas.Remove(areaToRemove);
             // Update on disk
             VersionrPanel.SaveOpenAreas(areas);
+        }
+
+        private void FindVersion()
+        {
+            var foundVersion = Utilities.FindVersionWithID(this, SelectedBranch, VersionGUID);
+            if (foundVersion != null)
+            {
+                LogDialog.FindResultDialog(foundVersion, Area);
+            }
         }
 
         public void ExecuteClientCommand(Action<Client> action, string command, bool requiresWriteAccess = false)
