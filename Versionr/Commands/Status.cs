@@ -80,7 +80,7 @@ namespace Versionr.Commands
         {
 			//Printer.WriteLineMessage("Version #b#{0}## on branch \"#b#{1}##\" (rev {2})", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
 			Printer.WriteLineMessage("Branch #g#{1}## ({2}) #b#{0}##", Workspace.Version.ID, Workspace.CurrentBranch.Name, Workspace.Version.Revision);
-		}
+        }
 
         protected override bool RunInternal(Area ws, Versionr.Status status, IList<Versionr.Status.StatusEntry> targets, FileBaseCommandVerbOptions options)
         {

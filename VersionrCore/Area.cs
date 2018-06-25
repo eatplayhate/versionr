@@ -6542,13 +6542,15 @@ namespace Versionr
             return shared;
         }
 
-        public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion, bool ignoreMergeParents)
+        public Dictionary<Guid, int> GetParentGraph(Objects.Version mergeVersion, bool ignoreMergeParents, HashSet<Guid> exclusionList = null, List<Objects.Version> collectedVersions = null)
         {
             Printer.PrintDiagnostics("Getting parent graph for version {0}", mergeVersion.ID);
             System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
             sw.Start();
             Stack<Tuple<Objects.Version, int>> openNodes = new Stack<Tuple<Objects.Version, int>>();
-            openNodes.Push(new Tuple<Objects.Version, int>(mergeVersion, 0));
+
+            if (exclusionList == null || !exclusionList.Contains(mergeVersion.ID))
+                openNodes.Push(new Tuple<Objects.Version, int>(mergeVersion, 0));
             Dictionary<Guid, int> result = new Dictionary<Guid, int>();
             while (openNodes.Count > 0)
             {
@@ -6562,17 +6564,25 @@ namespace Versionr
                         result[currentNode.ID] = currentNodeData.Item2;
                     continue;
                 }
+                if (collectedVersions != null)
+                    collectedVersions.Add(currentNode);
                 result[currentNode.ID] = currentNodeData.Item2;
 
                 if (currentNode.Parent.HasValue && !result.ContainsKey(currentNode.Parent.Value))
-                    openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(currentNode.Parent), currentNodeData.Item2 + 1));
+                {
+                    if (exclusionList == null || !exclusionList.Contains(currentNode.Parent.Value))
+                        openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(currentNode.Parent), currentNodeData.Item2 + 1));
+                }
 
                 if (!ignoreMergeParents)
                 {
                     foreach (var x in Database.GetMergeInfo(currentNode.ID))
                     {
                         if (!result.ContainsKey(x.SourceVersion))
-                            openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                        {
+                            if (exclusionList == null || !exclusionList.Contains(x.SourceVersion))
+                                openNodes.Push(new Tuple<Objects.Version, int>(Database.Get<Objects.Version>(x.SourceVersion), currentNodeData.Item2 + 1));
+                        }
                     }
                 }
             }
@@ -8699,6 +8709,306 @@ namespace Versionr
             if (local.Equals(".vrmeta", StringComparison.OrdinalIgnoreCase))
                 return local;
             return PartialPath + local;
+        }
+
+        public bool GetDivergence(Guid targetBranch, Guid originBranch, out List<Objects.Version> ahead, out List<Objects.Version> behind)
+        {
+            try
+            {
+                var targetTip = GetVersion(GetBranchHead(GetBranch(targetBranch)).Version);
+                var originTip = GetVersion(GetBranchHead(GetBranch(originBranch)).Version);
+                return GetDivergence(targetTip, originTip, out ahead, out behind);
+            }
+            catch
+            {
+                ahead = null;
+                behind = null;
+                return false;
+            }
+        }
+
+        public bool GetDivergence(Objects.Version targetVersion, Objects.Version originBranchTip, out List<Objects.Version> ahead, out List<Objects.Version> behind)
+        {
+            Database.BeginTransaction();
+
+            List<Objects.Version> aheadTemp = new List<Objects.Version>();
+            List<Objects.Version> behindTemp = new List<Objects.Version>();
+            List<Objects.Version> trivialHistory = GetHistory(targetVersion);
+            List<Objects.Version> trivialOriginHistory = GetHistory(originBranchTip);
+
+            Guid commonParent = Guid.Empty;
+            HashSet<Guid> trivialOriginSet = new HashSet<Guid>(trivialOriginHistory.Select(x => x.ID));
+            for (int i = 0; i < trivialHistory.Count; i++)
+            {
+                if (trivialOriginSet.Contains(trivialHistory[i].ID))
+                {
+                    // common parent
+                    commonParent = trivialHistory[i].ID;
+                    trivialHistory.RemoveRange(i, trivialHistory.Count - i);
+                    break;
+                }
+            }
+
+            if (commonParent == Guid.Empty)
+            {
+                ahead = null;
+                behind = null;
+                return false;
+            }
+
+            int cutoffIndex = trivialOriginHistory.FindIndex(x => x.ID == commonParent);
+            trivialOriginHistory.RemoveRange(cutoffIndex, trivialOriginHistory.Count - cutoffIndex);
+
+            // pruned simple histories, now we have to include merges
+            // Find ALL commits in remote graph until we hit anything in the origin set
+            behindTemp.AddRange(trivialOriginHistory);
+
+            trivialOriginSet = new HashSet<Guid>(GetParentGraph(GetVersion(commonParent), false).Select(x => x.Key));
+
+            var originGraph = GetParentGraph(originBranchTip, false, trivialOriginSet, behindTemp);
+
+            aheadTemp.AddRange(trivialHistory);
+            
+            var localGraph = GetParentGraph(targetVersion, false, trivialOriginSet, aheadTemp);
+
+            // Now we have all the versions between now and the common parent on both sides, we just need to unique/exclude them
+            HashSet<Guid> remoteSet = new HashSet<Guid>(behindTemp.Select(x => x.ID));
+            HashSet<Guid> localSet = new HashSet<Guid>(aheadTemp.Select(x => x.ID));
+            HashSet<Guid> currentWorkingSet = new HashSet<Guid>();
+
+            ahead = new List<Objects.Version>();
+            behind = new List<Objects.Version>();
+
+            foreach (var x in behindTemp)
+            {
+                if (currentWorkingSet.Add(x.ID))
+                {
+                    if (!localSet.Contains(x.ID))
+                        behind.Add(x);
+                }
+            }
+            currentWorkingSet.Clear();
+            foreach (var x in aheadTemp)
+            {
+                if (currentWorkingSet.Add(x.ID))
+                {
+                    if (!remoteSet.Contains(x.ID))
+                        ahead.Add(x);
+                }
+            }
+
+            behind = behind.OrderByDescending(x => x.Timestamp).ToList();
+            ahead = ahead.OrderByDescending(x => x.Timestamp).ToList();
+
+            Database.Commit();
+            return true;
+        }
+
+        public enum MergeComplexity
+        {
+            None, // merge is already "at head" (special case of "ahead")
+            Ahead, // merging from a "trivially ahead" branch
+            Trivial, // changes do not conflict
+            Normal, // no file conflicts
+            Conflict, // files moved/deleted etc
+            MultipleBranchHeads
+        }
+
+        internal bool PerformAutomergeWithList(string username, string comment, Objects.Head toHead, Objects.Version from, List<Alteration> alterationsForAutomerge)
+        {
+            try
+            {
+                Objects.Version to = GetVersion(toHead.Version);
+                Objects.Version resultVersion = new Objects.Version()
+                {
+                    ID = Guid.NewGuid(),
+                    Author = username,
+                    Branch = to.Branch,
+                    Message = comment ?? string.Format("Automatic merge of {0}.", from.ID),
+                    Parent = to.ID,
+                    Published = true,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                Objects.Snapshot alterationLink = new Snapshot();
+                Database.InsertSafe(alterationLink);
+                resultVersion.AlterationList = alterationLink.Id;
+
+                Database.InsertSafe(resultVersion);
+                Database.InsertSafe(new MergeInfo() { DestinationVersion = to.ID, SourceVersion = from.ID, Type = MergeType.Normal });
+                foreach (var z in alterationsForAutomerge)
+                {
+                    z.Owner = alterationLink.Id;
+                    Database.InsertSafe(z);
+                }
+
+                // Update heads
+                toHead.Version = resultVersion.ID;
+                Database.Update(toHead);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool PerformAutomerge(string username, string comment, Objects.Branch to, Objects.Branch from)
+        {
+            bool result = false;
+            Database.BeginExclusive();
+            List<Alteration> alterations;
+
+            Objects.Version toVersion;
+            Objects.Version fromVersion;
+
+            var branchHeads = GetBranchHeads(to);
+            if (branchHeads.Count != 1)
+                return false;
+
+            if (DetectMergeComplexity(to, from, out toVersion, out fromVersion, out alterations) == MergeComplexity.Trivial)
+                result = PerformAutomergeWithList(username, comment, branchHeads[0], fromVersion, alterations);
+            Database.Commit();
+            return result;
+        }
+
+        public MergeComplexity DetectMergeComplexity(Objects.Branch to, Objects.Branch from, out Objects.Version toVersion, out Objects.Version fromVersion, out List<Alteration> alterationList)
+        {
+            alterationList = null;
+            var toHeads = GetBranchHeads(to);
+            var fromHeads = GetBranchHeads(from);
+            toVersion = null;
+            fromVersion = null;
+
+            if (toHeads.Count == 1)
+                toVersion = GetVersion(toHeads[0].Version);
+            else
+                return MergeComplexity.MultipleBranchHeads;
+
+            if (fromHeads.Count == 1)
+                fromVersion = GetVersion(fromHeads[0].Version);
+            else
+                return MergeComplexity.MultipleBranchHeads;
+
+            return DetectMergeComplexity(toVersion, fromVersion, out alterationList);
+        }
+
+        public MergeComplexity DetectMergeComplexity(Objects.Branch to, Objects.Branch from)
+        {
+            List<Alteration> ignored;
+            Objects.Version i1;
+            Objects.Version i2;
+            return DetectMergeComplexity(to, from, out i1, out i2, out ignored);
+        }
+
+        public MergeComplexity DetectMergeComplexity(Objects.Version to, Objects.Version from, out List<Alteration> alterationsForAutomerge)
+        {
+            var parent = GetVersion(GetCommonParents(to, from, false).First().Key);
+
+            alterationsForAutomerge = null;
+            List<Alteration> tempAlterationList = new List<Alteration>();
+
+            if (parent.ID == from.ID)
+            {
+                return MergeComplexity.None;
+            }
+            if (parent.ID == to.ID)
+            {
+                return MergeComplexity.Ahead;
+            }
+            var records = Database.GetRecords(to, true);
+            var foreignRecords = Database.GetRecords(from, true);
+            var parentRecords = Database.GetRecords(parent, true);
+            
+            Dictionary<string, Record> foreignLookup = new Dictionary<string, Record>();
+            foreach (var x in foreignRecords)
+                foreignLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> localLookup = new Dictionary<string, Record>();
+            foreach (var x in records)
+                localLookup[x.CanonicalName] = x;
+            Dictionary<string, Record> parentLookup = new Dictionary<string, Record>();
+            foreach (var x in parentRecords)
+                parentLookup[x.CanonicalName] = x;
+
+            foreach (var x in foreignRecords)
+            {
+                Objects.Record parentRecord = null;
+                Objects.Record localRecord = null;
+                parentLookup.TryGetValue(x.CanonicalName, out parentRecord);
+                localLookup.TryGetValue(x.CanonicalName, out localRecord);
+
+                if (localRecord == null)
+                {
+                    if (parentRecord == null)
+                    {
+                        tempAlterationList.Add(new Alteration() { Type = AlterationType.Add, NewRecord = x.Id });
+                    }
+                    else
+                    {
+                        // Removed locally
+                        if (parentRecord.DataEquals(x))
+                        {
+                            // this is fine, we removed it in our branch
+                        }
+                        else
+                        {
+                            return MergeComplexity.Conflict;
+                        }
+                    }
+                }
+                else
+                {
+                    if (localRecord.DataEquals(x))
+                    {
+                        // all good, same data in both places
+                    }
+                    else if (parentRecord == null)
+                    {
+                        return MergeComplexity.Conflict;
+                    }
+                    else
+                    {
+                        if (localRecord.DataEquals(parentRecord))
+                        {
+                            tempAlterationList.Add(new Alteration() { Type = AlterationType.Update, NewRecord = x.Id, PriorRecord = localRecord.Id });
+                        }
+                        else if (parentRecord.DataEquals(x))
+                        {
+                            // modified locally
+                        }
+                        else
+                        {
+                            return MergeComplexity.Normal;
+                        }
+                    }
+                }
+            }
+            foreach (var x in parentRecords)
+            {
+                Objects.Record foreignRecord = null;
+                Objects.Record localRecord = null;
+                foreignLookup.TryGetValue(x.CanonicalName, out foreignRecord);
+                localLookup.TryGetValue(x.CanonicalName, out localRecord);
+
+                if (foreignRecord == null)
+                {
+                    // deleted by branch
+                    if (localRecord != null)
+                    {
+                        if (localRecord.DataEquals(x))
+                        {
+                            tempAlterationList.Add(new Alteration() { Type = AlterationType.Delete, PriorRecord = localRecord.Id });
+                        }
+                        else
+                        {
+                            return MergeComplexity.Conflict;
+                        }
+                    }
+                }
+            }
+
+            alterationsForAutomerge = tempAlterationList;
+            return MergeComplexity.Normal;
         }
 
         public bool ParseAndApplyPatch(string basePath, string patchFile, bool interactive, bool record, bool reverse, bool ignoreWS)

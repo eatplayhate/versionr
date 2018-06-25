@@ -364,7 +364,7 @@ namespace Versionr
 
         internal List<MergeInfo> GetMergeInfoFromSource(Guid versionID)
         {
-            return Table<Objects.MergeInfo>().Where(x => x.SourceVersion == versionID).ToList();
+            return Query<Objects.MergeInfo>("SELECT * from MergeInfo WHERE SourceVersion = ?", versionID);
         }
 
         private void PrepareTables()
@@ -414,7 +414,7 @@ namespace Versionr
 
         public List<Objects.Head> GetHeads(Branch branch)
         {
-            return Table<Objects.Head>().Where(x => x.Branch == branch.ID).ToList();
+            return Query<Objects.Head>("SELECT * from Head WHERE Branch = ?", branch.ID);
         }
 
         public List<Objects.Record> Records
@@ -455,6 +455,16 @@ namespace Versionr
             sw.Start();
             Printer.PrintDiagnostics("Getting records for version {0}.", version.ID);
             long? snapshotID = null;
+            bool readtrans = false;
+            try
+            {
+                BeginTransaction();
+                readtrans = true;
+            }
+            catch (InvalidOperationException)
+            {
+                // not an issue
+            }
             List<Objects.Version> parents = new List<Objects.Version>();
             Objects.Version snapshotVersion = version;
             while (!snapshotID.HasValue)
@@ -483,6 +493,8 @@ namespace Versionr
                 Printer.PrintDiagnostics(" - Snapshot {0} has {1} records.", snapshotID, baseList.Count);
             }
             alterations = GetAlterationsInternal(parents);
+            if (readtrans)
+                Commit();
             Printer.PrintDiagnostics(" - Target has {0} alterations.", alterations.Count);
             List<Record> finalList = null;
             try
@@ -821,12 +833,12 @@ namespace Versionr
 
         public List<Alteration> GetAlterationsForVersion(Objects.Version version)
         {
-            return Table<Alteration>().Where(x => x.Owner == version.AlterationList).ToList();
+            return Query<Alteration>("SELECT * from Alteration WHERE Owner = ?", version.AlterationList);
         }
 
         private List<Alteration> GetAlterationsInternal(List<Objects.Version> parents)
         {
-            return parents.Where(x => !x.Snapshot.HasValue).SelectMany(x => Table<Alteration>().Where(y => y.Owner == x.AlterationList)).ToList();
+            return parents.Where(x => !x.Snapshot.HasValue).SelectMany(x => Query<Alteration>("SELECT * from Alteration WHERE Owner = ?", x.AlterationList)).ToList();
         }
 
         public Objects.Version Version
@@ -962,7 +974,8 @@ namespace Versionr
 
         internal IEnumerable<Objects.MergeInfo> GetMergeInfo(Guid versionID)
         {
-            return Table<Objects.MergeInfo>().Where(x => x.DestinationVersion == versionID);
+            return Query<Objects.MergeInfo>("SELECT * from MergeInfo WHERE DestinationVersion = ?", versionID);
+//            return Table<Objects.MergeInfo>().Where(x => x.DestinationVersion == versionID);
         }
     }
 }
