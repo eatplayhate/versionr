@@ -8866,7 +8866,8 @@ namespace Versionr
             if (branchHeads.Count != 1)
                 return false;
 
-            if (DetectMergeComplexity(to, from, out toVersion, out fromVersion, out alterations) == MergeComplexity.Trivial)
+            var complexity = DetectMergeComplexity(to, from, out toVersion, out fromVersion, out alterations);
+            if (complexity == MergeComplexity.Trivial || complexity == MergeComplexity.Ahead)
                 result = PerformAutomergeWithList(username, comment, branchHeads[0], fromVersion, alterations);
             Database.Commit();
             return result;
@@ -8911,10 +8912,6 @@ namespace Versionr
             if (parent.ID == from.ID)
             {
                 return MergeComplexity.None;
-            }
-            if (parent.ID == to.ID)
-            {
-                return MergeComplexity.Ahead;
             }
             var records = Database.GetRecords(to, true);
             var foreignRecords = Database.GetRecords(from, true);
@@ -9008,7 +9005,9 @@ namespace Versionr
             }
 
             alterationsForAutomerge = tempAlterationList;
-            return MergeComplexity.Normal;
+            if (parent.ID == to.ID)
+                return MergeComplexity.Ahead;
+            return MergeComplexity.Trivial;
         }
 
         public bool ParseAndApplyPatch(string basePath, string patchFile, bool interactive, bool record, bool reverse, bool ignoreWS)
