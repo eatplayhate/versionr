@@ -8835,7 +8835,7 @@ namespace Versionr
                 resultVersion.AlterationList = alterationLink.Id;
 
                 Database.InsertSafe(resultVersion);
-                Database.InsertSafe(new MergeInfo() { DestinationVersion = to.ID, SourceVersion = from.ID, Type = MergeType.Normal });
+                Database.InsertSafe(new MergeInfo() { DestinationVersion = resultVersion.ID, SourceVersion = from.ID, Type = MergeType.Normal });
                 foreach (var z in alterationsForAutomerge)
                 {
                     z.Owner = alterationLink.Id;
