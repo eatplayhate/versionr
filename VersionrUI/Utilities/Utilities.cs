@@ -112,30 +112,28 @@ namespace VersionrUI
             }
         }
 
-        public static Versionr.Objects.Version FindVersionWithID(AreaVM area, BranchVM branch, string versionID)
+        public static List<Versionr.Objects.Version> FindVersionsWithID(AreaVM area, string versionID)
         {
             try
             {
-                if (area == null || branch == null || string.IsNullOrEmpty(versionID) || branch.IsDeleted)
+                if (area?.Area == null || string.IsNullOrEmpty(versionID))
                     return null;
-                var versions =
-                    area.Area.GetLogicalHistory(
-                        area.Area.GetBranchHeadVersion(branch.Branch), false,
-                        false, false);
-                var found = versions.SingleOrDefault(x =>
-                    x != null && (x.ID.ToString() == versionID || x.ID.ToString().StartsWith(versionID)));
 
-                if (found != null)
-                    return found;
+                var found = area.Area.GetPotentionalVersions(versionID);
 
                 // If not found...
-                MainWindow.Instance.Dispatcher.Invoke(() =>
+                if (found == null || !found.Any())
                 {
-                    MainWindow.ShowMessage(
-                        "Branch: " + branch.Name,
-                        $"Could not find a version with ID: [{versionID}] in this branch");
-                });
-                return null;
+                    MainWindow.Instance.Dispatcher.Invoke(() =>
+                    {
+                        MainWindow.ShowMessage(
+                            "Repo: " + area.Name,
+                            $"Could not find a version with ID: [{versionID}] in this repo");
+                    });
+                    return null;
+                }
+
+                return found;
             }
             catch (Exception e)
             {

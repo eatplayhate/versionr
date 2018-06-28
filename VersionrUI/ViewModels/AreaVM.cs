@@ -392,7 +392,7 @@ namespace VersionrUI.ViewModels
 
         private void FindVersion()
         {
-            var foundVersion = Utilities.FindVersionWithID(this, SelectedBranch, VersionGUID);
+            var foundVersion = Utilities.FindVersionsWithID(this, VersionGUID);
             if (foundVersion != null)
             {
                 LogDialog.FindResultDialog(foundVersion, Area);

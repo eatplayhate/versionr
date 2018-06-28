@@ -25,6 +25,7 @@ namespace VersionrUI.Dialogs
         private string m_Pattern;
         private List<VersionVM> m_History;
         private int m_RevisionLimit;
+        private static List<Version> m_SearchResultVersions = new List<Version>();
         private static readonly Dictionary<int, string> m_RevisionLimitOptions = new Dictionary<int, string>()
         {
             { 50, "50" },
@@ -60,10 +61,12 @@ namespace VersionrUI.Dialogs
         }
 
         // Reusing this dialog to display the results of a search
-        public static void FindResultDialog(Version version, Area area)
+        public static void FindResultDialog(IEnumerable<Version>versions, Area area)
         {
+            m_SearchResultVersions.Clear();
+            m_SearchResultVersions.AddRange(versions);
             IsUsedAsALogDialog = false;
-            new LogDialog(version, area).ShowDialog();
+            new LogDialog(m_SearchResultVersions[0], area).ShowDialog();
         }
 
         public static void Show(Version version, Area area, string pattern = null)
@@ -188,7 +191,7 @@ namespace VersionrUI.Dialogs
                 }
                 else
                 {
-                    m_History.Add(new VersionVM(Version, Area));
+                    m_SearchResultVersions.ForEach(x => m_History.Add(new VersionVM(x, Area)));
                 }
                 NotifyPropertyChanged(nameof(History));
             }

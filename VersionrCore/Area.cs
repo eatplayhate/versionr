@@ -6899,6 +6899,16 @@ namespace Versionr
             return null;
         }
 
+        /// <summary>
+        /// Given a version ID, find all the potential versions
+        /// </summary>
+        /// <param name="v">version id</param>
+        /// <returns></returns>
+        public List<Objects.Version> GetPotentionalVersions(string v)
+        {
+            return Database.Query<Objects.Version>(string.Format("SELECT rowid, * FROM Version WHERE Version.ID LIKE '{0}%'", v));
+        }
+
         private void CleanStage(bool createTransaction = true)
         {
             Printer.PrintDiagnostics("Clearing stage.");

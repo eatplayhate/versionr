@@ -74,6 +74,15 @@ namespace VersionrUI.ViewModels
             get { return m_Version.Branch; }
         }
 
+        public string BranchName
+        {
+            get
+            {
+                var branch = m_Area.GetBranch(m_Version.Branch);
+                return branch == null ? string.Empty : branch.Name;
+            }
+        }
+
         public string SearchText
         {
             get { return m_SearchText; }

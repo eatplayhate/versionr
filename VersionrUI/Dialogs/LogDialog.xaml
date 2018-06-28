@@ -126,6 +126,8 @@
                       Style="{StaticResource VirtualisedMetroListView}">
                 <ListView.View>
                     <GridView>
+                        <GridViewColumn Header="ID" DisplayMemberBinding="{Binding ShortName, Mode=OneWay}"/>
+                        <GridViewColumn Header="Branch" DisplayMemberBinding="{Binding BranchName, Mode=OneWay}"/>
                         <GridViewColumn Header="Revision" DisplayMemberBinding="{Binding Revision, Mode=OneWay}" />
                         <GridViewColumn Header="Author" DisplayMemberBinding="{Binding Author, Mode=OneWay}" />
                         <GridViewColumn Header="Timestamp" DisplayMemberBinding="{Binding Timestamp, Mode=OneWay}" />
