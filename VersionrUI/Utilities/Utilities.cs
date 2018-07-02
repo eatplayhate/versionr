@@ -30,18 +30,17 @@ namespace VersionrUI
         }
         public static IEnumerable<T> FindVisualChildren<T>(DependencyObject depObj) where T : DependencyObject
         {
-            if (depObj != null)
+            if (depObj == null)
+                yield break;
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(depObj); i++)
             {
-                for (int i = 0; i < VisualTreeHelper.GetChildrenCount(depObj); i++)
-                {
-                    DependencyObject child = VisualTreeHelper.GetChild(depObj, i);
+                DependencyObject child = VisualTreeHelper.GetChild(depObj, i);
 
-                    if (child != null && child is T)
-                        yield return (T)child;
+                if (child is T variable)
+                    yield return variable;
 
-                    foreach (T childOfChild in FindVisualChildren<T>(child))
-                        yield return childOfChild;
-                }
+                foreach (T childOfChild in FindVisualChildren<T>(child))
+                    yield return childOfChild;
             }
         }
 
@@ -122,20 +121,18 @@ namespace VersionrUI
                 var found = area.Area.GetPotentionalVersions(versionID);
 
                 // If not found...
-                if (found == null || !found.Any())
+                if (found != null && found.Any())
+                    return found;
+                MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
-                    MainWindow.Instance.Dispatcher.Invoke(() =>
-                    {
-                        MainWindow.ShowMessage(
-                            "Repo: " + area.Name,
-                            $"Could not find a version with ID: [{versionID}] in this repo");
-                    });
-                    return null;
-                }
+                    MainWindow.ShowMessage(
+                        "Repo: " + area.Name,
+                        $"Could not find a version with ID: [{versionID}] in this repo");
+                });
+                return null;
 
-                return found;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 MainWindow.Instance.Dispatcher.Invoke(() =>
                 {
