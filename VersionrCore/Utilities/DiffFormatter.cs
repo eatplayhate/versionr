@@ -230,6 +230,26 @@ namespace Versionr.Utilities
                     }
                 }
             }
+            for (int i = 0; i < diff.Count; i++)
+            {
+                if (diff[i] == null)
+                    continue;
+                // Only look for replacements
+                if (diff[i].common == null && diff[i].file1 != null && diff[i].file2 != null && diff[i].file1.Count > 0 && diff[i].file2.Count > 0)
+                {
+                    // This logic scans for a "replacement" where the last line of the old file is the first line of the new file, likely collapsed via one of the earlier preprocessing steps
+                    if (diff[i].file1[diff[i].file1.Count - 1] == diff[i].file2[0])
+                    {
+                        // chop out the common bit
+                        diff.Insert(i + 1, new Diff.commonOrDifferentThing { common = new List<string>(diff[i].file2.Take(1)) });
+                        diff.Insert(i + 2, new Diff.commonOrDifferentThing { file2 = diff[i].file2.Skip(1).ToList() });
+                        diff[i].file1.RemoveAt(diff[i].file1.Count - 1);
+                        diff[i].file2 = null;
+
+                        i += 2;
+                    }
+                }
+            }
             Display:
             for (int i = 0; i < diff.Count; i++)
             {

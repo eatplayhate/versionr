@@ -12,9 +12,11 @@ namespace Versionr.Commands
         public Area Workspace { get; set; }
         public System.IO.DirectoryInfo ActiveDirectory { get; set; }
         public virtual bool Headless { get { return false; } }
+        public object OptionsObject { get; set; }
         public virtual bool Run(System.IO.DirectoryInfo workingDirectory, object options)
         {
             ActiveDirectory = workingDirectory;
+            OptionsObject = options;
             VerbOptionBase localOptions = options as VerbOptionBase;
             Printer.EnableDiagnostics = localOptions.Verbose;
             Printer.Quiet = localOptions.Quiet;
