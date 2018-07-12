@@ -329,6 +329,17 @@ namespace Versionr.Commands
                 return true;
             }
         }
+        protected override bool ComputeTargets(FileBaseCommandVerbOptions localOptions)
+        {
+            return base.ComputeTargets(localOptions) && (string.IsNullOrEmpty((OptionsObject as DiffVerbOptions).Version) || (OptionsObject as DiffVerbOptions).Local);
+        }
+        protected override bool RequiresTargets
+        {
+            get
+            {
+                return base.RequiresTargets && (string.IsNullOrEmpty((OptionsObject as DiffVerbOptions).Version) || (OptionsObject as DiffVerbOptions).Local);
+            }
+        }
         private void RunInternalDiff(string file1, string file2, bool processTabs = true, string filenameOverride = null)
         {
             List<string> messages = Utilities.DiffFormatter.Run(file1, file2, filenameOverride, filenameOverride, processTabs, true);

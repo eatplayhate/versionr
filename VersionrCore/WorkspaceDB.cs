@@ -590,14 +590,15 @@ namespace Versionr
                     Record r = GetCachedRecord(x);
                     if (r == null)
                     {
+                        const int cc = 256;
                         tempList.Add(x);
-                        if (tempList.Count == 256)
+                        if (tempList.Count == cc)
                         {
                             if (s256 == null)
                             {
                                 StringBuilder sb256 = new StringBuilder();
                                 sb256.Append("SELECT * FROM ObjectName INNER JOIN (SELECT Record.* FROM Record WHERE Record.Id IN (");
-                                for (int i = 0; i < 256; i++)
+                                for (int i = 0; i < cc; i++)
                                 {
                                     if (i != 0)
                                         sb256.Append(", ");
