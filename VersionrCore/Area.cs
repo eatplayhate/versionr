@@ -6447,6 +6447,12 @@ namespace Versionr
             }
         }
 
+        public Objects.Version GetCommonParent(Objects.Version version, Objects.Version mergeVersion)
+        {
+            var parents = GetCommonParents(version, mergeVersion, false);
+            return GetVersion(parents.OrderBy(x => x.Value).First().Key);
+        }
+
         private List<KeyValuePair<Guid, int>> GetCommonParents(Objects.Version version, Objects.Version mergeVersion, bool ignoreMergeParents)
         {
             Dictionary<Guid, int> foreignGraph = GetParentGraph(mergeVersion, ignoreMergeParents);
