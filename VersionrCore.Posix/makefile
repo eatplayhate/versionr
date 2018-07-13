@@ -2,7 +2,7 @@ CC=clang
 CFLAGS=-fPIC -c -O3 -std=c++14
 LDFLAGS=-shared -lstdc++
 SOURCES=FileSystem.cpp
-OBJECTS=$(SOURCES:.c=.o)
+OBJECTS=$(SOURCES:.cpp=.o)
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	DLL=libVersionrCore.Posix.dylib
@@ -16,7 +16,7 @@ all: $(SOURCES) $(DLL)
 $(DLL): $(OBJECTS)
 	$(CC) $(ARCHOVERRIDE) $(OBJECTS) $(LDFLAGS) -o $@
 
-.c.o:
+.cpp.o:
 	$(CC) $(ARCHOVERRIDE) $(CFLAGS) $< -o $@
 
 clean:

@@ -4,8 +4,12 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <map>
+#include <string.h>
 
+#ifdef __APPLE__
 #include <sys/syslimits.h>
+#endif
+
 #include <fcntl.h>
 
 int scanrec(DIR* dir, const char* path, void (*handler)(char* name, long long size, long long timestamp, int attribs))
