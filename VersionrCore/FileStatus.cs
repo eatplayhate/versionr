@@ -245,10 +245,17 @@ namespace Versionr
             }
             else
             {
-                if (GetPathCorrectCase == null)
+                if (GetPathCorrectCase == null && !NetworkSafeMode.HasValue)
                 {
-                    var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
-                    GetPathCorrectCase = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithCorrectCase").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
+                    try
+                    {
+                        var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
+                        GetPathCorrectCase = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithCorrectCase").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
+                    }
+                    catch
+                    {
+                        NetworkSafeMode = true;
+                    }
                 }
                 if (!NetworkSafeMode.HasValue)
                     NetworkSafeMode = PathIsNetworkPath(info.FullName);

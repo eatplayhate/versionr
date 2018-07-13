@@ -331,17 +331,7 @@ namespace Versionr.Network
                 while (true)
                 {
                     Objects.Version testedVersion = currentVersion;
-                    List<Objects.Version> versionsToCheck = new List<Objects.Version>();
-                    List<Objects.Version> partialHistory = info.Workspace.GetHistory(currentVersion, 64);
-                    foreach (var x in partialHistory)
-                    {
-                        if (!info.RemoteCheckedVersions.Contains(x.ID))
-						{
-							info.RemoteCheckedVersions.Add(x.ID);
-							currentVersion = x;
-							versionsToCheck.Add(x);
-						}
-                    }
+                    List<Objects.Version> versionsToCheck = GetHistoryChunk(info, ref currentVersion); 
 
                     if (versionsToCheck.Count > 0)
                     {
@@ -379,12 +369,15 @@ namespace Versionr.Network
                                 var mergeInfo = info.Workspace.GetMergeInfo(versionsToCheck[i].ID);
                                 foreach (var x in mergeInfo)
                                 {
-                                    var srcVersion = info.Workspace.GetVersion(x.SourceVersion);
-                                    if (srcVersion != null)
+                                    if (!info.RemoteCheckedVersions.Contains(x.SourceVersion))
                                     {
-                                        if (!GetVersionListInternal(info, srcVersion, branchesToSend, versionsToSend))
+                                        var srcVersion = info.Workspace.GetVersion(x.SourceVersion);
+                                        if (srcVersion != null)
                                         {
-                                            Printer.PrintDiagnostics("Sending merge data for: {0}", srcVersion.ID);
+                                            if (!GetVersionListInternal(info, srcVersion, branchesToSend, versionsToSend))
+                                            {
+                                                Printer.PrintDiagnostics("Sending merge data for: {0}", srcVersion.ID);
+                                            }
                                         }
                                     }
                                 }
@@ -402,6 +395,72 @@ namespace Versionr.Network
             {
                 Printer.PrintError("Error: {0}", e);
                 return false;
+            }
+        }
+
+        private static List<Objects.Version> GetHistoryChunk(SharedNetworkInfo info, ref Objects.Version currentVersion)
+        {
+            List<Objects.Version> result = new List<Objects.Version>();
+            var partialHistory = info.Workspace.GetHistory(currentVersion, 256);
+            List<Objects.Version> versionsToScan = new List<Objects.Version>(256);
+            foreach (var x in partialHistory)
+            {
+                if (!info.RemoteCheckedVersions.Contains(x.ID))
+                {
+                    info.RemoteCheckedVersions.Add(x.ID);
+                    versionsToScan.Add(x);
+                }
+            }
+            foreach (var x in versionsToScan)
+            {
+                currentVersion = x;
+                result.Add(x);
+
+                var mergeInfo = info.Workspace.GetMergeInfo(x.ID);
+                foreach (var y in mergeInfo)
+                {
+                    if (!info.RemoteCheckedVersions.Contains(y.SourceVersion))
+                    {
+                        Objects.Version nextCheck = null;
+                        if (y.Type != MergeType.Rebase)
+                            nextCheck = info.Workspace.GetVersion(y.SourceVersion);
+                        if (nextCheck != null && nextCheck.Branch == currentVersion.Branch)
+                        {
+                            ScanWithCounter(info, result, nextCheck, 64);
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+
+        private static void ScanWithCounter(SharedNetworkInfo info, List<Objects.Version> result, Objects.Version version, int v)
+        {
+            if (version == null)
+                return;
+            if (info.RemoteCheckedVersions.Add(version.ID))
+            {
+                result.Add(version);
+
+                if (--v > 0)
+                {
+                    var mergeInfo = info.Workspace.GetMergeInfo(version.ID);
+                    foreach (var y in mergeInfo)
+                    {
+                        if (!info.RemoteCheckedVersions.Contains(y.SourceVersion))
+                        {
+                            Objects.Version nextCheck = null;
+                            if (y.Type != MergeType.Rebase)
+                                nextCheck = info.Workspace.GetVersion(y.SourceVersion);
+                            if (nextCheck != null && nextCheck.Branch == version.Branch)
+                            {
+                                ScanWithCounter(info, result, nextCheck, v);
+                            }
+                        }
+                    }
+                    if (version.Parent.HasValue)
+                        ScanWithCounter(info, result, info.Workspace.GetVersion(version.Parent.Value), v);
+                }
             }
         }
 
