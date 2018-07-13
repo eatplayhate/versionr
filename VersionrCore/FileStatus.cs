@@ -231,16 +231,23 @@ namespace Versionr
         {
             if (Versionr.Utilities.MultiArchPInvoke.IsRunningOnMono)
             {
-                byte[] buffer = new byte[16535];
-                unsafe
+                try
                 {
-                    fixed (byte* b = &buffer[0])
+                    byte[] buffer = new byte[16535];
+                    unsafe
                     {
-                        if (getfullpath(info.FullName, b, buffer.Length) == 1)
+                        fixed (byte* b = &buffer[0])
                         {
-                            return Encoding.UTF8.GetString(buffer, 0, buffer.Count(x => x != 0));
+                            if (getfullpath(info.FullName, b, buffer.Length) == 1)
+                            {
+                                return Encoding.UTF8.GetString(buffer, 0, buffer.Count(x => x != 0));
+                            }
                         }
                     }
+                }
+                catch
+                {
+                    return null;
                 }
             }
             else
