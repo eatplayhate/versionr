@@ -787,6 +787,14 @@ namespace Versionr
                                 if (options.Interactive && !Printer.Prompt("(Create) Apply?"))
                                     continue;
                                 System.IO.Directory.CreateDirectory(rpath);
+
+                                if (enableStaging)
+                                {
+                                    Printer.PrintMessage("#s# - Success, Staged");
+                                    LocalData.AddStageOperation(new StageOperation() { Operand1 = GetLocalPath(rpath), Type = StageOperationType.Add });
+                                }
+                                else
+                                    Printer.PrintMessage("#s# - Success");
                             }
                             else
                                 Printer.PrintMessage("  - Skipped, directory already added.");
