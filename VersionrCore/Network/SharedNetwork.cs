@@ -366,6 +366,11 @@ namespace Versionr.Network
                             {
                                 if (!QueryBranch(info, branchesToSend, info.Workspace.GetBranch(versionsToCheck[i].Branch)))
                                     return false;
+                                var parentID = info.Workspace.GetVersion(versionsToCheck[i].ID).Parent;
+                                if (parentID.HasValue && !info.RemoteCheckedVersions.Contains(parentID.Value))
+                                {
+                                    GetVersionListInternal(info, info.Workspace.GetVersion(parentID.Value), branchesToSend, versionsToSend);
+                                }
                                 var mergeInfo = info.Workspace.GetMergeInfo(versionsToCheck[i].ID);
                                 foreach (var x in mergeInfo)
                                 {
