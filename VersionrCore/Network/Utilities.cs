@@ -89,7 +89,7 @@ namespace Versionr.Network
                 return result;
             }
         }
-        public static void SendEncrypted<T>(SharedNetwork.SharedNetworkInfo info, T argument, System.IO.Stream target = null)
+        public static void SendEncrypted<T>(SharedNetwork.SharedNetworkInfo info, T argument, System.IO.Stream target = null, bool bypassCompression = false)
         {
             byte[] result;
             using (System.IO.MemoryStream memoryStream = new System.IO.MemoryStream())
@@ -122,7 +122,7 @@ namespace Versionr.Network
             int? decompressedSize = null;
             byte[] compressedBuffer = null;
             PacketCompressionCodec codec = PacketCompressionCodec.None;
-            if (true)
+            if (result.Length > 256 && !bypassCompression)
             {
                 compressedBuffer = LZ4.LZ4Codec.Encode(result, 0, result.Length);
                 if (compressedBuffer.Length < result.Length)
@@ -164,15 +164,18 @@ namespace Versionr.Network
                 ProtoBuf.Serializer.SerializeWithLengthPrefix<Packet>(target, packet, ProtoBuf.PrefixStyle.Fixed32);
         }
 
-        public static uint ComputeChecksumFNVWeak(byte[] result)
+        public static unsafe uint ComputeChecksumFNVWeak(byte[] result)
         {
             uint fnv = 2166136261;
             int size = result.Length;
             int i = 0;
-            for (; i < size - 4; i += 4)
+            fixed (byte* p = result)
             {
-                fnv ^= BitConverter.ToUInt32(result, i);
-                fnv *= 16777619;
+                for (; i < size - 4; i += 4)
+                {
+                    fnv ^= *(uint*)(p + i);
+                    fnv *= 16777619;
+                }
             }
             while (i != size)
             {
