@@ -1115,8 +1115,9 @@ namespace Versionr.ObjectStore
 
         private Stream GetFlatDataStream(string lookup, out long length)
         {
+            length = -1;
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
-            return OpenLegacyStreamReadOnly(storeData, out length);
+            return storeData == null ? null : OpenLegacyStreamReadOnly(storeData, out length);
         }
         public override System.IO.Stream GetRecordStream(Objects.Record record)
         {
