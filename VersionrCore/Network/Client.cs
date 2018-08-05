@@ -1172,6 +1172,7 @@ namespace Versionr.Network
             RemoteDomain = remoteArea.Domain.ToString();
 
             System.Net.Sockets.TcpClient client = new System.Net.Sockets.TcpClient();
+            client.ReceiveBufferSize = 16 * 1024 * 1024;
             client.Connect(listener.LocalEndpoint as System.Net.IPEndPoint);
             Connection = client;
             Connected = true;

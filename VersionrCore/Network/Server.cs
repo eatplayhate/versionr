@@ -406,6 +406,7 @@ namespace Versionr.Network
                         using (ws)
                         {
                             client.NoDelay = true;
+                            client.SendBufferSize = 16 * 1024 * 1024;
                             RunServerConnection(ws, domainInfo, clientInfo, info, hs.RequestedModule);
                         }
                     }

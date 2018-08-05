@@ -206,7 +206,7 @@ namespace Versionr
                 Printer.PrintMessage("Upgrading local cache DB from version v{0} to v{1}", Configuration.Version, LocalDBVersion);
             else
             {
-                if (!UniquenessCheck())
+                if (!headless && !UniquenessCheck())
                     SetUniqueData();
                 return true;
             }

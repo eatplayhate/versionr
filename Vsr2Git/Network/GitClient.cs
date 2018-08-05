@@ -200,7 +200,7 @@ namespace Vsr2Git.Network
 		private Identity GetAuthorIdentity(string author)
 		{
 			string gitAuthor;
-			if (m_Directives.Authors != null && m_Directives.Authors.TryGetValue(author, out gitAuthor))
+			if (m_Directives?.Authors != null && m_Directives.Authors.TryGetValue(author, out gitAuthor))
 			{
 				// Git author specified in .vrmeta as either "email@here.com" or "Bob James <email@here.com>"
 				var m = AuthorEmailRegex.Match(gitAuthor);
@@ -209,7 +209,7 @@ namespace Vsr2Git.Network
 				else
 					return new Identity(author, gitAuthor);
 			}
-			else if (m_Directives.DefaultAuthorEmailDomain != null)
+			else if (m_Directives?.DefaultAuthorEmailDomain != null)
 			{
 				return new Identity(author, author + "@" + m_Directives.DefaultAuthorEmailDomain);
 			}
