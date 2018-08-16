@@ -3,7 +3,7 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	LIBEXTS = *.dylib
 else
-	LIBEXTS = *.so
+	LIBEXTS = *.so*
 endif
 
 all:
