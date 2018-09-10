@@ -718,6 +718,8 @@
                                     <MenuItem Header="Open in Explorer" Command="{Binding OpenInExplorerCommand}" />
                                     <MenuItem Header="Remove" Command="{Binding RemoveRepoFromListCommand}" 
                                               CommandParameter="{Binding Data, Source={StaticResource ListBoxDataContext}}"/>
+                                    <MenuItem Header="Pull Current Branch" Command="{Binding PullCurrentBranchCommand}" 
+                                              CommandParameter="{Binding Data, Source={StaticResource ListBoxDataContext}}"/>
                                 </ContextMenu>
                             </StackPanel.ContextMenu>
                         </StackPanel>
