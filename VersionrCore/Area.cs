@@ -4168,11 +4168,25 @@ namespace Versionr
             return Database.GetAlterationsForVersion(x);
         }
 
+        ConcurrentDictionary<long, Objects.Record> RecordCache = new ConcurrentDictionary<long, Objects.Record>();
+        ConcurrentDictionary<long, string> RecordNameCache = new ConcurrentDictionary<long, string>();
+
         public Objects.Record GetRecord(long id)
         {
+            if (RecordCache.TryGetValue(id, out Objects.Record cached))
+                return cached;
             Objects.Record rec = Database.Find<Objects.Record>(id);
             if (rec != null)
-                rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+            {
+                string name;
+                if (!RecordNameCache.TryGetValue(rec.CanonicalNameId, out name))
+                {
+                    name = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+                    RecordNameCache.TryAdd(rec.CanonicalNameId, name);
+                }
+                rec.CanonicalName = name;
+                RecordCache.TryAdd(id, rec);
+            }
             return rec;
         }
 
