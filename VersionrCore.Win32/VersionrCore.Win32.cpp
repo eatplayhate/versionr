@@ -77,8 +77,10 @@ namespace Versionr
 
 		System::String^ FileSystem::GetPathWithCorrectCase(System::String^ fs)
 		{
-			msclr::interop::marshal_context context;
-			auto p = context.marshal_as<wchar_t const*>(fs);
+			msclr::interop::marshal_context context; 
+			
+			pin_ptr<const wchar_t> p = PtrToStringChars(fs);
+
 			HANDLE h = CreateFileW(p, 0, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 			if (h == INVALID_HANDLE_VALUE)
 				return fs;
@@ -102,6 +104,65 @@ namespace Versionr
 			if (volume->Length > 1 && volume[1] == ':')
 				volume = System::Char::ToUpper(volume[0]) + volume->Substring(1);
 			return volume + gcnew String(ptr);
+		}
+
+		System::String^ FileSystem::GetPathWithoutVolume(System::String^ fs)
+		{
+			msclr::interop::marshal_context context;
+
+			pin_ptr<const wchar_t> p = PtrToStringChars(fs);
+
+			HANDLE h = CreateFileW(p, 0, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+			if (h == INVALID_HANDLE_VALUE)
+				return fs;
+			unsigned int block[16 * 1024 + 1];
+			memset(block, 0, sizeof(block));
+
+			FILE_NAME_INFO* fni = (FILE_NAME_INFO*)block;
+			fni->FileNameLength = 16 * 1024 * 2; //wchar_t
+
+			GetFileInformationByHandleEx(h, FileNameInfo, fni, sizeof(block));
+
+			return gcnew String(fni->FileName);
+		}
+
+		System::String^ FileSystem::GetPathCorrectCaseVolumeHint(System::String^ fs, System::String^ volume, System::String^ root)
+		{
+			msclr::interop::marshal_context context;
+
+			pin_ptr<const wchar_t> p = PtrToStringChars(fs);
+
+			HANDLE h = CreateFileW(p, 0, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+			if (h == INVALID_HANDLE_VALUE)
+				return fs;
+			unsigned int block[16 * 1024 + 1];
+			memset(block, 0, sizeof(block));
+
+			FILE_NAME_INFO* fni = (FILE_NAME_INFO*)block;
+			fni->FileNameLength = 16 * 1024 * 2; //wchar_t
+
+			GetFileInformationByHandleEx(h, FileNameInfo, fni, sizeof(block));
+
+			pin_ptr<const wchar_t> pVolume = PtrToStringChars(volume);
+
+			if (wcsncmp(pVolume, fni->FileName, volume->Length) == 0)
+			{
+				wchar_t* ptr = fni->FileName;
+				return String::Concat(root, gcnew String(ptr + volume->Length));
+			}
+
+			wchar_t output[MAX_PATH];
+			GetVolumePathNameW(p, output, MAX_PATH);
+			CloseHandle(h);
+
+			wchar_t* ptr = fni->FileName;
+			if (*ptr == '\\' || *ptr == '/')
+				ptr++;
+
+			String^ resultVolume = gcnew String(output);
+			if (resultVolume->Length > 1 && resultVolume[1] == ':')
+				resultVolume = System::Char::ToUpper(resultVolume[0]) + resultVolume->Substring(1);
+			return resultVolume + gcnew String(ptr);
 		}
 
 		int FileSystem::EnumerateFileSystemX(System::String^ fs)

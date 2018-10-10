@@ -9,7 +9,8 @@ using Grapevine.Interfaces.Server;
 using Grapevine.Interfaces.Shared;
 using Grapevine.Shared;
 using Grapevine.Shared.Loggers;
-using ExtendedProtectionSelector = System.Net.HttpListener.ExtendedProtectionSelector;
+// see https://github.com/sukona/Grapevine/issues/201
+// using ExtendedProtectionSelector = System.Net.HttpListener.ExtendedProtectionSelector;
 using HttpListener = Grapevine.Interfaces.Server.HttpListener;
 
 namespace Grapevine.Server

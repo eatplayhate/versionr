@@ -34,6 +34,7 @@ namespace Versionr
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
         public DirectoryInfo RootDirectory { get; private set; }
+        public string RootDirectoryName { get; private set; }
         public bool IsServer { get; private set; } = false;
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
@@ -3530,6 +3531,17 @@ namespace Versionr
         IEnumerable<Objects.Version> GetHistoryChunked(Objects.Version version, int? limit)
         {
             int remaining = limit.HasValue ? limit.Value : int.MaxValue;
+
+            while (true)
+            {
+                if (version.Parent == null || (limit.HasValue && remaining-- == 0))
+                    yield break;
+                var v = Database.Get<Objects.Version>(version.Parent.Value);
+                yield return v;
+                version = v;
+            }
+            yield break;
+
             int chunkCount = 256;
             Objects.Version top = version;
             bool first = true;
@@ -3769,6 +3781,7 @@ namespace Versionr
         {
             Utilities.MultiArchPInvoke.BindDLLs();
             RootDirectory = new System.IO.DirectoryInfo(adminFolder.Parent.GetFullNameWithCorrectCase());
+            RootDirectoryName = RootDirectory.FullName;
             adminFolder.Create();
             AdministrationFolder = new System.IO.DirectoryInfo(adminFolder.GetFullNameWithCorrectCase());
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
@@ -4166,11 +4179,25 @@ namespace Versionr
             return Database.GetAlterationsForVersion(x);
         }
 
+        ConcurrentDictionary<long, Objects.Record> RecordCache = new ConcurrentDictionary<long, Objects.Record>();
+        ConcurrentDictionary<long, string> RecordNameCache = new ConcurrentDictionary<long, string>();
+
         public Objects.Record GetRecord(long id)
         {
+            if (RecordCache.TryGetValue(id, out Objects.Record cached))
+                return cached;
             Objects.Record rec = Database.Find<Objects.Record>(id);
             if (rec != null)
-                rec.CanonicalName = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+            {
+                string name;
+                if (!RecordNameCache.TryGetValue(rec.CanonicalNameId, out name))
+                {
+                    name = Database.Get<Objects.ObjectName>(rec.CanonicalNameId).CanonicalName;
+                    RecordNameCache.TryAdd(rec.CanonicalNameId, name);
+                }
+                rec.CanonicalName = name;
+                RecordCache.TryAdd(id, rec);
+            }
             return rec;
         }
 
@@ -7428,9 +7455,16 @@ namespace Versionr
                             missingData = missingData.Where(z => !retrievedData.Contains(z)).ToList();
                             client.Close();
 						}
-						catch
+						catch (Exception e)
 						{
-							client.Close();
+                            try
+                            {
+                                client.Close();
+                            }
+                            finally
+                            {
+                                Printer.PrintError(e.ToString());
+                            }
 						}
 					}
 
@@ -7473,6 +7507,7 @@ namespace Versionr
         {
             List<Record> missingRecords = new List<Record>();
             HashSet<string> requestedData = new HashSet<string>();
+            ObjectStore.BeginBulkQuery();
             foreach (var x in targetRecords)
             {
                 List<string> dataRequests = null;
@@ -7497,6 +7532,7 @@ namespace Versionr
                     }
                 }
             }
+            ObjectStore.EndBulkQuery();
             return missingRecords;
         }
 
@@ -8369,7 +8405,7 @@ namespace Versionr
                     ApplyAttributes(directory, referenceTime, rec);
                     return;
                 }
-                string fullCasedPath = directory.GetFullNameWithCorrectCase();
+                string fullCasedPath = directory.GetFullNameWithCorrectCase(RootDirectoryName);
                 recPath = recPath.TrimEnd('/');
                 if (MultiArchPInvoke.RunningPlatform == Platform.Windows)
                     recPath = recPath.Replace('/', '\\');
@@ -9058,7 +9094,7 @@ namespace Versionr
                     }
                     while (newfn == null || oldfn == null)
                     {
-                        if (++line == patchContents.Length)
+                        if (line == patchContents.Length)
                         {
                             Printer.PrintMessage("#e#Failed to find target directives (hunk start at line {0})##", startHunk);
                             return false;

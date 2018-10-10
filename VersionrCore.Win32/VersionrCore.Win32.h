@@ -19,6 +19,8 @@ namespace Versionr
 			static System::String^ GetPathWithCorrectCase(System::String^ fs);
 
 			static System::String^ GetFullPath(System::String^ path);
+			static System::String^ GetPathWithoutVolume(System::String^ fs);
+			static System::String^ GetPathCorrectCaseVolumeHint(System::String^ fs, System::String^ volume, System::String^ root);
 			static bool Exists(System::String^ path);
 			static DWORD GetAttributes(System::String^ path);
 			static void ReadData(System::String^ path,

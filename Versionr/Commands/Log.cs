@@ -650,12 +650,14 @@ namespace Versionr.Commands
             Objects.Version last = null;
             m_Branches = new Dictionary<Guid, Objects.Branch>();
             bool anything = false;
+            ws.BeginDatabaseTransaction();
             foreach (var x in ApplyHistoryFilter(history, localOptions))
             {
                 last = x.Item1.Item1;
                 FormatLog(x.Item1, x.Item2, localOptions);
                 anything = true;
             }
+            ws.CommitDatabaseTransaction();
 
             if (localOptions.Xml)
             {

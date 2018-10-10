@@ -23,7 +23,10 @@ namespace Grapevine.Interfaces.Server
         /// <summary>
         /// Gets a default list of Service Provider Names (SPNs) as determined by registered prefixes.
         /// </summary>
-        ServiceNameCollection DefaultServiceNames { get; }
+        // see https://github.com/sukona/Grapevine/issues/201
+        // Perhaps a configuration that defines a "preprocessor macro" to get around Mono/non-Mono
+        // ServiceNameCollection DefaultServiceNames { get; }
+
 
         /// <summary>
         /// Get or set the ExtendedProtectionPolicy to use for extended protection for a session.
@@ -132,7 +135,9 @@ namespace Grapevine.Interfaces.Server
             set { InnerListener.AuthenticationSchemeSelectorDelegate = value; }
         }
 
-        public ServiceNameCollection DefaultServiceNames => InnerListener.DefaultServiceNames;
+        // see https://github.com/sukona/Grapevine/issues/201
+        // Perhaps a configuration that defines a "preprocessor macro" to get around Mono/non-Mono
+        // public ServiceNameCollection DefaultServiceNames => InnerListener.DefaultServiceNames;
 
         //public ExtendedProtectionPolicy ExtendedProtectionPolicy
         //{

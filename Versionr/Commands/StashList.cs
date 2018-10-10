@@ -111,7 +111,7 @@ namespace Versionr.Commands
                 else
                 {
                     Printer.PrintMessage("Remote vault has #b#{0}## stash{1} {2}:", stashes.Count, stashes.Count == 1 ? "" : "es", (localOptions.Name == null || localOptions.Name.Count == 0) ? "available" : " matching the query name.");
-                    foreach (var x in stashes)
+                    foreach (var x in Enumerable.Reverse(stashes))
                     {
                         Printer.PrintMessage(" #b#{0}##: #q#{4}##\n    {1} - by {2} on #q#{3}##", x.Author + "-" + x.Key, string.IsNullOrEmpty(x.Name) ? "(no name)" : ("\"" + x.Name + "\""), x.Author, x.Time.ToLocalTime(), x.GUID);
                     }
@@ -127,7 +127,7 @@ namespace Versionr.Commands
                 else
                 {
                     Printer.PrintMessage("Vault has #b#{0}## stash{1} available:", stashes.Count, stashes.Count == 1 ? "" : "es");
-                    foreach (var x in stashes)
+                    foreach (var x in Enumerable.Reverse(stashes))
                     {
                         Printer.PrintMessage(" #b#{0}##: {5} - #q#{4}##\n    {1} - by {2} on #q#{3}##", x.Author + "-" + x.Key, string.IsNullOrEmpty(x.Name) ? "(no name)" : ("\"" + x.Name + "\""), x.Author, x.Time.ToLocalTime(), x.GUID, Versionr.Utilities.Misc.FormatSizeFriendly(x.File.Length));
                     }

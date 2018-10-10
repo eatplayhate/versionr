@@ -225,6 +225,8 @@ namespace Versionr
         static extern bool PathIsNetworkPath(string pszPath);
 
         private static Func<string, string> GetPathCorrectCase = null;
+        private static Func<string, string> GetPathWithoutVolume = null;
+        private static Func<string, string, string, string> GetPathCorrectCaseVolumeHint = null;
         private static bool? NetworkSafeMode = null;
 
         public static string GetFullPathNative(FileSystemInfo info)
@@ -254,15 +256,7 @@ namespace Versionr
             {
                 if (GetPathCorrectCase == null && !NetworkSafeMode.HasValue)
                 {
-                    try
-                    {
-                        var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
-                        GetPathCorrectCase = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithCorrectCase").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
-                    }
-                    catch
-                    {
-                        NetworkSafeMode = true;
-                    }
+                    InitPathNativeMethods();
                 }
                 if (!NetworkSafeMode.HasValue)
                     NetworkSafeMode = PathIsNetworkPath(info.FullName);
@@ -273,6 +267,55 @@ namespace Versionr
             return null;
         }
 
+        public static string GetFullPathNativeHinted(FileSystemInfo info, string rootPath)
+        {
+            if (Versionr.Utilities.MultiArchPInvoke.IsRunningOnMono)
+            {
+                return GetFullPathNative(info);
+            }
+            else
+            {
+                if (GetPathCorrectCase == null && !NetworkSafeMode.HasValue)
+                {
+                    InitPathNativeMethods();
+                }
+                if (!NetworkSafeMode.HasValue)
+                    NetworkSafeMode = PathIsNetworkPath(info.FullName);
+                if (NetworkSafeMode == true)
+                    return null;
+
+                string volume;
+                lock (PathVolumeCache)
+                {
+                    if (!PathVolumeCache.TryGetValue(rootPath, out volume))
+                    {
+                        volume = GetPathWithoutVolume(rootPath);
+                        PathVolumeCache[rootPath] = volume;
+                    }
+                }
+
+                return GetPathCorrectCaseVolumeHint(info.FullName, volume, rootPath);
+            }
+            return null;
+        }
+
+        private static void InitPathNativeMethods()
+        {
+            try
+            {
+                var asm = System.Reflection.Assembly.LoadFrom(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) + "/x64/VersionrCore.Win32.dll");
+                GetPathCorrectCase = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithCorrectCase").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
+                GetPathWithoutVolume = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathWithoutVolume").CreateDelegate(typeof(Func<string, string>)) as Func<string, string>;
+                GetPathCorrectCaseVolumeHint = asm.GetType("Versionr.Win32.FileSystem").GetMethod("GetPathCorrectCaseVolumeHint").CreateDelegate(typeof(Func<string, string, string, string>)) as Func<string, string, string, string>;
+            }
+            catch
+            {
+                NetworkSafeMode = true;
+            }
+        }
+
+        static Dictionary<string, string> PathVolumeCache = new Dictionary<string, string>();
+
         public static String GetFullNameWithCorrectCase(this FileSystemInfo fileOrFolder)
         {
             //Check whether null to simulate instance method behavior
@@ -281,6 +324,19 @@ namespace Versionr
             if (s1 != null)
                 return s1;
                 
+            //Initialize common variables
+            String myResult = GetCorrectCaseOfParentFolder(fileOrFolder.FullName);
+            return myResult;
+        }
+
+        public static String GetFullNameWithCorrectCase(this FileSystemInfo fileOrFolder, string rootPath)
+        {
+            //Check whether null to simulate instance method behavior
+            if (Object.ReferenceEquals(fileOrFolder, null)) throw new NullReferenceException();
+            string s1 = GetFullPathNativeHinted(fileOrFolder, rootPath);
+            if (s1 != null)
+                return s1;
+
             //Initialize common variables
             String myResult = GetCorrectCaseOfParentFolder(fileOrFolder.FullName);
             return myResult;
@@ -740,6 +796,13 @@ namespace Versionr
                     }
 
                     var parent = new Entry(area, parentEntry, slashedSubdirectory, r.FullName, parentEntry == null ? slashedSubdirectory : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, 0, ignoreDirectory, (FileAttributes)r.Attributes);
+
+                    if (parent.IsSymlink)
+                    {
+                        i += r.ChildCount;
+                        continue;
+                    }
+
                     e2.Add(parent);
                     if (ignoreDirectory)
                     {
