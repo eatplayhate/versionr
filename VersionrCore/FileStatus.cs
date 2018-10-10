@@ -740,6 +740,13 @@ namespace Versionr
                     }
 
                     var parent = new Entry(area, parentEntry, slashedSubdirectory, r.FullName, parentEntry == null ? slashedSubdirectory : r.FullName.Substring(parentEntry.FullName.Length), r.FileTime, 0, ignoreDirectory, (FileAttributes)r.Attributes);
+
+                    if (parent.IsSymlink)
+                    {
+                        i += r.ChildCount;
+                        continue;
+                    }
+
                     e2.Add(parent);
                     if (ignoreDirectory)
                     {
