@@ -3532,6 +3532,7 @@ namespace Versionr
         {
             int remaining = limit.HasValue ? limit.Value : int.MaxValue;
 
+            yield return version;
             while (true)
             {
                 if (version.Parent == null || (limit.HasValue && remaining-- == 0))
