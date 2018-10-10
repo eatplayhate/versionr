@@ -22,6 +22,7 @@ namespace Versionr.Network
             Versionr34,
             Versionr35,
             Versionr36,
+            Versionr37,
         }
         public static bool SupportsAuthentication(Protocol protocol)
         {
@@ -29,7 +30,7 @@ namespace Versionr.Network
                 return false;
             return true;
         }
-        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr36, Protocol.Versionr35, Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
+        public static Protocol[] AllowedProtocols = new Protocol[] { Protocol.Versionr37, Protocol.Versionr36, Protocol.Versionr35, Protocol.Versionr34, Protocol.Versionr33, Protocol.Versionr32, Protocol.Versionr31 };
         public static Protocol DefaultProtocol
         {
             get
@@ -275,6 +276,7 @@ namespace Versionr.Network
                         60);
                 sw.Start();
             }
+            
             Func<byte[], int, bool, bool> sender = GetSender(info, sstats);
 
             long dataSize = fileLength;
@@ -366,6 +368,11 @@ namespace Versionr.Network
                             {
                                 if (!QueryBranch(info, branchesToSend, info.Workspace.GetBranch(versionsToCheck[i].Branch)))
                                     return false;
+                                var parentID = info.Workspace.GetVersion(versionsToCheck[i].ID).Parent;
+                                if (parentID.HasValue && !info.RemoteCheckedVersions.Contains(parentID.Value))
+                                {
+                                    GetVersionListInternal(info, info.Workspace.GetVersion(parentID.Value), branchesToSend, versionsToSend);
+                                }
                                 var mergeInfo = info.Workspace.GetMergeInfo(versionsToCheck[i].ID);
                                 foreach (var x in mergeInfo)
                                 {
@@ -928,32 +935,43 @@ namespace Versionr.Network
             return localVersion;
         }
 
+        class TransmitBuffer
+        {
+            public byte[] Data = new byte[1024 * 1024];
+            public int Used = 0;
+        }
+
         private static Func<byte[], int, bool, bool> GetSender(SharedNetworkInfo sharedInfo, SendStats stats = null)
         {
-            List<byte> datablock = new List<byte>();
-            byte[] tempBuffer = new byte[1024 * 1024];
+            TransmitBuffer tempBuffer = new TransmitBuffer();
             return (byte[] data, int size, bool flush) =>
             {
-                int totalSize = datablock.Count + size;
-                int blockSize = 1024 * 1024;
+                int totalSize = tempBuffer.Used + size;
+                int blockSize = tempBuffer.Data.Length;
                 int remainder = size;
                 int offset = 0;
                 while (totalSize > blockSize)
                 {
-                    datablock.CopyTo(0, tempBuffer, 0, datablock.Count);
-                    int nextBlockSize = blockSize - datablock.Count;
-                    if (nextBlockSize > remainder)
-                        nextBlockSize = remainder;
-                    Array.Copy(data, offset, tempBuffer, datablock.Count, nextBlockSize);
-                    offset += nextBlockSize;
-                    datablock.Clear();
-                    totalSize -= blockSize;
-                    remainder -= nextBlockSize;
-                    DataPayload dataPack = new DataPayload() { Data = tempBuffer, EndOfStream = false };
-                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
-                    var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
-                    if (reply.Type != NetCommandType.DataReceived)
-                        return false;
+                    int copyThisChunk = blockSize - tempBuffer.Used;
+                    if (copyThisChunk > 0)
+                    {
+                        Buffer.BlockCopy(data, offset, tempBuffer.Data, tempBuffer.Used, copyThisChunk);
+                        offset += copyThisChunk;
+                        remainder -= copyThisChunk;
+                        tempBuffer.Used += copyThisChunk;
+                    }
+
+                    DataPayload dataPack = new DataPayload() { Data = tempBuffer.Data, EndOfStream = false };
+                    tempBuffer.Used = 0;
+                    totalSize = tempBuffer.Used + remainder;
+
+                    Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack, null, true); // bypass compression
+                    if (sharedInfo.CommunicationProtocol < Protocol.Versionr37)
+                    {
+                        var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
+                        if (reply.Type != NetCommandType.DataReceived)
+                            return false;
+                    }
                     if (stats != null)
                     {
                         stats.BytesSent += dataPack.Data.Length;
@@ -961,12 +979,15 @@ namespace Versionr.Network
                 }
                 if (remainder > 0)
                 {
-                    for (int i = offset; i < size; i++)
-                        datablock.Add(data[i]);
+                    Buffer.BlockCopy(data, offset, tempBuffer.Data, tempBuffer.Used, remainder);
+                    tempBuffer.Used += remainder;
                 }
                 if (flush)
                 {
-                    DataPayload dataPack = new DataPayload() { Data = datablock.ToArray(), EndOfStream = true };
+                    var finalBlock = new byte[tempBuffer.Used];
+                    Buffer.BlockCopy(tempBuffer.Data, 0, finalBlock, 0, tempBuffer.Used);
+                    tempBuffer.Used = 0;
+                    DataPayload dataPack = new DataPayload() { Data = finalBlock, EndOfStream = true };
                     Utilities.SendEncrypted<DataPayload>(sharedInfo, dataPack);
                     var reply = ProtoBuf.Serializer.DeserializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, ProtoBuf.PrefixStyle.Fixed32);
                     if (reply.Type != NetCommandType.DataReceived)
@@ -1080,11 +1101,14 @@ namespace Versionr.Network
                     RecordStatus status = new RecordStatus();
                     var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
                     {
-                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+                        if (sharedInfo.CommunicationProtocol < Protocol.Versionr37)
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                         var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
                         status.Bytes += pack.Data.Length;
                         if (pack.EndOfStream)
                         {
+                            if (sharedInfo.CommunicationProtocol >= Protocol.Versionr37)
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                             return new Tuple<byte[], bool>(pack.Data, true);
                         }
                         else
@@ -1273,11 +1297,14 @@ namespace Versionr.Network
                     RecordStatus status = new RecordStatus();
                     var receiverStream = new Versionr.Utilities.ChunkedReceiverStream(() =>
                     {
-                        ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
+                        if (sharedInfo.CommunicationProtocol < Protocol.Versionr37)
+                            ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                         var pack = Utilities.ReceiveEncrypted<DataPayload>(sharedInfo);
                         status.Bytes += pack.Data.Length;
                         if (pack.EndOfStream)
                         {
+                            if (sharedInfo.CommunicationProtocol >= Protocol.Versionr37)
+                                ProtoBuf.Serializer.SerializeWithLengthPrefix<NetCommand>(sharedInfo.Stream, new NetCommand() { Type = NetCommandType.DataReceived }, ProtoBuf.PrefixStyle.Fixed32);
                             return new Tuple<byte[], bool>(pack.Data, true);
                         }
                         else

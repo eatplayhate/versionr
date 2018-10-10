@@ -1057,11 +1057,17 @@ namespace Versionr.ObjectStore
             return true;
         }
 
-        private FileInfo GetFileForDataID(string id)
+        private FileInfo GetFileForDataID(string id, bool readOnly = false)
         {
-            DirectoryInfo subDir = new DirectoryInfo(Path.Combine(DataFolder.FullName, id.Substring(0, 2)));
-            subDir.Create();
-            return new FileInfo(Path.Combine(subDir.FullName, id.Substring(2)));
+            string dirname = Path.Combine(DataFolder.FullName, id.Substring(0, 2));
+            string fname = Path.Combine(dirname, id.Substring(2));
+
+            if (!readOnly)
+            {
+                DirectoryInfo subDir = new DirectoryInfo(dirname);
+                subDir.Create();
+            }
+            return new FileInfo(fname);
         }
 
         private bool CheckFileForDataIDExists(string id)
@@ -1093,13 +1099,13 @@ namespace Versionr.ObjectStore
 
         public override bool TransmitObjectData(string dataID, Func<byte[], int, bool, bool> sender, byte[] scratchBuffer, Action beginTransmission = null)
         {
-            long dataSize = GetTransmissionLength(dataID);
-            if (dataSize == 0)
-                return true;
-            if (dataSize == -1)
-                return false;
-            using (System.IO.Stream dataStream = GetFlatDataStream(dataID))
+            long dataSize;
+            using (System.IO.Stream dataStream = GetFlatDataStream(dataID, out dataSize))
             {
+                if (dataSize == 0)
+                    return true;
+                if (dataSize == -1)
+                    return false;
                 if (dataStream == null)
                     return false;
                 if (beginTransmission != null)
@@ -1116,10 +1122,11 @@ namespace Versionr.ObjectStore
             return true;
         }
 
-        private Stream GetFlatDataStream(string lookup)
+        private Stream GetFlatDataStream(string lookup, out long length)
         {
+            length = -1;
             var storeData = ObjectDatabase.Find<FileObjectStoreData>(lookup);
-            return OpenLegacyStream(storeData);
+            return storeData == null ? null : OpenLegacyStreamReadOnly(storeData, out length);
         }
         public override System.IO.Stream GetRecordStream(Objects.Record record)
         {
@@ -1306,6 +1313,25 @@ namespace Versionr.ObjectStore
                 default:
                     throw new Exception();
             }
+        }
+
+        private Stream OpenLegacyStreamReadOnly(FileObjectStoreData storeData, out long length)
+        {
+            if (storeData.BlobID.HasValue)
+            {
+                var blobject = BlobDatabase.Get<Blobject>(storeData.BlobID.Value);
+                length = blobject.Data.LongLength;
+                return new MemoryStream(blobject.Data);
+            }
+            FileInfo info = GetFileForDataID(storeData.Lookup, true);
+            if (info == null)
+            {
+                length = 0;
+                return null;
+            }
+            var stream = info.OpenRead();
+            length = info.Length;
+            return stream;
         }
 
         private Stream OpenLegacyStream(FileObjectStoreData storeData)

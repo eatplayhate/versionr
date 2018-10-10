@@ -9069,7 +9069,7 @@ namespace Versionr
                     }
                     while (newfn == null || oldfn == null)
                     {
-                        if (++line == patchContents.Length)
+                        if (line == patchContents.Length)
                         {
                             Printer.PrintMessage("#e#Failed to find target directives (hunk start at line {0})##", startHunk);
                             return false;

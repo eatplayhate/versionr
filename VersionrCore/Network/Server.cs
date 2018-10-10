@@ -405,6 +405,7 @@ namespace Versionr.Network
 
                         using (ws)
                         {
+                            client.NoDelay = true;
                             RunServerConnection(ws, domainInfo, clientInfo, info, hs.RequestedModule);
                         }
                     }

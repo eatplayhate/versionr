@@ -35,6 +35,7 @@ namespace VersionrUI.ViewModels
         public DelegateCommand OpenInExplorerCommand { get; private set; }
         public DelegateCommand<ObservableCollection<AreaVM>> RemoveRepoFromListCommand { get; private set; }
         public DelegateCommand FindVersionCommand { get; private set; }
+        public DelegateCommand<ObservableCollection<AreaVM>> PullCurrentBranchCommand { get; private set; }
 
         private string m_Name;
         private List<BranchVM> m_Branches;
@@ -53,6 +54,7 @@ namespace VersionrUI.ViewModels
             OpenInExplorerCommand = new DelegateCommand(OpenInExplorer);
             RemoveRepoFromListCommand = new DelegateCommand<ObservableCollection<AreaVM>>(RemoveRepoFromList);
             FindVersionCommand = new DelegateCommand(FindVersion);
+            PullCurrentBranchCommand = new DelegateCommand<ObservableCollection<AreaVM>>(PullCurrentBranch);
 
             m_Name = name;
         }
@@ -388,6 +390,18 @@ namespace VersionrUI.ViewModels
                 areas.Remove(areaToRemove);
             // Update on disk
             VersionrPanel.SaveOpenAreas(areas);
+        }
+
+        private void PullCurrentBranch(ObservableCollection<AreaVM> areas)
+        {
+            AreaVM selectedArea = areas?.FirstOrDefault(area => area.Directory.FullName == Directory.FullName);
+            if (selectedArea == null)
+                return;
+            var currentBranchName = selectedArea.SelectedBranch.Name;
+            OperationStatusDialog.Start("Pull");
+            ExecuteClientCommand((c) => c.Pull(true, currentBranchName), "pull");
+            Area.Update(new Versionr.Area.MergeSpecialOptions());
+            OperationStatusDialog.Finish();
         }
 
         private void FindVersion()
