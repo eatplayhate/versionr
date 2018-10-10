@@ -216,10 +216,11 @@ namespace Versionr.Commands
                                 if (Workspace.ExportRecord(x.CanonicalName, version, tmp))
                                 {
                                     Printer.PrintMessage("Displaying changes for file: #b#{0}", x.CanonicalName);
-                                    if (localOptions.External)
+                                    if (localOptions.External || localOptions.ExternalNonBlocking)
                                     {
                                         tempFiles.Add(tmp);
                                         bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
+                                        nonblocking |= localOptions.ExternalNonBlocking;
                                         var t = GetTaskFactory(options).StartNew(() =>
                                         {
                                             var diffResult = Utilities.DiffTool.Diff(tmp, x.Name + "-base", Workspace.GetLocalCanonicalName(x.VersionControlRecord), x.Name, ws.Directives.ExternalDiff, nonblocking);
@@ -274,11 +275,12 @@ namespace Versionr.Commands
                             }
 
                             Printer.PrintMessage("Displaying changes for file: #b#{0}", rec.CanonicalName);
-                            if (localOptions.External)
+                            if (localOptions.External || localOptions.ExternalNonBlocking)
                             {
+                                bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
+                                nonblocking |= localOptions.ExternalNonBlocking;
                                 tempFiles.Add(tmpVersion);
                                 tempFiles.Add(tmpParent);
-                                bool nonblocking = Workspace.Directives.NonBlockingDiff.HasValue && Workspace.Directives.NonBlockingDiff.Value;
                                 var t = GetTaskFactory(options).StartNew(() =>
                                 {
                                     var diffResult = Utilities.DiffTool.Diff(tmpParent, rec.Name + "-" + parent.ShortName, tmpVersion, rec.Name + "-" + version.ShortName, ws.Directives.ExternalDiff, nonblocking);
