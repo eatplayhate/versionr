@@ -34,6 +34,7 @@ namespace Versionr
         public ObjectStore.ObjectStoreBase ObjectStore { get; private set; }
         public DirectoryInfo AdministrationFolder { get; private set; }
         public DirectoryInfo RootDirectory { get; private set; }
+        public string RootDirectoryName { get; private set; }
         public bool IsServer { get; private set; } = false;
         private WorkspaceDB Database { get; set; }
         private LocalDB LocalData { get; set; }
@@ -3769,6 +3770,7 @@ namespace Versionr
         {
             Utilities.MultiArchPInvoke.BindDLLs();
             RootDirectory = new System.IO.DirectoryInfo(adminFolder.Parent.GetFullNameWithCorrectCase());
+            RootDirectoryName = RootDirectory.FullName;
             adminFolder.Create();
             AdministrationFolder = new System.IO.DirectoryInfo(adminFolder.GetFullNameWithCorrectCase());
             AdministrationFolder.Attributes = FileAttributes.Directory | FileAttributes.Hidden;
@@ -7428,9 +7430,16 @@ namespace Versionr
                             missingData = missingData.Where(z => !retrievedData.Contains(z)).ToList();
                             client.Close();
 						}
-						catch
+						catch (Exception e)
 						{
-							client.Close();
+                            try
+                            {
+                                client.Close();
+                            }
+                            finally
+                            {
+                                Printer.PrintError(e.ToString());
+                            }
 						}
 					}
 
@@ -7473,6 +7482,7 @@ namespace Versionr
         {
             List<Record> missingRecords = new List<Record>();
             HashSet<string> requestedData = new HashSet<string>();
+            ObjectStore.BeginBulkQuery();
             foreach (var x in targetRecords)
             {
                 List<string> dataRequests = null;
@@ -7497,6 +7507,7 @@ namespace Versionr
                     }
                 }
             }
+            ObjectStore.EndBulkQuery();
             return missingRecords;
         }
 
@@ -8369,7 +8380,7 @@ namespace Versionr
                     ApplyAttributes(directory, referenceTime, rec);
                     return;
                 }
-                string fullCasedPath = directory.GetFullNameWithCorrectCase();
+                string fullCasedPath = directory.GetFullNameWithCorrectCase(RootDirectoryName);
                 recPath = recPath.TrimEnd('/');
                 if (MultiArchPInvoke.RunningPlatform == Platform.Windows)
                     recPath = recPath.Replace('/', '\\');

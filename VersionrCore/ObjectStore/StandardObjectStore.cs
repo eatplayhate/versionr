@@ -151,6 +151,15 @@ namespace Versionr.ObjectStore
 
         public CompressionMode DefaultCompression { get; set; }
 
+        public override void BeginBulkQuery()
+        {
+            ObjectDatabase.BeginTransaction();
+        }
+        public override void EndBulkQuery()
+        {
+            ObjectDatabase.Commit();
+        }
+
         public override void Create(Area owner)
         {
             Owner = owner;

@@ -51,5 +51,7 @@ namespace Versionr.ObjectStore
 
         public abstract void EraseData(string dataIdentifier);
         public abstract void EraseData(string[] dataIdentifier);
+        public abstract void BeginBulkQuery();
+        public abstract void EndBulkQuery();
     }
 }

@@ -36,6 +36,9 @@ namespace Versionr.Commands
 
         [Option('f', "force", HelpText = "Forces the command - suitable for unattended runs")]
         public bool Force { get; set; }
+
+        [Option('q', "quiet", HelpText = "Removes output text")]
+        public bool Quiet { get; set; }
     }
     class Pristine : BaseWorkspaceCommand
     {
@@ -98,7 +101,8 @@ namespace Versionr.Commands
                     {
                         System.IO.File.SetAttributes(x, FileAttributes.Normal);
                         System.IO.File.Delete(x);
-                        Printer.PrintMessage("#e#Purging:## {0}", x);
+                        if (!localOptions.Quiet)
+                            Printer.PrintMessage("#e#Purging:## {0}", x);
                     }
                     catch
                     {
