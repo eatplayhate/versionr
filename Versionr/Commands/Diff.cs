@@ -163,7 +163,7 @@ namespace Versionr.Commands
                                 {
                                     try
                                     {
-                                        RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), true, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
+                                        RunInternalDiff(tmp, System.IO.Path.Combine(Workspace.RootDirectory.FullName, Workspace.GetLocalCanonicalName(x.VersionControlRecord)), !localOptions.KeepTabs, Workspace.GetLocalCanonicalName(x.VersionControlRecord));
                                     }
                                     finally
                                     {
