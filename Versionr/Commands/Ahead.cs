@@ -33,8 +33,18 @@ namespace Versionr.Commands
                 return "ahead";
             }
         }
-        [Option('b', "branch", HelpText = "The name of the branch to check.")]
+        [Option('b', "branch", HelpText = "The name of the branch to check.", MutuallyExclusiveSet = "branchselect")]
         public string Branch { get; set; }
+
+        [Option('a', "all-branches", HelpText = "Show all branches ahead or behind server", MutuallyExclusiveSet = "branchselect")]
+        public bool AllBranches { get; set; }
+
+        [Option('u', "uninteresting", HelpText = "Include up-to-date and non-synchronised branches. Requires all-branches option")]
+        public bool ShowUnintersting { get; set; } = false
+
+        [Option('d', "deleted", HelpText = "Include deleted branches. Requires all-branches option")]
+        public bool IncludeDeleted { get; set; } = false;
+
     }
     class Ahead : RemoteCommand
     {
@@ -42,12 +52,12 @@ namespace Versionr.Commands
         {
             AheadVerbOptions localOptions = options as AheadVerbOptions;
             Info.DisplayInfo(client.Workspace);
-            Objects.Branch localBranch = client.Workspace.CurrentBranch;
+            Objects.Branch desiredBranch = client.Workspace.CurrentBranch;
             if (!string.IsNullOrEmpty(localOptions.Branch))
             {
                 bool multiple;
-                localBranch = client.Workspace.GetBranchByPartialName(localOptions.Branch, out multiple);
-                if (localBranch == null)
+                desiredBranch = client.Workspace.GetBranchByPartialName(localOptions.Branch, out multiple);
+                if (desiredBranch == null)
                 {
                     Printer.PrintError("#e#Error:## Local branch #b#`{0}`## not found.", localOptions.Branch);
                     return false;
@@ -59,32 +69,55 @@ namespace Versionr.Commands
                 Printer.PrintError("#e#Error:## Server does not support branch list operation.");
                 return false;
             }
-            
+
             foreach (var x in branches.Item1)
             {
-                if (x.ID != localBranch.ID)
+                if (x.ID != desiredBranch.ID && !localOptions.AllBranches)
                     continue;
-                if (x.Terminus.HasValue)
+
+                var localBranch = client.Workspace.GetBranch(x.ID);
+
+                if (localOptions.AllBranches && localBranch == null && localOptions.SkipUninteresting)
+                    continue;
+
+                if (x.Terminus.HasValue && (!localOptions.AllBranches || localOptions.IncludeDeleted))
                 {
-                    var terminus = branches.Item3[x.Terminus.Value];
                     bool present = client.Workspace.GetVersion(x.Terminus.Value) != null;
+
+                    Objects.Version terminus = null;
+                    branches.Item3.TryGetValue(x.Terminus.Value, out terminus);
+
                     string presentMarker = present ? "" : " #w#(behind)##";
                     if (present && localBranch != null)
                     {
                         if (localBranch.Terminus.Value != x.Terminus.Value)
                             presentMarker += " #w#(ahead)##";
                         else
+                        {
+                            if (localOptions.AllBranches && localOptions.SkipUninteresting)
+                                continue;
+
                             presentMarker += " #s#(up-to-date)##";
+                        }
                     }
                     if (localBranch != null && !localBranch.Terminus.HasValue)
                         presentMarker += " #w#(not locally deleted)##";
                     if (localBranch == null)
                         presentMarker += " #w#(not synchronized)##";
-                    Printer.PrintMessage("Remote - #e#(deleted)## - Last version: #b#{0}##{3}, #q#{2} {1}##", terminus.ShortName, terminus.Timestamp.ToLocalTime(), terminus.Author, presentMarker);
+
+                    string branchMarker = localOptions.AllBranches ? "#b#" + x.Name + "##" : "";
+
+                    if (terminus == null)
+                    {
+                        Printer.PrintMessage("Remote - #e#(deleted)## {2} - Last version: #e#(unknown)## #b#{0}##{1}", x.Terminus.Value, presentMarker, branchMarker);
+                    }
+                    else
+                        Printer.PrintMessage("Remote - #e#(deleted)## {4} - Last version: #b#{0}##{3}, #q#{2} {1}##", terminus.ShortName, terminus.Timestamp.ToLocalTime(), terminus.Author, presentMarker, branchMarker);
                 }
                 foreach (var z in branches.Item2.Where(y => y.Key == x.ID))
                 {
                     bool present = client.Workspace.GetVersion(z.Value) != null;
+
                     string presentMarker = present ? "" : " #w#(behind)##";
                     if (present && localBranch != null)
                     {
@@ -92,14 +125,21 @@ namespace Versionr.Commands
                         if (localHeads.Count == 1 && localHeads[0].Version != z.Value)
                             presentMarker += " #w#(ahead)##";
                         else
+                        {
+                            if (localOptions.AllBranches && localOptions.SkipUninteresting)
+                                continue;
                             presentMarker += " #s#(up-to-date)##";
+                        }
                     }
                     if (localBranch != null && localBranch.Terminus.HasValue)
                         presentMarker += " #e#(locally deleted)##";
                     if (localBranch == null)
                         presentMarker += " #w#(not synchronized)##";
+
+                    string branchMarker = localOptions.AllBranches ? "#b#" + x.Name + "##" : "";
+
                     var head = branches.Item3[z.Value];
-                    Printer.PrintMessage("Remote - #s#(active)## - Version: #b#{0}##{3}, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author, presentMarker);
+                    Printer.PrintMessage("Remote - #s#(active)## {4} - Version: #b#{0}##{3}, #q#{2} {1}##", head.ShortName, head.Timestamp.ToLocalTime(), head.Author, presentMarker, branchMarker);
                 }
             }
             return true;
