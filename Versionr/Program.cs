@@ -272,9 +272,9 @@ namespace Versionr
                 VersionOptions initalOpts = new VersionOptions();
 
                 CommandLine.Parser silentparser = new CommandLine.Parser(new Action<ParserSettings>(
-                    (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = new System.IO.StreamWriter(nullstream); p.MutuallyExclusive = true; }));
+                    (ParserSettings p) => { p.CaseSensitive = true; p.IgnoreUnknownArguments = false; p.HelpWriter = new System.IO.StreamWriter(nullstream); p.MutuallyExclusive = true; }));
                 CommandLine.Parser parser = new CommandLine.Parser(new Action<ParserSettings>(
-                   (ParserSettings p) => { p.CaseSensitive = false; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
+                   (ParserSettings p) => { p.CaseSensitive = true; p.IgnoreUnknownArguments = false; p.HelpWriter = printerStream; p.MutuallyExclusive = true; }));
                 
                 if (args.Length >= 1 && args[0] == "--version" && parser.ParseArguments(args, initalOpts) && initalOpts.Version)
                 {
