@@ -40,7 +40,7 @@ namespace Versionr.Commands
         public bool AllBranches { get; set; }
 
         [Option('u', "uninteresting", HelpText = "Include up-to-date and non-synchronised branches. Requires all-branches option")]
-        public bool ShowUnintersting { get; set; } = false
+        public bool ShowUninteresting { get; set; } = false;
 
         [Option('d', "deleted", HelpText = "Include deleted branches. Requires all-branches option")]
         public bool IncludeDeleted { get; set; } = false;
@@ -77,7 +77,7 @@ namespace Versionr.Commands
 
                 var localBranch = client.Workspace.GetBranch(x.ID);
 
-                if (localOptions.AllBranches && localBranch == null && localOptions.SkipUninteresting)
+                if (localOptions.AllBranches && localBranch == null && !localOptions.ShowUninteresting)
                     continue;
 
                 if (x.Terminus.HasValue && (!localOptions.AllBranches || localOptions.IncludeDeleted))
@@ -94,7 +94,7 @@ namespace Versionr.Commands
                             presentMarker += " #w#(ahead)##";
                         else
                         {
-                            if (localOptions.AllBranches && localOptions.SkipUninteresting)
+                            if (localOptions.AllBranches && !localOptions.ShowUninteresting)
                                 continue;
 
                             presentMarker += " #s#(up-to-date)##";
@@ -126,7 +126,7 @@ namespace Versionr.Commands
                             presentMarker += " #w#(ahead)##";
                         else
                         {
-                            if (localOptions.AllBranches && localOptions.SkipUninteresting)
+                            if (localOptions.AllBranches && !localOptions.ShowUninteresting)
                                 continue;
                             presentMarker += " #s#(up-to-date)##";
                         }
