@@ -119,178 +119,243 @@ namespace Versionr.Network
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/versions")]
         public IHttpContext Versions(IHttpContext context)
         {
-            int maxResults = 0;
-            int startAt = 0;
-            if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
+            try
             {
-                maxResults = 50;
-            }
-            if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
-            {
-                startAt = 0;
-            }
-            string filterByBranchName = context.Request.QueryString["branch"] ?? string.Empty;
-
-            RestVersionList restVersionList = new RestVersionList() { maxResults = maxResults, startAt = startAt };
-            Area ws = Area.Load(Info, true, true);
-            if (ws != null)
-            {
-                Branch branch = null;
-                bool noResults = false;
-                if (!string.IsNullOrWhiteSpace(filterByBranchName))
+                Printer.PrintMessage($"Rest Begin {context.Request.Url} #{context.Request.Id}");
+                int maxResults = 0;
+                int startAt = 0;
+                if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
                 {
-                    branch = ws.Branches.Where(x => x.Name == filterByBranchName).FirstOrDefault();
-                    noResults = branch == null;
+                    maxResults = 50;
+                }
+                if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
+                {
+                    startAt = 0;
+                }
+                string filterByBranchName = context.Request.QueryString["branch"] ?? string.Empty;
+
+                RestVersionList restVersionList = new RestVersionList() { maxResults = maxResults, startAt = startAt };
+
+                using (Area ws = Area.Load(Info, true, true))
+                {
+                    if (ws != null)
+                    {
+                        Branch branch = null;
+                        bool noResults = false;
+                        if (!string.IsNullOrWhiteSpace(filterByBranchName))
+                        {
+                            branch = ws.Branches.Where(x => x.Name == filterByBranchName).FirstOrDefault();
+                            noResults = branch == null;
+                        }
+
+                        if (!noResults)
+                        {
+                            // ws.GetVersions should be in date descending order
+                            // Getting one extra so we can see if we have got all entries
+                            var versions = ws.GetVersions(branch, maxResults + startAt + 1).Skip(startAt).ToList();
+                            restVersionList.isLast = versions.Count <= maxResults;
+                            if (!restVersionList.isLast)
+                            {
+                                versions.RemoveAt(versions.Count - 1);
+                            }
+                            restVersionList.total = versions.Count;
+                            foreach (var version in versions)
+                            {
+                                restVersionList.versions.Add(RestVersion.FromVersion(ws, version));
+                            }
+
+                        }
+                    }
+
+                    SendResponse(context, JsonConvert.SerializeObject(restVersionList));
                 }
 
-                if (!noResults)
-                {
-                    // ws.GetVersions should be in date descending order
-                    // Getting one extra so we can see if we have got all entries
-                    var versions = ws.GetVersions(branch, maxResults + startAt + 1).Skip(startAt).ToList();
-                    restVersionList.isLast = versions.Count <= maxResults;
-                    if (!restVersionList.isLast)
-                    {
-                        versions.RemoveAt(versions.Count - 1);
-                    }
-                    restVersionList.total = versions.Count;
-                    foreach (var version in versions)
-                    {
-                        restVersionList.versions.Add(RestVersion.FromVersion(ws, version));
-                    }
-
-                }
+                return context;
             }
+            catch (Exception e)
+            {
+                Printer.PrintMessage($"Rest Exception #{context.Request.Id} {e}");
 
-            SendResponse(context, JsonConvert.SerializeObject(restVersionList));
-
-            return context;
+                return context;
+            }
+            finally
+            {
+                Printer.PrintMessage($"Rest Query Retired #{context.Request.Id}");
+            }
         }
 
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/branches")]
         public IHttpContext Branches(IHttpContext context)
         {
-            int maxResults = 0;
-            int startAt = 0;
-            if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
+            try
             {
-                maxResults = 50;
-            }
-            if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
-            {
-                startAt = 0;
-            }
-
-            RestBranchList restBranchList = new RestBranchList() { maxResults = maxResults, startAt = startAt };
-
-            Area ws = Area.Load(Info, true, true);
-            if (ws != null)
-            {
-                List<Branch> branches = ws.Branches.Skip(startAt).Take(maxResults + 1).ToList();
-                restBranchList.isLast = branches.Count <= maxResults;
-                if (!restBranchList.isLast)
+                Printer.PrintMessage($"Rest Begin {context.Request.Url} #{context.Request.Id}");
+                int maxResults = 0;
+                int startAt = 0;
+                if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
                 {
-                    branches.RemoveAt(branches.Count - 1);
+                    maxResults = 50;
                 }
-                restBranchList.total = branches.Count;
-                foreach (var branch in branches)
+                if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
                 {
-                    restBranchList.branches.Add(new RestBranchEntry()
+                    startAt = 0;
+                }
+
+                RestBranchList restBranchList = new RestBranchList() { maxResults = maxResults, startAt = startAt };
+
+                using (Area ws = Area.Load(Info, true, true))
+                {
+                    if (ws != null)
                     {
-                        name = branch.Name,
-                        id = branch.ID.ToString(),
-                        parent = branch.Parent.HasValue ? branch.Parent.Value.ToString() : string.Empty,
-                        deleted = branch.Terminus.HasValue ? "true" : "false"
-                    });
+                        List<Branch> branches = ws.Branches.Skip(startAt).Take(maxResults + 1).ToList();
+                        restBranchList.isLast = branches.Count <= maxResults;
+                        if (!restBranchList.isLast)
+                        {
+                            branches.RemoveAt(branches.Count - 1);
+                        }
+                        restBranchList.total = branches.Count;
+                        foreach (var branch in branches)
+                        {
+                            restBranchList.branches.Add(new RestBranchEntry()
+                            {
+                                name = branch.Name,
+                                id = branch.ID.ToString(),
+                                parent = branch.Parent.HasValue ? branch.Parent.Value.ToString() : string.Empty,
+                                deleted = branch.Terminus.HasValue ? "true" : "false"
+                            });
+                        }
+                    }
+
+                    SendResponse(context, JsonConvert.SerializeObject(restBranchList));
                 }
+
+                return context;
             }
+            catch (Exception e)
+            {
+                Printer.PrintMessage($"Rest Exception #{context.Request.Id} {e}");
 
-            SendResponse(context, JsonConvert.SerializeObject(restBranchList));
-
-            return context;
+                return context;
+            }
+            finally
+            {
+                Printer.PrintMessage($"Rest Query Retired #{context.Request.Id}");
+            }
         }
 
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/tagjournal")]
         public IHttpContext TagJournal(IHttpContext context)
         {
-            int maxResults = 0;
-            int startAt = 0;
-            if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
+            try
             {
-                maxResults = 50;
-            }
-            if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
-            {
-                startAt = 0;
-            }
-
-            RestTagJournalList restTagJournalList = new RestTagJournalList() { maxResults = maxResults, startAt = startAt };
-
-            Area ws = Area.Load(Info, true, true);
-            if (ws != null)
-            {
-                var tagJournalList = ws.GetTagJournalTimeOrder().Skip(startAt).Take(maxResults + 1).ToList();
-                restTagJournalList.isLast = tagJournalList.Count <= maxResults;
-                if (!restTagJournalList.isLast)
+                Printer.PrintMessage($"Rest Begin {context.Request.Url} #{context.Request.Id}");
+                int maxResults = 0;
+                int startAt = 0;
+                if (!int.TryParse(context.Request.QueryString["maxResults"], out maxResults))
                 {
-                    tagJournalList.RemoveAt(tagJournalList.Count - 1);
+                    maxResults = 50;
                 }
-                restTagJournalList.total = tagJournalList.Count;
-                foreach (var tagJournalEntry in tagJournalList)
+                if (!int.TryParse(context.Request.QueryString["startAt"], out startAt))
                 {
-                    var restVersion = RestVersion.FromVersion(ws, ws.GetVersion(tagJournalEntry.Version));
-                    // Some versions may not have replicated, soz.
-                    if (restVersion == null)
-                        continue;
-                    restTagJournalList.tagjournals.Add(new RestTagJournalEntry()
+                    startAt = 0;
+                }
+
+                RestTagJournalList restTagJournalList = new RestTagJournalList() { maxResults = maxResults, startAt = startAt };
+
+                using (Area ws = Area.Load(Info, true, true))
+                {
+                    if (ws != null)
                     {
-                        version = restVersion,
-                        removing = tagJournalEntry.Removing,
-                        value = tagJournalEntry.Value,
-                        time = tagJournalEntry.Time.ToProperTimeStamp(),
-                    });
+                        var tagJournalList = ws.GetTagJournalTimeOrder().Skip(startAt).Take(maxResults + 1).ToList();
+                        restTagJournalList.isLast = tagJournalList.Count <= maxResults;
+                        if (!restTagJournalList.isLast)
+                        {
+                            tagJournalList.RemoveAt(tagJournalList.Count - 1);
+                        }
+                        restTagJournalList.total = tagJournalList.Count;
+                        foreach (var tagJournalEntry in tagJournalList)
+                        {
+                            var restVersion = RestVersion.FromVersion(ws, ws.GetVersion(tagJournalEntry.Version));
+                            // Some versions may not have replicated, soz.
+                            if (restVersion == null)
+                                continue;
+                            restTagJournalList.tagjournals.Add(new RestTagJournalEntry()
+                            {
+                                version = restVersion,
+                                removing = tagJournalEntry.Removing,
+                                value = tagJournalEntry.Value,
+                                time = tagJournalEntry.Time.ToProperTimeStamp(),
+                            });
+                        }
+                    }
+
+                    SendResponse(context, JsonConvert.SerializeObject(restTagJournalList));
                 }
+
+                return context;
             }
+            catch (Exception e)
+            {
+                Printer.PrintMessage($"Rest Exception #{context.Request.Id} {e}");
 
-            SendResponse(context, JsonConvert.SerializeObject(restTagJournalList));
-
-            return context;
+                return context;
+            }
+            finally
+            {
+                Printer.PrintMessage($"Rest Query Retired #{context.Request.Id}");
+            }
         }
 
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/annotations/([0-9a-f\\-]+)")]
         public IHttpContext Annotations(IHttpContext context)
         {
-            RestAnnotationDictionary restAnnotationList = new RestAnnotationDictionary();
-
-            string versionString = context.Request.PathParameters["p0"]; // the group from PathInfo in RestRouteAttribute
-
-            List<Objects.Annotation> annotations = new List<Objects.Annotation>();
-            Area ws = Area.Load(Info, true, true);
-            Version ver = ws.GetPartialVersion(versionString);
-
-            if (ver != null)
+            try
             {
-                bool activeOnly = true;
-                annotations.AddRange(ws.GetAnnotationsForVersion(ver.ID, activeOnly));
-                for (int i = 0; i < annotations.Count; i++)
+                Printer.PrintMessage($"Rest Begin {context.Request.Url} #{context.Request.Id}");
+                RestAnnotationDictionary restAnnotationList = new RestAnnotationDictionary();
+
+                string versionString = context.Request.PathParameters["p0"]; // the group from PathInfo in RestRouteAttribute
+
+                List<Objects.Annotation> annotations = new List<Objects.Annotation>();
+                using (Area ws = Area.Load(Info, true, true))
                 {
-                    var key = annotations[i].Key;
-                    if (!restAnnotationList.annotations.ContainsKey(key))
+                    Version ver = ws.GetPartialVersion(versionString);
+
+                    if (ver != null)
                     {
-                        restAnnotationList.annotations.Add(key, new List<RestAnnotationEntry>());
+                        bool activeOnly = true;
+                        annotations.AddRange(ws.GetAnnotationsForVersion(ver.ID, activeOnly));
+                        for (int i = 0; i < annotations.Count; i++)
+                        {
+                            var key = annotations[i].Key;
+                            if (!restAnnotationList.annotations.ContainsKey(key))
+                            {
+                                restAnnotationList.annotations.Add(key, new List<RestAnnotationEntry>());
+                            }
+                            restAnnotationList.annotations[key].Add(new RestAnnotationEntry
+                            {
+                                author = annotations[i].Author,
+                                id = annotations[i].ID.ToString(),
+                                time = annotations[i].Timestamp.ToProperTimeStamp()
+                            });
+                        }
                     }
-                    restAnnotationList.annotations[key].Add(new RestAnnotationEntry
-                    {
-                        author = annotations[i].Author,
-                        id = annotations[i].ID.ToString(),
-                        time = annotations[i].Timestamp.ToProperTimeStamp()
-                    });
+
+                    SendResponse(context, JsonConvert.SerializeObject(restAnnotationList));
                 }
+
+                return context;
             }
+            catch (Exception e)
+            {
+                Printer.PrintMessage($"Rest Exception #{context.Request.Id} {e}");
 
-            SendResponse(context, JsonConvert.SerializeObject(restAnnotationList));
-
-            return context;
+                return context;
+            }
+            finally
+            {
+                Printer.PrintMessage($"Rest Query Retired #{context.Request.Id}");
+            }
         }
 
         // Each group in the PathInfo is "p0" "p1" etc. in context.Request.PathParameters
@@ -298,34 +363,50 @@ namespace Versionr.Network
         [RestRoute(HttpMethod = Grapevine.Shared.HttpMethod.GET, PathInfo = "/annotation/([0-9a-f\\-]+)/([^/]+)/([0-9a-f\\-]+)")]
         public IHttpContext Annotation(IHttpContext context)
         {
-            string versionString = context.Request.PathParameters["p0"];
-            string keyString = context.Request.PathParameters["p1"];
-            bool getAnnotationId = context.Request.PathParameters.Count == 3;
-            string annotationIdString = getAnnotationId ? context.Request.PathParameters["p2"] : null;
-
-            Area ws = Area.Load(Info, true, true);
-            Version ver = ws.GetPartialVersion(versionString);
-
-            if (ver != null)
+            try
             {
-                bool ignoreCase = true;
-                Annotation annotation = null;
-                if (getAnnotationId)
-                    annotation = ws.GetAllAnnotations(ver.ID, keyString, ignoreCase).FirstOrDefault(a => a.ID.ToString().StartsWith(annotationIdString.ToLowerInvariant()));
-                else
-                    annotation = ws.GetAnnotation(ver.ID, keyString, ignoreCase);
+                Printer.PrintMessage($"Rest Begin {context.Request.Url} #{context.Request.Id}");
+                string versionString = context.Request.PathParameters["p0"];
+                string keyString = context.Request.PathParameters["p1"];
+                bool getAnnotationId = context.Request.PathParameters.Count == 3;
+                string annotationIdString = getAnnotationId ? context.Request.PathParameters["p2"] : null;
 
-                if (annotation != null)
-                    SendResponse(context, ws.GetAnnotationAsString(annotation));
-                else
-                    SendResponse(context, Grapevine.Shared.HttpStatusCode.NoContent);   // 204 - everything is fine, you get nothing
+                using (Area ws = Area.Load(Info, true, true))
+                {
+                    Version ver = ws.GetPartialVersion(versionString);
+
+                    if (ver != null)
+                    {
+                        bool ignoreCase = true;
+                        Annotation annotation = null;
+                        if (getAnnotationId)
+                            annotation = ws.GetAllAnnotations(ver.ID, keyString, ignoreCase).FirstOrDefault(a => a.ID.ToString().StartsWith(annotationIdString.ToLowerInvariant()));
+                        else
+                            annotation = ws.GetAnnotation(ver.ID, keyString, ignoreCase);
+
+                        if (annotation != null)
+                            SendResponse(context, ws.GetAnnotationAsString(annotation));
+                        else
+                            SendResponse(context, Grapevine.Shared.HttpStatusCode.NoContent);   // 204 - everything is fine, you get nothing
+                    }
+                    else
+                    {
+                        SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);    // 404 - everything is terrible, you are a monster
+                    }
+                }
+
+                return context;
             }
-            else
+            catch (Exception e)
             {
-                SendResponse(context, Grapevine.Shared.HttpStatusCode.NotFound);    // 404 - everything is terrible, you are a monster
-            }
+                Printer.PrintMessage($"Rest Exception #{context.Request.Id} {e}");
 
-            return context;
+                return context;
+            }
+            finally
+            {
+                Printer.PrintMessage($"Rest Query Retired #{context.Request.Id}");
+            }
         }
 
 

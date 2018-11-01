@@ -4653,17 +4653,22 @@ namespace Versionr
                 // Load metadata DB
                 if (!LocalData.Valid)
                     return false;
+
+                RunLocked(() => { return true; }, !headless);
+
                 Database = WorkspaceDB.Open(LocalData, MetadataFile.FullName);
                 if (!Database.Valid)
                     return false;
                 m_Domain = Database.Domain;
                 if (LocalData.Domain != Domain)
                     return false;
-                
-                if (LocalData.RefreshLocalTimes)
-                    RefreshLocalTimes();
+
                 if (!headless)
+                {
+                    if (LocalData.RefreshLocalTimes)
+                        RefreshLocalTimes();
                     FileTimeCache = LocalData.LoadFileTimesOptimized();
+                }
                 
                 ReferenceTime = LocalData.WorkspaceReferenceTime;
 
