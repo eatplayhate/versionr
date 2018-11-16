@@ -7976,6 +7976,7 @@ namespace Versionr
                                             alterationToCNames.Add(new KeyValuePair<AlterationType, string>(alteration.Type, x.VersionControlRecord.CanonicalName));
                                         }
                                         break;
+                                    case StatusCode.IgnoredModified:
                                     case StatusCode.Ignored:
                                         if (stagedOps != null && stagedOps.Count > 0 && stagedOps.Any(so => so.Type == StageOperationType.MergeRecord))
                                         {
@@ -8000,7 +8001,6 @@ namespace Versionr
                                     case StatusCode.Modified:
                                     case StatusCode.Renamed:
                                     case StatusCode.Copied:
-                                    case StatusCode.IgnoredModified:
                                         {
                                             try
                                             {
