@@ -123,10 +123,13 @@ namespace Versionr.Commands
                 {
                     foreach (var x in targets)
                     {
-                        if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && x.Code == StatusCode.Modified)
+                        if (x.VersionControlRecord != null && !x.IsDirectory && x.FilesystemEntry != null && (x.Code == StatusCode.Modified || x.Code == StatusCode.Conflict))
                         {
                             if (localOptions.Recorded && x.Staged == false)
                                 continue;
+
+                            if (x.Code == StatusCode.Conflict)
+                                Printer.PrintMessage("Object: #b#{0}## is #w#conflicted##.", x.CanonicalName);
 
                             if (Utilities.FileClassifier.Classify(x.FilesystemEntry.Info) == Utilities.FileEncoding.Binary)
                             {
