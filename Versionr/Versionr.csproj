@@ -72,6 +72,7 @@
     <Compile Include="Commands\BranchControl.cs" />
     <Compile Include="Commands\DeleteAnnotation.cs" />
     <Compile Include="Commands\DiffVersions.cs" />
+    <Compile Include="Commands\Extract.cs" />
     <Compile Include="Commands\GetAnnotation.cs" />
     <Compile Include="Commands\ListAnnotation.cs" />
     <Compile Include="Commands\Lock.cs" />
@@ -93,6 +94,7 @@
     <Compile Include="Commands\Log.cs" />
     <Compile Include="Commands\Merge.cs" />
     <Compile Include="Commands\MergeInfo.cs" />
+    <Compile Include="Commands\PatternMatchCommand.cs" />
     <Compile Include="Commands\Pristine.cs" />
     <Compile Include="Commands\Prune.cs" />
     <Compile Include="Commands\Pull.cs" />

@@ -119,6 +119,9 @@ namespace Versionr
         [VerbOption("unstash", HelpText = "Applies a stash to the current working directory.")]
         public Commands.UnstashVerbOptions UnstashVerb { get; set; }
 
+        [VerbOption("extract", HelpText = "Extracts files from a specific version.")]
+        public Commands.ExtractVerbOptions ExtractVerb { get; set; }
+
         [VerbOption("stash-list", HelpText = "Lists available stashes.")]
         public Commands.StashListVerbOptions StashListVerb { get; set; }
 
