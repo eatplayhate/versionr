@@ -1295,6 +1295,8 @@ namespace Versionr.ObjectStore
 
         private Stream OpenCodecStream(Stream stream, out long flength)
         {
+            if (stream == null)
+                throw new NullReferenceException();
             byte[] buffer = new byte[8];
             stream.Read(buffer, 0, 8);
             if (buffer[0] != 'd' || buffer[1] != 'b' || buffer[2] != 'l' || buffer[3] != 'k')
@@ -1343,14 +1345,67 @@ namespace Versionr.ObjectStore
             if (storeData.BlobID.HasValue)
                 return new MemoryStream(BlobDatabase.Get<Blobject>(storeData.BlobID.Value).Data);
             FileInfo info = GetFileForDataID(storeData.Lookup);
-            if (info == null)
+            if (!info.Exists)
+            {
+                Printer.PrintError("#e#StandardObjectStore:## Missing expected file data for object #b#{0}##", storeData.Lookup);
                 return null;
+            }
             return info.OpenRead();
         }
 
         private string GetLookup(Record record)
         {
             return record.Fingerprint + "-" + record.Size.ToString();
+        }
+
+        class ConsistencyCheckPrinterData
+        {
+            public long TotalCount { get; set; }
+            public long FilesProcessed { get; set; }
+            public long BlobsProcessed { get; set; }
+        }
+
+        public override void RunConsistencyCheck()
+        {
+            var objects = ObjectDatabase.Table<FileObjectStoreData>().ToList();
+            Printer.PrintMessage("Running object store check: #b#{0}## objects in database.", objects.Count);
+            ConsistencyCheckPrinterData data = new ConsistencyCheckPrinterData();
+            data.TotalCount = objects.Count;
+
+            var printer = Printer.CreateProgressBarPrinter("Please wait...", "Checking",
+               (obj) => { return string.Format("{0} files, {1} blobs", data.FilesProcessed, data.BlobsProcessed); },
+               (obj) => { return (float)System.Math.Round(100.0 * (data.FilesProcessed + data.BlobsProcessed) / (float)data.TotalCount); },
+               (pct, obj) => { return string.Format("{0}/{1}", (data.FilesProcessed + data.BlobsProcessed), data.TotalCount); },
+               70);
+            printer.Start("Validating Data");
+            int count = 100;
+            List<string> missingData = new List<string>();
+            foreach (var x in objects)
+            {
+                if (x.BlobID.HasValue)
+                {
+                    data.BlobsProcessed++;
+                    if (BlobDatabase.Find<Blobject>(x.BlobID.Value) == null)
+                    {
+                        Printer.PrintMessage("#w#Warning:## Missing bl#b#object## for data: {0}", x.Lookup);
+                    }
+                }
+                else
+                {
+                    data.FilesProcessed++;
+                    if (!HasDataDirect(x.Lookup, out missingData, true))
+                    {
+                        //ObjectDatabase.Delete(x);
+                        Printer.PrintMessage("#w#Warning:## Missing file for data: {0}", x.Lookup);
+                    }
+                }
+                if (--count == 0)
+                {
+                    printer.Update(data);
+                    count = 100;
+                }
+            }
+            printer.End(data);
         }
 
         internal override RecordInfo GetInfo(Record x)

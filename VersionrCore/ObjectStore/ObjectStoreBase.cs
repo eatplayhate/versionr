@@ -41,6 +41,7 @@ namespace Versionr.ObjectStore
         public abstract void ExportDataBlob(string dataIdentifier, bool compressed, System.IO.Stream outputStream);
         public abstract bool HasDataDirect(string x, out List<string> requestedData);
         public abstract bool GetAvailableStreams(string x, out List<string> requestedData);
+        public abstract void RunConsistencyCheck();
         internal abstract RecordInfo GetInfo(Record x);
         internal abstract long GetEntryCount();
         public virtual bool HasData(Record recordInfo)

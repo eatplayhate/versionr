@@ -81,6 +81,11 @@ namespace Versionr
             }
         }
 
+        public void RunObjectStoreCheck()
+        {
+            ObjectStore.RunConsistencyCheck();
+        }
+
         public void RunConsistencyCheck()
         {
             Database.ConsistencyCheck();
@@ -7438,6 +7443,18 @@ namespace Versionr
             if (missingRecords.Count > 0 || missingData.Count > 0)
             {
                 Printer.PrintMessage("This operation requires {0} remote objects.", missingRecords.Count + missingData.Count);
+                if (Printer.EnableDiagnostics)
+                {
+                    foreach (var x in missingRecords)
+                    {
+                        Printer.PrintDiagnostics("Record: #b#{0}##", x.CanonicalName);
+                        Printer.PrintDiagnostics("Data ID: #c#{0}##", x.DataIdentifier);
+                    }
+                    foreach (var x in missingData)
+                    {
+                        Printer.PrintDiagnostics("Blob: #b#{0}##", x);
+                    }
+                }
                 var configs = LocalData.Table<LocalState.RemoteConfig>().OrderByDescending(x => x.LastPull).ToList();
                 foreach (var x in configs)
                 {
@@ -8513,7 +8530,14 @@ namespace Versionr
                     }
                     using (var fsd = dest.Open(FileMode.Create))
                     {
-                        ObjectStore.ExportRecordStream(rec, fsd);
+                        try
+                        {
+                            ObjectStore.ExportRecordStream(rec, fsd);
+                        }
+                        catch
+                        {
+                            Printer.PrintError("#e#Error:## Unable to restore record for #b#{0}##", dest.FullName);
+                        }
                     }
                     dest = new FileInfo(dest.FullName);
                 }

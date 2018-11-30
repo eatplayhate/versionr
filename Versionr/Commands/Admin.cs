@@ -51,6 +51,8 @@ namespace Versionr.Commands
         public bool RawBlob { get; set; }
         [Option("echo", Required = false, HelpText = "Echos additional information about what is being run.")]
         public bool Echo { get; set; }
+        [Option("objectcheck", Required = false, HelpText = "Runs an object store integrity check.")]
+        public bool ObjectCheck { get; set; }
     }
     class Admin : BaseWorkspaceCommand
     {
@@ -88,6 +90,10 @@ namespace Versionr.Commands
                         Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", 0);
                     }
                 }
+            }
+            if (localOptions.ObjectCheck)
+            {
+                Workspace.RunObjectStoreCheck();
             }
             if (localOptions.Check)
             {
