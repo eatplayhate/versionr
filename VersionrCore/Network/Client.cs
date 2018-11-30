@@ -380,7 +380,7 @@ namespace Versionr.Network
 
         public bool SyncCurrentRecords()
         {
-			return SyncRecords(Workspace.GetCurrentRecords());
+			return SyncRecords(Workspace.FindMissingRecords(Workspace.GetCurrentRecords()));
 			
 		}
         public bool SyncAllRecords()

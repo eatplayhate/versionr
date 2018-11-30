@@ -1388,6 +1388,7 @@ namespace Versionr.ObjectStore
                     if (BlobDatabase.Find<Blobject>(x.BlobID.Value) == null)
                     {
                         Printer.PrintMessage("#w#Warning:## Missing bl#b#object## for data: {0}", x.Lookup);
+                        ObjectDatabase.Delete(x);
                     }
                 }
                 else
@@ -1395,8 +1396,8 @@ namespace Versionr.ObjectStore
                     data.FilesProcessed++;
                     if (!HasDataDirect(x.Lookup, out missingData, true))
                     {
-                        //ObjectDatabase.Delete(x);
                         Printer.PrintMessage("#w#Warning:## Missing file for data: {0}", x.Lookup);
+                        ObjectDatabase.Delete(x);
                     }
                 }
                 if (--count == 0)
