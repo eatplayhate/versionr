@@ -57,7 +57,7 @@ namespace Versionr.Network
         public static bool Run(System.IO.DirectoryInfo info, int? port, string configFile = null, bool? encryptData = null)
         {
             BaseDirectory = info;
-            Area ws = Area.Load(info, true);
+            Area ws = Area.Load(info, false);
             if (ws == null)
             {
                 Versionr.Utilities.MultiArchPInvoke.BindDLLs();
@@ -70,6 +70,9 @@ namespace Versionr.Network
                 ConfigFile = configFile;
                 LoadConfig();
             }
+            Config.RunHeadless = string.IsNullOrEmpty(ws?.Directives?.ObjectStorePath);
+            if (!Config.RunHeadless)
+                Printer.PrintMessage("Local object store redirected - running server #e#non-headless##.");
             HookProcessor = new Hooks.HookProcessor(Config.Hooks);
             if ((Config.IncludeRoot.HasValue && Config.IncludeRoot.Value) || (!Config.IncludeRoot.HasValue && Domains.Count == 0))
             {
@@ -341,7 +344,7 @@ namespace Versionr.Network
                     }
                     try
                     {
-                        ws = Area.Load(domainInfo.Directory, true, true);
+                        ws = Area.Load(domainInfo.Directory, Config.RunHeadless, true);
                         if (domainInfo.Bare)
                             throw new Exception("Domain is bare, but workspace could be loaded!");
                     }

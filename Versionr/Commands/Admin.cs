@@ -83,12 +83,18 @@ namespace Versionr.Commands
                 }
                 else
                 {
-                    using (var fout = System.IO.File.Create(string.Format("RecordData-{0}.out", 0)))
+                    List<string> ignored = new List<string>();
+                    if (Workspace.ObjectStore.HasDataDirect(localOptions.Blob, out ignored))
                     {
-                        Printer.PrintMessage("DataID: #b#{0}", localOptions.Blob);
-                        Workspace.ObjectStore.ExportDataStream(localOptions.Blob, fout);
-                        Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", 0);
+                        using (var fout = System.IO.File.Create(string.Format("RecordData-{0}.out", 0)))
+                        {
+                            Printer.PrintMessage("DataID: #b#{0}", localOptions.Blob);
+                            Workspace.ObjectStore.ExportDataStream(localOptions.Blob, fout);
+                            Printer.PrintMessage(" - Wrote record to: RecordData-{0}.out", 0);
+                        }
                     }
+                    else
+                        Printer.PrintMessage("#w#Warning:## No data available with that identifier.");
                 }
             }
             if (localOptions.ObjectCheck)

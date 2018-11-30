@@ -22,6 +22,7 @@ namespace Versionr.Network
         public WebConfig WebService { get; set; }
         public RestConfig RestService { get; set; }
         public Newtonsoft.Json.Linq.JArray Hooks { get; set; }
+        public bool RunHeadless { get; set; }
         public bool RequiresAuthentication
         {
             get
@@ -44,6 +45,7 @@ namespace Versionr.Network
             Encrypted = true;
             AuthenticationAttempts = 3;
             Domains = new Dictionary<string, string>();
+            RunHeadless = false;
         }
 
         internal AuthEntry GetSimpleLogin(string identifierToken)
