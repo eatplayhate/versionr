@@ -91,6 +91,17 @@ namespace CommandLine
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="CommandLine.OptionListAttribute"/> class.
+        /// </summary>
+        /// <param name="longName">The long name of the option or null if not used.</param>
+        /// <param name="separator">Values separator character.</param>
+        public OptionListAttribute(string longName, char separator)
+            : base(null, longName)
+        {
+            Separator = separator;
+        }
+
+        /// <summary>
         /// Gets or sets the values separator character.
         /// </summary>
         [SuppressMessage("Microsoft.Design", "CA1019:DefineAccessorsForAttributeArguments", Justification = "The char Separator property matches shortName char constructor argument because the ShortName property is defined in BaseOptionAttribute as nullable char")]

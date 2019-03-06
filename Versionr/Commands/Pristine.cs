@@ -21,7 +21,11 @@ namespace Versionr.Commands
             {
                 return new string[]
                 {
-                    "Removes all files which aren't part of the vault (skips directories which start with a '.' and \".vruser\" files)"
+                    "Removes all files which aren't part of the vault",
+                    "This has the following exceptions:",
+                    $"\tProtected hidden files: {String.Join(", ", ProtectedHiddenFiles)}",
+                    $"\tProtected hidden directories: {String.Join(", ", ProtectedHiddenDirectories)}",
+                    "Additionally, the \'.versionr\' folder is always retained.",
                 };
             }
         }
@@ -39,6 +43,21 @@ namespace Versionr.Commands
 
         [Option('q', "quiet", HelpText = "Removes output text")]
         public bool Quiet { get; set; }
+
+        [Option('l', "list", HelpText = "List files that would be deleted before deleting")]
+        public bool List { get; set; }
+
+        [Option('h', "hard", HelpText = "Also clean protected hidden files and directories")]
+        public bool Hard { get; set; }
+
+        // Hidden files and directories usually ignored by pristine. Must start with '.'
+        [OptionList("protected-hidden-files", ';', HelpText = "Override list of protected hidden files. Names must start with \'.\'")]
+        public IEnumerable<string> ProtectedHiddenFiles { get; set; } = new List<string> { ".vruser", ".p4ignore", ".p4config" };
+
+        // Hidden files and directories usually ignored by pristine. Must start with '.'
+
+        [OptionList("protected-hidden-dirs", ';', HelpText = "Override list of protected hidden directories. Names must start with \'.\'")]
+        public IEnumerable<string> ProtectedHiddenDirectories { get; set; } = new List<string> { ".svn" };
     }
     class Pristine : BaseWorkspaceCommand
     {
@@ -56,7 +75,7 @@ namespace Versionr.Commands
             }
             List<string> files = new List<string>();
             List<string> directories = new List<string>();
-            PopulateFilesystem(files, directories, Workspace.RootDirectory);
+            PopulateFilesystem(files, directories, Workspace.RootDirectory, localOptions);
 
             Printer.PrintMessage("#b#{0}## objects in vault, #b#{1}## objects in filesystem.", records.Count, files.Count + directories.Count);
             System.Collections.Concurrent.ConcurrentBag<string> filesToDelete = new System.Collections.Concurrent.ConcurrentBag<string>();
@@ -91,7 +110,16 @@ namespace Versionr.Commands
                 Printer.PrintMessage("No changes found.");
                 return true;
             }
-            
+
+            if (localOptions.List)
+            {
+                Printer.PrintMessage("Identified #e#{0}## files and #e#{1}## directories to remove.", filesToDelete.Count, directoriesToDelete.Count);
+                foreach (var x in filesToDelete)
+                    Printer.PrintMessage(x);
+                foreach (var x in directoriesToDelete)
+                    Printer.PrintMessage(x);
+            }
+
             Printer.PrintMessage("Identified #e#{0}## files and #e#{1}## directories which will be removed.", filesToDelete.Count, directoriesToDelete.Count);
             if (localOptions.Force || Printer.Prompt("Restore to pristine state?"))
             {
@@ -125,23 +153,22 @@ namespace Versionr.Commands
             return true;
         }
 
-        private void PopulateFilesystem(List<string> files, List<string> directories, DirectoryInfo rootDirectory)
+        private void PopulateFilesystem(List<string> files, List<string> directories, DirectoryInfo rootDirectory, PristineVerbOptions options)
         {
             foreach (var x in rootDirectory.GetFiles())
             {
-                // Skip .vruser
-                if (x.Name == ".vruser")
+                if (!options.Hard && x.Name.StartsWith(".") && options.ProtectedHiddenFiles.Contains(x.Name))
                     continue;
 
                 files.Add(x.FullName);
             }
             foreach (var x in rootDirectory.GetDirectories())
             {
-                if (!x.Name.StartsWith("."))
-                {
-                    directories.Add(x.FullName);
-                    PopulateFilesystem(files, directories, x);
-                }
+                if (x.Name.StartsWith(".") && (x.Name == ".versionr" || !options.Hard && options.ProtectedHiddenDirectories.Contains(x.Name)))
+                    continue;
+
+                directories.Add(x.FullName);
+                PopulateFilesystem(files, directories, x, options);
             }
         }
 
