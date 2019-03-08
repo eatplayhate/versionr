@@ -169,6 +169,8 @@ namespace Vsr2Git.Network
 			var mergeParents = m_VsrArea.GetMergeInfo(vsrVersion.ID);
 			foreach (var mergeInfo in mergeParents)
 			{
+                if (mergeInfo.Type == Versionr.Objects.MergeType.Rebase)
+                    continue;
 				var gitMergeCommit = GetGitCommitForVersionrId(mergeInfo.SourceVersion);
 				Printer.PrintDiagnostics("  Parent: vsr {0} = git {1}", mergeInfo.SourceVersion, gitMergeCommit);
 				gitParents.Add(gitMergeCommit);
@@ -280,6 +282,11 @@ namespace Vsr2Git.Network
 			}
 			else if (vsrRecord.IsFile)
 			{
+                if (vsrRecord.CanonicalName.Contains("/.git/"))
+                {
+                    Printer.PrintDiagnostics("  Skipping embedded .git entry");
+                    return treeDefinition;
+                }
 				var mode = Mode.NonExecutableFile;
 				if ((vsrRecord.Attributes & Versionr.Objects.Attributes.Executable) != 0)
 					mode = Mode.ExecutableFile;
@@ -307,9 +314,13 @@ namespace Vsr2Git.Network
 				return treeDefinition;
 			}
 			else
-			{
-				Printer.PrintDiagnostics("  Remove record {0}", vsrRecord.CanonicalName);
-				return treeDefinition.Remove(vsrRecord.CanonicalName);
+            {
+                if (vsrRecord.CanonicalName.Contains("/.git/"))
+                {
+                    return treeDefinition;
+                }
+                Printer.PrintDiagnostics("  Remove record {0}", vsrRecord.CanonicalName);
+                return treeDefinition.Remove(vsrRecord.CanonicalName);
 			}
 		}
 
@@ -335,8 +346,9 @@ namespace Vsr2Git.Network
 			var result = new List<Versionr.Objects.Version>();
 			var resultHash = new HashSet<Guid>(m_VersionrToGitMapping.Keys);
 
-			// Find list of heads to replicate
-			var replicationStack = new Stack<Guid>();
+            // Find list of heads to replicate
+            HashSet<Guid> inStack = new HashSet<Guid>();
+            var replicationStack = new Stack<Guid>();
 			foreach (var branch in m_VsrArea.Branches)
 			{
 				if (branchName != null && branch.Name != branchName)
@@ -345,16 +357,26 @@ namespace Vsr2Git.Network
 				foreach (var head in m_VsrArea.GetBranchHeads(branch))
 				{
 					replicationStack.Push(head.Version);
-				}
+                    inStack.Add(head.Version);
+                }
 			}
 
-			// Recursively add all required parent versions
+            // Recursively add all required parent versions
+            m_VsrArea.BeginDatabaseTransaction();
 			while (replicationStack.Count > 0)
 			{
-				var vsrVersion = m_VsrArea.GetVersion(replicationStack.Peek());
+                if (resultHash.Contains(replicationStack.Peek()))
+                {
+                    replicationStack.Pop();
+                    continue;
+                }
+
+                var vsrVersion = m_VsrArea.GetVersion(replicationStack.Peek());
 				bool hasParents = true;
 
-				if (vsrVersion.Parent.HasValue && !resultHash.Contains(vsrVersion.Parent.Value))
+                int size = replicationStack.Count;
+
+                if (vsrVersion.Parent.HasValue && !resultHash.Contains(vsrVersion.Parent.Value))
 				{
 					replicationStack.Push(vsrVersion.Parent.Value);
 					hasParents = false;
@@ -369,7 +391,7 @@ namespace Vsr2Git.Network
 					if (!resultHash.Contains(merge.SourceVersion))
 					{
 						replicationStack.Push(merge.SourceVersion);
-						hasParents = false;
+                        hasParents = false;
 					}
 				}
 
@@ -380,11 +402,17 @@ namespace Vsr2Git.Network
 						resultHash.Add(vsrVersion.ID);
 						result.Add(vsrVersion);
 					}
-					replicationStack.Pop();
+                    replicationStack.Pop();
 				}
+                else if (size == replicationStack.Count) // no work was done :(
+                {
+                    int x = 1;
+                }
 			}
+            m_VsrArea.CommitDatabaseTransaction();
 
-			return result;
+
+            return result;
 		}
 
         public bool RequestUpdate
@@ -399,8 +427,9 @@ namespace Vsr2Git.Network
 		{
             // Populate replication map from git notes
             try
-			{
-				foreach (var note in m_GitRepository.Notes["commits"])
+            {
+                Printer.PrintMessage("Parsing git repository note data...");
+                foreach (var note in m_GitRepository.Notes["commits"])
 				{
 					Guid? versionrId = ParseNoteVersionrId(note.Message);
 					if (versionrId.HasValue)
@@ -412,30 +441,55 @@ namespace Vsr2Git.Network
 
 			// Determine list and order of versions to replicate
 			Printer.PrintMessage("Determining versions to replicate...");
-			var versionsToReplicate = GetVersionsToReplicate();
+			var versionsToReplicate = GetVersionsToReplicate(branchName != null ? (branchName == "*" ? null : branchName) : null);
 			Printer.PrintMessage("There are {0} versions to replicate", versionsToReplicate.Count);
 
-			// Determine missing records
-			var missingRecords = new List<Versionr.Objects.Record>();
-			foreach (var vsrVersion in versionsToReplicate)
-			{
-				var alterations = m_VsrArea.GetAlterations(vsrVersion);
-				var targetRecords = GetTargetRecords(alterations);
-				missingRecords.AddRange(m_VsrArea.FindMissingRecords(targetRecords));
-			}
+            // Determine missing records
+            var missingRecords = new List<Versionr.Objects.Record>();
+            var missingRecordsSet = new HashSet<long>();
+            var missingRecordsSetDataID = new HashSet<string>();
+            m_VsrArea.BeginDatabaseTransaction();
 
-			// Download missing records
-			Printer.PrintMessage("Downloading data for {0} records ({1} total)", missingRecords.Count, Versionr.Utilities.Misc.FormatSizeFriendly(missingRecords.Sum(x => x.Size)));
+            var spinner = Printer.CreateSpinnerPrinter("Validating data for replication: ", (object o) => { return string.Format("{0}/{1}", (int)o, versionsToReplicate.Count); });
+            int index = 0;
+            foreach (var vsrVersion in versionsToReplicate)
+			{
+                spinner.Update(index++);
+                var alterations = m_VsrArea.GetAlterations(vsrVersion);
+                var targetRecords = new List<Versionr.Objects.Record>();
+                foreach (var x in GetTargetRecords(alterations))
+                {
+                    if (!missingRecordsSet.Contains(x.Id) && !missingRecordsSetDataID.Contains(x.Fingerprint))
+                    {
+                        targetRecords.Add(x);
+                    }
+                }
+                var missing = m_VsrArea.FindMissingRecords(targetRecords);
+                foreach (var x in missing)
+                {
+                    missingRecords.Add(x);
+                    missingRecordsSet.Add(x.Id);
+                    missingRecordsSetDataID.Add(x.DataIdentifier);
+                }
+            }
+
+            spinner.End(index);
+
+            m_VsrArea.CommitDatabaseTransaction();
+
+            // Download missing records
+            Printer.PrintMessage("Downloading data for {0} records ({1} total)", missingRecords.Count, Versionr.Utilities.Misc.FormatSizeFriendly(missingRecords.Sum(x => x.Size)));
 			m_VsrArea.GetMissingObjects(missingRecords, null);
 
-			// Perform replication
-			foreach (var vsrVersion in versionsToReplicate)
-			{
-				Replicate(vsrVersion);
-			}
+            // Perform replication
+            index = 0;
+            foreach (var vsrVersion in versionsToReplicate)
+            {
+                Replicate(vsrVersion);
+            }
 
-			// Replicate branch pointers
-			var branchNames = new HashSet<string>();
+            // Replicate branch pointers
+            var branchNames = new HashSet<string>();
 			foreach (var branch in m_VsrArea.Branches)
 			{
 				if (branchName != null && branch.Name != branchName)
