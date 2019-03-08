@@ -57,7 +57,7 @@ namespace Versionr.Objects
 		{
 			get
 			{
-				return !IsSymlink && CanonicalName.EndsWith("/", StringComparison.Ordinal);
+				return !IsSymlink && CanonicalName[CanonicalName.Length - 1] == '/';
 			}
 		}
 		[SQLite.Ignore]

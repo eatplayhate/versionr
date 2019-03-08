@@ -19,3 +19,5 @@ Release/
 SQLite/obj/
 SQLite/bin/
 *.opensdf
+VersionrUI/obj/
+bin_debug/
